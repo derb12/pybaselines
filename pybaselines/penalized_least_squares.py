@@ -23,7 +23,7 @@ import numpy as np
 from scipy.sparse import diags, identity
 from scipy.sparse.linalg import spsolve
 
-from .utils import _setup_pls, difference_matrix, relative_difference
+from . import utils
 
 
 def asls(data, lam=1e5, p=1e-3, order=2, max_iter=250, tol=1e-3, weights=None):
@@ -43,11 +43,12 @@ def asls(data, lam=1e5, p=1e-3, order=2, max_iter=250, tol=1e-3, weights=None):
 
     """
     y = np.asarray(data)
-    D, W, w = _setup_pls(y.shape[0], lam, order, weights)
+    D, W, w = utils._setup_pls(y.shape[0], lam, order, weights)
     for _ in range(max_iter):
         z = spsolve(W + D, w * y)
-        w_new = p * (y > z) + (1 - p) * (y < z)
-        if relative_difference(w, w_new) < tol:
+        mask = (y > z)
+        w_new = p * mask + (1 - p) * (~mask)
+        if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -56,7 +57,7 @@ def asls(data, lam=1e5, p=1e-3, order=2, max_iter=250, tol=1e-3, weights=None):
     return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
 
 
-def iasls(data, x_data, lam=1e5, p=1e-3, lam_1=1e-4, max_iter=50, tol=1e-3, weights=None, full=False):
+def iasls(data, x_data=None, lam=1e5, p=1e-3, lam_1=1e-4, max_iter=50, tol=1e-3, weights=None):
     """
     Improved asymmetric least squares (IAsLS).
 
@@ -66,19 +67,20 @@ def iasls(data, x_data, lam=1e5, p=1e-3, lam_1=1e-4, max_iter=50, tol=1e-3, weig
     asymmetric least squares method, Analytical Methods 6(12) (2014) 4402-4407.
 
     """
-    y = np.asarray(data)
-    x = np.asarray(x_data)
+    y, x, *_ = utils._setup_polynomial(data, x_data)
     if weights is None:
         z = np.polynomial.Polynomial.fit(x, y, 2)(x)
-        weights = p * (y > z) + (1 - p) * (y < z)
+        mask = (y > z)
+        weights = p * mask + (1 - p) * (~mask)
 
-    D, W, w = _setup_pls(y.shape[0], lam, 2, weights)
-    D1 = difference_matrix(y.shape[0], 1)
-    D1 = lam_1 * D1.T * D1
+    D, W, w = utils._setup_pls(y.shape[0], lam, 2, weights)
+    D_1 = utils.difference_matrix(y.shape[0], 1)
+    D_1 = lam_1 * D_1.T * D_1
     for _ in range(max_iter):
-        z = spsolve(W.T * W + D1 + D, (W.T * W + D1) * y)
-        w_new = p * (y > z) + (1 - p) * (y < z)
-        if relative_difference(w, w_new) < tol:
+        z = spsolve(W.T * W + D_1 + D, (W.T * W + D_1) * y)
+        mask = (y > z)
+        w_new = p * mask + (1 - p) * (~mask)
+        if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -121,7 +123,7 @@ def airpls(data, lam=1e6, order=2, max_iter=50, tol=1e-3, weights=None):
 
     """
     y = np.asarray(data)
-    D, W, w = _setup_pls(y.shape[0], lam, order, weights)
+    D, W, w = utils._setup_pls(y.shape[0], lam, order, weights)
     for i in range(1, max_iter + 1):
         z = spsolve(W + D, w * y)
         diff = y - z
@@ -129,8 +131,7 @@ def airpls(data, lam=1e6, order=2, max_iter=50, tol=1e-3, weights=None):
         diff_neg_sum = abs(diff[neg_mask].sum())
         if diff_neg_sum / (abs(y)).sum() < tol:
             break
-        w[~neg_mask] = 0
-        w[neg_mask] = np.exp(i * abs(diff[diff < 0]) / diff_neg_sum)
+        w = np.exp(i * abs(diff) / diff_neg_sum) * neg_mask
         W.setdiag(w)
 
     return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
@@ -147,14 +148,15 @@ def arpls(data, lam=10**5, order=2, max_iter=500, tol=0.01, weights=None):
 
     """
     y = np.asarray(data)
-    D, W, w = _setup_pls(y.shape[0], lam, 2, weights)
+    D, W, w = utils._setup_pls(y.shape[0], lam, order, weights)
     for _ in range(max_iter):
         z = spsolve(W + D, w * y)
         diff = y - z
-        mean = np.mean(diff[diff < 0])
-        std = max(abs(np.std(diff[diff < 0])), np.finfo(np.float).eps)
+        neg_mask = diff < 0
+        mean = np.mean(diff[neg_mask])
+        std = max(abs(np.std(diff[neg_mask])), utils.MIN_FLOAT)
         w_new = 1 / (1 + np.exp(2 * (diff - (2 * std - mean)) / std))
-        if relative_difference(w, w_new) < tol:
+        if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -174,19 +176,20 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=100, tol=1e-3, weights=None):
     """
     y = np.asarray(data)
 
-    D, W, w = _setup_pls(y.shape[0], lam, 2, weights)
-    D1 = difference_matrix(y.shape[0], 1)
-    D1 = D1.T * D1
+    D, W, w = utils._setup_pls(y.shape[0], lam, 2, weights)
+    D_1 = utils.difference_matrix(y.shape[0], 1)
+    D_1 = D_1.T * D_1
     Identity = identity(y.shape[0])
     for i in range(1, max_iter + 1):
-        z = spsolve(W + D1 + (Identity - eta * W) * D, w * y)
+        z = spsolve(W + D_1 + (Identity - eta * W) * D, w * y)
         diff = y - z
-        mean = np.mean(diff[diff < 0])
-        std = max(abs(np.std(diff[diff < 0])), np.finfo(np.float).eps)
+        neg_mask = diff < 0
+        mean = np.mean(diff[neg_mask])
+        std = max(abs(np.std(diff[neg_mask])), utils.MIN_FLOAT)
         w_new = 0.5 * (
             1 - ((np.exp(i) * (diff - (2 * std - mean)) / std) / (1 + abs(np.exp(i) * (diff - (2 * std - mean)) / std)))
         )
-        if relative_difference(w, w_new) < tol:
+        if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -210,15 +213,15 @@ def iarpls(data, lam=10**5, order=2, max_iter=500, tol=0.01, weights=None):
 
     """
     y = np.asarray(data)
-    D, W, w = _setup_pls(y.shape[0], lam, 2, weights)
+    D, W, w = utils._setup_pls(y.shape[0], lam, order, weights)
     for i in range(1, max_iter + 1):
         z = spsolve(W + D, w * y)
         diff = y - z
-        std = max(abs(np.std(diff[diff < 0])), np.finfo(np.float).eps)
+        std = max(abs(np.std(diff[diff < 0])), utils.MIN_FLOAT)
         w_new = 0.5 * (
             1 - ((np.exp(i) * (diff - 2 * std) / std) / np.sqrt(1 + (np.exp(i) * (diff - 2 * std) / std)**2))
         )
-        if relative_difference(w, w_new) < tol:
+        if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -238,15 +241,15 @@ def aspls(data, lam=10**5, order=2, max_iter=250, tol=1e-3, weights=None):
 
     """
     y = np.asarray(data)
-    D, W, w = _setup_pls(y.shape[0], lam, 2, weights)
+    D, W, w = utils._setup_pls(y.shape[0], lam, order, weights)
     # Use a sparse diagonal matrix rather than an array for alpha in order to keep sparcity.
     alpha = diags(w)
     for i in range(1, max_iter + 1):
         z = spsolve(W + alpha * D, w * y)
         diff = y - z
-        std = max(abs(np.std(diff[diff < 0])), np.finfo(np.float).eps) #TODO check whether dof should be 1 rather than 0
+        std = max(abs(np.std(diff[diff < 0])), utils.MIN_FLOAT) #TODO check whether dof should be 1 rather than 0
         w_new = 1 / (1 + np.exp(2 * (diff - std)) / std)
-        if relative_difference(w, w_new) < tol:
+        if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)

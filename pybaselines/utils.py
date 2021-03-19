@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 """Helper functions for pybaselines.
 
+Parameters
+----------
+MIN_FLOAT : float
+    The minimum positive float value.
+
 Created on March 5, 2021
 
 @author: Donald Erb
@@ -11,27 +16,7 @@ import numpy as np
 from scipy.sparse import diags
 
 
-def get_array(*args, dtype=None):
-    """
-    Converts array-like inputs into numpy arrays.
-
-    Parameters
-    ----------
-    *args : array-like
-        The value(s) to convert to arrays.
-    dtype : type, optional
-        The typing to cast the array. Default is None.
-
-    Returns
-    -------
-    np.ndarray or generator(np.ndarray, ...)
-        If only one
-
-    """
-    if len(args) == 1:
-        return np.asarray(args[0], dtype)
-    else:
-        return (np.asarray(arg, dtype) for arg in args)
+MIN_FLOAT = np.finfo(float).eps
 
 
 def difference_matrix(data_size, order=2):
@@ -123,6 +108,108 @@ def _setup_pls(data_size, lam, order=2, weights=None):
     return lam * diff_matrix.T * diff_matrix, diags(weight_array), weight_array
 
 
+def _get_vander(x, poly_order=2, weights=None):
+    """
+    Calculates the Vandermonde matrix and its pseudo-inverse.
+
+    Parameters
+    ----------
+    x : [type]
+        [description]
+    poly_order : int, optional
+        [description]. Default is 2.
+    weights : np.ndarray, optional
+
+
+    Returns
+    -------
+    vander : np.ndarray
+        The Vandermonde matrix.
+    vander_pinv : np.ndarray
+        The pseudo-inverse of the Vandermonde, with weights applied if input.
+        Calculated using singular value decomposition (SVD).
+
+    """
+    vander = np.polynomial.polynomial.polyvander(x, poly_order)
+    if weights is not None:
+        vander_pinv = np.linalg.pinv(diags(weights) * vander)
+    else:
+        vander_pinv = np.linalg.pinv(vander)
+
+    return vander, vander_pinv
+
+
+def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
+                      return_vander=False, return_pinv=False):
+    """
+    Sets the starting parameters for doing polynomial fitting.
+
+    Parameters
+    ----------
+    data : [type]
+        [description]
+    x_data : [type], optional
+        [description]. Default is None.
+    weights : [type], optional
+        [description]. Default is None.
+    poly_order : int, optional
+        [description]. Default is 2.
+    return_vander : bool, optional
+        [description]. Default is False.
+    return_pinv : bool, optional
+        [description]. Default is False.
+
+    Returns
+    -------
+    y : np.ndarray
+
+    x : np.ndarray
+
+    w : np.ndarray
+
+    original_domain : np.ndarray, shape (2,)
+        The minimum and maximum values of the original x_data values. Can
+        be used to convert the coefficents found during least squares
+        minimization using the normalized x into usable polynomial coefficients
+        for the original x_data.
+    vander : np.ndarray
+        Only returned if return_vander is True. The Vandermonde matrix for the
+        normalized x values.
+    vander_pinv : np.ndarray
+        Only returned if return_pinv is True. The pseudo-inverse of the
+        Vandermonde matrix, calculated with singular value decomposition (SVD).
+
+    Notes
+    -----
+    If x_data is given, its domain is reduced from [min(x_data), max(x_data)]
+    to [-1, 1] to improve the numerical stability of calculations; since the
+    Vandermonde matrix goes from x^0 to x^poly_order, large values of x would
+    otherwise cause difficulty when doing least squares minimization.
+
+    """
+    y = np.asarray(data)
+    if x_data is None:
+        x = np.linspace(-1, 1, y.shape[0])
+        original_domain = np.array([-1, 1])
+    else:
+        x = np.asarray(x_data)
+        original_domain = np.polynomial.polyutils.getdomain(x)
+        x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1, 1]))
+    if weights is not None:
+        w = np.asarray(weights).copy()
+    else:
+        w = np.ones(y.shape[0])
+
+    output = [y, x, w, original_domain]
+    if return_vander:
+        vander, vander_pinv = _get_vander(x, poly_order, np.sqrt(w))
+        output.append(vander)
+        if return_pinv:
+            output.append(vander_pinv)
+
+    return output
+
+
 def relative_difference(old, new):
     """
     Calculates the relative difference (norm(new-old) / norm(old)) of two values.
@@ -142,7 +229,7 @@ def relative_difference(old, new):
         The relative difference between the old and new values.
 
     """
-    return np.linalg.norm(new - old) / np.linalg.norm(old)
+    return np.linalg.norm(new - old) / max(np.linalg.norm(old), MIN_FLOAT)
 
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
