@@ -26,7 +26,7 @@ from scipy.sparse.linalg import spsolve
 from .utils import _setup_pls, difference_matrix, relative_difference
 
 
-def asls(data, lam=1e5, p=1e-3, order=2, max_iter=50, tol=1e-3, weights=None, full=False):
+def asls(data, lam=1e5, p=1e-3, order=2, max_iter=250, tol=1e-3, weights=None):
     """
     Fits the baseline using assymetric least squared (AsLS) fitting.
 
@@ -52,11 +52,8 @@ def asls(data, lam=1e5, p=1e-3, order=2, max_iter=50, tol=1e-3, weights=None, fu
         w = w_new
         W.setdiag(w)
 
-    if not full:
-        return z
-    else:
-        diff = y - z
-        return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    diff = y - z
+    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
 
 
 def iasls(data, x_data, lam=1e5, p=1e-3, lam_1=1e-4, max_iter=50, tol=1e-3, weights=None, full=False):
@@ -86,18 +83,15 @@ def iasls(data, x_data, lam=1e5, p=1e-3, lam_1=1e-4, max_iter=50, tol=1e-3, weig
         w = w_new
         W.setdiag(w)
 
-    if not full:
-        return z
-    else:
-        diff = y - z
-        return (
-            z,
-            {'roughness': z.T * D * z + diff.T * D1.T * D1 * diff,
-             'fidelity': diff.T * W * diff, 'weights': w}
-        )
+    diff = y - z
+    return (
+        z,
+        {'roughness': z.T * D * z + diff.T * D_1.T * D_1 * diff,
+         'fidelity': diff.T * W * diff, 'weights': w}
+    )
 
 
-def airpls(data, lam=1e6, order=2, max_iter=50, tol=1e-3, weights=None, full=False):
+def airpls(data, lam=1e6, order=2, max_iter=50, tol=1e-3, weights=None):
     """
     Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -139,13 +133,10 @@ def airpls(data, lam=1e6, order=2, max_iter=50, tol=1e-3, weights=None, full=Fal
         w[neg_mask] = np.exp(i * abs(diff[diff < 0]) / diff_neg_sum)
         W.setdiag(w)
 
-    if not full:
-        return z
-    else:
-        return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
 
 
-def arpls(data, lam=10**5, max_iter=500, tol=0.01, weights=None, full=False):
+def arpls(data, lam=10**5, order=2, max_iter=500, tol=0.01, weights=None):
     """
     Asymmetrically reweighted penalized least squares smoothing (ArPLS).
 
@@ -168,13 +159,10 @@ def arpls(data, lam=10**5, max_iter=500, tol=0.01, weights=None, full=False):
         w = w_new
         W.setdiag(w)
 
-    if not full:
-        return z
-    else:
-        return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
 
 
-def drpls(data, lam=1e5, eta=0.5, max_iter=100, tol=1e-3, weights=None, full=False):
+def drpls(data, lam=1e5, eta=0.5, max_iter=100, tol=1e-3, weights=None):
     """
     Doubly reweighted penalized least squares baseline.
 
@@ -203,17 +191,14 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=100, tol=1e-3, weights=None, full=Fal
         w = w_new
         W.setdiag(w)
 
-    if not full:
-        return z
-    else:
-        return (
-            z,
-            {'roughness': (Identity - eta * W) * (z.T * D * z) + z.T * D1 * z,
-             'fidelity': diff.T * W * diff, 'weights': w}
-        )
+    return (
+        z,
+        {'roughness': (Identity - eta * W) * (z.T * D * z) + z.T * D_1 * z,
+         'fidelity': diff.T * W * diff, 'weights': w}
+    )
 
 
-def iarpls(data, lam=10**5, max_iter=500, tol=0.01, weights=None, full=False):
+def iarpls(data, lam=10**5, order=2, max_iter=500, tol=0.01, weights=None):
     """
     Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
 
@@ -238,13 +223,10 @@ def iarpls(data, lam=10**5, max_iter=500, tol=0.01, weights=None, full=False):
         w = w_new
         W.setdiag(w)
 
-    if not full:
-        return z
-    else:
-        return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
 
 
-def aspls(data, lam=10**5, max_iter=500, tol=0.01, weights=None, full=False):
+def aspls(data, lam=10**5, order=2, max_iter=250, tol=1e-3, weights=None):
     """
     Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -270,7 +252,4 @@ def aspls(data, lam=10**5, max_iter=500, tol=0.01, weights=None, full=False):
         W.setdiag(w)
         alpha.setdiag(abs(diff) / np.nanmax(abs(diff)))
 
-    if not full:
-        return z
-    else:
-        return z, {'roughness': z.T * alpha * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * alpha * D * z, 'fidelity': diff.T * W * diff, 'weights': w}

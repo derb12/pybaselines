@@ -17,7 +17,7 @@ from .polynomial import imodpoly, modpoly
 from .utils import gaussian
 
 
-def collab_pls(data, average_dataset=True, method='asls', full=False, **method_kwargs):
+def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     """
     Collaborative Penalized Least Squares (collab-PLS).
 
@@ -73,10 +73,7 @@ def collab_pls(data, average_dataset=True, method='asls', full=False, **method_k
     for entry in data:
         baselines.append(fit_func(entry, **method_kwargs))
 
-    if not full:
-        return np.vstack(baselines)
-    else:
-        return np.vstack(baselines), {'weights': method_kwargs['weights']}
+    return np.vstack(baselines), {'weights': method_kwargs['weights']}
 
 
 def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, variable,
@@ -186,9 +183,10 @@ def erpls(data, x_data, method='aspls', side='left', **method_kwargs):
             best_val - 0.9, best_val + 1.1, 0.1, 2, **method_kwargs
         )
 
-    print(best_val)
-
-    return z[[val[0] for val in sorted(sort_order, key=lambda v: v[1])]]
+    return (
+        z[[val[0] for val in sorted(sort_order, key=lambda v: v[1])]],
+        {'optimal_parameter': best_val}
+    )
 
 
 def _optional_kwargs(keys, kwargs):
