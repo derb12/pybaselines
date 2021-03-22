@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-pybaselines - A collection of baseline algorithms for fitting experimental data
-===============================================================================
+pybaselines - A collection of algorithms for fitting the baseline of experimental data
+======================================================================================
 
 pybaselines provides different techniques for fitting baselines to experimental data.
 

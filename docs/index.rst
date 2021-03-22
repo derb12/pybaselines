@@ -1,15 +1,13 @@
 pybaselines Documentation
 =========================
 
-pybaselines is a collection of baseline algorithms for fitting experimental data.
+pybaselines is a collection of algorithms for fitting the baseline of experimental data.
 
 * For Python 3.6+
 * Open Source: BSD 3-Clause License
 * Source Code: https://github.com/derb12/pybaselines
 * Documentation: https://pybaselines.readthedocs.io.
 
-
-pybaselines provides different techniques for fitting baselines to experimental data.
 
 Baseline fitting techniques are grouped accordingly (note: when a method
 is labelled as 'improved', that is the method's name, not editorialization):

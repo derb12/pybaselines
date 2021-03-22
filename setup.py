@@ -38,7 +38,7 @@ setup(
         'Topic :: Scientific/Engineering :: Information Analysis',
         'Topic :: Scientific/Engineering :: Physics',
     ],
-    description='A collection of baseline algorithms for fitting experimental data.',
+    description='A collection of algorithms for fitting the baseline of experimental data.',
     install_requires=requirements,
     license='BSD 3-Clause',
     long_description=long_description,
