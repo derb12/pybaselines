@@ -10,10 +10,14 @@ Created on March 11, 2021
 
 if __name__ == '__main__':
 
-    import matplotlib.pyplot as plt
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print('This example requires matplotlib to run')
+        raise
     import numpy as np
 
-    from pybaselines.baselines import erpls
+    from pybaselines.baselines import optimize_parameter
     from pybaselines.morphological import mpls, imor, mor, iamor
     from pybaselines.penalized_least_squares import iarpls, airpls, arpls, asls, aspls, drpls, iasls
     from pybaselines.polynomial import imodpoly, modpoly
@@ -35,21 +39,21 @@ if __name__ == '__main__':
         + signal
     )
 
-    baseline = asls(y, 1e7, 0.005)
-    baseline_2 = iasls(y, x, 10**6, 0.01, 10**-4)
-    baseline_3 = airpls(y, 3000, 1)
-    baseline_4 = arpls(y, lam=2 * 10**7)
-    baseline_5 = iarpls(y, lam=1e6)
-    baseline_6 = drpls(y, lam=1e6, eta=0.3)
+    baseline = asls(y, 1e7, 0.005)[0]
+    baseline_2 = iasls(y, x, 10**6, 0.01, 10**-4)[0]
+    baseline_3 = airpls(y, 3000, 1)[0]
+    baseline_4 = arpls(y, lam=2 * 10**7)[0]
+    baseline_5 = iarpls(y, lam=1e6)[0]
+    baseline_6 = drpls(y, lam=1e6, eta=0.3)[0]
 
-    baseline_8 = modpoly(y, x, 11)
-    baseline_10 = imodpoly(y, x, 11)
-    baseline_9 = aspls(y, 1e7)
-    baseline_11 = mpls(y, window_size=500, lam=1e6, p=0)
-    baseline_7 = iamor(y, lam=1e8)
-    baseline_12 = imor(y, window_method='chen', smooth=False, lam=1e7)
-    baseline_14 = mor(y, 500)
-    baseline_13 = erpls(y, x, 'mpls', 'both', window_size=500)
+    baseline_8 = modpoly(y, x, 11)[0]
+    baseline_10 = imodpoly(y, x, 11)[0]
+    baseline_9 = aspls(y, 1e7)[0]
+    baseline_11 = mpls(y, half_window=250, lam=1e6, p=0)[0]
+    baseline_7 = iamor(y, half_window=70)[0]
+    baseline_12 = imor(y, half_window=100, smooth=False)[0]
+    baseline_14 = mor(y, half_window=250)[0]
+    baseline_13 = optimize_parameter(y, x, 'mpls', 'both', half_window=250)[0]
 
     fig = plt.figure()
     plt.plot(x, y, label='data')
