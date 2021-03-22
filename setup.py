@@ -9,14 +9,14 @@ with open('README.rst') as readme_file:
 
 requirements = [
     'numpy>=1.9',
-    'scipy'
+    'scipy'  #TODO get minimum required scipy version
 ]
 
 setup_requirements = [
 ]
 
 test_requirements = [
-    'pytest>=3',
+    'pytest',  #TODO get minimum required pytest version
 ]
 
 setup(
@@ -44,7 +44,13 @@ setup(
     long_description=long_description,
     long_description_content_type='text/x-rst',
     include_package_data=True,
-    keywords=['materials characterization', 'materials science', 'materials engineering'],
+    keywords=[
+        'materials characterization',
+        'baseline',
+        'background',
+        'baseline subtraction',
+        'background subtraction'
+    ],
     name='pybaselines',
     packages=find_packages(include=['pybaselines', 'pybaselines.*']),
     setup_requires=setup_requirements,
