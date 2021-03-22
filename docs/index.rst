@@ -1,7 +1,13 @@
-# -*- coding: utf-8 -*-
-"""
-pybaselines - A collection of baseline algorithms for fitting experimental data
-===============================================================================
+pybaselines Documentation
+=========================
+
+pybaselines is a collection of baseline algorithms for fitting experimental data.
+
+* For Python 3.6+
+* Open Source: BSD 3-Clause License
+* Source Code: https://github.com/derb12/pybaselines
+* Documentation: https://pybaselines.readthedocs.io.
+
 
 pybaselines provides different techniques for fitting baselines to experimental data.
 
@@ -37,13 +43,22 @@ d) Window-based (:mod:`pybaselines.window`)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
 
 
-@author: Donald Erb
-Created on March 5, 2021
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
 
-"""
+   installation
+   usage
+   api/index
+   contributing
+   changes
+   license
+   authors
 
-__version__ = '0.1.0'
 
+Indices and Tables
+==================
 
-from . import (baselines, morphological, penalized_least_squares, polynomial,
-               utils, window)
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

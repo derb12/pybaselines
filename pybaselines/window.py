@@ -2,7 +2,7 @@
 """Window-based techniques for fitting baselines to experimental data.
 
 Window
-    1) noise_median (noise median method)
+    1) noise_median (Noise Median method)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
 
 Created on March 7, 2021
