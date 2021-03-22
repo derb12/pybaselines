@@ -1,6 +1,13 @@
 include LICENSE.txt
 include README.rst
 
+exclude readthedocs.yaml
+exclude .gitattributes
+exclude .gitignore
+
+recursive-exclude .git *
+recursive-exclude .github *
+recursive-exlude .pytest_cache *
 recursive-exclude docs *
 recursive-exclude examples *
 recursive-exclude tests *
