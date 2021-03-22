@@ -8,7 +8,7 @@ with open('README.rst') as readme_file:
     long_description = readme_file.read()
 
 requirements = [
-    'numpy>=1.8',
+    'numpy>=1.9',
     'scipy'
 ]
 
@@ -16,7 +16,7 @@ setup_requirements = [
 ]
 
 test_requirements = [
-    #'pytest>=3',
+    'pytest>=3',
 ]
 
 setup(
@@ -24,7 +24,7 @@ setup(
     author_email='donnie.erb@gmail.com',
     python_requires='>=3.6',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
@@ -40,7 +40,7 @@ setup(
     ],
     description='A collection of baseline algorithms for fitting experimental data.',
     install_requires=requirements,
-    license='BSD 3-clause',
+    license='BSD 3-Clause',
     long_description=long_description,
     long_description_content_type='text/x-rst',
     include_package_data=True,
