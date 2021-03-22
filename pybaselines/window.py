@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """Window-based techniques for fitting baselines to experimental data.
 
-Created on March 7, 2021
+Window
+    1) noise_median (noise median method)
+    2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
 
+Created on March 7, 2021
 @author: Donald Erb
 
 """
@@ -16,27 +19,32 @@ from scipy.ndimage.filters import uniform_filter1d
 from .utils import gaussian_kernel, mollify
 
 
-def noise_median(data, half_window=1, smooth_half_window=1, sigma=5.0):
+def noise_median(data, half_window, smooth_half_window=1, sigma=5.0):
     """
-    [summary]
+    The noise-median method for baseline identification.
 
-    Assumes noise can be considered as the median value within a window.
+    Assumes the baseline can be considered as the median value within a moving
+    window, and the resulting baseline is then smoothed with a Gaussian kernel.
 
     Parameters
     ----------
-    data : [type]
-        [description]
-    half_window : int, optional
-        [description], by default 1
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int
+        The index-based size to use for the median window. The total window
+        size will range from [-half_window, ..., half_window] with size
+        2*half_window + 1.
     smooth_half_window : int, optional
-        [description], by default 1
+        The half window to use for smoothing. Default is 1.
     sigma : float, optional
-        [description], by default 5
+        The standard deviation of the smoothing Gaussian kernel. Default is 5.
 
     Returns
     -------
-    np.ndarray
-        The smoothed baseline.
+    numpy.ndarray, shape (N,)
+        The calculated and smoothed baseline.
+    dict
+        An empty dictionary, just to match the output of all other algorithms.
 
     References
     ----------
@@ -45,39 +53,40 @@ def noise_median(data, half_window=1, smooth_half_window=1, sigma=5.0):
 
     """
     median = median_filter(data, [2 * half_window + 1])
-    return mollify(median, gaussian_kernel(2 * smooth_half_window + 1, sigma))
+    return mollify(median, gaussian_kernel(2 * smooth_half_window + 1, sigma)), {}
 
 
 def snip(data, max_half_window, decreasing=False, smooth=False,
-         smooth_half_window=1, transform=False):
+         smooth_half_window=1):
     """
     Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
 
     Parameters
     ----------
-    data : [type]
-        [description]
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
     max_half_window : int
         The maximum number of iterations. Should be set so that
-        max_half_window=(w-1)/2, where w is the index-based width of a feature.
+        max_half_window=(w-1)/2, where w is the index-based width of a
+        feature or peak.
     decreasing : bool, optional
         If False (default), will iterate through window sizes from 1 to
         max_half_window. If True, will reverse the order and iterate from
         max_half_window to 1, which gives a smoother baseline according to [3]_
         and [4]_.
     smooth : bool, optional
-        If True, will perform a moving average on the data for each window, which
-        gives better results for noisy data [3]_. Default is False.
+        If True, will perform a moving average smooth on the data for each window,
+        which gives better results for noisy data [3]_. Default is False.
     smooth_half_window : int, optional
         The half window to use for the moving average if smooth=True. Default is 1,
         which gives a 3-point moving average.
-    transform : bool, optional
-        [description], by default False
 
     Returns
     -------
-    z : np.ndarray
-        The baseline.
+    z : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        An empty dictionary, just to match the output of all other algorithms.
 
     Warns
     -----
@@ -88,6 +97,16 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
     -----
     Algorithm initially developed by [1]_ and this specific version of the
     algorithm is adapted from [2]_ and [4]_.
+
+    If data covers several orders of magnitude, better results can be obtained
+    by first transforming the data using log-log-square transform before
+    using SNIP [2]_:
+
+        transformed_data =  np.log(np.log(np.sqrt(data + 1) + 1) + 1)
+
+    and then baseline can then be reverted back to the original scale using inverse:
+
+        baseline = -1 + (np.exp(np.exp(snip(transformed_data)) - 1) - 1)**2
 
     References
     ----------
@@ -103,28 +122,23 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
            elimination in spectroscopic data. Nuclear Instruments and Methods in
            Physics Research A. 600 (2009) 478-487.
 
+    #TODO potentially add filter orders 4, 6, and 8 from [3]_
+    #TODO potentially add adaptive window sizes from [4]_
     """
-    if max_half_window > (data.shape[0] - 1) // 2:
+    y = np.asarray(data)
+    if max_half_window > (y.shape[0] - 1) // 2:
         warnings.warn(
             'max_half_window values greater than (data.shape[0] - 1) / 2 have no effect.'
         )
-        max_half_window = (data.shape[0] - 1) // 2
-
-    if transform:
-        z = np.log(np.log(np.sqrt(data + 1) + 1) + 1)
-    else:
-        z = data.copy()
+        max_half_window = (y.shape[0] - 1) // 2
 
     if decreasing:
-        min_val = max_half_window
-        max_val = 0
-        step = -1
+        range_args = (max_half_window, 0, -1)
     else:
-        min_val = 1
-        max_val = max_half_window + 1
-        step = 1
+        range_args = (1, max_half_window + 1, 1)
 
-    for i in range(min_val, max_val, step):
+    z = y.copy()
+    for i in range(*range_args):
         medians = 0.5 * (z[2 * i:] + z[:-2 * i])
         if smooth:
             #TODO could speed this up by not doing the entirety of z
@@ -133,7 +147,4 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
             means = z[i:-i]
         z[i:-i] = np.where(z[i:-i] > medians, medians, means)
 
-    if transform:
-        z = -1 + (np.exp(np.exp(z) - 1) - 1)**2
-
-    return z
+    return z, {}

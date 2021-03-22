@@ -3,28 +3,77 @@
 
 
 Created on March 3, 2021
-
 @author: Donald Erb
 
 """
+
+import warnings
 
 import numpy as np
 
 from .morphological import mpls
 from .penalized_least_squares import iarpls, airpls, arpls, asls, aspls, drpls, iasls
-from .polynomial import imodpoly, modpoly
+from .polynomial import imodpoly, modpoly, poly
+from .utils import gaussian, _setup_polynomial
 
-from .utils import gaussian
+
+def manual_baseline(x_data, baseline_points=()):
+    """
+    Creates a linear baseline constructed from points.
+
+    Parameters
+    ----------
+    x_data : array-like, shape (N,)
+        The x-values of the measured data.
+    baseline_points : Iterable(Container(float, float))
+        An iterable of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
+        each point representing the baseline. Must be at least two points
+        to have a non-zero baseline.
+
+    Returns
+    -------
+    z : numpy.ndarray, shape (N,)
+        The baseline array constructed from connecting line segments between
+        each background point.
+    dict
+        An empty dictionary, just to match the output of all other algorithms.
+
+    Warns
+    -----
+    UserWarning
+        Raised if there are less than two points in baseline_points.
+
+    Notes
+    -----
+    Assumes the background is represented by lines connecting each of the
+    specified background points.
+
+    """
+    x = np.asarray(x_data)
+    z = np.zeros(x.shape[0])
+    if len(baseline_points) < 2:
+        warnings.warn('there must be at least 2 background points to create a baseline')
+    else:
+        points = sorted(baseline_points, key=lambda p: p[0])
+        for i in range(len(points) - 1):
+            x_points, y_points = zip(*points[i:i + 2])
+            segment = (x >= x_points[0]) & (x <= x_points[1])
+            z[segment] = np.linspace(*y_points, x[segment].shape[0])
+
+    return z, {}
 
 
 def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     """
     Collaborative Penalized Least Squares (collab-PLS).
 
+    Averages the data or the fit weights for an entire dataset to get more
+    optimal results.
+
     Parameters
     ----------
-    data : np.ndarray
-        A numpy array with shape (M, N) where M is the number of entries in
+    data : array-like, shape (M, N)
+        An array with shape (M, N) where M is the number of entries in
         the dataset and N is the number of data points in each entry.
     average_dataset : bool
         If True (default) will average the dataset before fitting to get the
@@ -38,13 +87,14 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
 
     Returns
     -------
-    np.ndarray
-        An array of all of the baselines with shape (M, N).
+    np.ndarray, shape (M, N)
+        An array of all of the baselines.
 
-    Adapted from:
-        Chen, L. et. al. Collaborative Penalized Least Squares for Background
-        Correction of Multiple Raman Spectra. Journal of Analytical Methods in
-        Chemistry, 2018 (2018). DOI:https://doi.org/10.1155/2018/9031356
+    References
+    ----------
+    Chen, L. et al. Collaborative Penalized Least Squares for Background
+    Correction of Multiple Raman Spectra. Journal of Analytical Methods
+    in Chemistry, 2018, 2018, DOI:https://doi.org/10.1155/2018/9031356.
 
     """
     fit_func = {
@@ -57,20 +107,20 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
         'iasls': iasls,
         'drpls': drpls
     }[method.lower()]
-    method_kwargs['full'] = True
+    dataset = np.asarray(data)
     if average_dataset:
-        _, fit_params = fit_func(np.mean(data.transpose(), 1), **method_kwargs)
+        _, fit_params = fit_func(np.mean(dataset.T, 1), **method_kwargs)
         method_kwargs['weights'] = fit_params['weights']
     else:
         weights = []
-        for entry in data:
+        for entry in dataset:
             _, fit_params = fit_func(entry, **method_kwargs)
             weights.append(fit_params['weights'])
-        method_kwargs['weights'] = np.mean(np.array(weights), 1)
+        method_kwargs['weights'] = np.mean(np.transpose(weights), 1)
 
-    method_kwargs.update({'full': False, 'tol': np.inf})
+    method_kwargs['tol'] = np.inf
     baselines = []
-    for entry in data:
+    for entry in dataset:
         baselines.append(fit_func(entry, **method_kwargs))
 
     return np.vstack(baselines), {'weights': method_kwargs['weights']}
@@ -78,6 +128,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
 
 def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, variable,
                 min_value, max_value, step=1, allowed_misses=1, **func_kwargs):
+    """Iterates through possible values to find the one with lowest root-mean-square-error."""
     min_rmse = np.inf
     misses = 0
     for var in np.arange(min_value, max_value, step):
@@ -85,7 +136,9 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
             func_kwargs[variable] = 10**var
         else:
             func_kwargs[variable] = var
-        baseline = func(fit_data, **func_kwargs)
+        baseline = func(fit_data, **func_kwargs)[0]
+        #TODO change the known baseline so that np.roll does not have to be
+        # calculated each time, since it requires additional time
         rmse = np.sqrt(np.mean(
             (known_background - np.roll(baseline, upper_bound)[:upper_bound + lower_bound])**2
         ))
@@ -102,18 +155,30 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
     return z, min_var
 
 
-def erpls(data, x_data, method='aspls', side='left', **method_kwargs):
+def optimize_parameter(data, x_data=None, method='aspls', side='left', **method_kwargs):
     """
-    Extended range penalized least squares (erPLS) baseline method.
+    Finds the best parameter value for the given baseline method.
 
-    Useful for calculating the lambda value required to optimize other
-    assymetric least squares algorithms.
+    Useful for calculating the optimum `lam` or `poly_degree` value required
+    to optimize other algorithms.
 
-    Adapted from:
-        Zhang, F. et. al. An Automatic Baseline Correction Method Based on
-        the Penalized Least Squares Method. Sensors, 20(7) (2020), 2015.
-    Note: the 2015 is the article number, not the page number due to how
-    MDPI does its referencing.
+    Notes
+    -----
+    Based on the extended range penalized least squares (erPLS) method from [1]_.
+    The method proposed by [1]_ was for optimizing lambda only for the aspls
+    method by extending only the right side of the spectrum. The method was
+    modified by allowing extending either side following [2]_, and for optimizing
+    lambda or the polynomial degree for all of the affected algorithms in
+    pybaselines.
+
+    References
+    ----------
+    .. [1] Zhang, F., et al. An Automatic Baseline Correction Method Based on
+           the Penalized Least Squares Method. Sensors, 2020, 20(7), 2015.
+    .. [2] Krishna, H, et al. Range-independent background subtraction algorithm
+           for recovery of Raman spectra of biological tissue. Journal of Raman
+           Spectroscopy. 2012, 43(12), 1884-1894.
+
     """
     if side.lower() not in ('left', 'right', 'both'):
         raise ValueError('side must be "left", "right", or "both"')
@@ -127,13 +192,14 @@ def erpls(data, x_data, method='aspls', side='left', **method_kwargs):
         'iasls': iasls,
         'drpls': drpls,
         'modpoly': modpoly,
-        'imodpoly': imodpoly
+        'imodpoly': imodpoly,
+        'poly': poly
     }[method.lower()]
 
-    x = np.asarray(x_data)
+    y, x, *_ = _setup_polynomial(data, x_data)
     sort_order = tuple(enumerate(np.argsort(x)))  # to ensure x is increasing
     x = x[[val[1] for val in sort_order]]
-    y = np.asarray(data)[[val[1] for val in sort_order]]
+    y = y[[val[1] for val in sort_order]]
     max_x = np.nanmax(x)
     min_x = np.nanmin(x)
     x_range = max_x - min_x
@@ -165,10 +231,10 @@ def erpls(data, x_data, method='aspls', side='left', **method_kwargs):
         known_background = np.hstack((known_background, line))
         lower_bound += W
 
-    if method.lower() in ('iasls', 'modpoly', 'imodpoly'):
+    if method.lower() in ('iasls', 'modpoly', 'imodpoly', 'poly'):
         method_kwargs['x_data'] = fit_x_data
 
-    if method.lower() in ('modpoly', 'imodpoly'):
+    if method.lower() in ('modpoly', 'imodpoly', 'poly'):
         z, best_val = _iter_solve(
             fit_func, fit_data, known_background, lower_bound, upper_bound, 'poly_order',
             0, 20, 1, 4, **method_kwargs
@@ -187,82 +253,3 @@ def erpls(data, x_data, method='aspls', side='left', **method_kwargs):
         z[[val[0] for val in sorted(sort_order, key=lambda v: v[1])]],
         {'optimal_parameter': best_val}
     )
-
-
-def _optional_kwargs(keys, kwargs):
-    """
-    [summary]
-
-    Parameters
-    ----------
-    keys : Iterable(str)
-        [description]
-    kwargs : dict
-
-
-    Returns
-    -------
-    dict
-        A dictionary of keyword arguments containing any values in kwargs.
-
-    """
-    if isinstance(keys, str):
-        keys = (keys,)
-
-    return {key: kwargs[key] for key in keys if key in kwargs}
-
-
-def get_baseline(method, data=None, x_data=None, **kwargs):
-    """
-    A convenience function to select the appropriate baseline function.
-
-    Parameters
-    ----------
-    method : {}
-        A string indicating the baseline method to use.
-    data : [type], optional
-        [description], by default None
-    x_data : [type], optional
-        [description], by default None
-    **kwargs
-        Additional keyword arguments for the various baseline functions.
-
-    Returns
-    -------
-    baseline : np.ndarray
-        The baseline array for the input data and options.
-
-    """
-    method = method.lower()
-    available_methods = {'manual', 'asls', 'iasls', 'airpls', 'drpls', 'arpls', 'iarpls'}
-    if method not in available_methods:
-        raise ValueError(f'baseline method must be in {available_methods}')
-
-    if method == 'manual':
-        baseline = manual_baseline(x_data, **_optional_kwargs(('background_points',), kwargs))
-    elif method == 'asls':
-        baseline = asls_baseline(
-            data, **_optional_kwargs(('lam', 'p', 'max_iter', 'tol'), kwargs)
-        )
-    elif method == 'iasls':
-        baseline = iasls_baseline(
-            data, x_data, **_optional_kwargs(('lam', 'lam_1', 'p', 'max_iter', 'tol'), kwargs)
-        )
-    elif method == 'airpls':
-        baseline = airpls_baseline(
-            data, **_optional_kwargs(('lam', 'order', 'max_iter', 'tol'), kwargs)
-        )
-    elif method == 'drpls':
-        baseline = drpls_baseline(
-            data, **_optional_kwargs(('lam', 'eta', 'max_iter', 'tol'), kwargs)
-        )
-    elif method == 'arpls':
-        baseline = arpls_baseline(
-            data, **_optional_kwargs(('lam', 'max_iter', 'tol'), kwargs)
-        )
-    elif method == 'iarpls':
-        baseline = iarpls_baseline(
-            data, **_optional_kwargs(('lam', 'max_iter', 'tol'), kwargs)
-        )
-
-    return baseline

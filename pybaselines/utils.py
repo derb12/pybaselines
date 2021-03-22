@@ -1,13 +1,7 @@
 # -*- coding: utf-8 -*-
 """Helper functions for pybaselines.
 
-Parameters
-----------
-MIN_FLOAT : float
-    The minimum positive float value.
-
 Created on March 5, 2021
-
 @author: Donald Erb
 
 """
@@ -16,7 +10,8 @@ import numpy as np
 from scipy.sparse import diags
 
 
-MIN_FLOAT = np.finfo(float).eps
+# the minimum positive float values such that a + _MIN_FLOAT != a
+_MIN_FLOAT = np.finfo(float).eps
 
 
 def difference_matrix(data_size, order=2):
@@ -71,66 +66,81 @@ def difference_matrix(data_size, order=2):
     return diags(diagonals, list(range(order + 1)), shape=(data_size - order, data_size))
 
 
-def _setup_pls(data_size, lam, order=2, weights=None):
+def _setup_pls(data, lam, order=2, weights=None):
     """
     Sets the starting parameters for doing penalized least squares.
 
     Parameters
     ----------
-    data_size : int
-        The number of data points.
+    data : array-like, shape (M,)
+        The y-values of the measured data, with M data points.
     lam : float
         The smoothing parameter, lambda. Typical values are between 10 and
         1e8, but it strongly depends on the penalized least square method
         and the differential order.
     order : {2, 1, 3, 4, 5}, optional
         The integer differential order; either 1, 2, 3, 4, or 5. Default is 2.
-    weights : np.ndarray, optional
+    weights : array-like, shape (M,), optional
         The weighting array. If None (default), then will be an array with
-        size equal to data_size and all values set to 1.
+        shape (M,) and all values set to 1.
 
     Returns
     -------
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, converted to a numpy array.
     scipy.sparse.dia.dia_matrix
         The product of lam * D.T * D, where D is the sparse diagonal matrix of
         the differential, and D.T is the transpose of D.
     scipy.sparse.dia.dia_matrix
         The sparse weight matrix with the weighting array as the diagonal values.
-    weight_array : np.ndarray
+    weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
 
     """
-    diff_matrix = difference_matrix(data_size, order)
+    y = np.asarray(data)
+    diff_matrix = difference_matrix(y.shape[0], order)
     if weights is None:
-        weight_array = np.ones(data_size)
+        weight_array = np.ones(y.shape[0])
     else:
-        weight_array = weights
-    return lam * diff_matrix.T * diff_matrix, diags(weight_array), weight_array
+        weight_array = np.asarray(weights).copy()
+    return y, lam * diff_matrix.T * diff_matrix, diags(weight_array), weight_array
 
 
-def _get_vander(x, poly_order=2, weights=None):
+def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
     """
     Calculates the Vandermonde matrix and its pseudo-inverse.
 
     Parameters
     ----------
-    x : [type]
-        [description]
+    x : numpy.ndarray, shape (N,)
+        The x-values for the polynomial with N data points.
     poly_order : int, optional
-        [description]. Default is 2.
-    weights : np.ndarray, optional
-
+        The polynomial order. Default is 2.
+    weights : np.ndarray, shape (N,), optional
+        The weighting array. If None (default), will ignore. Otherwise,
+        will multiply the Vandermonde by the weighting array before calculating
+        the pseudo-inverse.
+    calc_pinv : bool, optional
+        If True (default), will calculate and return the pseudo-inverse of the
+        Vandermonde, after applying weights.
 
     Returns
     -------
-    vander : np.ndarray
-        The Vandermonde matrix.
-    vander_pinv : np.ndarray
+    vander : numpy.ndarray
+        The Vandermonde matrix for the polynomial.
+    vander_pinv : numpy.ndarray
         The pseudo-inverse of the Vandermonde, with weights applied if input.
         Calculated using singular value decomposition (SVD).
 
+    Notes
+    -----
+    If weights are supplied, they should be the square-root of the total weights.
+
     """
     vander = np.polynomial.polynomial.polyvander(x, poly_order)
+    if not calc_pinv:
+        return vander
+
     if weights is not None:
         vander_pinv = np.linalg.pinv(diags(weights) * vander)
     else:
@@ -146,36 +156,40 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
 
     Parameters
     ----------
-    data : [type]
-        [description]
-    x_data : [type], optional
-        [description]. Default is None.
-    weights : [type], optional
-        [description]. Default is None.
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
     poly_order : int, optional
-        [description]. Default is 2.
+        The polynomial order. Default is 2.
     return_vander : bool, optional
-        [description]. Default is False.
+        If True, will calculate and return the Vandermonde matrix. Default is False.
     return_pinv : bool, optional
-        [description]. Default is False.
+        If True, and if `return_vander` is True, will calculate and return the
+        pseudo-inverse of the Vandermonde matrix. Default is False.
 
     Returns
     -------
-    y : np.ndarray
-
-    x : np.ndarray
-
-    w : np.ndarray
-
-    original_domain : np.ndarray, shape (2,)
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, converted to a numpy array.
+    x : numpy.ndarray, shape (N,)
+        The x-values for fitting the polynomial, converted to fit within
+        the domain [-1, 1].
+    w : numpy.ndarray, shape (N,)
+        The weight array for fitting a polynomial to the data.
+    original_domain : numpy.ndarray, shape (2,)
         The minimum and maximum values of the original x_data values. Can
         be used to convert the coefficents found during least squares
         minimization using the normalized x into usable polynomial coefficients
         for the original x_data.
-    vander : np.ndarray
+    vander : numpy.ndarray
         Only returned if return_vander is True. The Vandermonde matrix for the
         normalized x values.
-    vander_pinv : np.ndarray
+    vander_pinv : numpy.ndarray
         Only returned if return_pinv is True. The pseudo-inverse of the
         Vandermonde matrix, calculated with singular value decomposition (SVD).
 
@@ -202,15 +216,16 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
 
     output = [y, x, w, original_domain]
     if return_vander:
-        vander, vander_pinv = _get_vander(x, poly_order, np.sqrt(w))
-        output.append(vander)
+        vander_output = _get_vander(x, poly_order, np.sqrt(w), return_pinv)
         if return_pinv:
-            output.append(vander_pinv)
+            output.extend(vander_output)
+        else:
+            output.append(vander_output)
 
     return output
 
 
-def relative_difference(old, new):
+def relative_difference(old, new, norm_order=None):
     """
     Calculates the relative difference (norm(new-old) / norm(old)) of two values.
 
@@ -218,10 +233,13 @@ def relative_difference(old, new):
 
     Parameters
     ----------
-    old : np.ndarray or float
+    old : numpy.ndarray or float
         The array or single value from the previous iteration.
-    new : np.ndarray or float
+    new : numpy.ndarray or float
         The array or single value from the current iteration.
+    norm_order : int, optional
+        The type of norm to calculate. Default is None, which is l2
+        norm for arrays, abs for scalars.
 
     Returns
     -------
@@ -229,7 +247,9 @@ def relative_difference(old, new):
         The relative difference between the old and new values.
 
     """
-    return np.linalg.norm(new - old) / max(np.linalg.norm(old), MIN_FLOAT)
+    numerator = np.linalg.norm(new - old, norm_order)
+    denominator = np.maximum(np.linalg.norm(old, norm_order), _MIN_FLOAT)
+    return numerator / denominator
 
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
@@ -238,7 +258,7 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
 
     Parameters
     ----------
-    x : np.ndarray
+    x : numpy.ndarray
         The x-values at which to evaluate the distribution.
     height : float, optional
         The maximum height of the distribution. Default is 1.0.
@@ -249,11 +269,11 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         The gaussian distribution evaluated with x.
 
     """
-    return height * np.exp(-0.5 * ((x - center) / sigma)**2)
+    return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
 
 
 def gaussian_kernel(window_size, sigma=1.0):
@@ -263,14 +283,14 @@ def gaussian_kernel(window_size, sigma=1.0):
     Parameters
     ----------
     window_size : int
-        [description]
+        The number of points for the entire kernel.
     sigma : float, optional
-        [description]
+        The standard deviation of the gaussian model.
 
     Returns
     -------
-    np.ndarray
-        The normalized gaussian kernel with size=window_size.
+    numpy.ndarray, shape (window_size,)
+        The area-normalized gaussian kernel.
 
     Notes
     -----
@@ -291,15 +311,15 @@ def mollify(data, kernel):
 
     Parameters
     ----------
-    data : np.ndarray
+    data : numpy.ndarray
         The data to smooth.
-    kernel : np.ndarray
+    kernel : numpy.ndarray
         A pre-computed, normalized kernel for the mollification. Indices should
         span from -half_window to half_window.
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         The smoothed input array.
 
     Notes

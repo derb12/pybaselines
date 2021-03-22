@@ -45,4 +45,4 @@ __version__ = '0.1.0'
 
 
 from . import (baselines, morphological, penalized_least_squares, polynomial,
-               utils)
+               utils, window)

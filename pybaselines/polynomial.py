@@ -2,11 +2,13 @@
 """Different techniques for fitting baselines to experimental data.
 
 Polynomial
-    1) ModPoly (Modified Polynomial)
-    2) IModPoly (Improved Modified Polynomial)
+    1) poly (regular polynomial)
+    2) modpoly (Modified Polynomial)
+    3) imodpoly (Improved Modified Polynomial)
+
+
 
 Created on Feb. 27, 2021
-
 @author: Donald Erb
 
 """
@@ -35,7 +37,7 @@ def _convert_coef(coef, original_domain):
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         The array of coefficients scaled for the original domain.
 
     """
@@ -45,28 +47,38 @@ def _convert_coef(coef, original_domain):
 
 def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
     """
-    Computes a polynomial that fits the data.
+    Computes a polynomial that fits the baseline of the data.
 
     Parameters
     ----------
-    data : [type]
-        [description]
-    x_data : [type]
-        [description]
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
     poly_order : int, optional
-        [description]. Default is 2.
-    weights : [type], optional
-        [description]. Default is None.
+        The polynomial order for fitting the baseline. Default is 2.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
+    return_coef : bool, optional
+        If True, will convert the polynomial coefficients for the fit baseline to
+        a form that fits the input x_data and return them in the params dictionary.
+        Default is False, since the conversion takes time.
 
     Returns
     -------
-    np.ndarray
-        The background data from the polynomial.
-    dict
-        A dictionary containing the keys:
+    z : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
 
-        * 'weights'
-              The array of weights used.
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'coef': numpy.ndarray, shape (poly_order,)
+            Only if `return_coef` is True. The array of polynomial parameters
+            for the baseline, in increasing order. Can be used to create a
+            polynomial using numpy.polynomial.polynomial.Polynomial().
 
     Notes
     -----
@@ -84,28 +96,68 @@ def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
     return z, params
 
 
-def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=500, weights=None,
-            mask_initial_peaks=False, use_original=False, return_coef=False):
+def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
+            use_original=False, mask_initial_peaks=False, return_coef=False):
     """
     The modified polynomial (ModPoly) baseline algorithm.
 
-    Adapted from:
-    C.A. Lieber, A. Mahadevan-Jansen, Automated method
-    for subtraction of fluorescence from biological raman spectra,
-    Applied Spectroscopy 57(11) (2003) 1363-1367.
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    poly_order : int, optional
+        The polynomial order for fitting the baseline. Default is 2.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    max_iter : int, optional
+        The maximum number of iterations. Default is 250.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
+    use_original : bool, optional
+        If False (default), will compare the baseline of each iteration with
+        the y-values of that iteration [1]_ when choosing minimum values. If True,
+        will compare the baseline with the original y-values given by `data` [2]_.
+    mask_initial_peaks : bool, optional
+        If True, will mask any data where the initial baseline fit + the standard
+        deviation of the residual is less than measured data [3]_. Default is False.
+    return_coef : bool, optional
+        If True, will convert the polynomial coefficients for the fit baseline to
+        a form that fits the input x_data and return them in the params dictionary.
+        Default is False, since the conversion takes time.
 
-    and
+    Returns
+    -------
+    z : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
 
-    Gan, F., et al. Baseline correction by improved iterative polynomial fitting
-    with automatic threshold. Chemometrics and Intelligent Laboratory Systems, 82
-    (2006) 59-65.
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            Only if `return_coef` is True. The array of polynomial parameters
+            for the baseline, in increasing order. Can be used to create a
+            polynomial using numpy.polynomial.polynomial.Polynomial().
 
-    The mask_initial_peaks idea was adopted from the IModPoly:
-    Zhao, J., et al., Automated Autofluorescence Background Subtraction
-    Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy
-    61(11) (2007) 1225-1232.
+    Notes
+    -----
+    Algorithm originally developed in [2]_ and then slightly modified in [1]_.
 
-    use_original=True is Lieber's method, and use_original=False is Gan's method.
+    References
+    ----------
+    .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
+           fitting with automatic threshold. Chemometrics and Intelligent
+           Laboratory Systems, 2006, 82, 59-65.
+    .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
+           from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
+           1363-1367.
+    .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+           Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
+           2007, 61(11), 1225-1232.
 
     """
     y, x, w, original_domain, vander, vander_pinv = utils._setup_polynomial(
@@ -138,21 +190,68 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=500, weights=Non
     return z, params
 
 
-def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=500, weights=None,
-             mask_initial_peaks=True, use_original=False, return_coef=False):
+def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
+             use_original=False, mask_initial_peaks=True, return_coef=False):
     """
     The improved modofied polynomial (IModPoly) baseline algorithm.
 
-    Adapted from:
-    Zhao, J., et al., Automated Autofluorescence Background Subtraction
-    Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy
-    61(11) (2007) 1225-1232.
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    poly_order : int, optional
+        The polynomial order for fitting the baseline. Default is 2.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    max_iter : int, optional
+        The maximum number of iterations. Default is 250.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
+    use_original : bool, optional
+        If False (default), will compare the baseline of each iteration with
+        the y-values of that iteration [4]_ when choosing minimum values. If True,
+        will compare the baseline with the original y-values given by `data` [5]_.
+    mask_initial_peaks : bool, optional
+        If True (default), will mask any data where the initial baseline fit +
+        the standard deviation of the residual is less than measured data [6]_.
+    return_coef : bool, optional
+        If True, will convert the polynomial coefficients for the fit baseline to
+        a form that fits the input x_data and return them in the params dictionary.
+        Default is False, since the conversion takes time.
 
-    The use_original term is adapted from the ModPoly algorithm (is False for
-    Zhao's original IModPoly implementation):
-    C.A. Lieber, A. Mahadevan-Jansen, Automated method
-    for subtraction of fluorescence from biological raman spectra,
-    Applied Spectroscopy 57(11) (2003) 1363-1367.
+    Returns
+    -------
+    z : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            Only if `return_coef` is True. The array of polynomial parameters
+            for the baseline, in increasing order. Can be used to create a
+            polynomial using numpy.polynomial.polynomial.Polynomial().
+
+    Notes
+    -----
+    Algorithm originally developed in [6]_.
+
+    References
+    ----------
+    .. [4] Gan, F., et al. Baseline correction by improved iterative polynomial
+           fitting with automatic threshold. Chemometrics and Intelligent
+           Laboratory Systems, 2006, 82, 59-65.
+    .. [5] Lieber, C., et al. Automated method for subtraction of fluorescence
+           from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
+           1363-1367.
+    .. [6] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+           Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
+           2007, 61(11), 1225-1232.
 
     """
     y, x, w, original_domain, vander, vander_pinv = utils._setup_polynomial(
@@ -185,3 +284,4 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=500, weights=No
         params['coef'] = _convert_coef(coef, original_domain)
 
     return z, params
+
