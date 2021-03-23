@@ -155,6 +155,8 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     D_1 = utils.difference_matrix(y.shape[0], 1)
     D_1 = lam_1 * D_1.T * D_1
     for _ in range(max_iter):
+        weights_and_d1 = W.T * W + D_1
+        z = spsolve(weights_and_d1 + D, weights_and_d1 * y)
         mask = (y > z)
         w_new = p * mask + (1 - p) * (~mask)
         if utils.relative_difference(w, w_new) < tol:
