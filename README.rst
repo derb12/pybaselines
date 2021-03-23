@@ -43,7 +43,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
 Baseline fitting techniques are grouped accordingly (note: when a method
 is labelled as 'improved', that is the method's name, not editorialization):
 
-a) Penalized least squares (pybaselines.penalized_least_squares)
+a) Whittaker-smoothing-based techniques (pybaselines.whittaker)
 
     1) asls (Asymmetric Least Squares)
     2) iasls (Improved Asymmetric Least Squares)

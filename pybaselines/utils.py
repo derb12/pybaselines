@@ -14,7 +14,7 @@ from scipy.sparse import diags
 _MIN_FLOAT = np.finfo(float).eps
 
 
-def difference_matrix(data_size, order=2):
+def difference_matrix(data_size, diff_order=2):
     """
     Creates an n-order differential matrix.
 
@@ -22,7 +22,7 @@ def difference_matrix(data_size, order=2):
     ----------
     data_size : int
         The number of data points.
-    order : {2, 1, 3, 4, 5}, optional
+    diff_order : {2, 1, 3, 4, 5}, optional
         The integer differential order; either 1, 2, 3, 4, or 5. Default is 2.
 
     Returns
@@ -33,7 +33,7 @@ def difference_matrix(data_size, order=2):
     Raises
     ------
     ValueError
-        Raised if order is not 1, 2, 3, 4, or 5.
+        Raised if diff_order is not 1, 2, 3, 4, or 5.
 
     Notes
     -----
@@ -41,19 +41,19 @@ def difference_matrix(data_size, order=2):
     doing penalized least squared fitting.
 
     It would be possible to support any differential order by doing
-    np.diff(np.eye(data_size), order), but the resulting matrix could
+    np.diff(np.eye(data_size), diff_order), but the resulting matrix could
     cause issues if data_size is large. Therefore, it's better to only
     provide sparse arrays for the most commonly used differential orders.
 
     The resulting matrices are transposes of the result of
-    np.diff(np.eye(data_size), order). Not sure why there is a discrepancy,
+    np.diff(np.eye(data_size), diff_order). Not sure why there is a discrepancy,
     but this implementation allows using the differential matrices are they
     are written in various publications, ie. D.T * D rather than having to
     do D * D.T like most code, such as those adapted from stack overflow:
     https://stackoverflow.com/questions/29156532/python-baseline-correction-library.
 
     """
-    if order not in (1, 2, 3, 4, 5):
+    if diff_order not in (1, 2, 3, 4, 5):
         raise ValueError('The differential order must be 1, 2, 3, 4, or 5')
     diagonals = {
         1: [-1, 1],
@@ -61,12 +61,12 @@ def difference_matrix(data_size, order=2):
         3: [-1, 3, -3, 1],
         4: [1, -4, 6, -4, 1],
         5: [-1, 5, -10, 10, -5, 1]
-    }[order]
+    }[diff_order]
 
-    return diags(diagonals, list(range(order + 1)), shape=(data_size - order, data_size))
+    return diags(diagonals, list(range(diff_order + 1)), shape=(data_size - diff_order, data_size))
 
 
-def _setup_pls(data, lam, order=2, weights=None):
+def _setup_whittaker(data, lam, diff_order=2, weights=None):
     """
     Sets the starting parameters for doing penalized least squares.
 
@@ -78,7 +78,7 @@ def _setup_pls(data, lam, order=2, weights=None):
         The smoothing parameter, lambda. Typical values are between 10 and
         1e8, but it strongly depends on the penalized least square method
         and the differential order.
-    order : {2, 1, 3, 4, 5}, optional
+    diff_order : {2, 1, 3, 4, 5}, optional
         The integer differential order; either 1, 2, 3, 4, or 5. Default is 2.
     weights : array-like, shape (M,), optional
         The weighting array. If None (default), then will be an array with
@@ -98,7 +98,7 @@ def _setup_pls(data, lam, order=2, weights=None):
 
     """
     y = np.asarray(data)
-    diff_matrix = difference_matrix(y.shape[0], order)
+    diff_matrix = difference_matrix(y.shape[0], diff_order)
     if weights is None:
         weight_array = np.ones(y.shape[0])
     else:

@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 
 from .morphological import mpls
-from .penalized_least_squares import iarpls, airpls, arpls, asls, aspls, drpls, iasls
+from .whittaker import iarpls, airpls, arpls, asls, aspls, drpls, iasls
 from .polynomial import imodpoly, modpoly, poly
 from .utils import gaussian, _setup_polynomial
 

@@ -16,7 +16,7 @@ import numpy as np
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening
 from scipy.sparse.linalg import spsolve
 
-from .utils import _setup_pls, mollify, relative_difference
+from .utils import _setup_whittaker, mollify, relative_difference
 
 
 def _smooth(data, x_data=None, use_whittaker=True, lam=1e6,
@@ -44,7 +44,7 @@ def _smooth(data, x_data=None, use_whittaker=True, lam=1e6,
     """
     y = np.asarray(data)
     if use_whittaker:
-        _, D, W, w = _setup_pls(y, lam, order, weights)
+        _, D, W, w = _setup_whittaker(y, lam, order, weights)
         z = spsolve(W + D, w * y)
     else:
         raise ValueError  #TODO need any other smoothers? maybe add the mollify/convolution here
