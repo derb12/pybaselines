@@ -81,11 +81,11 @@ def test_relative_difference_zero():
     assert_almost_equal(utils.relative_difference(a, b), norm_ab / np.finfo(float).eps)
 
 
-@pytest.mark.parametrize('order', (1, 2, 3, 4, 5))
-def test_difference_matrix(order):
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4, 5))
+def test_difference_matrix(diff_order):
     """Tests all covered differential matrices."""
-    diff_matrix = utils.difference_matrix(10, order).toarray()
-    numpy_diff = np.diff(np.eye(10), order).T
+    diff_matrix = utils.difference_matrix(10, diff_order).toarray()
+    numpy_diff = np.diff(np.eye(10), diff_order).T
 
     assert_array_equal(diff_matrix, numpy_diff)
 
@@ -113,4 +113,4 @@ def test_difference_matrix_order2():
 def test_difference_matrix_fail():
     """Ensures differential matrix fails for non-covered order."""
     with pytest.raises(ValueError):
-        utils.difference_matrix(10, order=10)
+        utils.difference_matrix(10, diff_order=10)
