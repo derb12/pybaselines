@@ -443,7 +443,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         z = spsolve(W + alpha * D, w * y)
         diff = y - z
         std = max(abs(np.std(diff[diff < 0])), utils._MIN_FLOAT) #TODO check whether dof should be 1 rather than 0
-        w_new = 1 / (1 + np.exp(2 * (diff - std)) / std)
+        w_new = 1 / (1 + np.exp(2 * (diff - std) / std))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
