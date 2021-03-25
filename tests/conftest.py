@@ -43,12 +43,14 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
 
 def get_data():
     """Creates x- and y-data for testing."""
+    noise_generator = np.random.default_rng(0)
     x_data = np.linspace(1, 100, 1000)
     y_data = (
         500  # constant baseline
         + gaussian(x_data, 10, 25)
         + gaussian(x_data, 20, 50)
         + gaussian(x_data, 10, 75)
+        + noise_generator.normal(0, 0.5, x_data.size)
     )
 
     return x_data, y_data

@@ -85,7 +85,7 @@ class TestArPLS(AlgorithmTester):
 class TestDrPLS(AlgorithmTester):
     """Class for testing drpls baseline."""
 
-    func = whittaker.airpls
+    func = whittaker.drpls
 
     def test_unchanged_data(self, data_fixture):
         x, y = get_data()

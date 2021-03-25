@@ -88,8 +88,8 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
         w = w_new
         W.setdiag(w)
 
-    diff = y - z
-    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    residual = y - z
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
 
 
 def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, weights=None):
@@ -164,12 +164,12 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         w = w_new
         W.setdiag(w)
 
-    diff = y - z
-    return (
-        z,
-        {'roughness': z.T * D * z + diff.T * D_1.T * D_1 * diff,
-         'fidelity': diff.T * W * diff, 'weights': w}
-    )
+    residual = y - z
+    params = {
+        'roughness': z.T * D * z + residual.T * D_1.T * D_1 * residual,
+        'fidelity': residual.T * W * residual, 'weights': w
+    }
+    return z, params
 
 
 def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -211,17 +211,19 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
     """
     y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
+    y_l1_norm = np.linalg.norm(y, 1)
     for i in range(1, max_iter + 1):
         z = spsolve(W + D, w * y)
-        diff = y - z
-        neg_mask = (diff < 0)
-        diff_neg_sum = abs(diff[neg_mask].sum())
-        if diff_neg_sum / (abs(y)).sum() < tol:
+        residual = y - z
+        neg_mask = (residual < 0)
+        # same as abs(residual[neg_mask]).sum() since residual[neg_mask] are all negative
+        residual_l1_norm = -1 * residual[neg_mask].sum()
+        if residual_l1_norm / y_l1_norm < tol:
             break
-        w = np.exp(i * abs(diff) / diff_neg_sum) * neg_mask
+        w = np.exp(i * abs(residual) / residual_l1_norm) * neg_mask
         W.setdiag(w)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
 
 
 def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -265,17 +267,17 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
         z = spsolve(W + D, w * y)
-        diff = y - z
-        neg_mask = diff < 0
-        mean = np.mean(diff[neg_mask])
-        std = max(abs(np.std(diff[neg_mask])), utils._MIN_FLOAT)
-        w_new = 1 / (1 + np.exp(2 * (diff - (2 * std - mean)) / std))
+        residual = y - z
+        neg_mask = residual < 0
+        mean = np.mean(residual[neg_mask])
+        std = max(abs(np.std(residual[neg_mask])), utils._MIN_FLOAT)
+        w_new = 1 / (1 + np.exp(2 * (residual - (2 * std - mean)) / std))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
 
 
 def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
@@ -323,13 +325,11 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     Identity = identity(y.shape[0])
     for i in range(1, max_iter + 1):
         z = spsolve(W + D_1 + (Identity - eta * W) * D, w * y)
-        diff = y - z
-        neg_mask = diff < 0
-        mean = np.mean(diff[neg_mask])
-        std = max(abs(np.std(diff[neg_mask])), utils._MIN_FLOAT)
-        w_new = 0.5 * (
-            1 - ((np.exp(i) * (diff - (2 * std - mean)) / std) / (1 + abs(np.exp(i) * (diff - (2 * std - mean)) / std)))
-        )
+        residual = y - z
+        neg_mask = residual < 0
+        std = max(abs(np.std(residual[neg_mask])), utils._MIN_FLOAT)
+        inner = np.exp(i) * (residual - (2 * std - np.mean(residual[neg_mask]))) / std
+        w_new = 0.5 * (1 - (inner / (1 + abs(inner))))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
@@ -338,7 +338,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     return (
         z,
         {'roughness': (Identity - eta * W) * (z.T * D * z) + z.T * D_1 * z,
-         'fidelity': diff.T * W * diff, 'weights': w}
+         'fidelity': residual.T * W * residual, 'weights': w}
     )
 
 
@@ -384,20 +384,19 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
     for i in range(1, max_iter + 1):
         z = spsolve(W + D, w * y)
-        diff = y - z
-        std = max(abs(np.std(diff[diff < 0])), utils._MIN_FLOAT)
-        w_new = 0.5 * (
-            1 - ((np.exp(i) * (diff - 2 * std) / std) / np.sqrt(1 + (np.exp(i) * (diff - 2 * std) / std)**2))
-        )
+        residual = y - z
+        std = max(abs(np.std(residual[residual < 0])), utils._MIN_FLOAT)
+        inner = np.exp(i) * (residual - 2 * std) / std
+        w_new = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
 
 
-def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alpha=None):
     """
     Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -418,6 +417,10 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
+    alpha : array-like, shape (N,), optional
+        An array of values that control the local value of `lam` to better
+        fit peak and non-peak regions. If None (default), then the initial values
+        will be an array with size equal to N and all values set to 1.
 
     Returns
     -------
@@ -437,17 +440,27 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
     """
     y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
-    # Use a sparse diagonal matrix rather than an array for alpha in order to keep sparcity.
-    alpha = diags(w)
+    if alpha is None:
+        alpha_array = np.ones_like(w)
+    else:
+        alpha_array = np.asarray(alpha).copy()
+    # Use a sparse matrix rather than an array for alpha in order to keep sparcity.
+    alpha_matrix = diags(alpha_array, format='csr')
     for i in range(1, max_iter + 1):
-        z = spsolve(W + alpha * D, w * y)
-        diff = y - z
-        std = max(abs(np.std(diff[diff < 0])), utils._MIN_FLOAT) #TODO check whether dof should be 1 rather than 0
-        w_new = 1 / (1 + np.exp(2 * (diff - std) / std))
+        z = spsolve(W + alpha_matrix * D, w * y)
+        residual = y - z
+        std = max(abs(np.std(residual[residual < 0])), utils._MIN_FLOAT) #TODO check whether dof should be 1 rather than 0
+        w_new = 1 / (1 + np.exp(2 * (residual - std) / std))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
-        alpha.setdiag(abs(diff) / np.nanmax(abs(diff)))
+        abs_d = abs(residual)
+        alpha_matrix.setdiag(abs_d / np.nanmax(abs_d))
 
-    return z, {'roughness': z.T * alpha * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    params = {
+        'roughness': z.T * alpha_matrix * D * z, 'fidelity': residual.T * W * residual,
+        'weights': w, 'alpha': alpha_matrix.data[0]
+    }
+
+    return z, params
