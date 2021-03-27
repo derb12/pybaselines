@@ -2,10 +2,9 @@
 """Different techniques for fitting baselines to experimental data.
 
 Polynomial
-    1) poly (regular polynomial)
+    1) poly (Regular Polynomial)
     2) modpoly (Modified Polynomial)
     3) imodpoly (Improved Modified Polynomial)
-    4) backcor
 
 Created on Feb. 27, 2021
 @author: Donald Erb
@@ -329,14 +328,14 @@ def _huber_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
     if symmetric:
         mask = (np.abs(residual) < threshold)
         weights = (
-            residual * (2 * alpha - 1) * mask
-            + 2 * alpha * threshold * np.sign(residual) * (~mask)
+            mask * residual * (2 * alpha - 1)
+            + (~mask) * 2 * alpha * threshold * np.sign(residual)
         )
     else:
         mask = (residual < threshold)
         weights = (
-            residual * (2 * alpha - 1) * mask
-            + (2 * alpha * threshold - residual) * (~mask)
+            mask * residual * (2 * alpha - 1)
+            + (~mask) * (2 * alpha * threshold - residual)
         )
     return weights
 
@@ -386,7 +385,123 @@ def _truncated_quadratic_loss(residual, threshold=1.0, alpha_factor=0.99, symmet
         mask = (np.abs(residual) < threshold)
     else:
         mask = (residual < threshold)
-    return residual * (2 * alpha - 1) * mask - residual * (~mask)
+    return mask * residual * (2 * alpha - 1) - (~mask) * residual
+
+
+def _indec_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
+    """
+    The Indec non-quadratic cost function.
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,)
+        The residual array.
+    threshold : float, optional
+        Any residual values below the threshold are given quadratic loss.
+        Default is 1.0.
+    alpha_factor : float, optional
+        The scale between 0 and 1 to multiply the cost function's alpha_max
+        value (see Notes below). Default is 0.99.
+    symmetric : bool, optional
+        If True (default), the cost function is symmetric and applies the same
+        weighting for positive and negative values. If False, will apply weights
+        asymmetrically so that only positive weights are given the non-quadratic
+        weigting and negative weights have normal, quadratic weighting.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The weight array.
+
+    Notes
+    -----
+    The returned result is
+
+        -residual + alpha_factor * alpha_max * phi'(residual)
+
+    where phi'(x) is the derivative of the Indec function, phi(x).
+
+    References
+    ----------
+    Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+    Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
+
+    Mazet, V., et al. Background removal from spectra by designing and
+    minimising a non-quadratic cost function. Chemometrics and Intelligent
+    Laboratory Systems, 2005, 76(2), 121–133.
+
+    """
+    alpha = alpha_factor * 0.5  # alpha_max for goldindec is 0.5
+    if symmetric:
+        mask = (np.abs(residual) < threshold)
+        multiple = np.sign(residual)
+    else:
+        mask = (residual < threshold)
+        # multiple=1 is same as sign(residual) since residual is always > 0
+        # for asymmetric case, but this allows not doing the sign calculation
+        multiple = 1
+    weights = (
+        mask * residual * (2 * alpha - 1)
+        - (~mask) * (residual + alpha * multiple * threshold**3 / np.maximum(2 * residual**2, utils._MIN_FLOAT))
+    )
+    return weights
+
+
+def _root_error_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
+    """
+    The Root Error non-quadratic cost function.
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,)
+        The residual array.
+    threshold : float, optional
+        Unused variable since the root error does not use a threshold. Included
+        to provide the same signature as other loss functions.
+    alpha_factor : float, optional
+        The scale between 0 and 1 to multiply the cost function's alpha_max
+        value (see Notes below). Default is 0.99.
+    symmetric : bool, optional
+        If True (default), the cost function is symmetric and applies the same
+        weighting for positive and negative values. If False, will apply weights
+        asymmetrically so that only positive weights are given the non-quadratic
+        weigting and negative weights have normal, quadratic weighting.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The weight array.
+
+    Notes
+    -----
+    The returned result is
+
+        -residual + alpha_factor * alpha_max * phi'(residual)
+
+    where phi'(x) is the derivative of the root error function, phi(x).
+
+    References
+    ----------
+    Xu, Y., et al. ISREA: An Efficient Peak-Preserving Baseline Correction
+    Algorithm for Raman Spectra. Applied Spectroscopy, 2021, 75(1) 34-45.
+
+    Mazet, V., et al. Background removal from spectra by designing and
+    minimising a non-quadratic cost function. Chemometrics and Intelligent
+    Laboratory Systems, 2005, 76(2), 121–133.
+
+    """
+    alpha = 0.5 * alpha_factor  #TODO derive the actual alpha_max for root error
+    if symmetric:
+        weights = (
+            -residual + np.sign(residual) * alpha / np.maximum(2 * np.sqrt(np.abs(residual)), utils._MIN_FLOAT)
+        )
+    else:
+        mask = residual > 0
+        weights = (
+            (~mask) * residual * (2 * alpha - 1)
+            - mask * (residual - alpha / np.maximum(2 * np.sqrt(np.abs(residual)), utils._MIN_FLOAT))
+        )
+    return weights
 
 
 def _identify_loss_method(loss_method):
@@ -447,12 +562,16 @@ def backcor(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         The non-quadratic cost function to minimize. Must indicate symmetry of the
         method by appending 'a' or 'asymmetric' for asymmetric loss, and 's' or
         'symmetric' for symmetric loss. Default is 'asymmetric_truncated_quadratic'.
-        Available methods are:
+        Available methods, and their associated reference, are:
 
-            'asymmetric_truncated_quadratic'
-            'symmetric_truncated_quadratic'
-            'asymmetric_huber'
-            'symmetric_huber'
+            * 'asymmetric_truncated_quadratic'[7]_
+            * 'symmetric_truncated_quadratic'[7]_
+            * 'asymmetric_huber'[7]_
+            * 'symmetric_huber'[7]_
+            * 'asymmetric_indec'[9]_
+            * 'symmetric_indec'[9]_
+            * 'asymmetric_root_error'[10]_
+            * 'symmetric_root_error'[10]_
 
     threshold : float, optional
         The threshold value for the loss method, where the function goes from
@@ -481,6 +600,8 @@ def backcor(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     -----
     Code was partially adapted from MATLAB code from [8]_.
 
+    The 'root_error' cost functions do not use `theshold`.
+
     References
     ----------
     .. [7] Mazet, V., et al. Background removal from spectra by designing and
@@ -489,6 +610,10 @@ def backcor(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     .. [8] Vincent Mazet (2021). Background correction
            (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction),
            MATLAB Central File Exchange. Retrieved March 18, 2021.
+    .. [9] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+           Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
+    .. [10] Xu, Y., et al. ISREA: An Efficient Peak-Preserving Baseline Correction
+            Algorithm for Raman Spectra. Applied Spectroscopy, 2021, 75(1) 34-45.
 
     """
     alpha_factor = 0.99  #TODO should alpha_factor be a param?
@@ -499,6 +624,8 @@ def backcor(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     loss_function = {
         'huber': _huber_loss,
         'truncated_quadratic': _truncated_quadratic_loss,
+        'indec': _indec_loss,
+        'root_error': _root_error_loss
     }[method]
 
     y, x, _, original_domain, vander, pseudo_inverse = utils._setup_polynomial(
