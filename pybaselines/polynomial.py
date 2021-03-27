@@ -5,9 +5,40 @@ Polynomial
     1) poly (Regular Polynomial)
     2) modpoly (Modified Polynomial)
     3) imodpoly (Improved Modified Polynomial)
+    4) penalized_poly (Penalized Polynomial)
 
 Created on Feb. 27, 2021
 @author: Donald Erb
+
+
+The function pybaselines.polynomial.penalized_poly contains ported MATLAB code from
+https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction
+licensed under the BSD-2-Clause license, shown below.
+
+Copyright (c) 2012, Vincent Mazet
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in
+      the documentation and/or other materials provided with the distribution
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
 
 """
 
@@ -539,9 +570,9 @@ def _identify_loss_method(loss_method):
     return symmetric, '_'.join(split_method[1:])
 
 
-def backcor(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
-            cost_function='asymmetric_truncated_quadratic', threshold=1.0,
-            return_coef=False):
+def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
+                   cost_function='asymmetric_truncated_quadratic', threshold=1.0,
+                   return_coef=False):
     """
     Fits a polynomial baseline using a non-quadratic cost function.
 

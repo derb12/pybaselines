@@ -1,6 +1,5 @@
 include LICENSE.txt
 include README.rst
-include LICENSES_other.txt
 
 exclude readthedocs.yaml
 exclude .gitattributes
