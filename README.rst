@@ -62,9 +62,10 @@ b) Morphological (pybaselines.morphological)
 
 c) Polynomial (pybaselines.polynomial)
 
-    1) poly (regular polynomial)
+    1) poly (Regular Polynomial)
     2) modpoly (Modified Polynomial)
     3) imodpoly (Improved Modified Polynomial)
+    4) penalized_poly (Penalized Polynomial)
 
 d) Window-based (pybaselines.window)
 

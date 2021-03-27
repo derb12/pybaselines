@@ -11,9 +11,9 @@ Created on Feb. 27, 2021
 @author: Donald Erb
 
 
-The function pybaselines.polynomial.penalized_poly contains ported MATLAB code from
+The function penalized_poly contains ported MATLAB code from
 https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction
-licensed under the BSD-2-Clause license, shown below.
+licensed under the BSD-2-Clause license, included below.
 
 Copyright (c) 2012, Vincent Mazet
 All rights reserved.

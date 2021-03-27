@@ -71,3 +71,49 @@ class TestIModPoly(AlgorithmTester):
     def test_list_output(self):
         y_list = self.y.tolist()
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+
+class TestPenalizedPoly(AlgorithmTester):
+    """Class for testing penalized_poly baseline."""
+
+    func = polynomial.penalized_poly
+
+    @pytest.mark.parametrize(
+        'cost_function',
+        (
+            'asymmetric_truncated_quadratic',
+            'symmetric_truncated_quadratic',
+            'a_truncated_quadratic',  # test that 'a' and 's' work as well
+            's_truncated_quadratic',
+            'asymmetric_huber',
+            'symmetric_huber',
+            'asymmetric_indec',
+            'symmetric_indec',
+            'asymmetric_root_error',
+            'symmetric_root_error'
+        )
+    )
+    def test_unchanged_data(self, data_fixture, cost_function):
+        x, y = get_data()
+        super()._test_unchanged_data(data_fixture, y, x, y, x, cost_function=cost_function)
+
+    @pytest.mark.parametrize('cost_function', ('huber', 'p_huber'))
+    def test_unknown_cost_function_prefix_fails(self, data_fixture, cost_function):
+        x, y = get_data()
+        with pytest.raises(ValueError):
+            super()._test_unchanged_data(data_fixture, y, x, y, x, cost_function=cost_function)
+
+    def test_unknown_cost_function_fails(self, data_fixture):
+        x, y = get_data()
+        with pytest.raises(KeyError):
+            super()._test_unchanged_data(data_fixture, y, x, y, x, cost_function='a_hub')
+
+    def test_no_x(self):
+        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+
+    def test_output(self):
+        super()._test_output(self.y, self.y)
+
+    def test_list_output(self):
+        y_list = self.y.tolist()
+        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
