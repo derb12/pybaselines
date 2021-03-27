@@ -478,63 +478,6 @@ def _indec_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
     return weights
 
 
-def _root_error_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
-    """
-    The Root Error non-quadratic cost function.
-
-    Parameters
-    ----------
-    residual : numpy.ndarray, shape (N,)
-        The residual array.
-    threshold : float, optional
-        Unused variable since the root error does not use a threshold. Included
-        to provide the same signature as other loss functions.
-    alpha_factor : float, optional
-        The scale between 0 and 1 to multiply the cost function's alpha_max
-        value (see Notes below). Default is 0.99.
-    symmetric : bool, optional
-        If True (default), the cost function is symmetric and applies the same
-        weighting for positive and negative values. If False, will apply weights
-        asymmetrically so that only positive weights are given the non-quadratic
-        weigting and negative weights have normal, quadratic weighting.
-
-    Returns
-    -------
-    weights : numpy.ndarray, shape (N,)
-        The weight array.
-
-    Notes
-    -----
-    The returned result is
-
-        -residual + alpha_factor * alpha_max * phi'(residual)
-
-    where phi'(x) is the derivative of the root error function, phi(x).
-
-    References
-    ----------
-    Xu, Y., et al. ISREA: An Efficient Peak-Preserving Baseline Correction
-    Algorithm for Raman Spectra. Applied Spectroscopy, 2021, 75(1) 34-45.
-
-    Mazet, V., et al. Background removal from spectra by designing and
-    minimising a non-quadratic cost function. Chemometrics and Intelligent
-    Laboratory Systems, 2005, 76(2), 121–133.
-
-    """
-    alpha = 0.5 * alpha_factor  #TODO derive the actual alpha_max for root error
-    if symmetric:
-        weights = (
-            -residual + np.sign(residual) * alpha / np.maximum(2 * np.sqrt(np.abs(residual)), utils._MIN_FLOAT)
-        )
-    else:
-        mask = residual > 0
-        weights = (
-            (~mask) * residual * (2 * alpha - 1)
-            - mask * (residual - alpha / np.maximum(2 * np.sqrt(np.abs(residual)), utils._MIN_FLOAT))
-        )
-    return weights
-
-
 def _identify_loss_method(loss_method):
     """
     Identifies the symmetry for the given loss method.
@@ -601,8 +544,6 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
             * 'symmetric_huber'[7]_
             * 'asymmetric_indec'[9]_
             * 'symmetric_indec'[9]_
-            * 'asymmetric_root_error'[10]_
-            * 'symmetric_root_error'[10]_
 
     threshold : float, optional
         The threshold value for the loss method, where the function goes from
@@ -631,8 +572,6 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     -----
     Code was partially adapted from MATLAB code from [8]_.
 
-    The 'root_error' cost functions do not use `theshold`.
-
     References
     ----------
     .. [7] Mazet, V., et al. Background removal from spectra by designing and
@@ -643,10 +582,11 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
            MATLAB Central File Exchange. Retrieved March 18, 2021.
     .. [9] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
            Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
-    .. [10] Xu, Y., et al. ISREA: An Efficient Peak-Preserving Baseline Correction
-            Algorithm for Raman Spectra. Applied Spectroscopy, 2021, 75(1) 34-45.
 
     """
+    #TODO should scale y between [-1, 1] so that abs(residual) is roughly <~ 1 and threshold <= 1
+    # this would allow using same threshold regardless of y scale; would need to scale output
+    # coefficients, though
     alpha_factor = 0.99  #TODO should alpha_factor be a param?
     symmetric_loss, method = _identify_loss_method(cost_function)
     loss_kwargs = {
@@ -655,8 +595,7 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     loss_function = {
         'huber': _huber_loss,
         'truncated_quadratic': _truncated_quadratic_loss,
-        'indec': _indec_loss,
-        'root_error': _root_error_loss
+        'indec': _indec_loss
     }[method]
 
     y, x, _, original_domain, vander, pseudo_inverse = utils._setup_polynomial(

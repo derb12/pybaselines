@@ -88,9 +88,7 @@ class TestPenalizedPoly(AlgorithmTester):
             'asymmetric_huber',
             'symmetric_huber',
             'asymmetric_indec',
-            'symmetric_indec',
-            'asymmetric_root_error',
-            'symmetric_root_error'
+            'symmetric_indec'
         )
     )
     def test_unchanged_data(self, data_fixture, cost_function):
