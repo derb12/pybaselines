@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Different techniques for fitting baselines to experimental data.
+"""Whittaker-smoothing-based techniques for fitting baselines to experimental data.
 
-Penalized least squares
+Whittaker
     1) asls (Asymmetric Least Squares)
     2) iasls (Improved Asymmetric Least Squares)
     3) airpls (Adaptive iteratively reweighted penalized least squares)
@@ -22,7 +22,7 @@ from scipy.sparse.linalg import spsolve
 from . import utils
 
 
-def asls(data, lam=1e6, p=1e-2, order=2, max_iter=50, tol=1e-3, weights=None):
+def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
     Fits the baseline using assymetric least squared (AsLS) fitting.
 
@@ -37,7 +37,7 @@ def asls(data, lam=1e6, p=1e-2, order=2, max_iter=50, tol=1e-3, weights=None):
         The penalizing weighting factor. Must be between 0 and 1. Residuals
         above the data will be given p weight, and residuals below the data
         will be given p-1 weight. Default is 1e-2.
-    order : {2, 1, 3}, optional
+    diff_order : {2, 1, 3}, optional
         The order of the differential matrix. Default is 2 (second order
         differential matrix).
     max_iter : int, optional
@@ -78,7 +78,7 @@ def asls(data, lam=1e6, p=1e-2, order=2, max_iter=50, tol=1e-3, weights=None):
     """
     if p < 0 or p > 1:
         raise ValueError('p must be between 0 and 1')
-    y, D, W, w = utils._setup_pls(data, lam, order, weights)
+    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
         z = spsolve(W + D, w * y)
         mask = (y > z)
@@ -88,8 +88,8 @@ def asls(data, lam=1e6, p=1e-2, order=2, max_iter=50, tol=1e-3, weights=None):
         w = w_new
         W.setdiag(w)
 
-    diff = y - z
-    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    residual = y - z
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
 
 
 def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, weights=None):
@@ -151,11 +151,12 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         mask = (y > z)
         weights = p * mask + (1 - p) * (~mask)
 
-    _, D, W, w = utils._setup_pls(y, lam, 2, weights)
+    _, D, W, w = utils._setup_whittaker(y, lam, 2, weights)
     D_1 = utils.difference_matrix(y.shape[0], 1)
     D_1 = lam_1 * D_1.T * D_1
     for _ in range(max_iter):
-        z = spsolve(W.T * W + D_1 + D, (W.T * W + D_1) * y)
+        weights_and_d1 = W.T * W + D_1
+        z = spsolve(weights_and_d1 + D, weights_and_d1 * y)
         mask = (y > z)
         w_new = p * mask + (1 - p) * (~mask)
         if utils.relative_difference(w, w_new) < tol:
@@ -163,15 +164,15 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         w = w_new
         W.setdiag(w)
 
-    diff = y - z
-    return (
-        z,
-        {'roughness': z.T * D * z + diff.T * D_1.T * D_1 * diff,
-         'fidelity': diff.T * W * diff, 'weights': w}
-    )
+    residual = y - z
+    params = {
+        'roughness': z.T * D * z + residual.T * D_1.T * D_1 * residual,
+        'fidelity': residual.T * W * residual, 'weights': w
+    }
+    return z, params
 
 
-def airpls(data, lam=1e6, order=2, max_iter=50, tol=1e-3, weights=None):
+def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
     Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -182,7 +183,7 @@ def airpls(data, lam=1e6, order=2, max_iter=50, tol=1e-3, weights=None):
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
-    order : {2, 1, 3}, optional
+    diff_order : {2, 1, 3}, optional
         The order of the differential matrix. Default is 2 (second order
         differential matrix).
     max_iter : int, optional
@@ -209,21 +210,23 @@ def airpls(data, lam=1e6, order=2, max_iter=50, tol=1e-3, weights=None):
     reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
     """
-    y, D, W, w = utils._setup_pls(data, lam, order, weights)
+    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
+    y_l1_norm = np.linalg.norm(y, 1)
     for i in range(1, max_iter + 1):
         z = spsolve(W + D, w * y)
-        diff = y - z
-        neg_mask = (diff < 0)
-        diff_neg_sum = abs(diff[neg_mask].sum())
-        if diff_neg_sum / (abs(y)).sum() < tol:
+        residual = y - z
+        neg_mask = (residual < 0)
+        # same as abs(residual[neg_mask]).sum() since residual[neg_mask] are all negative
+        residual_l1_norm = -1 * residual[neg_mask].sum()
+        if residual_l1_norm / y_l1_norm < tol:
             break
-        w = np.exp(i * abs(diff) / diff_neg_sum) * neg_mask
+        w = np.exp(i * abs(residual) / residual_l1_norm) * neg_mask
         W.setdiag(w)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
 
 
-def arpls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
+def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
     Asymmetrically reweighted penalized least squares smoothing (ArPLS).
 
@@ -234,7 +237,7 @@ def arpls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
-    order : {2, 1, 3}, optional
+    diff_order : {2, 1, 3}, optional
         The order of the differential matrix. Default is 2 (second order
         differential matrix).
     max_iter : int, optional
@@ -261,20 +264,20 @@ def arpls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
     penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
     """
-    y, D, W, w = utils._setup_pls(data, lam, order, weights)
+    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
         z = spsolve(W + D, w * y)
-        diff = y - z
-        neg_mask = diff < 0
-        mean = np.mean(diff[neg_mask])
-        std = max(abs(np.std(diff[neg_mask])), utils._MIN_FLOAT)
-        w_new = 1 / (1 + np.exp(2 * (diff - (2 * std - mean)) / std))
+        residual = y - z
+        neg_mask = residual < 0
+        mean = np.mean(residual[neg_mask])
+        std = max(abs(np.std(residual[neg_mask])), utils._MIN_FLOAT)
+        w_new = 1 / (1 + np.exp(2 * (residual - (2 * std - mean)) / std))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
 
 
 def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
@@ -316,19 +319,17 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """
-    y, D, W, w = utils._setup_pls(data, lam, 2, weights)
+    y, D, W, w = utils._setup_whittaker(data, lam, 2, weights)
     D_1 = utils.difference_matrix(y.shape[0], 1)
     D_1 = D_1.T * D_1
     Identity = identity(y.shape[0])
     for i in range(1, max_iter + 1):
         z = spsolve(W + D_1 + (Identity - eta * W) * D, w * y)
-        diff = y - z
-        neg_mask = diff < 0
-        mean = np.mean(diff[neg_mask])
-        std = max(abs(np.std(diff[neg_mask])), utils._MIN_FLOAT)
-        w_new = 0.5 * (
-            1 - ((np.exp(i) * (diff - (2 * std - mean)) / std) / (1 + abs(np.exp(i) * (diff - (2 * std - mean)) / std)))
-        )
+        residual = y - z
+        neg_mask = residual < 0
+        std = max(abs(np.std(residual[neg_mask])), utils._MIN_FLOAT)
+        inner = np.exp(i) * (residual - (2 * std - np.mean(residual[neg_mask]))) / std
+        w_new = 0.5 * (1 - (inner / (1 + abs(inner))))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
@@ -337,11 +338,11 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     return (
         z,
         {'roughness': (Identity - eta * W) * (z.T * D * z) + z.T * D_1 * z,
-         'fidelity': diff.T * W * diff, 'weights': w}
+         'fidelity': residual.T * W * residual, 'weights': w}
     )
 
 
-def iarpls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
+def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
     Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
 
@@ -352,7 +353,7 @@ def iarpls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
-    order : {2, 1, 3}, optional
+    diff_order : {2, 1, 3}, optional
         The order of the differential matrix. Default is 2 (second order
         differential matrix).
     max_iter : int, optional
@@ -380,23 +381,22 @@ def iarpls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
     59, 10933-10943.
 
     """
-    y, D, W, w = utils._setup_pls(data, lam, order, weights)
+    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
     for i in range(1, max_iter + 1):
         z = spsolve(W + D, w * y)
-        diff = y - z
-        std = max(abs(np.std(diff[diff < 0])), utils._MIN_FLOAT)
-        w_new = 0.5 * (
-            1 - ((np.exp(i) * (diff - 2 * std) / std) / np.sqrt(1 + (np.exp(i) * (diff - 2 * std) / std)**2))
-        )
+        residual = y - z
+        std = max(abs(np.std(residual[residual < 0])), utils._MIN_FLOAT)
+        inner = np.exp(i) * (residual - 2 * std) / std
+        w_new = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
 
 
-def aspls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
+def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alpha=None):
     """
     Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -407,7 +407,7 @@ def aspls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
-    order : {2, 1, 3}, optional
+    diff_order : {2, 1, 3}, optional
         The order of the differential matrix. Default is 2 (second order
         differential matrix).
     max_iter : int, optional
@@ -416,6 +416,10 @@ def aspls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
         The exit criteria. Default is 1e-3.
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+    alpha : array-like, shape (N,), optional
+        An array of values that control the local value of `lam` to better
+        fit peak and non-peak regions. If None (default), then the initial values
         will be an array with size equal to N and all values set to 1.
 
     Returns
@@ -435,18 +439,28 @@ def aspls(data, lam=1e5, order=2, max_iter=50, tol=1e-3, weights=None):
     Spectroscopy Letters, 2020, 53(3), 222-233.
 
     """
-    y, D, W, w = utils._setup_pls(data, lam, order, weights)
-    # Use a sparse diagonal matrix rather than an array for alpha in order to keep sparcity.
-    alpha = diags(w)
+    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
+    if alpha is None:
+        alpha_array = np.ones_like(w)
+    else:
+        alpha_array = np.asarray(alpha).copy()
+    # Use a sparse matrix rather than an array for alpha in order to keep sparcity.
+    alpha_matrix = diags(alpha_array, format='csr')
     for i in range(1, max_iter + 1):
-        z = spsolve(W + alpha * D, w * y)
-        diff = y - z
-        std = max(abs(np.std(diff[diff < 0])), utils._MIN_FLOAT) #TODO check whether dof should be 1 rather than 0
-        w_new = 1 / (1 + np.exp(2 * (diff - std)) / std)
+        z = spsolve(W + alpha_matrix * D, w * y)
+        residual = y - z
+        std = max(abs(np.std(residual[residual < 0])), utils._MIN_FLOAT) #TODO check whether dof should be 1 rather than 0
+        w_new = 1 / (1 + np.exp(2 * (residual - std) / std))
         if utils.relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
-        alpha.setdiag(abs(diff) / np.nanmax(abs(diff)))
+        abs_d = abs(residual)
+        alpha_matrix.setdiag(abs_d / np.nanmax(abs_d))
 
-    return z, {'roughness': z.T * alpha * D * z, 'fidelity': diff.T * W * diff, 'weights': w}
+    params = {
+        'roughness': z.T * alpha_matrix * D * z, 'fidelity': residual.T * W * residual,
+        'weights': w, 'alpha': alpha_matrix.data[0]
+    }
+
+    return z, params
