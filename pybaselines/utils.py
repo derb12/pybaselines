@@ -128,7 +128,7 @@ def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
     -------
     vander : numpy.ndarray
         The Vandermonde matrix for the polynomial.
-    vander_pinv : numpy.ndarray
+    pseudo_inverse : numpy.ndarray
         The pseudo-inverse of the Vandermonde, with weights applied if input.
         Calculated using singular value decomposition (SVD).
 
@@ -142,11 +142,11 @@ def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
         return vander
 
     if weights is not None:
-        vander_pinv = np.linalg.pinv(diags(weights) * vander)
+        pseudo_inverse = np.linalg.pinv(weights[:, np.newaxis] * vander)
     else:
-        vander_pinv = np.linalg.pinv(vander)
+        pseudo_inverse = np.linalg.pinv(vander)
 
-    return vander, vander_pinv
+    return vander, pseudo_inverse
 
 
 def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
@@ -189,7 +189,7 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     vander : numpy.ndarray
         Only returned if return_vander is True. The Vandermonde matrix for the
         normalized x values.
-    vander_pinv : numpy.ndarray
+    pseudo_inverse : numpy.ndarray
         Only returned if return_pinv is True. The pseudo-inverse of the
         Vandermonde matrix, calculated with singular value decomposition (SVD).
 
