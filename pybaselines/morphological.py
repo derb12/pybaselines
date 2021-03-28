@@ -503,6 +503,8 @@ def iamor(data, tol=1e-3, max_iter=200, **window_kwargs):
     """
     y, half_window = _setup_morphology(data, **window_kwargs)
     window_size = 2 * half_window + 1
+    #TODO does window_size need to actually be the delta-x values rather
+    # than the index-based window size, similar to loess? ie: x[2*half_window+1] - x[0]
     kernel = np.array([
         np.exp(-1 / (1 - (i / window_size)**2)) for i in range(-half_window + 1, half_window)
     ])

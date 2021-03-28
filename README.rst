@@ -43,7 +43,15 @@ pybaselines provides different techniques for fitting baselines to experimental 
 Baseline fitting techniques are grouped accordingly (note: when a method
 is labelled as 'improved', that is the method's name, not editorialization):
 
-a) Whittaker-smoothing-based techniques (pybaselines.whittaker)
+a) Polynomial (pybaselines.polynomial)
+
+    1) poly (Regular Polynomial)
+    2) modpoly (Modified Polynomial)
+    3) imodpoly (Improved Modified Polynomial)
+    4) penalized_poly (Penalized Polynomial)
+    5) loess (Locally Estimated Scatterplot Smoothing)
+
+b) Whittaker-smoothing-based techniques (pybaselines.whittaker)
 
     1) asls (Asymmetric Least Squares)
     2) iasls (Improved Asymmetric Least Squares)
@@ -53,19 +61,12 @@ a) Whittaker-smoothing-based techniques (pybaselines.whittaker)
     6) iarpls (Improved Asymmetrically reweighted penalized least squares)
     7) aspls (Adaptive smoothness penalized least squares)
 
-b) Morphological (pybaselines.morphological)
+c) Morphological (pybaselines.morphological)
 
     1) mpls (Morphological Penalized Least Squares)
     2) mor (Morphological)
     3) imor (Improved Morphological)
     4) iamor (Iterative averaging morphological)
-
-c) Polynomial (pybaselines.polynomial)
-
-    1) poly (Regular Polynomial)
-    2) modpoly (Modified Polynomial)
-    3) imodpoly (Improved Modified Polynomial)
-    4) penalized_poly (Penalized Polynomial)
 
 d) Window-based (pybaselines.window)
 

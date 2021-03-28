@@ -115,3 +115,24 @@ class TestPenalizedPoly(AlgorithmTester):
     def test_list_output(self):
         y_list = self.y.tolist()
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+
+class TestLoess(AlgorithmTester):
+    """Class for testing LOESS baseline."""
+
+    func = polynomial.loess
+
+    @pytest.mark.parametrize('use_threshold', (False, True))
+    def test_unchanged_data(self, data_fixture, use_threshold):
+        x, y = get_data()
+        super()._test_unchanged_data(data_fixture, y, x, y, x, use_threshold=use_threshold)
+
+    def test_no_x(self):
+        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+
+    def test_output(self):
+        super()._test_output(self.y, self.y)
+
+    def test_list_output(self):
+        y_list = self.y.tolist()
+        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
