@@ -159,3 +159,8 @@ class AlgorithmTester:
             output_array[0], output_list[0],
             err_msg='algorithm output is different for arrays vs lists'
         )
+
+    @classmethod
+    def _call_func(cls, *args, **kwargs):
+        """Class method to allow calling the class's function."""
+        return cls.func(*args, **kwargs)
