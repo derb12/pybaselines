@@ -541,7 +541,77 @@ def iamor(data, tol=1e-3, max_iter=200, **window_kwargs):
             kernel
         )
         if relative_difference(z, z_new) < tol:
+def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
+           pad_kwargs=None, **window_kwargs):
+    """
+    Iterative morphological and mollified (MorMol) baseline.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window to use for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using pybaselines.morphological.optimize_window if
+        `window_kwargs` are specified, otherwise will use the N / 5.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    max_iter : int, optional
+        The maximum number of iterations. Default is 200.
+    smooth_half_window : int, optional
+        The half-window to use for smoothing the data before performing the
+        morphological operation. Default is 1.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for
+        padding the edges of the data to prevent edge effects from convolution.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+
+    Returns
+    -------
+    z : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'half_window': int
+            The half window used for the morphological calculations.
+
+    References
+    ----------
+    Koch, M., et al., Iterative morphological and mollifier-based baseline
+    correction for Raman spectra, J Raman Spectroscopy, 2017, 48(2), 336-342.
+
+    """
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    window_size = 2 * half_wind + 1
+    kernel = _mollifier_kernel(window_size)
+    smooth_kernel = _mollifier_kernel(smooth_half_window)
+    data_bounds = slice(window_size, -window_size)
+
+    pad_kws = pad_kwargs if pad_kwargs is not None else {}
+    y = pad_edges(y, window_size, **pad_kws)
+    z = np.zeros(y.shape[0])
+    for _ in range(max_iter):
+        y_smooth = padded_convolve(y - z, smooth_kernel)
+        z_new = z + padded_convolve(grey_erosion(y_smooth, window_size), kernel)
+        if relative_difference(z[data_bounds], z_new[data_bounds]) < tol:
             break
         z = z_new
 
-    return z, {'half_window': half_window}
+    return z[data_bounds], {'half_window': half_wind}
