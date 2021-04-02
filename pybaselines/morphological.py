@@ -20,6 +20,32 @@ from .utils import _setup_whittaker, mollify, relative_difference
 
 
 def _smooth(data, x_data=None, use_whittaker=True, lam=1e6,
+def _mollifier_kernel(window_size):
+    """
+    A kernel for smoothing/mollification.
+
+    Parameters
+    ----------
+    window_size : int
+        The number of points for the entire kernel.
+
+    Returns
+    -------
+    numpy.ndarray, shape (2 * window_size + 1,)
+        The area normalized kernel.
+
+    References
+    ----------
+    Chen, H., et al. An Adaptive and Fully Automated Baseline Correction
+    Method for Raman Spectroscopy Based on Morphological Operations and
+    Mollifications. Applied Spectroscopy, 2019, 73(3), 284-293.
+
+    """
+    x = (np.arange(0, 2 * window_size + 1) - window_size) / window_size
+    kernel = np.zeros_like(x)
+    # x[1:-1] is same as x[abs(x) < 1]
+    kernel[1:-1] = np.exp(-1 / (1 - (x[1:-1])**2))
+    return kernel / kernel.sum()
             order=2, weights=None):
     """
     Smooth a baseline using either Whittaker smoothing.
@@ -503,15 +529,7 @@ def iamor(data, tol=1e-3, max_iter=200, **window_kwargs):
     """
     y, half_window = _setup_morphology(data, **window_kwargs)
     window_size = 2 * half_window + 1
-    #TODO does window_size need to actually be the delta-x values rather
-    # than the index-based window size, similar to loess? ie: x[2*half_window+1] - x[0]
-    kernel = np.array([
-        np.exp(-1 / (1 - (i / window_size)**2)) for i in range(-half_window + 1, half_window)
-    ])
-    # normalize the kernel before convolution so that can just do
-    # np.convolve(y, normalized_kernel) rather than
-    # np.convolve(y, kernel) / np.convolve(np.ones(y.shape[0]), kernel)
-    kernel = kernel / kernel.sum()
+    kernel = _mollifier_kernel(window_size)
 
     z = y
     for _ in range(max_iter):
