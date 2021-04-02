@@ -3,7 +3,7 @@
 ### Description
 <!--Describe the pull request in detail, telling why the changes
 are required and/or what problems they fix. Link or add the issue number
-for any exising issues that the pull request solves.
+for any existing issues that the pull request solves.
 
 Note that unsolicited pull requests will most likely be closed.
 Please file an issue first, so that details can be discussed/finalized
