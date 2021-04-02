@@ -5,7 +5,8 @@
     1) mpls (Morphological Penalized Least Squares)
     2) mor (Morphological)
     3) imor (Improved Morphological)
-    4) iamor (Iterative averaging morphological)
+    4) mormol (Morphological and Mollified Baseline)
+    5) amormol (Averaging Morphological and Mollified Baseline)
 
 Created on March 5, 2021
 @author: Donald Erb
@@ -470,9 +471,9 @@ def imor(data, tol=1e-3, max_iter=200, smooth=False, **window_kwargs):
     return z, {'half_window': half_window}
 
 
-def iamor(data, tol=1e-3, max_iter=200, **window_kwargs):
+def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **window_kwargs):
     """
-    Iteratively averaging morphological (iaMor) baseline.
+    Iteratively averaging morphological and mollified (aMorMol) baseline.
 
     Parameters
     ----------
