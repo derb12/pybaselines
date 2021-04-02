@@ -19,7 +19,9 @@ import numpy as np
 from scipy.sparse import diags, identity
 from scipy.sparse.linalg import spsolve
 
-from . import utils
+from ._algorithm_setup import (_setup_polynomial, _setup_whittaker,
+                               difference_matrix)
+from .utils import _MIN_FLOAT, relative_difference
 
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -78,12 +80,12 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     """
     if p < 0 or p > 1:
         raise ValueError('p must be between 0 and 1')
-    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
+    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
         z = spsolve(W + D, w * y)
         mask = (y > z)
         w_new = p * mask + (1 - p) * (~mask)
-        if utils.relative_difference(w, w_new) < tol:
+        if relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -145,21 +147,21 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     """
     if p < 0 or p > 1:
         raise ValueError('p must be between 0 and 1')
-    y, x, *_ = utils._setup_polynomial(data, x_data)
+    y, x, *_ = _setup_polynomial(data, x_data)
     if weights is None:
         z = np.polynomial.Polynomial.fit(x, y, 2)(x)
         mask = (y > z)
         weights = p * mask + (1 - p) * (~mask)
 
-    _, D, W, w = utils._setup_whittaker(y, lam, 2, weights)
-    D_1 = utils.difference_matrix(y.shape[0], 1)
+    _, D, W, w = _setup_whittaker(y, lam, 2, weights)
+    D_1 = difference_matrix(y.shape[0], 1)
     D_1 = lam_1 * D_1.T * D_1
     for _ in range(max_iter):
         weights_and_d1 = W.T * W + D_1
         z = spsolve(weights_and_d1 + D, weights_and_d1 * y)
         mask = (y > z)
         w_new = p * mask + (1 - p) * (~mask)
-        if utils.relative_difference(w, w_new) < tol:
+        if relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -210,7 +212,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
     """
-    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
+    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
     y_l1_norm = np.linalg.norm(y, 1)
     for i in range(1, max_iter + 1):
         z = spsolve(W + D, w * y)
@@ -264,15 +266,15 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
     """
-    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
+    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
         z = spsolve(W + D, w * y)
         residual = y - z
         neg_mask = residual < 0
         mean = np.mean(residual[neg_mask])
-        std = max(abs(np.std(residual[neg_mask])), utils._MIN_FLOAT)
+        std = max(abs(np.std(residual[neg_mask])), _MIN_FLOAT)
         w_new = 1 / (1 + np.exp(2 * (residual - (2 * std - mean)) / std))
-        if utils.relative_difference(w, w_new) < tol:
+        if relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -319,18 +321,18 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """
-    y, D, W, w = utils._setup_whittaker(data, lam, 2, weights)
-    D_1 = utils.difference_matrix(y.shape[0], 1)
+    y, D, W, w = _setup_whittaker(data, lam, 2, weights)
+    D_1 = difference_matrix(y.shape[0], 1)
     D_1 = D_1.T * D_1
     Identity = identity(y.shape[0])
     for i in range(1, max_iter + 1):
         z = spsolve(W + D_1 + (Identity - eta * W) * D, w * y)
         residual = y - z
         neg_mask = residual < 0
-        std = max(abs(np.std(residual[neg_mask])), utils._MIN_FLOAT)
+        std = max(abs(np.std(residual[neg_mask])), _MIN_FLOAT)
         inner = np.exp(i) * (residual - (2 * std - np.mean(residual[neg_mask]))) / std
         w_new = 0.5 * (1 - (inner / (1 + abs(inner))))
-        if utils.relative_difference(w, w_new) < tol:
+        if relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -381,14 +383,14 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     59, 10933-10943.
 
     """
-    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
+    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
     for i in range(1, max_iter + 1):
         z = spsolve(W + D, w * y)
         residual = y - z
-        std = max(abs(np.std(residual[residual < 0])), utils._MIN_FLOAT)
+        std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
         inner = np.exp(i) * (residual - 2 * std) / std
         w_new = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
-        if utils.relative_difference(w, w_new) < tol:
+        if relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)
@@ -439,7 +441,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     Spectroscopy Letters, 2020, 53(3), 222-233.
 
     """
-    y, D, W, w = utils._setup_whittaker(data, lam, diff_order, weights)
+    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
     if alpha is None:
         alpha_array = np.ones_like(w)
     else:
@@ -449,9 +451,9 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     for i in range(1, max_iter + 1):
         z = spsolve(W + alpha_matrix * D, w * y)
         residual = y - z
-        std = max(abs(np.std(residual[residual < 0])), utils._MIN_FLOAT) #TODO check whether dof should be 1 rather than 0
+        std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
         w_new = 1 / (1 + np.exp(2 * (residual - std) / std))
-        if utils.relative_difference(w, w_new) < tol:
+        if relative_difference(w, w_new) < tol:
             break
         w = w_new
         W.setdiag(w)

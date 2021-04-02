@@ -45,9 +45,9 @@ POSSIBILITY OF SUCH DAMAGE.
 The function loess contains code adapted from https://gist.github.com/agramfort/850437
 (accessed March 25, 2021), whose license is included below.
 
-Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
-
-License: BSD (3-clause)
+# Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
+#
+# License: BSD (3-clause)
 
 """
 
@@ -55,7 +55,8 @@ from math import ceil
 
 import numpy as np
 
-from . import utils
+from ._algorithm_setup import _get_vander, _setup_polynomial
+from .utils import _MIN_FLOAT, relative_difference
 
 
 def _convert_coef(coef, original_domain):
@@ -126,7 +127,7 @@ def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
     at the indices where peaks are located.
 
     """
-    y, x, w, original_domain = utils._setup_polynomial(data, x_data, weights)
+    y, x, w, original_domain = _setup_polynomial(data, x_data, weights)
     fit_polynomial = np.polynomial.Polynomial.fit(x, y, poly_order, w=np.sqrt(w))
     z = fit_polynomial(x)
     params = {'weights': w}
@@ -200,7 +201,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
            2007, 61(11), 1225-1232.
 
     """
-    y, x, w, original_domain, vander, pseudo_inverse = utils._setup_polynomial(
+    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
     sqrt_w = np.sqrt(w)
@@ -213,13 +214,13 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
         # use z + deviation since without deviation, half of y should be above z
         w[z + np.std(y - z) < y] = 0
         sqrt_w = np.sqrt(w)
-        vander, pseudo_inverse = utils._get_vander(x, poly_order, sqrt_w)
+        vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
         y = np.minimum(y0 if use_original else y, z)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
         z_new = np.dot(vander, coef)
-        if utils.relative_difference(z, z_new) < tol:
+        if relative_difference(z, z_new) < tol:
             break
         z = z_new
 
@@ -294,7 +295,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
            2007, 61(11), 1225-1232.
 
     """
-    y, x, w, original_domain, vander, pseudo_inverse = utils._setup_polynomial(
+    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
     sqrt_w = np.sqrt(w)
@@ -307,7 +308,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
     if mask_initial_peaks:
         w[z + deviation < y] = 0
         sqrt_w = np.sqrt(w)
-        vander, pseudo_inverse = utils._get_vander(x, poly_order, sqrt_w)
+        vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
         y = np.minimum(y0 if use_original else y, z)
@@ -315,7 +316,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         z = np.dot(vander, coef)
         new_deviation = np.std((y0 if use_original else y) - z)
         # use new_deviation as dividing term in relative difference
-        if utils.relative_difference(new_deviation, deviation) < tol:
+        if relative_difference(new_deviation, deviation) < tol:
             break
         deviation = new_deviation
 
@@ -484,7 +485,7 @@ def _indec_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
         multiple = 1
     weights = (
         mask * residual * (2 * alpha - 1)
-        - (~mask) * (residual + alpha * multiple * threshold**3 / np.maximum(2 * residual**2, utils._MIN_FLOAT))
+        - (~mask) * (residual + alpha * multiple * threshold**3 / np.maximum(2 * residual**2, _MIN_FLOAT))
     )
     return weights
 
@@ -529,6 +530,9 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
                    return_coef=False):
     """
     Fits a polynomial baseline using a non-quadratic cost function.
+
+    The non-quadratic cost functions penalize residuals with larger values,
+    giving a more robust fit compared to normal least-squares.
 
     Parameters
     ----------
@@ -610,7 +614,7 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         'indec': _indec_loss
     }[method]
 
-    y, x, _, original_domain, vander, pseudo_inverse = utils._setup_polynomial(
+    y, x, _, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, None, poly_order, return_vander=True, return_pinv=True
     )
 
@@ -620,7 +624,7 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         coef = np.dot(pseudo_inverse, y + loss_function(y - z, **loss_kwargs))
         z_new = np.dot(vander, coef)
 
-        if utils.relative_difference(z, z_new) < tol:
+        if relative_difference(z, z_new) < tol:
             break
         z = z_new
 
@@ -741,7 +745,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
     scale : float, optional
         A scale factor applied to the weighted residuals to control the robustness
         of the fit. Default is 3.0, as used in [10]_. Note that the original loess
-        procedure in [11]_ used `scale`=4.05.
+        procedure in [11]_ used a `scale` of 4.05.
     poly_order : int, optional
         The polynomial order for fitting the baseline. Default is 1.
     tol : float, optional
@@ -806,7 +810,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
             2007, 61(11), 1225-1232.
 
     """
-    y, x, weights, _, vander = utils._setup_polynomial(data, x_data, None, poly_order, True)
+    y, x, weights, _, vander = _setup_polynomial(data, x_data, None, poly_order, True)
     num_x = x.shape[0]
     if total_points is None:
         total_points = ceil(fraction * num_x)
@@ -814,6 +818,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
         raise ValueError('total points must be greater than 1')
 
     #TODO potentially use k-d trees instead, following Cleveland, et al., Regression by local fitting. 1988.
+    # or sort x before, and just slide the window to the right as you go along
     kernels = np.empty((num_x, num_x))
     for i, x_val in enumerate(x):
         difference = np.abs(x - x_val)
@@ -834,7 +839,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
             )[0]
             #TODO should the coefficients be returned? probably not since it would slow it down a lot
             z_new[i] = np.dot(vander[i], coef)
-        if utils.relative_difference(z, z_new) < tol:
+        if relative_difference(z, z_new) < tol:
             break
 
         z = z_new.copy()
