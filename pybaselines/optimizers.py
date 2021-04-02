@@ -1,66 +1,25 @@
 # -*- coding: utf-8 -*-
-"""High level functions for .
+"""High level functions for making better use of baseline algorithms.
 
+Functions in this module make use of other baseline algorithms in
+pybaselines to provide better results.
+
+Optimizers
+    1) collab_pls (Collaborative Penalized Least Squares)
+    2) optimize_extended_range
 
 Created on March 3, 2021
 @author: Donald Erb
 
 """
 
-import warnings
-
 import numpy as np
 
+from ._algorithm_setup import _setup_polynomial
 from .morphological import mpls
-from .whittaker import iarpls, airpls, arpls, asls, aspls, drpls, iasls
 from .polynomial import imodpoly, modpoly, poly
-from .utils import gaussian, _setup_polynomial
-
-
-def manual_baseline(x_data, baseline_points=()):
-    """
-    Creates a linear baseline constructed from points.
-
-    Parameters
-    ----------
-    x_data : array-like, shape (N,)
-        The x-values of the measured data.
-    baseline_points : Iterable(Container(float, float))
-        An iterable of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
-        each point representing the baseline. Must be at least two points
-        to have a non-zero baseline.
-
-    Returns
-    -------
-    z : numpy.ndarray, shape (N,)
-        The baseline array constructed from connecting line segments between
-        each background point.
-    dict
-        An empty dictionary, just to match the output of all other algorithms.
-
-    Warns
-    -----
-    UserWarning
-        Raised if there are less than two points in baseline_points.
-
-    Notes
-    -----
-    Assumes the background is represented by lines connecting each of the
-    specified background points.
-
-    """
-    x = np.asarray(x_data)
-    z = np.zeros(x.shape[0])
-    if len(baseline_points) < 2:
-        warnings.warn('there must be at least 2 background points to create a baseline')
-    else:
-        points = sorted(baseline_points, key=lambda p: p[0])
-        for i in range(len(points) - 1):
-            x_points, y_points = zip(*points[i:i + 2])
-            segment = (x >= x_points[0]) & (x <= x_points[1])
-            z[segment] = np.linspace(*y_points, x[segment].shape[0])
-
-    return z, {}
+from .utils import gaussian
+from .whittaker import airpls, arpls, asls, aspls, drpls, iarpls, iasls
 
 
 def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
@@ -68,22 +27,22 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     Collaborative Penalized Least Squares (collab-PLS).
 
     Averages the data or the fit weights for an entire dataset to get more
-    optimal results.
+    optimal results. Uses any Whittaker-smoothing-based algorithm.
 
     Parameters
     ----------
     data : array-like, shape (M, N)
         An array with shape (M, N) where M is the number of entries in
         the dataset and N is the number of data points in each entry.
-    average_dataset : bool
+    average_dataset : bool, optional
         If True (default) will average the dataset before fitting to get the
         weighting. If False, will fit each individual entry in the dataset and
         then average the weights to get the weighting for the dataset.
-    method : {}
-        [description], by default 'asls'
-    full : bool
-        If True, will return the weights along with the baselines.
+    method : {'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls'}, optional
+        A string indicating the Whittaker-smoothing-based method to use for
+        fitting the baseline. Default is 'asls'.
     **method_kwargs
+        Keyword arguments to pass to the selected `method` function.
 
     Returns
     -------
@@ -98,14 +57,14 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
 
     """
     fit_func = {
-        'arpls': arpls,
-        'aspls': aspls,
-        'iarpls': iarpls,
-        'airpls': airpls,
-        'mpls': mpls,
         'asls': asls,
         'iasls': iasls,
-        'drpls': drpls
+        'airpls': airpls,
+        'mpls': mpls,
+        'arpls': arpls,
+        'drpls': drpls,
+        'iarpls': iarpls,
+        'aspls': aspls
     }[method.lower()]
     dataset = np.asarray(data)
     if average_dataset:
@@ -121,7 +80,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     method_kwargs['tol'] = np.inf
     baselines = []
     for entry in dataset:
-        baselines.append(fit_func(entry, **method_kwargs))
+        baselines.append(fit_func(entry, **method_kwargs)[0])
 
     return np.vstack(baselines), {'weights': method_kwargs['weights']}
 
@@ -136,7 +95,7 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
             func_kwargs[variable] = 10**var
         else:
             func_kwargs[variable] = var
-        baseline = func(fit_data, **func_kwargs)[0]
+        baseline, other_params = func(fit_data, **func_kwargs)
         #TODO change the known baseline so that np.roll does not have to be
         # calculated each time, since it requires additional time
         rmse = np.sqrt(np.mean(
@@ -152,15 +111,16 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
             if misses > allowed_misses:
                 break
 
-    return z, min_var
+    return z, min_var, other_params
 
 
-def optimize_parameter(data, x_data=None, method='aspls', side='left', **method_kwargs):
+def optimize_extended_range(data, x_data=None, method='aspls', side='left', **method_kwargs):
     """
-    Finds the best parameter value for the given baseline method.
+    Extends data and finds the best parameter value for the given baseline method.
 
-    Useful for calculating the optimum `lam` or `poly_degree` value required
-    to optimize other algorithms.
+    Adds additional data to the left and/or right of the input data, and then iterates
+    through parameter values to find the best fit. Useful for calculating the optimum
+    `lam` or `poly_order` value required to optimize other algorithms.
 
     Notes
     -----
@@ -175,14 +135,14 @@ def optimize_parameter(data, x_data=None, method='aspls', side='left', **method_
     ----------
     .. [1] Zhang, F., et al. An Automatic Baseline Correction Method Based on
            the Penalized Least Squares Method. Sensors, 2020, 20(7), 2015.
-    .. [2] Krishna, H, et al. Range-independent background subtraction algorithm
+    .. [2] Krishna, H., et al. Range-independent background subtraction algorithm
            for recovery of Raman spectra of biological tissue. Journal of Raman
            Spectroscopy. 2012, 43(12), 1884-1894.
 
     """
     if side.lower() not in ('left', 'right', 'both'):
         raise ValueError('side must be "left", "right", or "both"')
-    fit_func = {
+    fit_func = { #TODO could this also work with window and morphological functions?
         'arpls': arpls,
         'aspls': aspls,
         'iarpls': iarpls,
@@ -197,9 +157,9 @@ def optimize_parameter(data, x_data=None, method='aspls', side='left', **method_
     }[method.lower()]
 
     y, x, *_ = _setup_polynomial(data, x_data)
-    sort_order = tuple(enumerate(np.argsort(x)))  # to ensure x is increasing
-    x = x[[val[1] for val in sort_order]]
-    y = y[[val[1] for val in sort_order]]
+    sort_order = np.argsort(x)  # to ensure x is increasing
+    x = x[sort_order]
+    y = y[sort_order]
     max_x = np.nanmax(x)
     min_x = np.nanmin(x)
     x_range = max_x - min_x
@@ -209,6 +169,7 @@ def optimize_parameter(data, x_data=None, method='aspls', side='left', **method_
     lower_bound = upper_bound = 0
 
     W = x.shape[0] // 10
+    #TODO use utils._get_edges
 
     if side.lower() in ('right', 'both'):
         added_x = np.linspace(max_x, max_x + x_range / 5, W)
@@ -235,21 +196,22 @@ def optimize_parameter(data, x_data=None, method='aspls', side='left', **method_
         method_kwargs['x_data'] = fit_x_data
 
     if method.lower() in ('modpoly', 'imodpoly', 'poly'):
-        z, best_val = _iter_solve(
+        z, best_val, method_params = _iter_solve(
             fit_func, fit_data, known_background, lower_bound, upper_bound, 'poly_order',
             0, 20, 1, 4, **method_kwargs
         )
     else:
-        _, best_val = _iter_solve(
+        _, best_val, _ = _iter_solve(
             fit_func, fit_data, known_background, lower_bound, upper_bound, 'lam',
             1, 50, 1, 2, **method_kwargs
         )
-        z, best_val = _iter_solve(
+        z, best_val, method_params = _iter_solve(
             fit_func, fit_data, known_background, lower_bound, upper_bound, 'lam',
             best_val - 0.9, best_val + 1.1, 0.1, 2, **method_kwargs
         )
+    method_params['optimal_parameter'] = best_val
 
     return (
-        z[[val[0] for val in sorted(sort_order, key=lambda v: v[1])]],
-        {'optimal_parameter': best_val}
+        z[[val[0] for val in sorted(enumerate(sort_order), key=lambda v: v[1])]],
+        method_params
     )

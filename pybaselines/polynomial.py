@@ -6,6 +6,7 @@ Polynomial
     2) modpoly (Modified Polynomial)
     3) imodpoly (Improved Modified Polynomial)
     4) penalized_poly (Penalized Polynomial)
+    5) loess (Locally Estimated Scatterplot Smoothing)
 
 Created on Feb. 27, 2021
 @author: Donald Erb
@@ -40,11 +41,22 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
+
+The function loess contains code adapted from https://gist.github.com/agramfort/850437
+(accessed March 25, 2021), whose license is included below.
+
+# Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
+#
+# License: BSD (3-clause)
+
 """
+
+from math import ceil
 
 import numpy as np
 
-from . import utils
+from ._algorithm_setup import _get_vander, _setup_polynomial
+from .utils import _MIN_FLOAT, relative_difference
 
 
 def _convert_coef(coef, original_domain):
@@ -115,7 +127,7 @@ def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
     at the indices where peaks are located.
 
     """
-    y, x, w, original_domain = utils._setup_polynomial(data, x_data, weights)
+    y, x, w, original_domain = _setup_polynomial(data, x_data, weights)
     fit_polynomial = np.polynomial.Polynomial.fit(x, y, poly_order, w=np.sqrt(w))
     z = fit_polynomial(x)
     params = {'weights': w}
@@ -189,7 +201,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
            2007, 61(11), 1225-1232.
 
     """
-    y, x, w, original_domain, vander, pseudo_inverse = utils._setup_polynomial(
+    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
     sqrt_w = np.sqrt(w)
@@ -202,13 +214,13 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
         # use z + deviation since without deviation, half of y should be above z
         w[z + np.std(y - z) < y] = 0
         sqrt_w = np.sqrt(w)
-        vander, pseudo_inverse = utils._get_vander(x, poly_order, sqrt_w)
+        vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
         y = np.minimum(y0 if use_original else y, z)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
         z_new = np.dot(vander, coef)
-        if utils.relative_difference(z, z_new) < tol:
+        if relative_difference(z, z_new) < tol:
             break
         z = z_new
 
@@ -283,7 +295,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
            2007, 61(11), 1225-1232.
 
     """
-    y, x, w, original_domain, vander, pseudo_inverse = utils._setup_polynomial(
+    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
     sqrt_w = np.sqrt(w)
@@ -296,7 +308,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
     if mask_initial_peaks:
         w[z + deviation < y] = 0
         sqrt_w = np.sqrt(w)
-        vander, pseudo_inverse = utils._get_vander(x, poly_order, sqrt_w)
+        vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
         y = np.minimum(y0 if use_original else y, z)
@@ -304,7 +316,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         z = np.dot(vander, coef)
         new_deviation = np.std((y0 if use_original else y) - z)
         # use new_deviation as dividing term in relative difference
-        if utils.relative_difference(new_deviation, deviation) < tol:
+        if relative_difference(new_deviation, deviation) < tol:
             break
         deviation = new_deviation
 
@@ -473,65 +485,8 @@ def _indec_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
         multiple = 1
     weights = (
         mask * residual * (2 * alpha - 1)
-        - (~mask) * (residual + alpha * multiple * threshold**3 / np.maximum(2 * residual**2, utils._MIN_FLOAT))
+        - (~mask) * (residual + alpha * multiple * threshold**3 / np.maximum(2 * residual**2, _MIN_FLOAT))
     )
-    return weights
-
-
-def _root_error_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
-    """
-    The Root Error non-quadratic cost function.
-
-    Parameters
-    ----------
-    residual : numpy.ndarray, shape (N,)
-        The residual array.
-    threshold : float, optional
-        Unused variable since the root error does not use a threshold. Included
-        to provide the same signature as other loss functions.
-    alpha_factor : float, optional
-        The scale between 0 and 1 to multiply the cost function's alpha_max
-        value (see Notes below). Default is 0.99.
-    symmetric : bool, optional
-        If True (default), the cost function is symmetric and applies the same
-        weighting for positive and negative values. If False, will apply weights
-        asymmetrically so that only positive weights are given the non-quadratic
-        weigting and negative weights have normal, quadratic weighting.
-
-    Returns
-    -------
-    weights : numpy.ndarray, shape (N,)
-        The weight array.
-
-    Notes
-    -----
-    The returned result is
-
-        -residual + alpha_factor * alpha_max * phi'(residual)
-
-    where phi'(x) is the derivative of the root error function, phi(x).
-
-    References
-    ----------
-    Xu, Y., et al. ISREA: An Efficient Peak-Preserving Baseline Correction
-    Algorithm for Raman Spectra. Applied Spectroscopy, 2021, 75(1) 34-45.
-
-    Mazet, V., et al. Background removal from spectra by designing and
-    minimising a non-quadratic cost function. Chemometrics and Intelligent
-    Laboratory Systems, 2005, 76(2), 121–133.
-
-    """
-    alpha = 0.5 * alpha_factor  #TODO derive the actual alpha_max for root error
-    if symmetric:
-        weights = (
-            -residual + np.sign(residual) * alpha / np.maximum(2 * np.sqrt(np.abs(residual)), utils._MIN_FLOAT)
-        )
-    else:
-        mask = residual > 0
-        weights = (
-            (~mask) * residual * (2 * alpha - 1)
-            - mask * (residual - alpha / np.maximum(2 * np.sqrt(np.abs(residual)), utils._MIN_FLOAT))
-        )
     return weights
 
 
@@ -576,6 +531,9 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     """
     Fits a polynomial baseline using a non-quadratic cost function.
 
+    The non-quadratic cost functions penalize residuals with larger values,
+    giving a more robust fit compared to normal least-squares.
+
     Parameters
     ----------
     data : array-like, shape (N,)
@@ -601,8 +559,6 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
             * 'symmetric_huber'[7]_
             * 'asymmetric_indec'[9]_
             * 'symmetric_indec'[9]_
-            * 'asymmetric_root_error'[10]_
-            * 'symmetric_root_error'[10]_
 
     threshold : float, optional
         The threshold value for the loss method, where the function goes from
@@ -629,9 +585,8 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
 
     Notes
     -----
-    Code was partially adapted from MATLAB code from [8]_.
-
-    The 'root_error' cost functions do not use `theshold`.
+    Code was partially adapted from MATLAB code from [8]_ (see license at the
+    top of this file).
 
     References
     ----------
@@ -643,10 +598,11 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
            MATLAB Central File Exchange. Retrieved March 18, 2021.
     .. [9] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
            Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
-    .. [10] Xu, Y., et al. ISREA: An Efficient Peak-Preserving Baseline Correction
-            Algorithm for Raman Spectra. Applied Spectroscopy, 2021, 75(1) 34-45.
 
     """
+    #TODO should scale y between [-1, 1] so that abs(residual) is roughly <~ 1 and threshold <= 1
+    # this would allow using same threshold regardless of y scale; would need to scale output
+    # coefficients, though
     alpha_factor = 0.99  #TODO should alpha_factor be a param?
     symmetric_loss, method = _identify_loss_method(cost_function)
     loss_kwargs = {
@@ -655,11 +611,10 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     loss_function = {
         'huber': _huber_loss,
         'truncated_quadratic': _truncated_quadratic_loss,
-        'indec': _indec_loss,
-        'root_error': _root_error_loss
+        'indec': _indec_loss
     }[method]
 
-    y, x, _, original_domain, vander, pseudo_inverse = utils._setup_polynomial(
+    y, x, _, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, None, poly_order, return_vander=True, return_pinv=True
     )
 
@@ -669,7 +624,7 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         coef = np.dot(pseudo_inverse, y + loss_function(y - z, **loss_kwargs))
         z_new = np.dot(vander, coef)
 
-        if utils.relative_difference(z, z_new) < tol:
+        if relative_difference(z, z_new) < tol:
             break
         z = z_new
 
@@ -678,3 +633,222 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         params['coef'] = _convert_coef(coef, original_domain)
 
     return z, params
+
+
+def _tukey_square(residual, scale=3, symmetric=False):
+    """
+    The square root of Tukey's bisquare function.
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,)
+        The residual array of the fit.
+    scale : float, optional
+        A scale factor applied to the weighted residuals to control the
+        robustness of the fit. Default is 3.0.
+    symmetric : bool, optional
+        If False (default), will apply weighting asymmetrically, with residuals
+        < 0 having full weight. If True, will apply weighting the same for both
+        positive and negative residuals, which is regular LOESS.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The weighting array.
+
+    Notes
+    -----
+    The function is technically sqrt(Tukey's bisquare) since the outer
+    power of 2 is not performed. This is intentional, so that the square
+    root for weighting in least squares does not need to be done, speeding
+    up the calculation.
+
+    References
+    ----------
+    Ruckstuhl, A.F., et al., Baseline subtraction using robust local regression
+    estimation. J. Quantitative Spectroscopy and Radiative Transfer, 2001, 68,
+    179-193.
+
+    """
+    if symmetric:
+        weights = np.maximum(0, 1 - (residual / scale)**2)
+    else:
+        weights = np.ones_like(residual)
+        mask = residual >= 0
+        weights[mask] = np.maximum(0, 1 - (residual[mask] / scale)**2)
+    return weights
+
+
+def _median_absolute_differences(array_1, array_2=None, errors=None):
+    """
+    Computes the median absolute difference (MAD) between two arrays.
+
+    Parameters
+    ----------
+    array_1 : numpy.ndarray
+        The first array. If `array_2` is None, then `array_1` is assumed to
+        be the difference of the two arrays.
+    array_2 : numpy.ndarray, optional
+        The second array. If None (default), then the function assumes the
+        difference of the two arrays was already computed and input as `array_1`.
+    errors : numpy.ndarray, optional
+        The array of errors associated with the measurement.
+
+    Returns
+    -------
+    float
+        The scaled median absolute difference for the input arrays.
+
+    Notes
+    -----
+    The 1/0.6745 scale factor is to make the result comparable to the
+    standard deviation of a Gaussian distribution.
+
+    Reference
+    ---------
+    Ruckstuhl, A.F., et al., Baseline subtraction using robust local regression
+    estimation. J. Quantitative Spectroscopy and Radiative Transfer, 2001, 68,
+    179-193.
+
+    """
+    if array_2 is None:
+        difference = array_1
+    else:
+        difference = array_1 - array_2
+    if errors is not None:
+        return np.nanmedian(np.sqrt(errors) * np.abs(difference)) / 0.6745
+    else:
+        return np.nanmedian(np.abs(difference)) / 0.6745
+
+
+def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
+          scale=3.0, tol=1e-3, max_iter=10, symmetric_weights=False,
+          use_threshold=False, include_stdev=True):
+    """
+    Locally estimated scatterplot smoothing (LOESS).
+
+    Performs polynomial regression at each data point using the nearest points.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    fraction : float, optional
+        The fraction of N data points to include for the fitting on each point.
+        Default is 0.2. Not used if `total_points` is not None.
+    total_points : int, optional
+        The total number of points to include for the fitting on each point. Default
+        is None, which will use fraction * N to determine the number of points.
+    scale : float, optional
+        A scale factor applied to the weighted residuals to control the robustness
+        of the fit. Default is 3.0, as used in [10]_. Note that the original loess
+        procedure in [11]_ used a `scale` of 4.05.
+    poly_order : int, optional
+        The polynomial order for fitting the baseline. Default is 1.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    max_iter : int, optional
+        The maximum number of iterations. Default is 10.
+    symmetric_weights : bool, optional
+        If False (default), will apply weighting asymmetrically, with residuals
+        < 0 having a weight of 1, according to [10]_. If True, will apply weighting
+        the same for both positive and negative residuals, which is regular LOESS.
+        If `use_threshold` is True, this parameter is ignored.
+    use_threshold : bool, optional
+        If False (default), will compute weights each iteration to perform the
+        robust fitting, which is regular LOESS. If True, will apply a threshold
+        on the data being fit each iteration, based on the maximum values of the
+        data and the fit baseline, as proposed by [12]_, similar to the ModPoly
+        and IModPoly techniques.
+    include_stdev : bool, optional
+        If True (default), then will include the standard devitation of the
+        residual when performing the thresholding, similar to the IModPoly
+        technique [13]_. A value of True performs better when the input data
+        has a high amount of noise. Only used if `use_threshold` is True.
+
+    Returns
+    -------
+    z : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        An empty dictionary, just to match the output of all other algorithms.
+
+    Raises
+    ------
+    ValueError
+        Raised if the number of points for the fitting is less than 2.
+
+    Notes
+    -----
+    The iterative, robust, aspect of the fitting can be achieved either through
+    reweighting based on the residuals (the typical usage), or thresholding the
+    fit data based on the residuals, as proposed by [12]_, similar to the ModPoly
+    and IModPoly techniques.
+
+    In baseline literature, this procedure is sometimes called "rbe", meaning
+    "robust baseline estimate".
+
+    Code partially adapted from https://gist.github.com/agramfort/850437 (see
+    license at the top of this file).
+
+    References
+    ----------
+    .. [10] Ruckstuhl, A.F., et al., Baseline subtraction using robust local
+            regression estimation. J. Quantitative Spectroscopy and Radiative
+            Transfer, 2001, 68, 179-193.
+    .. [11] Cleveland, W. Robust locally weighted regression and smoothing
+            scatterplots. Journal of the American Statistical Association,
+            1979, 74(368), 829-836.
+    .. [12] Komsta, Ł. Comparison of Several Methods of Chromatographic
+            Baseline Removal with a New Approach Based on Quantile Regression.
+            Chromatographia, 2011, 73, 721-731.
+    .. [13] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+            Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
+            2007, 61(11), 1225-1232.
+
+    """
+    y, x, weights, _, vander = _setup_polynomial(data, x_data, None, poly_order, True)
+    num_x = x.shape[0]
+    if total_points is None:
+        total_points = ceil(fraction * num_x)
+    if total_points < 2:  #TODO probably also dictated by the polynomial order
+        raise ValueError('total points must be greater than 1')
+
+    #TODO potentially use k-d trees instead, following Cleveland, et al., Regression by local fitting. 1988.
+    # or sort x before, and just slide the window to the right as you go along
+    kernels = np.empty((num_x, num_x))
+    for i, x_val in enumerate(x):
+        difference = np.abs(x - x_val)
+        kernels[i] = np.sqrt(
+            (1 - np.clip(difference / np.sort(difference)[total_points - 1], 0, 1)**3)**3
+        )
+
+    z = np.zeros(num_x)
+    z_new = np.empty(num_x)
+    for _ in range(max_iter):
+        for i, kernel in enumerate(kernels):
+            if use_threshold:
+                weight_array = kernel
+            else:
+                weight_array = kernel * weights
+            coef = np.linalg.lstsq(
+                weight_array[:, np.newaxis] * vander, weight_array * y, None
+            )[0]
+            #TODO should the coefficients be returned? probably not since it would slow it down a lot
+            z_new[i] = np.dot(vander[i], coef)
+        if relative_difference(z, z_new) < tol:
+            break
+
+        z = z_new.copy()
+        if not use_threshold:
+            residual = y - z_new
+            weights = _tukey_square(
+                residual / _median_absolute_differences(residual), scale, symmetric_weights
+            )
+        else:
+            y = np.minimum(y, z_new + (0 if not include_stdev else np.std(y - z_new)))
+
+    return z, {}

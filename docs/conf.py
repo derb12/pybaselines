@@ -64,7 +64,7 @@ author = "Donald Erb"
 # the built documents.
 #
 # The short X.Y version.
-version = '0.1.0'
+version = '0.2.0'
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -99,6 +99,8 @@ todo_include_todos = False
 # outside documentation references for the intersphinx extension
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None)
 }
 
 # cache remote doc inventories for 14 days

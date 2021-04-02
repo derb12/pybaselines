@@ -62,10 +62,27 @@ class TestIMor(AlgorithmTester):
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
-class TestIamor(AlgorithmTester):
-    """Class for testing iamor baseline."""
+class TestAMorMol(AlgorithmTester):
+    """Class for testing amormol baseline."""
 
-    func = morphological.iamor
+    func = morphological.amormol
+
+    def test_unchanged_data(self, data_fixture):
+        x, y = get_data()
+        super()._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        super()._test_output(self.y, self.y)
+
+    def test_list_input(self):
+        y_list = self.y.tolist()
+        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+
+class TestMorMol(AlgorithmTester):
+    """Class for testing mormol baseline."""
+
+    func = morphological.mormol
 
     def test_unchanged_data(self, data_fixture):
         x, y = get_data()

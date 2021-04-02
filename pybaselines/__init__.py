@@ -5,10 +5,15 @@ pybaselines - A collection of algorithms for fitting the baseline of experimenta
 
 pybaselines provides different techniques for fitting baselines to experimental data.
 
-Baseline fitting techniques are grouped accordingly (note: when a method
-is labelled as 'improved', that is the method's name, not editorialization):
+a) Polynomial (:mod:`pybaselines.polynomial`)
 
-a) Whittaker-smoothing-based techniques (:mod:`pybaselines.whittaker`)
+    1) poly (Regular Polynomial)
+    2) modpoly (Modified Polynomial)
+    3) imodpoly (Improved Modified Polynomial)
+    4) penalized_poly (Penalized Polynomial)
+    5) loess (Locally Estimated Scatterplot Smoothing)
+
+b) Whittaker-smoothing-based techniques (:mod:`pybaselines.whittaker`)
 
     1) asls (Asymmetric Least Squares)
     2) iasls (Improved Asymmetric Least Squares)
@@ -18,24 +23,27 @@ a) Whittaker-smoothing-based techniques (:mod:`pybaselines.whittaker`)
     6) iarpls (Improved Asymmetrically reweighted penalized least squares)
     7) aspls (Adaptive smoothness penalized least squares)
 
-b) Morphological (:mod:`pybaselines.morphological`)
+c) Morphological (:mod:`pybaselines.morphological`)
 
     1) mpls (Morphological Penalized Least Squares)
     2) mor (Morphological)
     3) imor (Improved Morphological)
-    4) iamor (Iterative averaging morphological)
-
-c) Polynomial (:mod:`pybaselines.polynomial`)
-
-    1) poly (Regular Polynomial)
-    2) modpoly (Modified Polynomial)
-    3) imodpoly (Improved Modified Polynomial)
-    4) penalized_poly (Penalized Polynomial)
+    4) mormol (Morphological and Mollified Baseline)
+    5) amormol (Averaging Morphological and Mollified Baseline)
 
 d) Window-based (:mod:`pybaselines.window`)
 
     1) noise_median (Noise Median method)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
+
+e) Optimizers (:mod:`pybaselines.optimizers`)
+
+    1) collab_pls (Collaborative Penalized Least Squares)
+    2) optimize_extended_range
+
+f) Manual methods (:mod:`pybaselines.manual`)
+
+    1) linear_interp (Linear interpolation between points)
 
 
 @author: Donald Erb
@@ -43,7 +51,7 @@ Created on March 5, 2021
 
 """
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 
-from . import baselines, morphological, polynomial, utils, whittaker, window
+from . import manual, morphological, optimizers, polynomial, utils, whittaker, window
