@@ -184,7 +184,7 @@ A simple example is shown below.
 
 The above code will produce the image shown below.
 
-.. image:: https://github.com/derb12/baselines/raw/main/docs/images/quickstart.jpg
+.. image:: https://github.com/derb12/pybaselines/raw/main/docs/images/quickstart.jpg
    :align: center
    :alt: various baselines
 
