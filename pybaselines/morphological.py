@@ -531,17 +531,26 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
     y, half_window = _setup_morphology(data, **window_kwargs)
     window_size = 2 * half_window + 1
     kernel = _mollifier_kernel(window_size)
+    data_bounds = slice(window_size, -window_size)
 
+    pad_kws = pad_kwargs if pad_kwargs is not None else {}
+    y = pad_edges(y, window_size, **pad_kws)
     z = y
     for _ in range(max_iter):
-        z_new = mollify(
+        z_new = padded_convolve(
             np.minimum(
                 y,
                 0.5 * (grey_closing(z, [window_size]) + grey_opening(z, [window_size]))
             ),
             kernel
         )
-        if relative_difference(z, z_new) < tol:
+        if relative_difference(z[data_bounds], z_new[data_bounds]) < tol:
+            break
+        z = z_new
+
+    return z[data_bounds], {'half_window': half_wind}
+
+
 def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
            pad_kwargs=None, **window_kwargs):
     """

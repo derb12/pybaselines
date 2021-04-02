@@ -305,21 +305,109 @@ def gaussian_kernel(window_size, sigma=1.0):
     return gaus / np.sum(gaus)
 
 
-def mollify(data, kernel):
+def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **pad_kwargs):
     """
-    Smooths data by convolving with a area-normalized kernal.
+    [summary]
 
     Parameters
     ----------
-    data : numpy.ndarray
+    data : array-like
+        The array of the data.
+    pad_length : int
+
+    mode : str, optional
+        The method for padding. Default is 'extrapolate'. Any method other than
+        'extrapolate' will use numpy.pad.
+    extrapolate_window : int, optional
+        The number of values to use for linear fitting on the left and right
+        edges. Default is None, which will set the extrapolate window size equal
+        to the `half_window` size.
+    **pad_kwargs
+        Any keyword arguments to pass to numpy.pad, which will be used if `mode`
+        is not 'extrapolate'.
+
+    Returns
+    -------
+    left_edge : numpy.ndarray, shape(pad_length,)
+
+    right_edge : numpy.ndarray, shape(pad_length,)
+
+
+    Notes
+    -----
+    If mode is 'extrapolate', then the left and right edges will be fit with
+    a first order polynomial and then extrapolated. Otherwise, uses numpy.pad.
+
+    """
+    mode = mode.lower()
+    if mode == 'extrapolate':
+        if extrapolate_window is None:
+            extrapolate_window = 2 * pad_length + 1
+        x = np.arange(-pad_length, data.shape[0] + pad_length)
+        left_poly = np.polynomial.Polynomial.fit(
+            x[pad_length:-pad_length][:extrapolate_window],
+            data[:extrapolate_window], 1
+        )
+        right_poly = np.polynomial.Polynomial.fit(
+            x[pad_length:-pad_length][-extrapolate_window:],
+            data[-extrapolate_window:], 1
+        )
+
+        left_edge = left_poly(x[:pad_length])
+        right_edge = right_poly(x[-pad_length:])
+    else:
+        padded_data = np.pad(data, pad_length, mode, **pad_kwargs)
+        left_edge = padded_data[:pad_length]
+        right_edge = padded_data[-pad_length:]
+
+    return left_edge, right_edge
+
+
+def pad_edges(data, pad_length, mode='extrapolate',
+              extrapolate_window=None, **pad_kwargs):
+    """
+    Adds left and right edges to the data.
+
+    Parameters
+    ----------
+    data : numpy.ndarray, shape (N,)
+        [description]
+    half_window : [type]
+        [description]
+    mode : str, optional
+        [description]. Default is 'interp'.
+    cval : float, optional
+        [description]. Default is 0.0.
+    interp_window : [type], optional
+        [description]. Default is None.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N + 2 * half_window,)
+        [description]
+
+    """
+    left_edge, right_edge = _get_edges(
+        data, pad_length, mode, extrapolate_window, **pad_kwargs
+    )
+    return np.concatenate((left_edge, data, right_edge))
+
+
+def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
+    """
+    Pads data before convolving to reduce edge effects.
+
+    Parameters
+    ----------
+    data : numpy.ndarray, shape (N,)
         The data to smooth.
-    kernel : numpy.ndarray
-        A pre-computed, normalized kernel for the mollification. Indices should
+    kernel : numpy.ndarray, shape (M,)
+        A pre-computed, normalized kernel for the convolution. Indices should
         span from -half_window to half_window.
 
     Returns
     -------
-    numpy.ndarray
+    numpy.ndarray, shape (N,)
         The smoothed input array.
 
     Notes
@@ -328,9 +416,8 @@ def mollify(data, kernel):
     produce edge effects.
 
     """
-    pad = (min(data.shape[0], kernel.shape[0]) // 2) + 1
+    padding = (min(data.shape[0], kernel.shape[0]) // 2)
     convolution = np.convolve(
-        np.concatenate((data[pad:1:-1], data, data[-1:-pad:-1])),
-        kernel, mode='valid'
+        pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'
     )
     return convolution
