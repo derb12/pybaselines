@@ -51,7 +51,7 @@ Created on March 5, 2021
 
 """
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 
 from . import manual, morphological, optimizers, polynomial, utils, whittaker, window
