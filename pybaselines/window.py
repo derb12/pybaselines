@@ -64,7 +64,7 @@ def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwarg
 
 
 def snip(data, max_half_window, decreasing=False, smooth=False,
-         smooth_half_window=1, **pad_kwargs):
+         smooth_half_window=1, filter_order=2, **pad_kwargs):
     """
     Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
 
@@ -72,10 +72,13 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
-    max_half_window : int
-        The maximum number of iterations. Should be set so that
-        max_half_window=(w-1)/2, where w is the index-based width of a
-        feature or peak.
+    max_half_window : int or Sequence(int, int)
+        The maximum number of iterations. Should be set such that
+        `max_half_window`=(w-1)/2, where w is the index-based width of a
+        feature or peak. `max_half_window` can also be a sequence of two
+        integers for asymmetric peaks, with the first item corresponding to
+        the `max_half_window` of the peak's left edge, and the second item
+        for the peak's right edge [3]_.
     decreasing : bool, optional
         If False (default), will iterate through window sizes from 1 to
         max_half_window. If True, will reverse the order and iterate from
@@ -87,6 +90,11 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
     smooth_half_window : int, optional
         The half window to use for the moving average if smooth=True. Default is 1,
         which gives a 3-point moving average.
+    filter_order : {2, 4, 6, 8}, optional
+        If the measured data has a more complicated baseline consisting of other
+        elements such as Compton edges, then a higher `filter_order` should be
+        selected [3]_. Default is 2, which works well for approximating a linear
+        baseline.
     **pad_kwargs
         Additional keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data to prevent edge effects from convolution.
@@ -98,15 +106,20 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
     dict
         An empty dictionary, just to match the output of all other algorithms.
 
+    Raises
+    ------
+    ValueError
+        Raised if `filter_order` is not 2, 4, 6, or 8.
+
     Warns
     -----
     UserWarning
-        Raised if max_half_window is greater than (data.shape[0] - 1) // 2.
+        Raised if max_half_window is greater than (len(data) - 1) // 2.
 
     Notes
     -----
     Algorithm initially developed by [1]_ and this specific version of the
-    algorithm is adapted from [2]_ and [4]_.
+    algorithm is adapted from [2]_, [3]_, and [4]_.
 
     If data covers several orders of magnitude, better results can be obtained
     by first transforming the data using log-log-square transform before
@@ -132,29 +145,66 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
            elimination in spectroscopic data. Nuclear Instruments and Methods in
            Physics Research A. 600 (2009) 478-487.
 
-    #TODO potentially add filter orders 4, 6, and 8 from [3]_
     #TODO potentially add adaptive window sizes from [4]_
     """
-    y = _setup_window(data, max_half_window, **pad_kwargs)
-    if max_half_window > (y.shape[0] - 1) // 2:
-        warnings.warn(
-            'max_half_window values greater than (data.shape[0] - 1) / 2 have no effect.'
-        )
-        max_half_window = (y.shape[0] - 1) // 2
+    if filter_order not in {2, 4, 6, 8}:
+        raise ValueError('filter_order must be 2, 4, 6, or 8')
 
-    if decreasing:
-        range_args = (max_half_window, 0, -1)
+    if isinstance(max_half_window, int):
+        half_windows = [max_half_window, max_half_window]
+    elif len(max_half_window) == 1:
+        half_windows = [max_half_window[0], max_half_window[0]]
     else:
-        range_args = (1, max_half_window + 1, 1)
+        half_windows = [max_half_window[0], max_half_window[1]]
 
+    num_y = len(data)
+    for i, half_window in enumerate(half_windows):
+        if half_window > (num_y - 1) // 2:
+            warnings.warn(
+                'max_half_window values greater than (len(data) - 1) / 2 have no effect.'
+            )
+            half_windows[i] = (num_y - 1) // 2
+
+    max_of_half_windows = max(half_windows)
+    if decreasing:
+        range_args = (max_of_half_windows, 0, -1)
+    else:
+        range_args = (1, max_of_half_windows + 1, 1)
+
+    y = _setup_window(data, max_of_half_windows, **pad_kwargs)
+    num_y = y.shape[0]  # new num_y since y is now padded
     z = y.copy()
     for i in range(*range_args):
-        medians = 0.5 * (z[2 * i:] + z[:-2 * i])
-        if smooth:
-            #TODO could speed this up by not doing the entirety of z
-            means = uniform_filter1d(z, 2 * smooth_half_window + 1)[i:-i]
-        else:
-            means = z[i:-i]
-        z[i:-i] = np.where(z[i:-i] > medians, medians, means)
+        i_left = min(i, half_windows[0])
+        i_right = min(i, half_windows[1])
 
-    return z[max_half_window:-max_half_window], {}
+        filters = (z[i - i_left:num_y - i - i_left] + z[i + i_right:num_y - i + i_right]) / 2
+        if filter_order > 2:
+            filters_new = (
+                - (z[i - i_left:num_y - i - i_left] + z[i + i_right:num_y - i + i_right])
+                + 4 * (z[i - i_left // 2:-i - i_left // 2] + z[i + i_right // 2:-i + i_right // 2])
+            ) / 6
+            filters = np.maximum(filters, filters_new)
+        if filter_order > 4:
+            filters_new = (
+                z[i - i_left:num_y - i - i_left] + z[i + i_right:num_y - i + i_right]
+                - 6 * (z[i - 2 * i_left // 3:-i - 2 * i_left // 3] + z[i + 2 * i_right // 3:-i + 2 * i_right // 3])
+                + 15 * (z[i - i_left // 3:-i - i_left // 3] + z[i + i_right // 3:-i + i_right // 3])
+            ) / 20
+            filters = np.maximum(filters, filters_new)
+        if filter_order > 6:
+            filters_new = (
+                - (z[i - i_left:num_y - i - i_left] + z[i + i_right:num_y - i + i_right])
+                + 8 * (z[i - 3 * i_left // 4:-i - 3 * i_left // 4] + z[i + 3 * i_right // 4:-i + 3 * i_right // 4])
+                - 28 * (z[i - i_left // 2:-i - i_left // 2] + z[i + i_right // 2:-i + i_right // 2])
+                + 56 * (z[i - i_left // 4:-i - i_left // 4] + z[i + i_right // 4:-i + i_right // 4])
+            ) / 70
+            filters = np.maximum(filters, filters_new)
+
+        if smooth:
+            previous_baseline = uniform_filter1d(z, 2 * smooth_half_window + 1)[i:-i]
+        else:
+            previous_baseline = z[i:-i]
+        z[i:-i] = np.where(z[i:-i] > filters, filters, previous_baseline)
+
+    return z[max_of_half_windows:-max_of_half_windows], {}
