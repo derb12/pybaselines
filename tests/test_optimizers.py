@@ -74,3 +74,35 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         super()._test_algorithm_list(
             array_args=(self.y, None, 'asls'), list_args=(y_list, None, 'asls')
         )
+
+
+class TestAdaptiveMinMax(AlgorithmTester):
+    """Class for testing adaptive minmax baseline."""
+
+    func = optimizers.adaptive_minmax
+
+    def test_unchanged_data(self, data_fixture):
+        x, y = get_data()
+        super()._test_unchanged_data(data_fixture, y, x, y, x)
+
+    def test_no_x(self):
+        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+
+    def test_output(self):
+        super()._test_output(self.y, self.y)
+
+    def test_list_output(self):
+        y_list = self.y.tolist()
+        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
+    def test_methods(self, method):
+        super()._test_output(self.y, self.y, self.x, method=method)
+
+    def test_unknown_method_fails(self):
+        with pytest.raises(KeyError):
+            super()._test_output(self.y, self.y, method='unknown')
+
+    @pytest.mark.parametrize('poly_order', (None, 0, [0], (0, 1)))
+    def test_polyorder_inputs(self, poly_order):
+        super()._test_output(self.y, self.y, self.x, poly_order)

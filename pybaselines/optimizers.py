@@ -13,6 +13,8 @@ Created on March 3, 2021
 
 """
 
+from math import ceil
+
 import numpy as np
 
 from ._algorithm_setup import _setup_polynomial
@@ -215,3 +217,154 @@ def optimize_extended_range(data, x_data=None, method='aspls', side='left', **me
         z[[val[0] for val in sorted(enumerate(sort_order), key=lambda v: v[1])]],
         method_params
     )
+
+
+def _determine_polyorders(y, x, poly_order, weights, fit_function, **fit_kwargs):
+    """
+    Selects the appropriate polynomial orders based on the baseline-to-signal ratio.
+
+    Parameters
+    ----------
+    y : numpy.ndarray
+        The array of y-values.
+    x : numpy.ndarray
+         The array of x-values.
+    poly_order : int
+        The polynomial order for fitting.
+    weights : numpy.ndarray
+        The weight array for fitting.
+    fit_function : Callable
+        The function to use for the polynomial fit.
+    **fit_kwargs
+        Additional keyword arguments to pass to `fit_function`.
+
+    Returns
+    -------
+    orders : tuple(int, int)
+        The two polynomial orders to use based on the baseline to signal
+        ratio according to the reference.
+
+    References
+    ----------
+    Cao, A., et al. A robust method for automated background subtraction
+    of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38, 1199-1205.
+
+    """
+    baseline = fit_function(y, x, poly_order, weights=weights, **fit_kwargs)[0]
+    signal = y - baseline
+    basline_to_signal = (max(baseline) - min(baseline)) / (max(signal) - min(signal))
+    # Table 2 in reference
+    if basline_to_signal < 0.2:
+        orders = (1, 2)
+    elif basline_to_signal < 0.75:
+        orders = (2, 3)
+    elif basline_to_signal < 8.5:
+        orders = (3, 4)
+    elif basline_to_signal < 55:
+        orders = (4, 5)
+    elif basline_to_signal < 240:
+        orders = (5, 6)
+    elif basline_to_signal < 517:
+        orders = (6, 7)
+    else:
+        orders = (6, 8)  # not a typo, use 6 and 8 rather than 7 and 8
+
+    return orders
+
+
+def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
+                    weights=None, constrained_fraction=0.01, constrained_weight=1e5,
+                    estimation_poly_order=2, **method_kwargs):
+    """
+    Fits polynomials of different orders and uses the maximum values as the baseline.
+
+    Each polynomial order fit is done both unconstrained and constrained at the
+    endpoints.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    poly_order : int, Sequence(int, int) or None, optional
+        The two polynomial orders to use for fitting. If a single integer is given,
+        then will use the input value and one plus the input value. Default is None,
+        which will do a preliminary fit using a polynomial of order `estimation_poly_order`
+        and then select the appropriate polynomial orders according to [3]_.
+    method : {'modpoly', 'imodpoly'}, optional
+        The method to use for fitting each polynomial. Default is 'modpoly'.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
+    constrained_fraction : float, optional
+        The fraction of points at the left and right edges to use for the
+        constrained fit. Default is 0.01.
+    constrained_weight : float, optional
+        The weighting to give to the endpoints. Higher values ensure that the
+        end points are fit, but can cause large fluctuations in the other sections
+        of the polynomial. Default is 1e5.
+    estimation_poly_order : int, optional
+        The polynomial order used for estimating the baseline-to-signal ratio
+        to select the appropriate polynomial orders if `poly_order` is None.
+        Default is 2.
+    **method_kwargs
+        Additional keyword arguments to pass to :func:`.modpoly` or
+        :func:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
+        and `mask_initial_peaks`.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'constrained_weights': numpy.ndarray, shape (N,)
+            The weight array used for the endpoint-constrained fits.
+        * 'poly_order': tuple(int, int)
+            A tuple of the two polynomial orders used for the fitting.
+
+    References
+    ----------
+    .. [3] Cao, A., et al. A robust method for automated background subtraction
+           of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
+           1199-1205.
+
+    """
+    fit_func = {'modpoly': modpoly, 'imodpoly': imodpoly}[method.lower()]
+    y, x, w, _ = _setup_polynomial(data, x_data, weights)
+    constrained_range = max(1, ceil(y.shape[0] * constrained_fraction))
+
+    if isinstance(poly_order, int):
+        poly_orders = (poly_order, poly_order + 1)
+    elif poly_order is not None:
+        if len(poly_order) == 1:
+            poly_orders = (poly_order[0], poly_order[0])
+        else:
+            poly_orders = (poly_order[0], poly_order[1])
+    else:
+        poly_orders = _determine_polyorders(
+            y, x, estimation_poly_order, w, fit_func, **method_kwargs
+        )
+
+    # use high weighting rather than Lagrange multipliers to constrain the points
+    # to better work with noisy data
+    constrained_weights = w.copy()
+    constrained_weights[:constrained_range] = constrained_weight
+    constrained_weights[-constrained_range:] = constrained_weight
+
+    baselines = np.empty((4, y.shape[0]))
+    baselines[0] = fit_func(y, x, poly_orders[0], weights=w, **method_kwargs)[0]
+    baselines[1] = fit_func(y, x, poly_orders[0], weights=constrained_weights, **method_kwargs)[0]
+    baselines[2] = fit_func(y, x, poly_orders[1], weights=w, **method_kwargs)[0]
+    baselines[3] = fit_func(y, x, poly_orders[1], weights=constrained_weights, **method_kwargs)[0]
+
+    #TODO should the coefficients also be made available? Would need to get them from
+    # each of the fits
+    params = {'weights': w, 'constrained_weights': constrained_weights, 'poly_order': poly_orders}
+
+    return np.maximum.reduce(baselines), params
