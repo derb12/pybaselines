@@ -11,44 +11,6 @@ Polynomial
 Created on Feb. 27, 2021
 @author: Donald Erb
 
-
-The function penalized_poly contains ported MATLAB code from
-https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction
-licensed under the BSD-2-Clause license, included below.
-
-Copyright (c) 2012, Vincent Mazet
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in
-      the documentation and/or other materials provided with the distribution
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
-
-
-The function loess contains code adapted from https://gist.github.com/agramfort/850437
-(accessed March 25, 2021), whose license is included below.
-
-# Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
-#
-# License: BSD (3-clause)
-
 """
 
 from math import ceil
@@ -585,8 +547,9 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
 
     Notes
     -----
-    Code was partially adapted from MATLAB code from [8]_ (see license at the
-    top of this file).
+    In baseline literature, this procedure is sometimes called "backcor".
+
+    Code was partially adapted from MATLAB code from [8]_.
 
     References
     ----------
@@ -791,8 +754,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
     In baseline literature, this procedure is sometimes called "rbe", meaning
     "robust baseline estimate".
 
-    Code partially adapted from https://gist.github.com/agramfort/850437 (see
-    license at the top of this file).
+    Code partially adapted from https://gist.github.com/agramfort/850437
+    (accessed March 25, 2021).
 
     References
     ----------
