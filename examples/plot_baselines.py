@@ -21,7 +21,7 @@ if __name__ == '__main__':
                                         penalized_poly, poly)
     from pybaselines.utils import gaussian
     from pybaselines.whittaker import (airpls, arpls, asls, aspls, drpls,
-                                       iarpls, iasls)
+                                       iarpls, iasls, psalsa)
     from pybaselines.window import noise_median, snip
 
     x = np.linspace(100, 4200, 2000)
@@ -49,7 +49,8 @@ if __name__ == '__main__':
             (drpls, (y, 1e9)),
             (arpls, (y, 1e8)),
             (iarpls, (y, 1e7)),
-            (aspls, (y, 1e9))
+            (aspls, (y, 1e9)),
+            (psalsa, (y, 1e8))
         ),
         'polynomial': (
             (poly, (y, x, 3)),

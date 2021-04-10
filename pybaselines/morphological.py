@@ -7,6 +7,7 @@ Morphological
     3) imor (Improved Morphological)
     4) mormol (Morphological and Mollified Baseline)
     5) amormol (Averaging Morphological and Mollified Baseline)
+    6) rolling_ball (Rolling Ball Baseline)
 
 Created on March 5, 2021
 @author: Donald Erb

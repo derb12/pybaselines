@@ -7,6 +7,7 @@ pybaselines to provide better results.
 Optimizers
     1) collab_pls (Collaborative Penalized Least Squares)
     2) optimize_extended_range
+    3) adaptive_minmax (Adaptive MinMax)
 
 Created on March 3, 2021
 @author: Donald Erb

@@ -22,6 +22,7 @@ b) Whittaker-smoothing-based techniques (:mod:`pybaselines.whittaker`)
     5) drpls (Doubly reweighted penalized least squares)
     6) iarpls (Improved Asymmetrically reweighted penalized least squares)
     7) aspls (Adaptive smoothness penalized least squares)
+    8) psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 
 c) Morphological (:mod:`pybaselines.morphological`)
 
@@ -30,6 +31,7 @@ c) Morphological (:mod:`pybaselines.morphological`)
     3) imor (Improved Morphological)
     4) mormol (Morphological and Mollified Baseline)
     5) amormol (Averaging Morphological and Mollified Baseline)
+    6) rolling_ball (Rolling Ball Baseline)
 
 d) Window-based (:mod:`pybaselines.window`)
 
@@ -40,6 +42,7 @@ e) Optimizers (:mod:`pybaselines.optimizers`)
 
     1) collab_pls (Collaborative Penalized Least Squares)
     2) optimize_extended_range
+    3) adaptive_minmax (Adaptive MinMax)
 
 f) Manual methods (:mod:`pybaselines.manual`)
 

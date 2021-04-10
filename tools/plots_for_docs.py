@@ -24,7 +24,7 @@ if __name__ == '__main__':
     import numpy as np
 
     from pybaselines.morphological import mpls, imor, mor, amormol, mormol, rolling_ball
-    from pybaselines.whittaker import iarpls, airpls, arpls, asls, aspls, drpls, iasls
+    from pybaselines.whittaker import iarpls, airpls, arpls, asls, aspls, drpls, iasls, psalsa
     from pybaselines.polynomial import poly, imodpoly, modpoly, loess, penalized_poly
     from pybaselines.window import noise_median, snip
     from pybaselines.utils import gaussian
@@ -54,7 +54,8 @@ if __name__ == '__main__':
             (drpls, (y, 1e9)),
             (arpls, (y, 1e8)),
             (iarpls, (y, 1e7)),
-            (aspls, (y, 1e9))
+            (aspls, (y, 1e9)),
+            (psalsa, (y, 1e8))
         ),
         'polynomial': (
             (poly, (y, x, 3)),
