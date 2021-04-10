@@ -52,7 +52,7 @@ def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwarg
     References
     ----------
     Friedrichs, M., A model-free algorithm for the removal of baseline
-    artifacts. J. Biomolecular NMR. 5 (1995) 147-153.
+    artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
     """
     median = median_filter(
@@ -135,15 +135,15 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
     ----------
     .. [1] Ryan, C.G., et al. SNIP, A Statistics-Sensitive Background Treatment
            For The Quantitative Analysis Of Pixe Spectra In Geoscience Applications.
-           Nuclear Instruments and Methods in Physics Research 934 (1988) 396-402.
+           Nuclear Instruments and Methods in Physics Research B, 1988, 934, 396-402.
     .. [2] Morháč, M., et al. Background elimination methods for multidimensional
            coincidence γ-ray spectra. Nuclear Instruments and Methods in Physics
-           Research A 401 (1997) 113-132.
+           Research A, 1997, 401, 113-132.
     .. [3] Morháč, M., et al. Peak Clipping Algorithms for Background Estimation in
-           Spectroscopic Data. Applied Spectroscopy. 62(1) (2008) 91-106.
+           Spectroscopic Data. Applied Spectroscopy, 2008, 62(1), 91-106.
     .. [4] Morháč, M. An algorithm for determination of peak regions and baseline
            elimination in spectroscopic data. Nuclear Instruments and Methods in
-           Physics Research A. 600 (2009) 478-487.
+           Physics Research A, 2009, 60, 478-487.
 
     #TODO potentially add adaptive window sizes from [4]_
     """

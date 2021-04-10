@@ -16,12 +16,13 @@ if __name__ == '__main__':
         print('This file requires matplotlib to run')
         raise
     import numpy as np
-
-    from pybaselines.morphological import mpls, imor, mor, amormol, mormol
-    from pybaselines.whittaker import iarpls, airpls, arpls, asls, aspls, drpls, iasls
-    from pybaselines.polynomial import poly, imodpoly, modpoly, loess, penalized_poly
-    from pybaselines.window import noise_median, snip
+    from pybaselines.morphological import amormol, imor, mor, mormol, mpls, rolling_ball
+    from pybaselines.polynomial import (imodpoly, loess, modpoly,
+                                        penalized_poly, poly)
     from pybaselines.utils import gaussian
+    from pybaselines.whittaker import (airpls, arpls, asls, aspls, drpls,
+                                       iarpls, iasls)
+    from pybaselines.window import noise_median, snip
 
     x = np.linspace(100, 4200, 2000)
     signal = (
@@ -63,7 +64,8 @@ if __name__ == '__main__':
             (mor, (y, 200)),
             (imor, (y, 50)),
             (mormol, (y, 200), {'pad_kwargs': {'extrapolate_window': 100}, 'smooth_half_window': 7}),
-            (amormol, (y, 70), {'pad_kwargs': {'extrapolate_window': 100}})
+            (amormol, (y, 70), {'pad_kwargs': {'extrapolate_window': 100}}),
+            (rolling_ball, (y, 250, 200), {'pad_kwargs': {'extrapolate_window': 100}})
         ),
         'window': (
             (noise_median, (y, 800, 200), {'extrapolate_window': 100}),
