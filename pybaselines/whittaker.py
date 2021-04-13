@@ -223,7 +223,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         residual_l1_norm = -1 * residual[neg_mask].sum()
         if residual_l1_norm / y_l1_norm < tol:
             break
-        w = np.exp(i * abs(residual) / residual_l1_norm) * neg_mask
+        w = np.exp(i * residual / residual_l1_norm) * neg_mask
         W.setdiag(w)
 
     return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
