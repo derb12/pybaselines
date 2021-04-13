@@ -2,7 +2,7 @@
 """High level functions for making better use of baseline algorithms.
 
 Functions in this module make use of other baseline algorithms in
-pybaselines to provide better results.
+pybaselines to provide better results or optimize parameters.
 
 Optimizers
     1) collab_pls (Collaborative Penalized Least Squares)
@@ -19,10 +19,46 @@ from math import ceil
 import numpy as np
 
 from ._algorithm_setup import _setup_polynomial
-from .morphological import mpls
-from .polynomial import imodpoly, modpoly, poly
+from .polynomial import imodpoly, modpoly
 from .utils import gaussian
-from .whittaker import airpls, arpls, asls, aspls, drpls, iarpls, iasls
+
+from . import morphological, polynomial, whittaker
+
+
+def _get_function(method, modules):
+    """
+    Tries to retrieve the indicated function from a list of modules.
+
+    Parameters
+    ----------
+    method : str
+        The string name of the desired function. Case does not matter.
+    modules : Sequence
+        A sequence of modules in which to look for the method.
+
+    Returns
+    -------
+    func : Callable
+        The corresponding function.
+
+    Raises
+    ------
+    AttributeError
+        Raised if no matching function is found within the modules.
+
+    """
+    function_string = method.lower()
+    func = None
+    for module in modules:
+        try:
+            func = getattr(module, function_string)
+        except AttributeError:
+            pass
+
+    if func is None:
+        raise AttributeError('unknown method')
+
+    return func
 
 
 def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
@@ -41,7 +77,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
         If True (default) will average the dataset before fitting to get the
         weighting. If False, will fit each individual entry in the dataset and
         then average the weights to get the weighting for the dataset.
-    method : {'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls'}, optional
+    method : str, optional
         A string indicating the Whittaker-smoothing-based method to use for
         fitting the baseline. Default is 'asls'.
     **method_kwargs
@@ -54,31 +90,22 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
 
     References
     ----------
-    Chen, L. et al. Collaborative Penalized Least Squares for Background
+    Chen, L., et al. Collaborative Penalized Least Squares for Background
     Correction of Multiple Raman Spectra. Journal of Analytical Methods
-    in Chemistry, 2018, 2018, DOI:https://doi.org/10.1155/2018/9031356.
+    in Chemistry, 2018, 2018.
 
     """
-    fit_func = {
-        'asls': asls,
-        'iasls': iasls,
-        'airpls': airpls,
-        'mpls': mpls,
-        'arpls': arpls,
-        'drpls': drpls,
-        'iarpls': iarpls,
-        'aspls': aspls
-    }[method.lower()]
+    fit_func = _get_function(method, (whittaker, morphological))
     dataset = np.asarray(data)
     if average_dataset:
         _, fit_params = fit_func(np.mean(dataset.T, 1), **method_kwargs)
         method_kwargs['weights'] = fit_params['weights']
     else:
-        weights = []
-        for entry in dataset:
+        weights = np.empty_like(dataset)
+        for i, entry in enumerate(dataset):
             _, fit_params = fit_func(entry, **method_kwargs)
-            weights.append(fit_params['weights'])
-        method_kwargs['weights'] = np.mean(np.transpose(weights), 1)
+            weights[i] = fit_params['weights']
+        method_kwargs['weights'] = np.mean(weights.T, 1)
 
     method_kwargs['tol'] = np.inf
     baselines = []
@@ -117,13 +144,46 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
     return z, min_var, other_params
 
 
-def optimize_extended_range(data, x_data=None, method='aspls', side='left', **method_kwargs):
+def optimize_extended_range(data, x_data=None, method='aspls', side='both', **method_kwargs):
     """
     Extends data and finds the best parameter value for the given baseline method.
 
     Adds additional data to the left and/or right of the input data, and then iterates
     through parameter values to find the best fit. Useful for calculating the optimum
     `lam` or `poly_order` value required to optimize other algorithms.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    method : str, optional
+        A string indicating the Whittaker-smoothing-based or polynomial method
+        to use for fitting the baseline. Default is 'aspls'.
+    side : {'both', 'left', 'right'}, optional
+        The side of the measured data to extend. Default is 'both'.
+    **method_kwargs
+        Keyword arguments to pass to the selected `method` function.
+
+    Returns
+    -------
+    z : numpy.ndarray, shape (N,)
+        The baseline calculated with the optimum parameter.
+    method_params : dict
+        A dictionary with the following items:
+
+        * 'optimal_parameter': int or float
+            The `lam` or `poly_order` value that produced the lowest
+            root-mean-squared-error.
+
+        Additional items depend on the output of the selected method.
+
+    Raises
+    ------
+    ValueError
+        Raised if `side` is not 'left', 'right', or 'both'.
 
     Notes
     -----
@@ -145,20 +205,8 @@ def optimize_extended_range(data, x_data=None, method='aspls', side='left', **me
     """
     if side.lower() not in ('left', 'right', 'both'):
         raise ValueError('side must be "left", "right", or "both"')
-    fit_func = { #TODO could this also work with window and morphological functions?
-        'arpls': arpls,
-        'aspls': aspls,
-        'iarpls': iarpls,
-        'airpls': airpls,
-        'mpls': mpls,
-        'asls': asls,
-        'iasls': iasls,
-        'drpls': drpls,
-        'modpoly': modpoly,
-        'imodpoly': imodpoly,
-        'poly': poly
-    }[method.lower()]
 
+    fit_func = _get_function(method, (whittaker, polynomial, morphological))
     y, x, *_ = _setup_polynomial(data, x_data)
     sort_order = np.argsort(x)  # to ensure x is increasing
     x = x[sort_order]
@@ -195,10 +243,10 @@ def optimize_extended_range(data, x_data=None, method='aspls', side='left', **me
         known_background = np.hstack((known_background, line))
         lower_bound += W
 
-    if method.lower() in ('iasls', 'modpoly', 'imodpoly', 'poly'):
+    if method.lower() in ('iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly'):
         method_kwargs['x_data'] = fit_x_data
 
-    if method.lower() in ('modpoly', 'imodpoly', 'poly'):
+    if 'poly' in method.lower():
         z, best_val, method_params = _iter_solve(
             fit_func, fit_data, known_background, lower_bound, upper_bound, 'poly_order',
             0, 20, 1, 4, **method_kwargs

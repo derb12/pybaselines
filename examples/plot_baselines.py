@@ -17,6 +17,7 @@ if __name__ == '__main__':
         raise
     import numpy as np
     from pybaselines.morphological import amormol, imor, mor, mormol, mpls, rolling_ball
+    from pybaselines.optimizers import adaptive_minmax, optimize_extended_range
     from pybaselines.polynomial import (imodpoly, loess, modpoly,
                                         penalized_poly, poly)
     from pybaselines.utils import gaussian
@@ -72,6 +73,10 @@ if __name__ == '__main__':
             (noise_median, (y, 800, 200), {'extrapolate_window': 100}),
             (snip, (y, 70)),
             (snip, (y, 70, True, True), {}, ', decreasing & smooth = True')
+        ),
+        'optimizers': (
+            (optimize_extended_range, (y, x, 'aspls', 'both')),
+            (adaptive_minmax, (y, x)),
         )
     }
 

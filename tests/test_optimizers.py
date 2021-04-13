@@ -15,6 +15,21 @@ from pybaselines import optimizers
 from .conftest import get_data, AlgorithmTester
 
 
+@pytest.mark.parametrize('method', ('collab_pls', 'COLLAB_pls'))
+def test_get_function(method):
+    optimizers._get_function(method, [optimizers])
+
+
+def test_get_function_fails_wrong_method():
+    with pytest.raises(AttributeError):
+        optimizers._get_function('unknown function', [optimizers])
+
+
+def test_get_function_fails_no_module():
+    with pytest.raises(AttributeError):
+        optimizers._get_function('collab_pls', [])
+
+
 class TestCollabPLS(AlgorithmTester):
     """Class for testing collab_pls baseline."""
 
@@ -40,6 +55,17 @@ class TestCollabPLS(AlgorithmTester):
         y_list = self.y.tolist()
         stacked_y = self._stack(self.y)
         super()._test_algorithm_list(array_args=(stacked_y,), list_args=([y_list, y_list],))
+
+    @pytest.mark.parametrize(
+        'method',
+        ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa')
+    )
+    def test_all_methods(self, method):
+        super()._call_func(self._stack(self.y), method=method)
+
+    def test_unknown_method_fails(self):
+        with pytest.raises(AttributeError):
+            super()._call_func(self._stack(self.y), method='unknown function')
 
 
 class TestOptimizeExtendedRange(AlgorithmTester):
@@ -74,6 +100,18 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         super()._test_algorithm_list(
             array_args=(self.y, None, 'asls'), list_args=(y_list, None, 'asls')
         )
+
+    @pytest.mark.parametrize(
+        'method',
+        ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
+         'poly', 'modpoly', 'imodpoly', 'penalized_poly')
+    )
+    def test_all_methods(self, method):
+        super()._call_func(self.y, self.x, method=method)
+
+    def test_unknown_method_fails(self):
+        with pytest.raises(AttributeError):
+            super()._call_func(self.y, self.x, method='unknown function')
 
 
 class TestAdaptiveMinMax(AlgorithmTester):

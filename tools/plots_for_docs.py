@@ -23,11 +23,15 @@ if __name__ == '__main__':
         raise
     import numpy as np
 
-    from pybaselines.morphological import mpls, imor, mor, amormol, mormol, rolling_ball
-    from pybaselines.whittaker import iarpls, airpls, arpls, asls, aspls, drpls, iasls, psalsa
-    from pybaselines.polynomial import poly, imodpoly, modpoly, loess, penalized_poly
-    from pybaselines.window import noise_median, snip
+    from pybaselines.morphological import (amormol, imor, mor, mormol, mpls,
+                                           rolling_ball)
+    from pybaselines.optimizers import adaptive_minmax, optimize_extended_range
+    from pybaselines.polynomial import (imodpoly, loess, modpoly,
+                                        penalized_poly, poly)
     from pybaselines.utils import gaussian
+    from pybaselines.whittaker import (airpls, arpls, asls, aspls, drpls,
+                                       iarpls, iasls, psalsa)
+    from pybaselines.window import noise_median, snip
 
     x = np.linspace(100, 4200, 2000)
     signal = (
@@ -77,10 +81,15 @@ if __name__ == '__main__':
             (noise_median, (y, 800, 200), {'extrapolate_window': 100}),
             (snip, (y, 70)),
             (snip, (y, 70, True, True), {}, ', decreasing & smooth = True')
+        ),
+        'optimizers': (
+            (optimize_extended_range, (y, x, 'aspls', 'both')),
+            (adaptive_minmax, (y, x)),
         )
     }
 
-    image_directory = Path(__file__).parent.parent.joinpath('docs/images')  # assumes file is in pybaselines/tools
+    # assumes file is in pybaselines/tools
+    image_directory = Path(__file__).parent.parent.joinpath('docs/images')
     with plt.rc_context(
         {'interactive': False, 'lines.linewidth': 2.5, 'legend.frameon': False,
          'figure.figsize': (4.5, 4), 'figure.dpi': 100}
