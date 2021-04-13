@@ -18,11 +18,9 @@ from math import ceil
 
 import numpy as np
 
-from ._algorithm_setup import _setup_polynomial
-from .polynomial import imodpoly, modpoly
-from .utils import gaussian
-
 from . import morphological, polynomial, whittaker
+from ._algorithm_setup import _setup_polynomial
+from .utils import gaussian
 
 
 def _get_function(method, modules):
@@ -144,7 +142,7 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
     return z, min_var, other_params
 
 
-def optimize_extended_range(data, x_data=None, method='aspls', side='both', **method_kwargs):
+def optimize_extended_range(data, x_data=None, method='asls', side='both', **method_kwargs):
     """
     Extends data and finds the best parameter value for the given baseline method.
 
@@ -384,7 +382,7 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
            1199-1205.
 
     """
-    fit_func = {'modpoly': modpoly, 'imodpoly': imodpoly}[method.lower()]
+    fit_func = {'modpoly': polynomial.modpoly, 'imodpoly': polynomial.imodpoly}[method.lower()]
     y, x, w, _ = _setup_polynomial(data, x_data, weights)
     constrained_range = max(1, ceil(y.shape[0] * constrained_fraction))
 

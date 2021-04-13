@@ -76,29 +76,29 @@ class TestOptimizeExtendedRange(AlgorithmTester):
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
     def test_unchanged_data(self, data_fixture, side):
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x, 'asls', side=side)
+        super()._test_unchanged_data(data_fixture, y, x, y, x, side=side)
 
     def test_no_x(self):
         super()._test_algorithm_no_x(
-            with_args=(self.y, self.x, 'asls'), without_args=(self.y, None, 'asls')
+            with_args=(self.y, self.x), without_args=(self.y, None)
         )
 
     def test_x_ordering(self):
         """Ensures arrays are correctly sorted within the function."""
         reverse_x = self.x[::-1]
         reverse_y = self.y[::-1]
-        regular_inputs_result = self._call_func(self.y, self.x, 'asls')[0]
-        reverse_inputs_result = self._call_func(reverse_y, reverse_x, 'asls')[0]
+        regular_inputs_result = self._call_func(self.y, self.x)[0]
+        reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
 
         assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
 
     def test_output(self):
-        super()._test_output(self.y, self.y, None, 'asls')
+        super()._test_output(self.y, self.y, None)
 
     def test_list_input(self):
         y_list = self.y.tolist()
         super()._test_algorithm_list(
-            array_args=(self.y, None, 'asls'), list_args=(y_list, None, 'asls')
+            array_args=(self.y, None), list_args=(y_list, None)
         )
 
     @pytest.mark.parametrize(
