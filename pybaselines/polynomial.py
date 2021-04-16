@@ -476,20 +476,19 @@ def _identify_loss_method(loss_method):
         Raised if the loss method does not have the correct form.
 
     """
-    split_method = loss_method.lower().split('_')
-    if (split_method[0] not in ('a', 's', 'asymmetric', 'symmetric')
-            or len(split_method) < 2):
+    prefix, *split_method = loss_method.lower().split('_')
+    if prefix not in ('a', 's', 'asymmetric', 'symmetric') or not split_method:
         raise ValueError('must specify loss function symmetry by appending "a_" or "s_"')
-    if split_method[0] in ('a', 'asymmetric'):
+    if prefix in ('a', 'asymmetric'):
         symmetric = False
     else:
         symmetric = True
-    return symmetric, '_'.join(split_method[1:])
+    return symmetric, '_'.join(split_method)
 
 
 def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
-                   cost_function='asymmetric_truncated_quadratic', threshold=1.0,
-                   return_coef=False):
+                   weights=None, cost_function='asymmetric_truncated_quadratic',
+                   threshold=None, alpha_factor=0.99, return_coef=False):
     """
     Fits a polynomial baseline using a non-quadratic cost function.
 
@@ -509,6 +508,9 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         The exit criteria. Default is 1e-3.
     max_iter : int, optional
         The maximum number of iterations. Default is 250.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
     cost_function : str, optional
         The non-quadratic cost function to minimize. Must indicate symmetry of the
         method by appending 'a' or 'asymmetric' for asymmetric loss, and 's' or
@@ -527,7 +529,12 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         quadratic loss (such as used for least squares) to non-quadratic. For
         symmetric loss methods, residual values with absolute value less than
         threshold will have quadratic loss. For asymmetric loss methods, residual
-        values less than the threshold will have quadratic loss. Default is 1.0.
+        values less than the threshold will have quadratic loss. Default is None,
+        which sets `threshold` to one-tenth of the standard deviation of the input
+        data.
+    alpha_factor : float, optional
+        A value between 0 and 1 that controls the value of the penalty. Default is
+        0.99. Typically should not need to change this value.
     return_coef : bool, optional
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input x_data and return them in the params dictionary.
@@ -540,10 +547,17 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     params : dict
         A dictionary with the following items:
 
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using numpy.polynomial.polynomial.Polynomial().
+
+    Raises
+    ------
+    ValueError
+        Raised if `alpha_factor` is not between 0 and 1.
 
     Notes
     -----
@@ -563,35 +577,37 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
            Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
     """
-    #TODO should scale y between [-1, 1] so that abs(residual) is roughly <~ 1 and threshold <= 1
-    # this would allow using same threshold regardless of y scale; would need to scale output
-    # coefficients, though
-    alpha_factor = 0.99  #TODO should alpha_factor be a param?
+    if alpha_factor < 0 or alpha_factor > 1:
+        raise ValueError('alpha_factor must be between 0 and 1')
     symmetric_loss, method = _identify_loss_method(cost_function)
-    loss_kwargs = {
-        'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
-    }
     loss_function = {
         'huber': _huber_loss,
         'truncated_quadratic': _truncated_quadratic_loss,
         'indec': _indec_loss
     }[method]
-
-    y, x, _, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, None, poly_order, return_vander=True, return_pinv=True
+    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
+        data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
+    if threshold is None:
+        threshold = np.std(y) / 10
+    loss_kwargs = {
+        'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
+    }
+
+    sqrt_w = np.sqrt(w)
+    y = sqrt_w * y
 
     coef = np.dot(pseudo_inverse, y)
     z = np.dot(vander, coef)
     for _ in range(max_iter):
-        coef = np.dot(pseudo_inverse, y + loss_function(y - z, **loss_kwargs))
+        coef = np.dot(pseudo_inverse, y + loss_function(y - sqrt_w * z, **loss_kwargs))
         z_new = np.dot(vander, coef)
 
         if relative_difference(z, z_new) < tol:
             break
         z = z_new
 
-    params = {}
+    params = {'weights': w}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
