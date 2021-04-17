@@ -273,7 +273,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
-        y = np.minimum(y0 if use_original else y, z)
+        y = np.minimum(y0 if use_original else y, z + deviation)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
         z = np.dot(vander, coef)
         new_deviation = np.std((y0 if use_original else y) - z)
