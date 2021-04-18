@@ -359,7 +359,7 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     **method_kwargs
         Additional keyword arguments to pass to :func:`.modpoly` or
         :func:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
-        and `mask_initial_peaks`.
+        `mask_initial_peaks`, and `num_std`.
 
     Returns
     -------

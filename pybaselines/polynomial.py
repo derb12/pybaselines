@@ -194,7 +194,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
 
 
 def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
-             use_original=False, mask_initial_peaks=True, return_coef=False):
+             use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1):
     """
     The improved modofied polynomial (IModPoly) baseline algorithm.
 
@@ -225,6 +225,9 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input x_data and return them in the params dictionary.
         Default is False, since the conversion takes time.
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Default
+        is 1.
 
     Returns
     -------
@@ -273,10 +276,10 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
-        y = np.minimum(y0 if use_original else y, z + deviation)
+        y = np.minimum(y0 if use_original else y, z + num_std * deviation)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
         z = np.dot(vander, coef)
-        new_deviation = np.std((y0 if use_original else y) - z)
+        new_deviation = np.std(y - z)
         # use new_deviation as dividing term in relative difference
         if relative_difference(new_deviation, deviation) < tol:
             break
@@ -702,7 +705,7 @@ def _median_absolute_differences(array_1, array_2=None, errors=None):
 
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
           scale=3.0, tol=1e-3, max_iter=10, symmetric_weights=False,
-          use_threshold=False, include_stdev=True):
+          use_threshold=False, num_std=1):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -742,11 +745,10 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
         on the data being fit each iteration, based on the maximum values of the
         data and the fit baseline, as proposed by [12]_, similar to the ModPoly
         and IModPoly techniques.
-    include_stdev : bool, optional
-        If True (default), then will include the standard devitation of the
-        residual when performing the thresholding, similar to the IModPoly
-        technique [13]_. A value of True performs better when the input data
-        has a high amount of noise. Only used if `use_threshold` is True.
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Default
+        is 1, which is the value used for the IModPoly technique. Only used if
+        `use_threshold` is True.
 
     Returns
     -------
@@ -784,9 +786,6 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
     .. [12] Komsta, Ł. Comparison of Several Methods of Chromatographic
             Baseline Removal with a New Approach Based on Quantile Regression.
             Chromatographia, 2011, 73, 721-731.
-    .. [13] Zhao, J., et al. Automated Autofluorescence Background Subtraction
-            Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
-            2007, 61(11), 1225-1232.
 
     """
     y, x, weights, _, vander = _setup_polynomial(data, x_data, None, poly_order, True)
@@ -828,6 +827,6 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
                 residual / _median_absolute_differences(residual), scale, symmetric_weights
             )
         else:
-            y = np.minimum(y, z_new + (0 if not include_stdev else np.std(y - z_new)))
+            y = np.minimum(y, z_new + num_std * np.std(y - z_new))
 
     return z, {}
