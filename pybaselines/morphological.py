@@ -123,6 +123,8 @@ def optimize_window(data, increment=1, max_hits=1, window_tol=1e-6, max_half_win
     Chen, H., et al. An Adaptive and Fully Automated Baseline Correction
     Method for Raman Spectroscopy Based on Morphological Operations and
     Mollifications. Applied Spectroscopy, 2019, 73(3), 284-293.
+    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
+    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
 
     """
     y = np.asarray(data)
