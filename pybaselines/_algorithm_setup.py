@@ -7,9 +7,10 @@ Created on March 31, 2021
 """
 
 import numpy as np
+from scipy.ndimage import grey_opening
 from scipy.sparse import diags
 
-from .utils import pad_edges
+from .utils import pad_edges, relative_difference
 
 
 def difference_matrix(data_size, diff_order=2):
@@ -223,6 +224,128 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     return output
 
 
+def _optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
+                     max_half_window=None, min_half_window=None):
+    """
+    Optimizes the morphological half-window size.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The measured data values.
+    increment : int, optional
+        The step size for iterating half windows. Default is 1.
+    max_hits : int, optional
+        The number of consecutive half windows that must produce the same
+        morphological opening before accepting the half window as the optimum
+        value. Default is 3.
+    window_tol : float, optional
+        The tolerance value for considering two morphological openings as
+        equivalent. Default is 1e-6.
+    max_half_window : int, optional
+        The maximum allowable half-window size. If None (default), will be set
+        to (len(data) - 1) / 2.
+    min_half_window : int, optional
+        The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    half_window : int
+        The optimized half window size.
+
+    Notes
+    -----
+    May only provide good results for some morphological algorithms, so use with
+    caution.
+
+    References
+    ----------
+    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
+    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
+
+    """
+    y = np.asarray(data)
+    if max_half_window is None:
+        max_half_window = (y.shape[0] - 1) // 2
+    if min_half_window is None:
+        min_half_window = 1
+
+    opening = grey_opening(y, [2 * min_half_window + 1])
+    hits = 0
+    best_half_window = min_half_window
+    for half_window in range(min_half_window + increment, max_half_window, increment):
+        new_opening = grey_opening(y, [half_window * 2 + 1])
+        if relative_difference(opening, new_opening) < window_tol:
+            if hits == 0:
+                # keep just the first window that fits tolerance
+                best_half_window = half_window - increment
+            hits += 1
+            if hits >= max_hits:
+                half_window = best_half_window
+                break
+        elif hits:
+            hits = 0
+        opening = new_opening
+
+    return half_window
+
+
+def _setup_morphology(data, half_window=None, **window_kwargs):
+    """
+    Sets the starting parameters for morphology-based methods.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window used for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using pybaselines.morphological.optimize_window.
+    **window_kwargs
+        Keyword arguments to pass to :func:`.optimize_window`.
+        Possible items are:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 3.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable half-window size. If None (default), will be
+                set to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, converted to a numpy array.
+    output_half_window : int
+        The accepted half window size.
+
+    Notes
+    -----
+    Ensures that window size is odd since morphological operations operate in
+    the range [-output_half_window, ..., output_half_window].
+
+    Half windows are dealt with rather than full window sizes to clarify their
+    usage. SciPy morphology operations deal with full window sizes.
+
+    """
+    y = np.asarray(data)
+    if half_window is not None:
+        output_half_window = half_window
+    else:
+        output_half_window = _optimize_window(y, **window_kwargs)
+
+    return y, output_half_window
+
+
 def _setup_window(data, half_window, **pad_kwargs):
     """
     Sets the starting parameters for doing window-based algorithms.
@@ -242,6 +365,7 @@ def _setup_window(data, half_window, **pad_kwargs):
     Returns
     -------
     numpy.ndarray, shape (N + 2 * half_window)
-        [description]
+        The padded array of data.
+
     """
     return pad_edges(np.asarray(data), half_window, **pad_kwargs)
