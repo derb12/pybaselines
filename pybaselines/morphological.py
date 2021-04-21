@@ -172,8 +172,8 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
             w[index] = 1 - p
 
-    _, D, W, w = _setup_whittaker(y, lam, diff_order, weights)
-    z = spsolve(W + D, w * y)
+    _, D, W, weight_array = _setup_whittaker(y, lam, diff_order, w)
+    z = spsolve(W + D, weight_array * y)
 
     return z, {'weights': w, 'half_window': half_wind}
 
