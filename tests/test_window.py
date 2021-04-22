@@ -62,3 +62,20 @@ class TestSNIP(AlgorithmTester):
     def test_too_large_max_half_window(self, max_half_window):
         with pytest.warns(UserWarning):
             super()._call_func(self.y, max_half_window)
+
+
+class TestSwima(AlgorithmTester):
+    """Class for testing swima baseline."""
+
+    func = window.swima
+
+    def test_unchanged_data(self, data_fixture):
+        x, y = get_data()
+        super()._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        super()._test_output(self.y, self.y)
+
+    def test_list_input(self):
+        y_list = self.y.tolist()
+        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))

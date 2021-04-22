@@ -4,6 +4,7 @@
 Window
     1) noise_median (Noise Median method)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
+    3) swima (Small-Window Moving Average)
 
 Created on March 7, 2021
 @author: Donald Erb
@@ -14,6 +15,7 @@ import warnings
 
 import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
+from scipy.signal import savgol_filter
 
 from ._algorithm_setup import _setup_window
 from .utils import gaussian_kernel, padded_convolve
@@ -208,3 +210,81 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
         z[i:-i] = np.where(z[i:-i] > filters, filters, previous_baseline)
 
     return z[max_of_half_windows:-max_of_half_windows], {}
+
+
+def swima(data, max_half_window=None, min_half_window=3, smooth_half_window=None,
+          **pad_kwargs):
+    """
+    Small-window moving average (SWiMA) baseline.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    max_half_window : int, optional
+        The maximum number of iterations. Default is None, which will use
+        (N - 1) / 2. Typically does not need to be specified.
+    min_half_window : int, optional
+        The minimum half window value that must be reached before the exit criteria
+        is considered. Default is 3.
+    smooth_half_window : int, optional
+        The half window to use for smoothing the input data with a moving average.
+        Default is None, which will use N / 50. Use a value of 0 or less to not
+        smooth the data. See Notes below for more details.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from convolution.
+
+    Returns
+    -------
+    z : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'half_window': int
+            The half window at which the exit criteria was reached.
+
+    Notes
+    -----
+    This algorithm requires the input data to be fairly smooth (noise-free), so it
+    is recommended to either smooth the data beforehand, or specify a
+    `smooth_half_window` value. Non-smooth data can cause the exit criteria to be
+    reached prematurely (can be avoided by setting a larger `min_half_window`), while
+    over-smoothed data can cause the exit criteria to be reached later than optimal.
+
+    References
+    ----------
+    Schulze, H., et al. A Small-Window Moving Average-Based Fully Automated
+    Baseline Estimation Method for Raman Spectra. Applied Spectroscopy, 2012,
+    66(7), 757-764.
+
+    """
+    if max_half_window is None:
+        max_half_window = (len(data) - 1) // 2
+    y = _setup_window(data, max_half_window, **pad_kwargs)
+
+    data_slice = slice(max_half_window, -max_half_window)
+    if smooth_half_window is None:
+        smooth_half_window = max(1, y[data_slice].shape[0] // 50)
+
+    if smooth_half_window > 0:
+        z = uniform_filter1d(y, 2 * smooth_half_window + 1)
+    else:
+        z = y
+
+    area_current = 0
+    area_old = 0
+    for half_window in range(1, max_half_window + 1):
+        z_new = np.minimum(z, savgol_filter(z, 2 * half_window + 1, 0, mode='nearest'))
+
+        area_new = np.trapz(z[data_slice] - z_new[data_slice])
+        if half_window > min_half_window and area_new > area_current and area_current < area_old:
+            break
+        area_old = area_current
+        area_current = area_new
+        z = z_new
+        #TODO need to implement the second exit condition? will increase time since
+        # have to differentiate, fit with polynomial, and integrate
+
+    return z[data_slice], {'half_window': half_window - 1}
