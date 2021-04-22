@@ -63,8 +63,8 @@ def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwarg
     return z[half_window:-half_window], {}
 
 
-def snip(data, max_half_window, decreasing=False, smooth=False,
-         smooth_half_window=1, filter_order=2, **pad_kwargs):
+def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
+         filter_order=2,**pad_kwargs):
     """
     Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
 
@@ -84,12 +84,11 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
         max_half_window. If True, will reverse the order and iterate from
         max_half_window to 1, which gives a smoother baseline according to [3]_
         and [4]_.
-    smooth : bool, optional
-        If True, will perform a moving average smooth on the data for each window,
-        which gives better results for noisy data [3]_. Default is False.
     smooth_half_window : int, optional
-        The half window to use for the moving average if smooth=True. Default is 1,
-        which gives a 3-point moving average.
+        The half window to use for smoothing the data. If `smooth_half_window`
+        is greater than 0, will perform a moving average smooth on the data for
+        each window, which gives better results for noisy data [3]_. Default is
+        0, which will not perform any smoothing.
     filter_order : {2, 4, 6, 8}, optional
         If the measured data has a more complicated baseline consisting of other
         elements such as Compton edges, then a higher `filter_order` should be
@@ -118,7 +117,7 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
 
     Notes
     -----
-    Algorithm initially developed by [1]_ and this specific version of the
+    Algorithm initially developed by [1]_, and this specific version of the
     algorithm is adapted from [2]_, [3]_, and [4]_.
 
     If data covers several orders of magnitude, better results can be obtained
@@ -173,6 +172,7 @@ def snip(data, max_half_window, decreasing=False, smooth=False,
 
     y = _setup_window(data, max_of_half_windows, **pad_kwargs)
     num_y = y.shape[0]  # new num_y since y is now padded
+    smooth = smooth_half_window > 0
     z = y.copy()
     for i in range(*range_args):
         i_left = min(i, half_windows[0])
