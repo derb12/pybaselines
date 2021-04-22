@@ -15,7 +15,6 @@ import warnings
 
 import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
-from scipy.signal import savgol_filter
 
 from ._algorithm_setup import _setup_window
 from .utils import gaussian_kernel, padded_convolve
@@ -226,7 +225,7 @@ def swima(data, max_half_window=None, min_half_window=3, smooth_half_window=None
         (N - 1) / 2. Typically does not need to be specified.
     min_half_window : int, optional
         The minimum half window value that must be reached before the exit criteria
-        is considered. Default is 3.
+        is considered. Can be increased to reduce the calculation time. Default is 3.
     smooth_half_window : int, optional
         The half window to use for smoothing the input data with a moving average.
         Default is None, which will use N / 50. Use a value of 0 or less to not
@@ -273,16 +272,20 @@ def swima(data, max_half_window=None, min_half_window=3, smooth_half_window=None
     else:
         z = y
 
-    area_current = 0
-    area_old = 0
+    min_half_window_check = min_half_window - 2
+    area_current = -1
+    area_old = -1
     for half_window in range(1, max_half_window + 1):
-        z_new = np.minimum(z, savgol_filter(z, 2 * half_window + 1, 0, mode='nearest'))
-
-        area_new = np.trapz(z[data_slice] - z_new[data_slice])
-        if half_window > min_half_window and area_new > area_current and area_current < area_old:
-            break
-        area_old = area_current
-        area_current = area_new
+        # use moving average rather than 0-degree Savitzky–Golay filter
+        # since they are equivalent and moving average is much faster
+        z_new = np.minimum(z, uniform_filter1d(z, 2 * half_window + 1))
+        # only begin calculating the area when near the lowest allowed half window
+        if half_window > min_half_window_check:
+            area_new = np.trapz(z[data_slice] - z_new[data_slice])
+            if area_new > area_current and area_current < area_old:
+                break
+            area_old = area_current
+            area_current = area_new
         z = z_new
         #TODO need to implement the second exit condition? will increase time since
         # have to differentiate, fit with polynomial, and integrate
