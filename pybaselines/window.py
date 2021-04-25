@@ -16,8 +16,8 @@ import warnings
 import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
 
-from ._algorithm_setup import _setup_window
-from .utils import gaussian_kernel, padded_convolve
+from ._algorithm_setup import _get_vander, _setup_window
+from .utils import gaussian, gaussian_kernel, padded_convolve
 
 
 def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwargs):
@@ -65,7 +65,7 @@ def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwarg
 
 
 def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
-         filter_order=2,**pad_kwargs):
+         filter_order=2, **pad_kwargs):
     """
     Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
 
@@ -211,21 +211,109 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
     return z[max_of_half_windows:-max_of_half_windows], {}
 
 
-def swima(data, max_half_window=None, min_half_window=3, smooth_half_window=None,
-          **pad_kwargs):
+def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half_window=3):
+    """
+    Computes an iterative moving average to smooth peaks and obtain the baseline.
+
+    The internal loop of the small-window moving average (SWiMA) algorithm.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N + 2 * max_half_window,)
+        The array of the measured data with N data points padded at each edge with
+        `max_half_window` extra data points.
+    vander : numpy.ndarray, shape (N - 1, 4)
+        The Vandermonde matrix for computing the 3rd order polynomial fit of the
+        differential of the residual. Used for the alternate exit criteria.
+    pseudo_inverse : numpy.ndarray, shape (4, N - 1)
+        The pseudo-inverse of the Vandermonde matrix for computing the 3rd order
+        polynomial fit of the differential of the residual. Used for the alternate
+        exit criteria.
+    data_slice : slice
+        The slice used for separating the actual values of `y` from the extended y
+        array.
+    max_half_window : int
+        The maximum allowable half window.
+    min_half_window : int, optional
+        The minimum half window that must be reached before exit criteria are
+        considered. Default is 3.
+
+    Returns
+    -------
+    z : numpy.ndarray, shape (N + 2 * max_half_window,)
+        The baseline with the padded edges.
+    converged : bool or None
+        Whether the main exit criteria was achieved. True if it was, False
+        if the alternate exit criteria was achieved, and None if `max_half_window`
+        was reached before either exit criteria.
+    half_window : int
+        The half window at which the exit criteria was reached.
+
+    Notes
+    -----
+    Uses a moving average rather than a 0-degree Savitzky–Golay filter since
+    they are equivalent and the moving average is faster.
+
+    The second exit criteria is based on Figure 2 in the reference, since the
+    slightly different definition of criteria two stated in the text was always
+    reached before the main exit criteria, which is not the desired outcome.
+
+    References
+    ----------
+    Schulze, H., et al. A Small-Window Moving Average-Based Fully Automated
+    Baseline Estimation Method for Raman Spectra. Applied Spectroscopy, 2012,
+    66(7), 757-764.
+
+    """
+    actual_y = y[data_slice]
+    z = y
+    min_half_window_check = min_half_window - 2
+    area_current = -1
+    area_old = -1
+    converged = None
+    for half_window in range(1, max_half_window + 1):
+        z_new = np.minimum(z, uniform_filter1d(z, 2 * half_window + 1))
+        # only begin calculating the area when near the lowest allowed half window
+        if half_window > min_half_window_check:
+            area_new = np.trapz(z[data_slice] - z_new[data_slice])
+            # exit criteria 1
+            if area_new > area_current and area_current < area_old:
+                converged = True
+                # subtract 1 since minimum area was reached the previous iteration
+                half_window -= 1
+                break
+            if half_window > min_half_window:
+                diff_current = np.diff(actual_y - z_new[data_slice])
+                poly_diff_current = np.trapz(
+                    abs(np.dot(vander, np.dot(pseudo_inverse, diff_current)))
+                )
+                # exit criteria 2, means baseline is not well fit
+                if poly_diff_current > 0.15 * np.trapz(abs(diff_current)):
+                    converged = False
+                    break
+            area_old = area_current
+            area_current = area_new
+        z = z_new
+
+    return z, converged, half_window
+
+
+def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None, **pad_kwargs):
     """
     Small-window moving average (SWiMA) baseline.
+
+    Computes an iterative moving average to smooth peaks and obtain the baseline.
 
     Parameters
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
-    max_half_window : int, optional
-        The maximum number of iterations. Default is None, which will use
-        (N - 1) / 2. Typically does not need to be specified.
     min_half_window : int, optional
         The minimum half window value that must be reached before the exit criteria
         is considered. Can be increased to reduce the calculation time. Default is 3.
+    max_half_window : int, optional
+        The maximum number of iterations. Default is None, which will use
+        (N - 1) / 2. Typically does not need to be specified.
     smooth_half_window : int, optional
         The half window to use for smoothing the input data with a moving average.
         Default is None, which will use N / 50. Use a value of 0 or less to not
@@ -241,8 +329,16 @@ def swima(data, max_half_window=None, min_half_window=3, smooth_half_window=None
     dict
         A dictionary with the following items:
 
-        * 'half_window': int
-            The half window at which the exit criteria was reached.
+        * 'half_window': list(int)
+            A list of the half windows at which the exit criteria was reached.
+            Has a length of 1 if the main exit criteria was intially reached,
+            otherwise has a length of 2.
+        * 'converged': list(bool or None)
+            A list of the convergence status. Has a length of 1 if the main
+            exit criteria was intially reached, otherwise has a length of 2.
+            Each convergence status is True if the main exit criteria was
+            reached, False if the second exit criteria was reached, and None
+            if `max_half_window` is reached before either exit criteria.
 
     Notes
     -----
@@ -251,6 +347,14 @@ def swima(data, max_half_window=None, min_half_window=3, smooth_half_window=None
     `smooth_half_window` value. Non-smooth data can cause the exit criteria to be
     reached prematurely (can be avoided by setting a larger `min_half_window`), while
     over-smoothed data can cause the exit criteria to be reached later than optimal.
+
+    The half-window at which convergence occurs is roughly close to the index-based
+    full-width-at-half-maximum of a peak or feature, but can vary. Therfore, it is
+    better to set a `min_half_window` that is smaller than expected to not miss the
+    exit criteria.
+
+    If the main exit criteria is not reached on the initial fit, a gaussian baseline
+    (which is well handled by this algorithm) is added to the data, and it is re-fit.
 
     References
     ----------
@@ -266,28 +370,25 @@ def swima(data, max_half_window=None, min_half_window=3, smooth_half_window=None
     data_slice = slice(max_half_window, -max_half_window)
     if smooth_half_window is None:
         smooth_half_window = max(1, y[data_slice].shape[0] // 50)
-
     if smooth_half_window > 0:
-        z = uniform_filter1d(y, 2 * smooth_half_window + 1)
-    else:
-        z = y
+        y = uniform_filter1d(y, 2 * smooth_half_window + 1)
 
-    min_half_window_check = min_half_window - 2
-    area_current = -1
-    area_old = -1
-    for half_window in range(1, max_half_window + 1):
-        # use moving average rather than 0-degree Savitzky–Golay filter
-        # since they are equivalent and moving average is much faster
-        z_new = np.minimum(z, uniform_filter1d(z, 2 * half_window + 1))
-        # only begin calculating the area when near the lowest allowed half window
-        if half_window > min_half_window_check:
-            area_new = np.trapz(z[data_slice] - z_new[data_slice])
-            if area_new > area_current and area_current < area_old:
-                break
-            area_old = area_current
-            area_current = area_new
-        z = z_new
-        #TODO need to implement the second exit condition? will increase time since
-        # have to differentiate, fit with polynomial, and integrate
+    vander, pseudo_inverse = _get_vander(np.linspace(-1, 1, y[data_slice].shape[0] - 1), 3)
+    z, converged, half_window = _swima_loop(
+        y, vander, pseudo_inverse, data_slice, max_half_window, min_half_window
+    )
+    converges = [converged]
+    half_windows = [half_window]
+    if not converged:
+        residual = y - z
+        gaussian_bkg = gaussian(
+            np.arange(y.shape[0]), np.max(residual), y.shape[0] / 2, y.shape[0] / 6
+        )
+        z2, converged, half_window = _swima_loop(
+            residual + gaussian_bkg, vander, pseudo_inverse, data_slice, max_half_window, 3
+        )
+        z += z2 - gaussian_bkg
+        converges.append(converged)
+        half_windows.append(half_window)
 
-    return z[data_slice], {'half_window': half_window - 1}
+    return z[data_slice], {'half_window': half_windows, 'converged': converges}

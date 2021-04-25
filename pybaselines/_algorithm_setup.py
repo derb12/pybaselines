@@ -125,9 +125,9 @@ def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
 
     Returns
     -------
-    vander : numpy.ndarray
+    vander : numpy.ndarray, shape (N, poly_order + 1)
         The Vandermonde matrix for the polynomial.
-    pseudo_inverse : numpy.ndarray
+    pseudo_inverse : numpy.ndarray, shape (poly_order + 1, N)
         The pseudo-inverse of the Vandermonde, with weights applied if input.
         Calculated using singular value decomposition (SVD).
 
