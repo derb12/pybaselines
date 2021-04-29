@@ -23,8 +23,48 @@ from ._algorithm_setup import _optimize_window, _setup_morphology, _setup_whitta
 from .utils import pad_edges, padded_convolve, relative_difference
 
 
-# make optimize_window available to users
-optimize_window = _optimize_window
+# make _optimize_window available to users and document it so that
+# it is included in the api documentation
+def optimize_window(*args, **kwargs):
+    """
+    Optimizes the morphological half-window size.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The measured data values.
+    increment : int, optional
+        The step size for iterating half windows. Default is 1.
+    max_hits : int, optional
+        The number of consecutive half windows that must produce the same
+        morphological opening before accepting the half window as the optimum
+        value. Default is 3.
+    window_tol : float, optional
+        The tolerance value for considering two morphological openings as
+        equivalent. Default is 1e-6.
+    max_half_window : int, optional
+        The maximum allowable half-window size. If None (default), will be set
+        to (len(data) - 1) / 2.
+    min_half_window : int, optional
+        The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    half_window : int
+        The optimized half window size.
+
+    Notes
+    -----
+    May only provide good results for some morphological algorithms, so use with
+    caution.
+
+    References
+    ----------
+    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
+    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
+
+    """
+    return _optimize_window(*args, **kwargs)
 
 
 def _mollifier_kernel(window_size):
@@ -98,7 +138,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using pybaselines.morphological.optimize_window.
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
@@ -189,7 +229,7 @@ def mor(data, half_window=None, **window_kwargs):
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using pybaselines.morphological.optimize_window.
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
     **window_kwargs
         Values for setting the half window used for the morphology operations.
         Items include:
@@ -243,7 +283,7 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using pybaselines.morphological.optimize_window.
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     max_iter : int, optional
@@ -305,7 +345,7 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using pybaselines.morphological.optimize_window.
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     max_iter : int, optional
@@ -384,7 +424,7 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using pybaselines.morphological.optimize_window.
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     max_iter : int, optional
@@ -546,8 +586,8 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     half_window : int or array-like(int), optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using pybaselines.morphological.optimize_window. If an
-        of integers is input, its length must be equal to N.
+        half-window size using :func:`.optimize_window` and `window_kwargs`. If
+        an array of integers is input, its length must be equal to N.
     smooth_half_window : int or array-like(int), optional
         The half-window to use for smoothing the data after performing the
         morphological operation. Default is None, which will use the same
