@@ -9,6 +9,7 @@ Whittaker
     5) drpls (Doubly reweighted penalized least squares)
     6) iarpls (Improved Asymmetrically reweighted penalized least squares)
     7) aspls (Adaptive smoothness penalized least squares)
+    8) psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 
 Created on Sept. 13, 2019
 @author: Donald Erb
@@ -26,7 +27,7 @@ from .utils import _MIN_FLOAT, relative_difference
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
-    Fits the baseline using assymetric least squared (AsLS) fitting.
+    Fits the baseline using asymmetric least squared (AsLS) fitting.
 
     Parameters
     ----------
@@ -36,8 +37,8 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
     p : float, optional
-        The penalizing weighting factor. Must be between 0 and 1. Residuals
-        above the data will be given p weight, and residuals below the data
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given p weight, and values less than the baseline
         will be given p-1 weight. Default is 1e-2.
     diff_order : {2, 1, 3}, optional
         The order of the differential matrix. Default is 2 (second order
@@ -111,8 +112,8 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
     p : float, optional
-        The penalizing weighting factor. Must be between 0 and 1. Residuals
-        above the data will be given p weight, and residuals below the data
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given p weight, and values less than the baseline
         will be given p-1 weight. Default is 1e-2.
     lam_1 : float, optional
         The smoothing parameter for the first derivative. Default is 1e-4.
@@ -222,7 +223,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         residual_l1_norm = -1 * residual[neg_mask].sum()
         if residual_l1_norm / y_l1_norm < tol:
             break
-        w = np.exp(i * abs(residual) / residual_l1_norm) * neg_mask
+        w = np.exp(i * residual / residual_l1_norm) * neg_mask
         W.setdiag(w)
 
     return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
@@ -466,3 +467,87 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     }
 
     return z, params
+
+
+def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+    """
+    Peaked Signal's Asymmetric Least Squares Algorithm (psalsa).
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e6.
+    p : float, optional
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given p weight, and values less than the baseline
+        will be given p-1 weight. Default is 0.5.
+    k : float, optional
+        A factor that controls the exponential decay of the weights for baseline
+        values greater than the data. Should be approximately the height at which
+        a value could be considered a peak. Default is None, which sets `k` to
+        one-tenth of the standard deviation of the input data. A large k value
+        will produce similar results to :func:`.asls`.
+    diff_order : {2, 1, 3}, optional
+        The order of the differential matrix. Default is 2 (second order
+        differential matrix).
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    z : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+
+    Raises
+    ------
+    ValueError
+        Raised if p is not between 0 and 1.
+
+    Notes
+    -----
+    Similar to the asymmetric least squares (AsLS) algorithm, but applies an
+    exponential decay weighting to values greater than the baseline to allow
+    using a higher `p` value to better fit noisy data.
+
+    The exit criteria for the original algorithm was to check whether the signs
+    of the residuals do not change between two iterations, but the comparison of
+    the l2 norms of the weight arrays between iterations is used instead to be
+    more comparable to other Whittaker-smoothing-based algorithms.
+
+    References
+    ----------
+    Oller-Moreno, S., et al. Adaptive Asymmetric Least Squares baseline estimation
+    for analytical instruments. 2014 IEEE 11th International Multi-Conference on
+    Systems, Signals, and Devices, 2014, 1-5.
+
+    """
+    if p < 0 or p > 1:
+        raise ValueError('p must be between 0 and 1')
+    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
+    if k is None:
+        k = np.std(y) / 10
+
+    for _ in range(max_iter):
+        z = spsolve(W + D, w * y)
+        residual = y - z
+        mask = residual > 0
+        w_new = mask * p * np.exp(-residual / k) + (~mask) * (1 - p)
+        if relative_difference(w, w_new) < tol:
+            break
+        w = w_new
+        W.setdiag(w)
+
+    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}

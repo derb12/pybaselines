@@ -127,24 +127,28 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     a first order polynomial and then extrapolated. Otherwise, uses numpy.pad.
 
     """
+    y = np.asarray(data)
+    if pad_length == 0:
+        return y
+
     mode = mode.lower()
     if mode == 'extrapolate':
         if extrapolate_window is None:
             extrapolate_window = 2 * pad_length + 1
-        x = np.arange(-pad_length, data.shape[0] + pad_length)
+        x = np.arange(-pad_length, y.shape[0] + pad_length)
         left_poly = np.polynomial.Polynomial.fit(
             x[pad_length:-pad_length][:extrapolate_window],
-            data[:extrapolate_window], 1
+            y[:extrapolate_window], 1
         )
         right_poly = np.polynomial.Polynomial.fit(
             x[pad_length:-pad_length][-extrapolate_window:],
-            data[-extrapolate_window:], 1
+            y[-extrapolate_window:], 1
         )
 
         left_edge = left_poly(x[:pad_length])
         right_edge = right_poly(x[-pad_length:])
     else:
-        padded_data = np.pad(data, pad_length, mode, **pad_kwargs)
+        padded_data = np.pad(y, pad_length, mode, **pad_kwargs)
         left_edge = padded_data[:pad_length]
         right_edge = padded_data[-pad_length:]
 
@@ -175,7 +179,7 @@ def pad_edges(data, pad_length, mode='extrapolate',
 
     Returns
     -------
-    numpy.ndarray, shape (N + 2 * half_window,)
+    padded_data : numpy.ndarray, shape (N + 2 * half_window,)
         The data with padding on the left and right edges.
 
     Notes
@@ -184,10 +188,17 @@ def pad_edges(data, pad_length, mode='extrapolate',
     a first order polynomial and then extrapolated. Otherwise, uses numpy.pad.
 
     """
-    left_edge, right_edge = _get_edges(
-        data, pad_length, mode, extrapolate_window, **pad_kwargs
-    )
-    return np.concatenate((left_edge, data, right_edge))
+    y = np.asarray(data)
+    if pad_length == 0:
+        return y
+
+    if mode.lower() == 'extrapolate':
+        left_edge, right_edge = _get_edges(y, pad_length, mode, extrapolate_window)
+        padded_data = np.concatenate((left_edge, y, right_edge))
+    else:
+        padded_data = np.pad(y, pad_length, mode.lower(), **pad_kwargs)
+
+    return padded_data
 
 
 def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):

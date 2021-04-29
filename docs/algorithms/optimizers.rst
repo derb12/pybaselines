@@ -21,4 +21,6 @@ Penalized Least Squares (erPLS) method, but extends its usage to all
 Whittaker-smoothing-based algorithms and polynomial algorithms.
 
 
+adaptive_minmax (Adaptive MinMax)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

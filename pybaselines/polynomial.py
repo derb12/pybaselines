@@ -11,44 +11,6 @@ Polynomial
 Created on Feb. 27, 2021
 @author: Donald Erb
 
-
-The function penalized_poly contains ported MATLAB code from
-https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction
-licensed under the BSD-2-Clause license, included below.
-
-Copyright (c) 2012, Vincent Mazet
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in
-      the documentation and/or other materials provided with the distribution
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
-
-
-The function loess contains code adapted from https://gist.github.com/agramfort/850437
-(accessed March 25, 2021), whose license is included below.
-
-# Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
-#
-# License: BSD (3-clause)
-
 """
 
 from math import ceil
@@ -232,7 +194,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
 
 
 def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
-             use_original=False, mask_initial_peaks=True, return_coef=False):
+             use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1):
     """
     The improved modofied polynomial (IModPoly) baseline algorithm.
 
@@ -263,6 +225,9 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input x_data and return them in the params dictionary.
         Default is False, since the conversion takes time.
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Default
+        is 1.
 
     Returns
     -------
@@ -311,10 +276,10 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
-        y = np.minimum(y0 if use_original else y, z)
+        y = np.minimum(y0 if use_original else y, z + num_std * deviation)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
         z = np.dot(vander, coef)
-        new_deviation = np.std((y0 if use_original else y) - z)
+        new_deviation = np.std(y - z)
         # use new_deviation as dividing term in relative difference
         if relative_difference(new_deviation, deviation) < tol:
             break
@@ -514,20 +479,19 @@ def _identify_loss_method(loss_method):
         Raised if the loss method does not have the correct form.
 
     """
-    split_method = loss_method.lower().split('_')
-    if (split_method[0] not in ('a', 's', 'asymmetric', 'symmetric')
-            or len(split_method) < 2):
+    prefix, *split_method = loss_method.lower().split('_')
+    if prefix not in ('a', 's', 'asymmetric', 'symmetric') or not split_method:
         raise ValueError('must specify loss function symmetry by appending "a_" or "s_"')
-    if split_method[0] in ('a', 'asymmetric'):
+    if prefix in ('a', 'asymmetric'):
         symmetric = False
     else:
         symmetric = True
-    return symmetric, '_'.join(split_method[1:])
+    return symmetric, '_'.join(split_method)
 
 
 def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
-                   cost_function='asymmetric_truncated_quadratic', threshold=1.0,
-                   return_coef=False):
+                   weights=None, cost_function='asymmetric_truncated_quadratic',
+                   threshold=None, alpha_factor=0.99, return_coef=False):
     """
     Fits a polynomial baseline using a non-quadratic cost function.
 
@@ -547,6 +511,9 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         The exit criteria. Default is 1e-3.
     max_iter : int, optional
         The maximum number of iterations. Default is 250.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
     cost_function : str, optional
         The non-quadratic cost function to minimize. Must indicate symmetry of the
         method by appending 'a' or 'asymmetric' for asymmetric loss, and 's' or
@@ -565,7 +532,12 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         quadratic loss (such as used for least squares) to non-quadratic. For
         symmetric loss methods, residual values with absolute value less than
         threshold will have quadratic loss. For asymmetric loss methods, residual
-        values less than the threshold will have quadratic loss. Default is 1.0.
+        values less than the threshold will have quadratic loss. Default is None,
+        which sets `threshold` to one-tenth of the standard deviation of the input
+        data.
+    alpha_factor : float, optional
+        A value between 0 and 1 that controls the value of the penalty. Default is
+        0.99. Typically should not need to change this value.
     return_coef : bool, optional
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input x_data and return them in the params dictionary.
@@ -578,15 +550,23 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     params : dict
         A dictionary with the following items:
 
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using numpy.polynomial.polynomial.Polynomial().
 
+    Raises
+    ------
+    ValueError
+        Raised if `alpha_factor` is not between 0 and 1.
+
     Notes
     -----
-    Code was partially adapted from MATLAB code from [8]_ (see license at the
-    top of this file).
+    In baseline literature, this procedure is sometimes called "backcor".
+
+    Code was partially adapted from MATLAB code from [8]_.
 
     References
     ----------
@@ -600,35 +580,37 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
            Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
     """
-    #TODO should scale y between [-1, 1] so that abs(residual) is roughly <~ 1 and threshold <= 1
-    # this would allow using same threshold regardless of y scale; would need to scale output
-    # coefficients, though
-    alpha_factor = 0.99  #TODO should alpha_factor be a param?
+    if alpha_factor < 0 or alpha_factor > 1:
+        raise ValueError('alpha_factor must be between 0 and 1')
     symmetric_loss, method = _identify_loss_method(cost_function)
-    loss_kwargs = {
-        'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
-    }
     loss_function = {
         'huber': _huber_loss,
         'truncated_quadratic': _truncated_quadratic_loss,
         'indec': _indec_loss
     }[method]
-
-    y, x, _, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, None, poly_order, return_vander=True, return_pinv=True
+    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
+        data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
+    if threshold is None:
+        threshold = np.std(y) / 10
+    loss_kwargs = {
+        'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
+    }
+
+    sqrt_w = np.sqrt(w)
+    y = sqrt_w * y
 
     coef = np.dot(pseudo_inverse, y)
     z = np.dot(vander, coef)
     for _ in range(max_iter):
-        coef = np.dot(pseudo_inverse, y + loss_function(y - z, **loss_kwargs))
+        coef = np.dot(pseudo_inverse, y + loss_function(y - sqrt_w * z, **loss_kwargs))
         z_new = np.dot(vander, coef)
 
         if relative_difference(z, z_new) < tol:
             break
         z = z_new
 
-    params = {}
+    params = {'weights': w}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
@@ -723,7 +705,7 @@ def _median_absolute_differences(array_1, array_2=None, errors=None):
 
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
           scale=3.0, tol=1e-3, max_iter=10, symmetric_weights=False,
-          use_threshold=False, include_stdev=True):
+          use_threshold=False, num_std=1):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -763,11 +745,10 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
         on the data being fit each iteration, based on the maximum values of the
         data and the fit baseline, as proposed by [12]_, similar to the ModPoly
         and IModPoly techniques.
-    include_stdev : bool, optional
-        If True (default), then will include the standard devitation of the
-        residual when performing the thresholding, similar to the IModPoly
-        technique [13]_. A value of True performs better when the input data
-        has a high amount of noise. Only used if `use_threshold` is True.
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Default
+        is 1, which is the value used for the IModPoly technique. Only used if
+        `use_threshold` is True.
 
     Returns
     -------
@@ -791,8 +772,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
     In baseline literature, this procedure is sometimes called "rbe", meaning
     "robust baseline estimate".
 
-    Code partially adapted from https://gist.github.com/agramfort/850437 (see
-    license at the top of this file).
+    Code partially adapted from https://gist.github.com/agramfort/850437
+    (accessed March 25, 2021).
 
     References
     ----------
@@ -805,9 +786,6 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
     .. [12] Komsta, Ł. Comparison of Several Methods of Chromatographic
             Baseline Removal with a New Approach Based on Quantile Regression.
             Chromatographia, 2011, 73, 721-731.
-    .. [13] Zhao, J., et al. Automated Autofluorescence Background Subtraction
-            Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
-            2007, 61(11), 1225-1232.
 
     """
     y, x, weights, _, vander = _setup_polynomial(data, x_data, None, poly_order, True)
@@ -849,6 +827,6 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
                 residual / _median_absolute_differences(residual), scale, symmetric_weights
             )
         else:
-            y = np.minimum(y, z_new + (0 if not include_stdev else np.std(y - z_new)))
+            y = np.minimum(y, z_new + num_std * np.std(y - z_new))
 
     return z, {}

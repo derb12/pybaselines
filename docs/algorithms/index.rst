@@ -26,6 +26,9 @@ are not fully optimized for the data).
    :align: center
    :alt: window baselines
 
+.. image:: ../images/optimizers.jpg
+   :align: center
+   :alt: optimizer baselines
 
 .. toctree::
    :maxdepth: 2

@@ -1,9 +1,14 @@
-# -*- coding: utf-8 -*-
-"""
-pybaselines - A collection of algorithms for fitting the baseline of experimental data.
-=======================================================================================
+Introduction
+============
 
-pybaselines provides different techniques for fitting baselines to experimental data.
+pybaselines provides many different algorithms for fitting baselines to data from
+experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. The aim of
+the project is to provide a semi-unified API to allow quickly testing and comparing
+multiple baseline algorithms to find the best one for a set of data.
+
+pybaselines has 25+ baseline algorithms. Baseline fitting techniques are grouped
+accordingly (note: when a method is labelled as 'improved', that is the method's
+name, not editorialization):
 
 a) Polynomial (:mod:`pybaselines.polynomial`)
 
@@ -17,11 +22,11 @@ b) Whittaker-smoothing-based techniques (:mod:`pybaselines.whittaker`)
 
     1) asls (Asymmetric Least Squares)
     2) iasls (Improved Asymmetric Least Squares)
-    3) airpls (Adaptive iteratively reweighted penalized least squares)
-    4) arpls (Asymmetrically reweighted penalized least squares)
-    5) drpls (Doubly reweighted penalized least squares)
-    6) iarpls (Improved Asymmetrically reweighted penalized least squares)
-    7) aspls (Adaptive smoothness penalized least squares)
+    3) airpls (Adaptive Iteratively Reweighted Penalized Least Squares)
+    4) arpls (Asymmetrically Reweighted Penalized Least Squares)
+    5) drpls (Doubly Reweighted Penalized Least Squares)
+    6) iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
+    7) aspls (Adaptive Smoothness Penalized Least Squares)
     8) psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 
 c) Morphological (:mod:`pybaselines.morphological`)
@@ -37,6 +42,7 @@ d) Window-based (:mod:`pybaselines.window`)
 
     1) noise_median (Noise Median method)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
+    3) swima (Small-Window Moving Average)
 
 e) Optimizers (:mod:`pybaselines.optimizers`)
 
@@ -47,14 +53,3 @@ e) Optimizers (:mod:`pybaselines.optimizers`)
 f) Manual methods (:mod:`pybaselines.manual`)
 
     1) linear_interp (Linear interpolation between points)
-
-
-@author: Donald Erb
-Created on March 5, 2021
-
-"""
-
-__version__ = '0.3.0'
-
-
-from . import manual, morphological, optimizers, polynomial, utils, whittaker, window
