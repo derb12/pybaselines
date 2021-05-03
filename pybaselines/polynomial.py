@@ -71,7 +71,7 @@ def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -89,14 +89,14 @@ def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
     at the indices where peaks are located.
 
     """
-    y, x, w, original_domain = _setup_polynomial(data, x_data, weights)
-    fit_polynomial = np.polynomial.Polynomial.fit(x, y, poly_order, w=np.sqrt(w))
-    z = fit_polynomial(x)
-    params = {'weights': w}
+    y, x, weight_array, original_domain = _setup_polynomial(data, x_data, weights)
+    fit_polynomial = np.polynomial.Polynomial.fit(x, y, poly_order, w=np.sqrt(weight_array))
+    baseline = fit_polynomial(x)
+    params = {'weights': weight_array}
     if return_coef:
         params['coef'] = fit_polynomial.convert(window=original_domain).coef
 
-    return z, params
+    return baseline, params
 
 
 def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
@@ -134,7 +134,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -163,34 +163,34 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
            2007, 61(11), 1225-1232.
 
     """
-    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
+    y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
-    sqrt_w = np.sqrt(w)
+    sqrt_w = np.sqrt(weight_array)
     if use_original:
         y0 = y
 
     coef = np.dot(pseudo_inverse, sqrt_w * y)
-    z = np.dot(vander, coef)
+    baseline = np.dot(vander, coef)
     if mask_initial_peaks:
-        # use z + deviation since without deviation, half of y should be above z
-        w[z + np.std(y - z) < y] = 0
-        sqrt_w = np.sqrt(w)
+        # use baseline + deviation since without deviation, half of y should be above baseline
+        weight_array[baseline + np.std(y - baseline) < y] = 0
+        sqrt_w = np.sqrt(weight_array)
         vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
-        y = np.minimum(y0 if use_original else y, z)
+        y = np.minimum(y0 if use_original else y, baseline)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
-        z_new = np.dot(vander, coef)
-        if relative_difference(z, z_new) < tol:
+        baseline_new = np.dot(vander, coef)
+        if relative_difference(baseline, baseline_new) < tol:
             break
-        z = z_new
+        baseline = baseline_new
 
-    params = {'weights': w}
+    params = {'weights': weight_array}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
-    return z, params
+    return baseline, params
 
 
 def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
@@ -231,7 +231,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -260,36 +260,36 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
            2007, 61(11), 1225-1232.
 
     """
-    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
+    y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
-    sqrt_w = np.sqrt(w)
+    sqrt_w = np.sqrt(weight_array)
     if use_original:
         y0 = y
 
     coef = np.dot(pseudo_inverse, sqrt_w * y)
-    z = np.dot(vander, coef)
-    deviation = np.std(y - z)
+    baseline = np.dot(vander, coef)
+    deviation = np.std(y - baseline)
     if mask_initial_peaks:
-        w[z + deviation < y] = 0
-        sqrt_w = np.sqrt(w)
+        weight_array[baseline + deviation < y] = 0
+        sqrt_w = np.sqrt(weight_array)
         vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
-        y = np.minimum(y0 if use_original else y, z + num_std * deviation)
+        y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
-        z = np.dot(vander, coef)
-        new_deviation = np.std(y - z)
+        baseline = np.dot(vander, coef)
+        new_deviation = np.std(y - baseline)
         # use new_deviation as dividing term in relative difference
         if relative_difference(new_deviation, deviation) < tol:
             break
         deviation = new_deviation
 
-    params = {'weights': w}
+    params = {'weights': weight_array}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
-    return z, params
+    return baseline, params
 
 
 def _huber_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
@@ -450,7 +450,9 @@ def _indec_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
         multiple = 1
     weights = (
         mask * residual * (2 * alpha - 1)
-        - (~mask) * (residual + alpha * multiple * threshold**3 / np.maximum(2 * residual**2, _MIN_FLOAT))
+        - (~mask) * (
+            residual + alpha * multiple * threshold**3 / np.maximum(2 * residual**2, _MIN_FLOAT)
+        )
     )
     return weights
 
@@ -545,7 +547,7 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -588,7 +590,7 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         'truncated_quadratic': _truncated_quadratic_loss,
         'indec': _indec_loss
     }[method]
-    y, x, w, original_domain, vander, pseudo_inverse = _setup_polynomial(
+    y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
     if threshold is None:
@@ -597,24 +599,24 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
     }
 
-    sqrt_w = np.sqrt(w)
+    sqrt_w = np.sqrt(weight_array)
     y = sqrt_w * y
 
     coef = np.dot(pseudo_inverse, y)
-    z = np.dot(vander, coef)
+    baseline = np.dot(vander, coef)
     for _ in range(max_iter):
-        coef = np.dot(pseudo_inverse, y + loss_function(y - sqrt_w * z, **loss_kwargs))
-        z_new = np.dot(vander, coef)
+        coef = np.dot(pseudo_inverse, y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
+        baseline_new = np.dot(vander, coef)
 
-        if relative_difference(z, z_new) < tol:
+        if relative_difference(baseline, baseline_new) < tol:
             break
-        z = z_new
+        baseline = baseline_new
 
-    params = {'weights': w}
+    params = {'weights': weight_array}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
-    return z, params
+    return baseline, params
 
 
 def _tukey_square(residual, scale=3, symmetric=False):
@@ -752,7 +754,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     dict
         An empty dictionary, just to match the output of all other algorithms.
@@ -795,8 +797,9 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
     if total_points < 2:  #TODO probably also dictated by the polynomial order
         raise ValueError('total points must be greater than 1')
 
-    #TODO potentially use k-d trees instead, following Cleveland, et al., Regression by local fitting. 1988.
-    # or sort x before, and just slide the window to the right as you go along
+    #TODO potentially use k-d trees instead, following Cleveland, et al., Regression by
+    # local fitting. 1988. or sort x before, and just slide the window to the right as
+    # you go along
     kernels = np.empty((num_x, num_x))
     for i, x_val in enumerate(x):
         difference = np.abs(x - x_val)
@@ -804,8 +807,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
             (1 - np.clip(difference / np.sort(difference)[total_points - 1], 0, 1)**3)**3
         )
 
-    z = np.zeros(num_x)
-    z_new = np.empty(num_x)
+    baseline = np.zeros(num_x)
+    baseline_new = np.empty(num_x)
     for _ in range(max_iter):
         for i, kernel in enumerate(kernels):
             if use_threshold:
@@ -815,18 +818,18 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
             coef = np.linalg.lstsq(
                 weight_array[:, np.newaxis] * vander, weight_array * y, None
             )[0]
-            #TODO should the coefficients be returned? probably not since it would slow it down a lot
-            z_new[i] = np.dot(vander[i], coef)
-        if relative_difference(z, z_new) < tol:
+            #TODO should the coefficients be returned? probably not since it would slow it down
+            baseline_new[i] = np.dot(vander[i], coef)
+        if relative_difference(baseline, baseline_new) < tol:
             break
 
-        z = z_new.copy()
+        baseline = baseline_new.copy()
         if not use_threshold:
-            residual = y - z_new
+            residual = y - baseline_new
             weights = _tukey_square(
                 residual / _median_absolute_differences(residual), scale, symmetric_weights
             )
         else:
-            y = np.minimum(y, z_new + num_std * np.std(y - z_new))
+            y = np.minimum(y, baseline_new + num_std * np.std(y - baseline_new))
 
-    return z, {}
+    return baseline, {}

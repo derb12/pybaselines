@@ -30,7 +30,7 @@ def linear_interp(x_data, baseline_points=()):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The baseline array constructed from connecting line segments between
         each background point.
     dict
@@ -49,7 +49,7 @@ def linear_interp(x_data, baseline_points=()):
     """
     #TODO allow polynomial and spline interpolation
     x = np.asarray(x_data)
-    z = np.zeros(x.shape[0])
+    baseline = np.zeros(x.shape[0])
     if len(baseline_points) < 2:
         warnings.warn('there must be at least 2 background points to create a baseline')
     else:
@@ -57,6 +57,6 @@ def linear_interp(x_data, baseline_points=()):
         for i in range(len(points) - 1):
             x_points, y_points = zip(*points[i:i + 2])
             segment = (x >= x_points[0]) & (x <= x_points[1])
-            z[segment] = np.linspace(*y_points, x[segment].shape[0])
+            baseline[segment] = np.linspace(*y_points, x[segment].shape[0])
 
-    return z, {}
+    return baseline, {}

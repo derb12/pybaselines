@@ -53,7 +53,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -66,33 +66,33 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     ValueError
         Raised if p is not between 0 and 1.
 
-    Notes
-    -----
-    Algorithm initially developed in [1]_ and [2]_, and code was adapted from
-    https://stackoverflow.com/questions/29156532/python-baseline-correction-library.
-
     References
     ----------
-    .. [1] Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14),
-           3631-3636.
-    .. [2] Eilers, P., et al. Baseline correction with asymmetric least squares
-           smoothing. Leiden University Medical Centre Report, 2005, 1(1).
+    Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+    Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
+    Leiden University Medical Centre Report, 2005, 1(1).
 
     """
     if p < 0 or p > 1:
         raise ValueError('p must be between 0 and 1')
-    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
+    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
-        z = spsolve(W + D, w * y)
-        mask = (y > z)
-        w_new = p * mask + (1 - p) * (~mask)
-        if relative_difference(w, w_new) < tol:
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        mask = (y > baseline)
+        new_weights = p * mask + (1 - p) * (~mask)
+        if relative_difference(weight_array, new_weights) < tol:
             break
-        w = w_new
-        W.setdiag(w)
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
 
-    residual = y - z
-    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
+    residual = y - baseline
+    params = {
+        'roughness': baseline.T * diff_matrix * baseline,
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
+    }
+
+    return baseline, params
 
 
 def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, weights=None):
@@ -127,7 +127,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -150,29 +150,29 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         raise ValueError('p must be between 0 and 1')
     y, x, *_ = _setup_polynomial(data, x_data)
     if weights is None:
-        z = np.polynomial.Polynomial.fit(x, y, 2)(x)
-        mask = (y > z)
+        baseline = np.polynomial.Polynomial.fit(x, y, 2)(x)
+        mask = (y > baseline)
         weights = p * mask + (1 - p) * (~mask)
 
-    _, D, W, w = _setup_whittaker(y, lam, 2, weights)
-    D_1 = difference_matrix(y.shape[0], 1)
-    D_1 = lam_1 * D_1.T * D_1
+    _, diff_matrix, weight_matrix, weight_array = _setup_whittaker(y, lam, 2, weights)
+    diff_matrix_1 = difference_matrix(y.shape[0], 1)
+    diff_matrix_1 = lam_1 * diff_matrix_1.T * diff_matrix_1
     for _ in range(max_iter):
-        weights_and_d1 = W.T * W + D_1
-        z = spsolve(weights_and_d1 + D, weights_and_d1 * y)
-        mask = (y > z)
-        w_new = p * mask + (1 - p) * (~mask)
-        if relative_difference(w, w_new) < tol:
+        weights_and_d1 = weight_matrix.T * weight_matrix + diff_matrix_1
+        baseline = spsolve(weights_and_d1 + diff_matrix, weights_and_d1 * y)
+        mask = (y > baseline)
+        new_weights = p * mask + (1 - p) * (~mask)
+        if relative_difference(weight_array, new_weights) < tol:
             break
-        w = w_new
-        W.setdiag(w)
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
 
-    residual = y - z
+    residual = y - baseline
     params = {
-        'roughness': z.T * D * z + residual.T * D_1.T * D_1 * residual,
-        'fidelity': residual.T * W * residual, 'weights': w
+        'roughness': baseline.T * diff_matrix * baseline + residual.T * diff_matrix_1 * residual,
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
     }
-    return z, params
+    return baseline, params
 
 
 def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -199,7 +199,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -213,20 +213,25 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
     """
-    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
+    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     y_l1_norm = np.linalg.norm(y, 1)
     for i in range(1, max_iter + 1):
-        z = spsolve(W + D, w * y)
-        residual = y - z
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        residual = y - baseline
         neg_mask = (residual < 0)
         # same as abs(residual[neg_mask]).sum() since residual[neg_mask] are all negative
         residual_l1_norm = -1 * residual[neg_mask].sum()
         if residual_l1_norm / y_l1_norm < tol:
             break
-        w = np.exp(i * residual / residual_l1_norm) * neg_mask
-        W.setdiag(w)
+        weight_array = np.exp(i * residual / residual_l1_norm) * neg_mask
+        weight_matrix.setdiag(weight_array)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
+    params = {
+        'roughness': baseline.T * diff_matrix * baseline,
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
+    }
+
+    return baseline, params
 
 
 def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -253,7 +258,7 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -267,20 +272,25 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
     """
-    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
+    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
-        z = spsolve(W + D, w * y)
-        residual = y - z
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        residual = y - baseline
         neg_mask = residual < 0
         mean = np.mean(residual[neg_mask])
         std = max(abs(np.std(residual[neg_mask])), _MIN_FLOAT)
-        w_new = 1 / (1 + np.exp(2 * (residual - (2 * std - mean)) / std))
-        if relative_difference(w, w_new) < tol:
+        new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - mean)) / std))
+        if relative_difference(weight_array, new_weights) < tol:
             break
-        w = w_new
-        W.setdiag(w)
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
+    params = {
+        'roughness': baseline.T * diff_matrix * baseline,
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
+    }
+
+    return baseline, params
 
 
 def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
@@ -308,7 +318,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -322,27 +332,34 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """
-    y, D, W, w = _setup_whittaker(data, lam, 2, weights)
-    D_1 = difference_matrix(y.shape[0], 1)
-    D_1 = D_1.T * D_1
-    Identity = identity(y.shape[0])
+    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, 2, weights)
+    diff_matrix_1 = difference_matrix(y.shape[0], 1)
+    diff_matrix_1 = diff_matrix_1.T * diff_matrix_1
+    identity_matrix = identity(y.shape[0])
     for i in range(1, max_iter + 1):
-        z = spsolve(W + D_1 + (Identity - eta * W) * D, w * y)
-        residual = y - z
+        baseline = spsolve(
+            weight_matrix + diff_matrix_1 + (identity_matrix - eta * weight_matrix) * diff_matrix,
+            weight_array * y
+        )
+        residual = y - baseline
         neg_mask = residual < 0
         std = max(abs(np.std(residual[neg_mask])), _MIN_FLOAT)
         inner = np.exp(i) * (residual - (2 * std - np.mean(residual[neg_mask]))) / std
-        w_new = 0.5 * (1 - (inner / (1 + abs(inner))))
-        if relative_difference(w, w_new) < tol:
+        new_weights = 0.5 * (1 - (inner / (1 + abs(inner))))
+        if relative_difference(weight_array, new_weights) < tol:
             break
-        w = w_new
-        W.setdiag(w)
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
 
-    return (
-        z,
-        {'roughness': (Identity - eta * W) * (z.T * D * z) + z.T * D_1 * z,
-         'fidelity': residual.T * W * residual, 'weights': w}
-    )
+    params = {
+        'roughness': (
+            (identity_matrix - eta * weight_matrix) * (baseline.T * diff_matrix * baseline)
+            + baseline.T * diff_matrix_1 * baseline
+        ),
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
+    }
+
+    return baseline, params
 
 
 def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -369,7 +386,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -384,19 +401,24 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     59, 10933-10943.
 
     """
-    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
+    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for i in range(1, max_iter + 1):
-        z = spsolve(W + D, w * y)
-        residual = y - z
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        residual = y - baseline
         std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
         inner = np.exp(i) * (residual - 2 * std) / std
-        w_new = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
-        if relative_difference(w, w_new) < tol:
+        new_weights = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
+        if relative_difference(weight_array, new_weights) < tol:
             break
-        w = w_new
-        W.setdiag(w)
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
+    params = {
+        'roughness': baseline.T * diff_matrix * baseline,
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
+    }
+
+    return baseline, params
 
 
 def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alpha=None):
@@ -427,7 +449,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -442,31 +464,32 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     Spectroscopy Letters, 2020, 53(3), 222-233.
 
     """
-    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
+    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     if alpha is None:
-        alpha_array = np.ones_like(w)
+        alpha_array = np.ones_like(weight_array)
     else:
         alpha_array = np.asarray(alpha).copy()
     # Use a sparse matrix rather than an array for alpha in order to keep sparcity.
     alpha_matrix = diags(alpha_array, format='csr')
     for i in range(1, max_iter + 1):
-        z = spsolve(W + alpha_matrix * D, w * y)
-        residual = y - z
+        baseline = spsolve(weight_matrix + alpha_matrix * diff_matrix, weight_array * y)
+        residual = y - baseline
         std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
-        w_new = 1 / (1 + np.exp(2 * (residual - std) / std))
-        if relative_difference(w, w_new) < tol:
+        new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
+        if relative_difference(weight_array, new_weights) < tol:
             break
-        w = w_new
-        W.setdiag(w)
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
         abs_d = abs(residual)
         alpha_matrix.setdiag(abs_d / np.nanmax(abs_d))
 
     params = {
-        'roughness': z.T * alpha_matrix * D * z, 'fidelity': residual.T * W * residual,
-        'weights': w, 'alpha': alpha_matrix.data[0]
+        'roughness': baseline.T * alpha_matrix * diff_matrix * baseline,
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array,
+        'alpha': alpha_matrix.data[0]
     }
 
-    return z, params
+    return baseline, params
 
 
 def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -503,7 +526,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     params : dict
         A dictionary with the following items:
@@ -536,18 +559,23 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     """
     if p < 0 or p > 1:
         raise ValueError('p must be between 0 and 1')
-    y, D, W, w = _setup_whittaker(data, lam, diff_order, weights)
+    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     if k is None:
         k = np.std(y) / 10
 
     for _ in range(max_iter):
-        z = spsolve(W + D, w * y)
-        residual = y - z
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        residual = y - baseline
         mask = residual > 0
-        w_new = mask * p * np.exp(-residual / k) + (~mask) * (1 - p)
-        if relative_difference(w, w_new) < tol:
+        new_weights = mask * p * np.exp(-residual / k) + (~mask) * (1 - p)
+        if relative_difference(weight_array, new_weights) < tol:
             break
-        w = w_new
-        W.setdiag(w)
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
 
-    return z, {'roughness': z.T * D * z, 'fidelity': residual.T * W * residual, 'weights': w}
+    params = {
+        'roughness': baseline.T * diff_matrix * baseline,
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
+    }
+
+    return baseline, params

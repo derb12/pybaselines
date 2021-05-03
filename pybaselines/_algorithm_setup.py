@@ -48,8 +48,7 @@ def difference_matrix(data_size, diff_order=2):
     np.diff(np.eye(data_size), diff_order). Not sure why there is a discrepancy,
     but this implementation allows using the differential matrices are they
     are written in various publications, ie. D.T * D rather than having to
-    do D * D.T like most code, such as those adapted from stack overflow:
-    https://stackoverflow.com/questions/29156532/python-baseline-correction-library.
+    do D * D.T.
 
     """
     if diff_order not in (1, 2, 3, 4, 5):
@@ -178,7 +177,7 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     x : numpy.ndarray, shape (N,)
         The x-values for fitting the polynomial, converted to fit within
         the domain [-1, 1].
-    w : numpy.ndarray, shape (N,)
+    weight_array : numpy.ndarray, shape (N,)
         The weight array for fitting a polynomial to the data.
     original_domain : numpy.ndarray, shape (2,)
         The minimum and maximum values of the original x_data values. Can
@@ -209,13 +208,13 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
         original_domain = np.polynomial.polyutils.getdomain(x)
         x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1, 1]))
     if weights is not None:
-        w = np.asarray(weights).copy()
+        weight_array = np.asarray(weights).copy()
     else:
-        w = np.ones(y.shape[0])
+        weight_array = np.ones(y.shape[0])
 
-    output = [y, x, w, original_domain]
+    output = [y, x, weight_array, original_domain]
     if return_vander:
-        vander_output = _get_vander(x, poly_order, np.sqrt(w), return_pinv)
+        vander_output = _get_vander(x, poly_order, np.sqrt(weight_array), return_pinv)
         if return_pinv:
             output.extend(vander_output)
         else:
@@ -368,4 +367,4 @@ def _setup_window(data, half_window, **pad_kwargs):
         The padded array of data.
 
     """
-    return pad_edges(np.asarray(data), half_window, **pad_kwargs)
+    return pad_edges(data, half_window, **pad_kwargs)

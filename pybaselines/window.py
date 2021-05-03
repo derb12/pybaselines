@@ -45,7 +45,7 @@ def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwarg
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated and smoothed baseline.
     dict
         An empty dictionary, just to match the output of all other algorithms.
@@ -60,8 +60,8 @@ def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwarg
         _setup_window(data, half_window, **pad_kwargs),
         [2 * half_window + 1], mode='nearest'
     )
-    z = padded_convolve(median, gaussian_kernel(2 * smooth_half_window + 1, sigma))
-    return z[half_window:-half_window], {}
+    baseline = padded_convolve(median, gaussian_kernel(2 * smooth_half_window + 1, sigma))
+    return baseline[half_window:-half_window], {}
 
 
 def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
@@ -101,7 +101,7 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     dict
         An empty dictionary, just to match the output of all other algorithms.
@@ -174,41 +174,67 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
     y = _setup_window(data, max_of_half_windows, **pad_kwargs)
     num_y = y.shape[0]  # new num_y since y is now padded
     smooth = smooth_half_window > 0
-    z = y.copy()
+    baseline = y.copy()
     for i in range(*range_args):
         i_left = min(i, half_windows[0])
         i_right = min(i, half_windows[1])
 
-        filters = (z[i - i_left:num_y - i - i_left] + z[i + i_right:num_y - i + i_right]) / 2
+        filters = (
+            baseline[i - i_left:num_y - i - i_left] + baseline[i + i_right:num_y - i + i_right]
+        ) / 2
         if filter_order > 2:
             filters_new = (
-                - (z[i - i_left:num_y - i - i_left] + z[i + i_right:num_y - i + i_right])
-                + 4 * (z[i - i_left // 2:-i - i_left // 2] + z[i + i_right // 2:-i + i_right // 2])
+                - (
+                    baseline[i - i_left:num_y - i - i_left]
+                    + baseline[i + i_right:num_y - i + i_right]
+                )
+                + 4 * (
+                    baseline[i - i_left // 2:-i - i_left // 2]
+                    + baseline[i + i_right // 2:-i + i_right // 2]
+                )
             ) / 6
             filters = np.maximum(filters, filters_new)
         if filter_order > 4:
             filters_new = (
-                z[i - i_left:num_y - i - i_left] + z[i + i_right:num_y - i + i_right]
-                - 6 * (z[i - 2 * i_left // 3:-i - 2 * i_left // 3] + z[i + 2 * i_right // 3:-i + 2 * i_right // 3])
-                + 15 * (z[i - i_left // 3:-i - i_left // 3] + z[i + i_right // 3:-i + i_right // 3])
+                baseline[i - i_left:num_y - i - i_left] + baseline[i + i_right:num_y - i + i_right]
+                - 6 * (
+                    baseline[i - 2 * i_left // 3:-i - 2 * i_left // 3]
+                    + baseline[i + 2 * i_right // 3:-i + 2 * i_right // 3]
+                )
+                + 15 * (
+                    baseline[i - i_left // 3:-i - i_left // 3]
+                    + baseline[i + i_right // 3:-i + i_right // 3]
+                )
             ) / 20
             filters = np.maximum(filters, filters_new)
         if filter_order > 6:
             filters_new = (
-                - (z[i - i_left:num_y - i - i_left] + z[i + i_right:num_y - i + i_right])
-                + 8 * (z[i - 3 * i_left // 4:-i - 3 * i_left // 4] + z[i + 3 * i_right // 4:-i + 3 * i_right // 4])
-                - 28 * (z[i - i_left // 2:-i - i_left // 2] + z[i + i_right // 2:-i + i_right // 2])
-                + 56 * (z[i - i_left // 4:-i - i_left // 4] + z[i + i_right // 4:-i + i_right // 4])
+                - (
+                    baseline[i - i_left:num_y - i - i_left]
+                    + baseline[i + i_right:num_y - i + i_right]
+                )
+                + 8 * (
+                    baseline[i - 3 * i_left // 4:-i - 3 * i_left // 4]
+                    + baseline[i + 3 * i_right // 4:-i + 3 * i_right // 4]
+                )
+                - 28 * (
+                    baseline[i - i_left // 2:-i - i_left // 2]
+                    + baseline[i + i_right // 2:-i + i_right // 2]
+                )
+                + 56 * (
+                    baseline[i - i_left // 4:-i - i_left // 4]
+                    + baseline[i + i_right // 4:-i + i_right // 4]
+                )
             ) / 70
             filters = np.maximum(filters, filters_new)
 
         if smooth:
-            previous_baseline = uniform_filter1d(z, 2 * smooth_half_window + 1)[i:-i]
+            previous_baseline = uniform_filter1d(baseline, 2 * smooth_half_window + 1)[i:-i]
         else:
-            previous_baseline = z[i:-i]
-        z[i:-i] = np.where(z[i:-i] > filters, filters, previous_baseline)
+            previous_baseline = baseline[i:-i]
+        baseline[i:-i] = np.where(baseline[i:-i] > filters, filters, previous_baseline)
 
-    return z[max_of_half_windows:-max_of_half_windows], {}
+    return baseline[max_of_half_windows:-max_of_half_windows], {}
 
 
 def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half_window=3):
@@ -240,7 +266,7 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
 
     Returns
     -------
-    z : numpy.ndarray, shape (N + 2 * max_half_window,)
+    baseline : numpy.ndarray, shape (N + 2 * max_half_window,)
         The baseline with the padded edges.
     converged : bool or None
         Whether the main exit criteria was achieved. True if it was, False
@@ -266,16 +292,16 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
 
     """
     actual_y = y[data_slice]
-    z = y
+    baseline = y
     min_half_window_check = min_half_window - 2
     area_current = -1
     area_old = -1
     converged = None
     for half_window in range(1, max_half_window + 1):
-        z_new = np.minimum(z, uniform_filter1d(z, 2 * half_window + 1))
+        baseline_new = np.minimum(baseline, uniform_filter1d(baseline, 2 * half_window + 1))
         # only begin calculating the area when near the lowest allowed half window
         if half_window > min_half_window_check:
-            area_new = np.trapz(z[data_slice] - z_new[data_slice])
+            area_new = np.trapz(baseline[data_slice] - baseline_new[data_slice])
             # exit criteria 1
             if area_new > area_current and area_current < area_old:
                 converged = True
@@ -283,7 +309,7 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
                 half_window -= 1
                 break
             if half_window > min_half_window:
-                diff_current = np.diff(actual_y - z_new[data_slice])
+                diff_current = np.diff(actual_y - baseline_new[data_slice])
                 poly_diff_current = np.trapz(
                     abs(np.dot(vander, np.dot(pseudo_inverse, diff_current)))
                 )
@@ -293,9 +319,9 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
                     break
             area_old = area_current
             area_current = area_new
-        z = z_new
+        baseline = baseline_new
 
-    return z, converged, half_window
+    return baseline, converged, half_window
 
 
 def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None, **pad_kwargs):
@@ -324,7 +350,7 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     dict
         A dictionary with the following items:
@@ -374,21 +400,21 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
         y = uniform_filter1d(y, 2 * smooth_half_window + 1)
 
     vander, pseudo_inverse = _get_vander(np.linspace(-1, 1, y[data_slice].shape[0] - 1), 3)
-    z, converged, half_window = _swima_loop(
+    baseline, converged, half_window = _swima_loop(
         y, vander, pseudo_inverse, data_slice, max_half_window, min_half_window
     )
     converges = [converged]
     half_windows = [half_window]
     if not converged:
-        residual = y - z
+        residual = y - baseline
         gaussian_bkg = gaussian(
             np.arange(y.shape[0]), np.max(residual), y.shape[0] / 2, y.shape[0] / 6
         )
-        z2, converged, half_window = _swima_loop(
+        baseline_2, converged, half_window = _swima_loop(
             residual + gaussian_bkg, vander, pseudo_inverse, data_slice, max_half_window, 3
         )
-        z += z2 - gaussian_bkg
+        baseline += baseline_2 - gaussian_bkg
         converges.append(converged)
         half_windows.append(half_window)
 
-    return z[data_slice], {'half_window': half_windows, 'converged': converges}
+    return baseline[data_slice], {'half_window': half_windows, 'converged': converges}

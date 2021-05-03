@@ -177,9 +177,9 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
 
     Returns
     -------
-    numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
-    dict
+    params : dict
         A dictionary with the following items:
 
         * 'weights': numpy.ndarray, shape (N,)
@@ -212,10 +212,16 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
             w[index] = 1 - p
 
-    _, D, W, weight_array = _setup_whittaker(y, lam, diff_order, w)
-    z = spsolve(W + D, weight_array * y)
+    _, diff_matrix, weight_matrix, weight_array = _setup_whittaker(y, lam, diff_order, w)
+    baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
 
-    return z, {'weights': w, 'half_window': half_wind}
+    residual = y - baseline
+    params = {
+        'roughness': baseline.T * diff_matrix * baseline,
+        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array,
+        'half_window': half_wind
+    }
+    return baseline, params
 
 
 def mor(data, half_window=None, **window_kwargs):
@@ -251,7 +257,7 @@ def mor(data, half_window=None, **window_kwargs):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     dict
         A dictionary with the following items:
@@ -267,9 +273,9 @@ def mor(data, half_window=None, **window_kwargs):
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
     opening = grey_opening(y, [2 * half_wind + 1])
-    z = np.minimum(opening, _avg_opening(y, half_wind, opening))
+    baseline = np.minimum(opening, _avg_opening(y, half_wind, opening))
 
-    return z, {'half_window': half_wind}
+    return baseline, {'half_window': half_wind}
 
 
 def imor(data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
@@ -309,7 +315,7 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     dict
         A dictionary with the following items:
@@ -324,14 +330,14 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
 
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    z = np.minimum(y, _avg_opening(y, half_wind))
+    baseline = np.minimum(y, _avg_opening(y, half_wind))
     for _ in range(max_iter - 1):
-        z_new = np.minimum(y, _avg_opening(z, half_wind))
-        if relative_difference(z, z_new) < tol:
+        baseline_new = np.minimum(y, _avg_opening(baseline, half_wind))
+        if relative_difference(baseline, baseline_new) < tol:
             break
-        z = z_new
+        baseline = baseline_new
 
-    return z, {'half_window': half_wind}
+    return baseline, {'half_window': half_wind}
 
 
 def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **window_kwargs):
@@ -374,7 +380,7 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     dict
         A dictionary with the following items:
@@ -396,20 +402,20 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
 
     pad_kws = pad_kwargs if pad_kwargs is not None else {}
     y = pad_edges(y, window_size, **pad_kws)
-    z = y
+    baseline = y
     for _ in range(max_iter):
-        z_new = padded_convolve(
+        baseline_new = padded_convolve(
             np.minimum(
                 y,
-                0.5 * (grey_closing(z, [window_size]) + grey_opening(z, [window_size]))
+                (grey_closing(baseline, [window_size]) + grey_opening(baseline, [window_size])) / 2
             ),
             kernel
         )
-        if relative_difference(z[data_bounds], z_new[data_bounds]) < tol:
+        if relative_difference(baseline[data_bounds], baseline_new[data_bounds]) < tol:
             break
-        z = z_new
+        baseline = baseline_new
 
-    return z[data_bounds], {'half_window': half_wind}
+    return baseline[data_bounds], {'half_window': half_wind}
 
 
 def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
@@ -456,7 +462,7 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     dict
         A dictionary with the following items:
@@ -478,15 +484,15 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
 
     pad_kws = pad_kwargs if pad_kwargs is not None else {}
     y = pad_edges(y, window_size, **pad_kws)
-    z = np.zeros(y.shape[0])
+    baseline = np.zeros(y.shape[0])
     for _ in range(max_iter):
-        y_smooth = padded_convolve(y - z, smooth_kernel)
-        z_new = z + padded_convolve(grey_erosion(y_smooth, window_size), kernel)
-        if relative_difference(z[data_bounds], z_new[data_bounds]) < tol:
+        y_smooth = padded_convolve(y - baseline, smooth_kernel)
+        baseline_new = baseline + padded_convolve(grey_erosion(y_smooth, window_size), kernel)
+        if relative_difference(baseline[data_bounds], baseline_new[data_bounds]) < tol:
             break
-        z = z_new
+        baseline = baseline_new
 
-    return z[data_bounds], {'half_window': half_wind}
+    return baseline[data_bounds], {'half_window': half_wind}
 
 
 def _changing_rolling_ball(y, half_window):
@@ -545,7 +551,7 @@ def _changing_smooth_window(rough_baseline, smooth_half_window):
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The smoothed baseline array.
 
     Raises
@@ -564,12 +570,12 @@ def _changing_smooth_window(rough_baseline, smooth_half_window):
     if len(smooth_half_window) != num_y:
         raise ValueError('smooth_half_window array must be the same size as the data array')
 
-    z = np.empty(num_y)
+    baseline = np.empty(num_y)
     for i, half_win in enumerate(smooth_half_window):
-        z_slice = rough_baseline[max(0, i - half_win):min(i + half_win + 1, num_y)]
-        z[i] = z_slice.sum() / z_slice.size
+        baseline_slice = rough_baseline[max(0, i - half_win):min(i + half_win + 1, num_y)]
+        baseline[i] = baseline_slice.sum() / baseline_slice.size
 
-    return z
+    return baseline
 
 
 def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=None, **window_kwargs):
@@ -617,7 +623,7 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
     dict
         A dictionary with the following items:
@@ -655,14 +661,14 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
 
     if isinstance(smooth_half_window, int):
         if smooth_half_window == 0:
-            z = rough_baseline
+            baseline = rough_baseline
         else:
             pad_kws = pad_kwargs if pad_kwargs is not None else {}
-            z = uniform_filter1d(
+            baseline = uniform_filter1d(
                 pad_edges(rough_baseline, smooth_half_window, **pad_kws),
                 2 * smooth_half_window + 1
             )[smooth_half_window:-smooth_half_window]
     else:
-        z = _changing_smooth_window(rough_baseline, smooth_half_window)
+        baseline = _changing_smooth_window(rough_baseline, smooth_half_window)
 
-    return z, {'half_window': half_wind}
+    return baseline, {'half_window': half_wind}

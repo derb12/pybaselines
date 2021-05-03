@@ -130,7 +130,7 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
             (known_background - np.roll(baseline, upper_bound)[:upper_bound + lower_bound])**2
         ))
         if rmse < min_rmse:
-            z = baseline[lower_bound:baseline.shape[0] - upper_bound]
+            best_baseline = baseline[lower_bound:baseline.shape[0] - upper_bound]
             min_var = var
             misses = 0
             min_rmse = rmse
@@ -139,7 +139,7 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
             if misses > allowed_misses:
                 break
 
-    return z, min_var, other_params
+    return best_baseline, min_var, other_params
 
 
 def optimize_extended_range(data, x_data=None, method='asls', side='both', **method_kwargs):
@@ -167,7 +167,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
 
     Returns
     -------
-    z : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,)
         The baseline calculated with the optimum parameter.
     method_params : dict
         A dictionary with the following items:
@@ -245,7 +245,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
         method_kwargs['x_data'] = fit_x_data
 
     if 'poly' in method.lower():
-        z, best_val, method_params = _iter_solve(
+        baseline, best_val, method_params = _iter_solve(
             fit_func, fit_data, known_background, lower_bound, upper_bound, 'poly_order',
             0, 20, 1, 4, **method_kwargs
         )
@@ -254,14 +254,14 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
             fit_func, fit_data, known_background, lower_bound, upper_bound, 'lam',
             1, 50, 1, 2, **method_kwargs
         )
-        z, best_val, method_params = _iter_solve(
+        baseline, best_val, method_params = _iter_solve(
             fit_func, fit_data, known_background, lower_bound, upper_bound, 'lam',
             best_val - 0.9, best_val + 1.1, 0.1, 2, **method_kwargs
         )
     method_params['optimal_parameter'] = best_val
 
     return (
-        z[[val[0] for val in sorted(enumerate(sort_order), key=lambda v: v[1])]],
+        baseline[[val[0] for val in sorted(enumerate(sort_order), key=lambda v: v[1])]],
         method_params
     )
 
@@ -383,7 +383,7 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
 
     """
     fit_func = {'modpoly': polynomial.modpoly, 'imodpoly': polynomial.imodpoly}[method.lower()]
-    y, x, w, _ = _setup_polynomial(data, x_data, weights)
+    y, x, weight_array, _ = _setup_polynomial(data, x_data, weights)
     constrained_range = max(1, ceil(y.shape[0] * constrained_fraction))
 
     if isinstance(poly_order, int):
@@ -395,23 +395,26 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
             poly_orders = (poly_order[0], poly_order[1])
     else:
         poly_orders = _determine_polyorders(
-            y, x, estimation_poly_order, w, fit_func, **method_kwargs
+            y, x, estimation_poly_order, weight_array, fit_func, **method_kwargs
         )
 
     # use high weighting rather than Lagrange multipliers to constrain the points
     # to better work with noisy data
-    constrained_weights = w.copy()
+    constrained_weights = weight_array.copy()
     constrained_weights[:constrained_range] = constrained_weight
     constrained_weights[-constrained_range:] = constrained_weight
 
     baselines = np.empty((4, y.shape[0]))
-    baselines[0] = fit_func(y, x, poly_orders[0], weights=w, **method_kwargs)[0]
+    baselines[0] = fit_func(y, x, poly_orders[0], weights=weight_array, **method_kwargs)[0]
     baselines[1] = fit_func(y, x, poly_orders[0], weights=constrained_weights, **method_kwargs)[0]
-    baselines[2] = fit_func(y, x, poly_orders[1], weights=w, **method_kwargs)[0]
+    baselines[2] = fit_func(y, x, poly_orders[1], weights=weight_array, **method_kwargs)[0]
     baselines[3] = fit_func(y, x, poly_orders[1], weights=constrained_weights, **method_kwargs)[0]
 
     #TODO should the coefficients also be made available? Would need to get them from
     # each of the fits
-    params = {'weights': w, 'constrained_weights': constrained_weights, 'poly_order': poly_orders}
+    params = {
+        'weights': weight_array, 'constrained_weights': constrained_weights,
+        'poly_order': poly_orders
+    }
 
     return np.maximum.reduce(baselines), params
