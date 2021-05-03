@@ -2,7 +2,7 @@ include LICENSE.txt
 include README.rst
 include LICENSES_bundled.txt
 
-exclude readthedocs.yaml
+exclude .readthedocs.yaml
 exclude .gitattributes
 exclude .gitignore
 
