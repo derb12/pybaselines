@@ -14,6 +14,17 @@ Whittaker
 Created on Sept. 13, 2019
 @author: Donald Erb
 
+Attributes
+----------
+PERMC_SPEC : str
+    A string indicating the method used for sparsity preservation when solving
+    the linear equations. See :func:`scipy.sparse.linalg.spsolve` for more
+    information. Default value is "NATURAL", which was ~5-35% faster for all whittaker
+    functions compared to the other `permc_spec` options (tested on a computer with
+    Windows 10, Intel i5-7200U CPU, scipy version 1.6.1). Times may vary based on
+    computer os/architecture, number of data points, and the Whittaker-smoothing-based
+    function used.
+
 """
 
 import numpy as np
@@ -23,6 +34,9 @@ from scipy.sparse.linalg import spsolve
 from ._algorithm_setup import (_setup_polynomial, _setup_whittaker,
                                difference_matrix)
 from .utils import _MIN_FLOAT, relative_difference
+
+
+PERMC_SPEC = 'NATURAL'
 
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -78,7 +92,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
         raise ValueError('p must be between 0 and 1')
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         mask = (y > baseline)
         new_weights = p * mask + (1 - p) * (~mask)
         if relative_difference(weight_array, new_weights) < tol:
@@ -159,7 +173,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     diff_matrix_1 = lam_1 * diff_matrix_1.T * diff_matrix_1
     for _ in range(max_iter):
         weights_and_d1 = weight_matrix.T * weight_matrix + diff_matrix_1
-        baseline = spsolve(weights_and_d1 + diff_matrix, weights_and_d1 * y)
+        baseline = spsolve(weights_and_d1 + diff_matrix, weights_and_d1 * y, permc_spec=PERMC_SPEC)
         mask = (y > baseline)
         new_weights = p * mask + (1 - p) * (~mask)
         if relative_difference(weight_array, new_weights) < tol:
@@ -216,7 +230,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     y_l1_norm = np.linalg.norm(y, 1)
     for i in range(1, max_iter + 1):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
         neg_mask = (residual < 0)
         # same as abs(residual[neg_mask]).sum() since residual[neg_mask] are all negative
@@ -274,7 +288,7 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
         neg_mask = residual < 0
         mean = np.mean(residual[neg_mask])
@@ -339,7 +353,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     for i in range(1, max_iter + 1):
         baseline = spsolve(
             weight_matrix + diff_matrix_1 + (identity_matrix - eta * weight_matrix) * diff_matrix,
-            weight_array * y
+            weight_array * y, permc_spec=PERMC_SPEC
         )
         residual = y - baseline
         neg_mask = residual < 0
@@ -403,7 +417,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for i in range(1, max_iter + 1):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
         std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
         inner = np.exp(i) * (residual - 2 * std) / std
@@ -472,7 +486,9 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     # Use a sparse matrix rather than an array for alpha in order to keep sparcity.
     alpha_matrix = diags(alpha_array, format='csr')
     for i in range(1, max_iter + 1):
-        baseline = spsolve(weight_matrix + alpha_matrix * diff_matrix, weight_array * y)
+        baseline = spsolve(
+            weight_matrix + alpha_matrix * diff_matrix, weight_array * y, permc_spec=PERMC_SPEC
+        )
         residual = y - baseline
         std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
         new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
@@ -564,7 +580,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
         k = np.std(y) / 10
 
     for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
         mask = residual > 0
         new_weights = mask * p * np.exp(-residual / k) + (~mask) * (1 - p)
