@@ -21,8 +21,8 @@ def difference_matrix(data_size, diff_order=2):
     ----------
     data_size : int
         The number of data points.
-    diff_order : {2, 1, 3, 4, 5}, optional
-        The integer differential order; either 1, 2, 3, 4, or 5. Default is 2.
+    diff_order : {2, 0, 1, 3, 4, 5}, optional
+        The integer differential order; either 0, 1, 2, 3, 4, or 5. Default is 2.
 
     Returns
     -------
@@ -32,7 +32,7 @@ def difference_matrix(data_size, diff_order=2):
     Raises
     ------
     ValueError
-        Raised if diff_order is not 1, 2, 3, 4, or 5.
+        Raised if diff_order is not 0, 1, 2, 3, 4, or 5.
 
     Notes
     -----
@@ -51,9 +51,10 @@ def difference_matrix(data_size, diff_order=2):
     do D * D.T.
 
     """
-    if diff_order not in (1, 2, 3, 4, 5):
-        raise ValueError('The differential order must be 1, 2, 3, 4, or 5')
+    if diff_order not in (0, 1, 2, 3, 4, 5):
+        raise ValueError('The differential order must be 0, 1, 2, 3, 4, or 5')
     diagonals = {
+        0: [1],
         1: [-1, 1],
         2: [1, -2, 1],
         3: [-1, 3, -3, 1],

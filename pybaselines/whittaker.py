@@ -17,7 +17,7 @@ Created on Sept. 13, 2019
 """
 
 import numpy as np
-from scipy.sparse import diags, identity
+from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import (_setup_polynomial, _setup_whittaker,
@@ -335,7 +335,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, 2, weights)
     diff_matrix_1 = difference_matrix(y.shape[0], 1)
     diff_matrix_1 = diff_matrix_1.T * diff_matrix_1
-    identity_matrix = identity(y.shape[0])
+    identity_matrix = difference_matrix(y.shape[0], 0)
     for i in range(1, max_iter + 1):
         baseline = spsolve(
             weight_matrix + diff_matrix_1 + (identity_matrix - eta * weight_matrix) * diff_matrix,
