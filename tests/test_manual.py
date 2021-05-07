@@ -8,7 +8,7 @@ Created on March 20, 2021
 
 from pybaselines import manual
 
-from .conftest import get_data, AlgorithmTester
+from .conftest import AlgorithmTester, get_data
 
 
 class TestLinearInterp(AlgorithmTester):

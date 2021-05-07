@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines import polynomial
 
-from .conftest import get_data, AlgorithmTester
+from .conftest import AlgorithmTester, get_data
 
 
 class TestPoly(AlgorithmTester):

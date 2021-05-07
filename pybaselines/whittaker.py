@@ -20,8 +20,7 @@ import numpy as np
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
-from ._algorithm_setup import (_setup_polynomial, _setup_whittaker,
-                               difference_matrix)
+from ._algorithm_setup import _setup_polynomial, _setup_whittaker, difference_matrix
 from .utils import _MIN_FLOAT, PERMC_SPEC, relative_difference
 
 

@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import optimizers
 
-from .conftest import get_data, AlgorithmTester
+from .conftest import AlgorithmTester, get_data
 
 
 @pytest.mark.parametrize('method', ('collab_pls', 'COLLAB_pls'))

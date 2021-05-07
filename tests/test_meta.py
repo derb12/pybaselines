@@ -9,7 +9,7 @@ Created on March 22, 2021
 import numpy as np
 import pytest
 
-from .conftest import get_data, AlgorithmTester
+from .conftest import AlgorithmTester, get_data
 
 
 def _change_y(data, x_data=None):
