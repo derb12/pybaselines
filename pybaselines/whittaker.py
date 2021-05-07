@@ -14,17 +14,6 @@ Whittaker
 Created on Sept. 13, 2019
 @author: Donald Erb
 
-Attributes
-----------
-PERMC_SPEC : str
-    A string indicating the method used for sparsity preservation when solving
-    the linear equations. See :func:`scipy.sparse.linalg.spsolve` for more
-    information. Default value is "NATURAL", which was ~5-35% faster for all whittaker
-    functions compared to the other `permc_spec` options (tested on a computer with
-    Windows 10, Intel i5-7200U CPU, scipy version 1.6.1). Times may vary based on
-    computer os/architecture, number of data points, and the Whittaker-smoothing-based
-    function used.
-
 """
 
 import numpy as np
@@ -33,10 +22,7 @@ from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import (_setup_polynomial, _setup_whittaker,
                                difference_matrix)
-from .utils import _MIN_FLOAT, relative_difference
-
-
-PERMC_SPEC = 'NATURAL'
+from .utils import _MIN_FLOAT, PERMC_SPEC, relative_difference
 
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
