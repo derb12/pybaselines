@@ -20,7 +20,7 @@ from ._algorithm_setup import _get_vander, _setup_window
 from .utils import gaussian, gaussian_kernel, padded_convolve
 
 
-def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwargs):
+def noise_median(data, half_window, smooth_half_window=None, sigma=None, **pad_kwargs):
     """
     The noise-median method for baseline identification.
 
@@ -36,9 +36,11 @@ def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwarg
         size will range from [-half_window, ..., half_window] with size
         2 * half_window + 1.
     smooth_half_window : int, optional
-        The half window to use for smoothing. Default is 1.
+        The half window to use for smoothing. Default is None, which will use
+        the same value as `half_window`.
     sigma : float, optional
-        The standard deviation of the smoothing Gaussian kernel. Default is 5.
+        The standard deviation of the smoothing Gaussian kernel. Default is None,
+        which will use (2 * `smooth_half_window` + 1) / 6.
     **pad_kwargs
         Additional keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data to prevent edge effects from convolution.
@@ -56,15 +58,23 @@ def noise_median(data, half_window, smooth_half_window=1, sigma=5.0, **pad_kwarg
     artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
     """
+    window_size = 2 * half_window + 1
     median = median_filter(
         _setup_window(data, half_window, **pad_kwargs),
-        [2 * half_window + 1], mode='nearest'
+        [window_size], mode='nearest'
     )
-    baseline = padded_convolve(median, gaussian_kernel(2 * smooth_half_window + 1, sigma))
+    if smooth_half_window is None:
+        smooth_window = window_size
+    else:
+        smooth_window = 2 * smooth_half_window + 1
+    if sigma is None:
+        # the gaussian kernel will includes +- 3 sigma
+        sigma = smooth_window / 6
+    baseline = padded_convolve(median, gaussian_kernel(smooth_window, sigma))
     return baseline[half_window:-half_window], {}
 
 
-def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
+def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
          filter_order=2, **pad_kwargs):
     """
     Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
@@ -89,7 +99,7 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
         The half window to use for smoothing the data. If `smooth_half_window`
         is greater than 0, will perform a moving average smooth on the data for
         each window, which gives better results for noisy data [3]_. Default is
-        0, which will not perform any smoothing.
+        None, which will not perform any smoothing.
     filter_order : {2, 4, 6, 8}, optional
         If the measured data has a more complicated baseline consisting of other
         elements such as Compton edges, then a higher `filter_order` should be
@@ -173,7 +183,7 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=0,
 
     y = _setup_window(data, max_of_half_windows, **pad_kwargs)
     num_y = y.shape[0]  # new num_y since y is now padded
-    smooth = smooth_half_window > 0
+    smooth = smooth_half_window is not None and smooth_half_window > 0
     baseline = y.copy()
     for i in range(*range_args):
         i_left = min(i, half_windows[0])
