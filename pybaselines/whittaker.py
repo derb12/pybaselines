@@ -85,11 +85,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    residual = y - baseline
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -166,11 +162,8 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    residual = y - baseline
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline + residual.T * diff_matrix_1 * residual,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
+
     return baseline, params
 
 
@@ -225,10 +218,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         weight_array = np.exp(i * residual / residual_l1_norm) * neg_mask
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -284,10 +274,7 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -350,13 +337,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': (
-            (identity_matrix - eta * weight_matrix) * (baseline.T * diff_matrix * baseline)
-            + baseline.T * diff_matrix_1 * baseline
-        ),
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -412,10 +393,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -455,6 +433,8 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'alpha': numpy.ndarray, shape (N,)
+            The array of alpha values used for fitting the data in the final iteration.
 
     References
     ----------
@@ -484,11 +464,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
         abs_d = abs(residual)
         alpha_matrix.setdiag(abs_d / np.nanmax(abs_d))
 
-    params = {
-        'roughness': baseline.T * alpha_matrix * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array,
-        'alpha': alpha_matrix.data[0]
-    }
+    params = {'weights': weight_array, 'alpha': alpha_matrix.data[0]}
 
     return baseline, params
 
@@ -574,9 +550,6 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params

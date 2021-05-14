@@ -214,12 +214,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
     _, diff_matrix, weight_matrix, weight_array = _setup_whittaker(y, lam, diff_order, w)
     baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
 
-    residual = y - baseline
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array,
-        'half_window': half_wind
-    }
+    params = {'weights': weight_array, 'half_window': half_wind}
     return baseline, params
 
 
