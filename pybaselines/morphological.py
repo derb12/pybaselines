@@ -417,7 +417,7 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
     return baseline[data_bounds], {'half_window': half_wind}
 
 
-def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
+def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=None,
            pad_kwargs=None, **window_kwargs):
     """
     Iterative morphological and mollified (MorMol) baseline.
@@ -436,7 +436,8 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
         The maximum number of iterations. Default is 200.
     smooth_half_window : int, optional
         The half-window to use for smoothing the data before performing the
-        morphological operation. Default is 1.
+        morphological operation. Default is None, which will use a value of 1,
+        which gives no smoothing.
     pad_kwargs : dict, optional
         A dictionary of keyword arguments to pass to :func:`.pad_edges` for
         padding the edges of the data to prevent edge effects from convolution.
@@ -478,6 +479,8 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
     window_size = 2 * half_wind + 1
     kernel = _mollifier_kernel(window_size)
+    if smooth_half_window is None:
+        smooth_half_window = 1
     smooth_kernel = _mollifier_kernel(smooth_half_window)
     data_bounds = slice(window_size, -window_size)
 
