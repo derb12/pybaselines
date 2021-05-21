@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Different techniques for fitting baselines to experimental data.
+"""Polynomial techniques for fitting baselines to experimental data.
 
 Polynomial
     1) poly (Regular Polynomial)
@@ -655,11 +655,13 @@ def _tukey_square(residual, scale=3, symmetric=False):
 
     """
     if symmetric:
-        weights = np.maximum(0, 1 - (residual / scale)**2)
+        inner = residual / scale
+        weights = np.maximum(0, 1 - inner * inner)
     else:
         weights = np.ones_like(residual)
         mask = residual >= 0
-        weights[mask] = np.maximum(0, 1 - (residual[mask] / scale)**2)
+        inner = residual[mask] / scale
+        weights[mask] = np.maximum(0, 1 - inner * inner)
     return weights
 
 
@@ -705,9 +707,181 @@ def _median_absolute_differences(array_1, array_2=None, errors=None):
         return np.nanmedian(np.abs(difference)) / 0.6745
 
 
-def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
-          scale=3.0, tol=1e-3, max_iter=10, symmetric_weights=False,
-          use_threshold=False, num_std=1):
+def _loess_low_memory(x, y, coefs, vander, total_points, num_x, use_threshold, weights):
+    """
+    A version of loess that uses near constant memory.
+
+    The distance-weighted kernel for each x-value is computed each loop, rather
+    than cached, so memory usage is low but the calculation is slightly slower.
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (N,)
+        The x-values of the measured data, with N data points.
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, with N points.
+    coefs : numpy.ndarray, shape (N, poly_order + 1)
+        The array of polynomial coefficients (with polynomial order poly_order),
+        for each value in `x`.
+    vander : numpy.ndarray, shape (N, poly_order + 1)
+        The Vandermonde matrix for the `x` array.
+    total_points : int
+        The number of points to include when fitting each x-value.
+    num_x : int
+        The number of data points in `x`, also known as N.
+    use_threshold : bool
+        If False, will also use `weights` when calculating the total weighting
+        for each window.
+    weights : numpy.ndarray, shape (N,)
+        The array of weights for the data. Only used if `use_threshold` is False.
+
+    Notes
+    -----
+    The coefficient array, `coefs`, is modified inplace.
+
+    """
+    left = 0
+    right = total_points - 1
+    max_right = num_x - 1
+    for i, x_val in enumerate(x):
+        difference = abs(x - x_val)
+        while right < max_right and difference[left] > difference[right + 1]:
+            left += 1
+            right += 1
+        window_slice = slice(left, right + 1)
+        inner = difference[window_slice] / max(difference[left], difference[right])
+        inner = inner * inner * inner
+        inner = 1 - inner
+        kernel = np.sqrt(inner * inner * inner)
+        if use_threshold:
+            weight_array = kernel
+        else:
+            weight_array = kernel * weights[window_slice]
+
+        coefs[i] = np.linalg.lstsq(
+            weight_array[:, np.newaxis] * vander[window_slice],
+            weight_array * y[window_slice],
+            None
+        )[0]
+
+
+def _loess_first_loop(x, y, coefs, vander, total_points, num_x, use_threshold, weights):
+    """
+    The initial fit for loess that also caches the window values for each x-value.
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (N,)
+        The x-values of the measured data, with N data points.
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, with N points.
+    coefs : numpy.ndarray, shape (N, poly_order + 1)
+        The array of polynomial coefficients (with polynomial order poly_order),
+        for each value in `x`.
+    vander : numpy.ndarray, shape (N, poly_order + 1)
+        The Vandermonde matrix for the `x` array.
+    total_points : int
+        The number of points to include when fitting each x-value.
+    num_x : int
+        The number of data points in `x`, also known as N.
+    use_threshold : bool
+        If False, will also use `weights` when calculating the total weighting
+        for each window.
+    weights : numpy.ndarray, shape (N,)
+        The array of weights for the data. Only used if `use_threshold` is False.
+
+    Returns
+    -------
+    kernels : numpy.ndarray, shape (num_x, total_points)
+        The array containing the distance-weighted kernel for each x-value.
+    windows : list(slice)
+        A list of slices that define the indices for each window to use for
+        fitting each x-value. Has a length of `num_x`.
+
+    Notes
+    -----
+    The coefficient array, `coefs`, is modified inplace.
+
+    """
+    left = 0
+    right = total_points - 1
+    max_right = num_x - 1
+    kernels = np.empty((num_x, total_points))
+    windows = [None] * num_x
+    for i, x_val in enumerate(x):
+        difference = abs(x - x_val)
+        while right < max_right and difference[left] > difference[right + 1]:
+            left += 1
+            right += 1
+        window_slice = slice(left, right + 1)
+
+        inner = difference[window_slice] / max(difference[left], difference[right])
+        inner = inner * inner * inner
+        inner = 1 - inner
+        kernel = np.sqrt(inner * inner * inner)
+        if use_threshold:
+            weight_array = kernel
+        else:
+            weight_array = kernel * weights[window_slice]
+
+        windows[i] = window_slice
+        kernels[i] = kernel
+        coefs[i] = np.linalg.lstsq(
+            weight_array[:, np.newaxis] * vander[window_slice],
+            weight_array * y[window_slice],
+            None
+        )[0]
+
+    return kernels, windows
+
+
+def _loess_nonfirst_loops(y, coefs, vander, use_threshold, weights, kernels, windows):
+    """
+    The loess fit to use after the first loop that uses the cached window values.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, with N points.
+    coefs : numpy.ndarray, shape (N, poly_order + 1)
+        The array of polynomial coefficients (with polynomial order poly_order),
+        for each value in `x`.
+    vander : numpy.ndarray, shape (N, poly_order + 1)
+        The Vandermonde matrix for the `x` array.
+    use_threshold : bool
+        If False, will also use `weights` when calculating the total weighting
+        for each window.
+    weights : numpy.ndarray, shape (N,)
+        The array of weights for the data. Only used if `use_threshold` is False.
+    kernels : numpy.ndarray, shape (N, total_points)
+        The array containing the distance-weighted kernel for each x-value. Each
+        kernel has a length of total_points.
+    windows : list(slice)
+        A list of slices that define the indices for each window to use for
+        fitting each x-value. Has a length of N.
+
+    Notes
+    -----
+    The coefficient array, `coefs`, is modified inplace.
+
+    """
+    for i, kernel in enumerate(kernels):
+        window_slice = windows[i]
+        if use_threshold:
+            weight_array = kernel
+        else:
+            weight_array = kernel * weights[window_slice]
+
+        coefs[i] = np.linalg.lstsq(
+            weight_array[:, np.newaxis] * vander[window_slice],
+            weight_array * y[window_slice],
+            None
+        )[0]
+
+
+def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
+          tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
+          use_original=False, weights=None, return_coef=False, conserve_memory=False):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -725,7 +899,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
         Default is 0.2. Not used if `total_points` is not None.
     total_points : int, optional
         The total number of points to include for the fitting on each point. Default
-        is None, which will use fraction * N to determine the number of points.
+        is None, which will use `fraction` * N to determine the number of points.
     scale : float, optional
         A scale factor applied to the weighted residuals to control the robustness
         of the fit. Default is 3.0, as used in [10]_. Note that the original loess
@@ -745,19 +919,47 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
         If False (default), will compute weights each iteration to perform the
         robust fitting, which is regular LOESS. If True, will apply a threshold
         on the data being fit each iteration, based on the maximum values of the
-        data and the fit baseline, as proposed by [12]_, similar to the ModPoly
-        and IModPoly techniques.
+        data and the fit baseline, as proposed by [12]_, similar to the modpoly
+        and imodpoly techniques.
     num_std : float, optional
         The number of standard deviations to include when thresholding. Default
-        is 1, which is the value used for the IModPoly technique. Only used if
+        is 1, which is the value used for the imodpoly technique. Only used if
         `use_threshold` is True.
+    use_original : bool, optional
+        If False (default), will compare the baseline of each iteration with
+        the y-values of that iteration [13]_ when choosing minimum values for
+        thresholding. If True, will compare the baseline with the original
+        y-values given by `data` [14]_. Only used if `use_threshold` is True.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1. Only used if `use_threshold` is
+        False.
+    return_coef : bool, optional
+        If True, will convert the polynomial coefficients for the fit baseline to
+        a form that fits the input x_data and return them in the params dictionary.
+        Default is False, since the conversion takes time.
+    conserve_memory : bool, optional
+        If False (default), will cache the distance-weighted kernels for each value
+        in `x_data` on the first iteration and reuse them on subsequent iterations to
+        save time. The shape of the array of kernels is (len(`x_data`), `total_points`).
+        If True, will recalculate the kernels each iteration, which uses very little memory,
+        but is slower. Only need to set to True if `x_data` and `total_points` are quite
+        large and the function causes memory issues when cacheing the kernels.
 
     Returns
     -------
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
-    dict
-        An empty dictionary, just to match the output of all other algorithms.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data. Does NOT contain the
+            individual distance-weighted kernels for each x-value.
+        * 'coef': numpy.ndarray, shape (N, poly_order + 1)
+            Only if `return_coef` is True. The array of polynomial parameters
+            for the baseline, in increasing order. Can be used to create a
+            polynomial using numpy.polynomial.polynomial.Polynomial().
 
     Raises
     ------
@@ -768,8 +970,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
     -----
     The iterative, robust, aspect of the fitting can be achieved either through
     reweighting based on the residuals (the typical usage), or thresholding the
-    fit data based on the residuals, as proposed by [12]_, similar to the ModPoly
-    and IModPoly techniques.
+    fit data based on the residuals, as proposed by [12]_, similar to the modpoly
+    and imodpoly techniques.
 
     In baseline literature, this procedure is sometimes called "rbe", meaning
     "robust baseline estimate".
@@ -788,48 +990,66 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1,
     .. [12] Komsta, Ł. Comparison of Several Methods of Chromatographic
             Baseline Removal with a New Approach Based on Quantile Regression.
             Chromatographia, 2011, 73, 721-731.
+    .. [13] Gan, F., et al. Baseline correction by improved iterative polynomial
+            fitting with automatic threshold. Chemometrics and Intelligent
+            Laboratory Systems, 2006, 82, 59-65.
+    .. [14] Lieber, C., et al. Automated method for subtraction of fluorescence
+            from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
+            1363-1367.
 
     """
-    y, x, weights, _, vander = _setup_polynomial(data, x_data, None, poly_order, True)
+    y, x, weight_array, original_domain = _setup_polynomial(data, x_data, weights, poly_order)
     num_x = x.shape[0]
     if total_points is None:
         total_points = ceil(fraction * num_x)
     if total_points < 2:  #TODO probably also dictated by the polynomial order
         raise ValueError('total points must be greater than 1')
+    if use_original:
+        y0 = y
 
-    #TODO potentially use k-d trees instead, following Cleveland, et al., Regression by
-    # local fitting. 1988. or sort x before, and just slide the window to the right as
-    # you go along
-    kernels = np.empty((num_x, num_x))
-    for i, x_val in enumerate(x):
-        difference = np.abs(x - x_val)
-        kernels[i] = np.sqrt(
-            (1 - np.clip(difference / np.sort(difference)[total_points - 1], 0, 1)**3)**3
-        )
+    sort_order = np.argsort(x)  # to ensure x is increasing
+    x = x[sort_order]
+    y = y[sort_order]
+    vander = _get_vander(x, poly_order, calc_pinv=False)
 
-    baseline = np.zeros(num_x)
-    baseline_new = np.empty(num_x)
-    for _ in range(max_iter):
-        for i, kernel in enumerate(kernels):
-            if use_threshold:
-                weight_array = kernel
-            else:
-                weight_array = kernel * weights
-            coef = np.linalg.lstsq(
-                weight_array[:, np.newaxis] * vander, weight_array * y, None
-            )[0]
-            #TODO should the coefficients be returned? probably not since it would slow it down
-            baseline_new[i] = np.dot(vander[i], coef)
-        if relative_difference(baseline, baseline_new) < tol:
-            break
-
-        baseline = baseline_new.copy()
-        if not use_threshold:
-            residual = y - baseline_new
-            weights = _tukey_square(
-                residual / _median_absolute_differences(residual), scale, symmetric_weights
+    baseline = y
+    coefs = np.empty((num_x, poly_order + 1))
+    for i in range(max_iter):
+        if conserve_memory:
+            _loess_low_memory(
+                x, y, coefs, vander, total_points, num_x, use_threshold, weight_array
+            )
+        elif i == 0:
+            kernels, windows = _loess_first_loop(
+                x, y, coefs, vander, total_points, num_x, use_threshold, weight_array
             )
         else:
-            y = np.minimum(y, baseline_new + num_std * np.std(y - baseline_new))
+            _loess_nonfirst_loops(
+                y, coefs, vander, use_threshold, weight_array, kernels, windows
+            )
 
-    return baseline, {}
+        # einsum is same as np.array([np.dot(vander[i], coefs[i]) for i in range(num_x)])
+        baseline_new = np.einsum('ij,ij->i', vander, coefs)
+        if relative_difference(baseline, baseline_new) < tol:
+            if i == 0:
+                # in case tol was reached on first iteration
+                baseline = baseline_new
+            break
+
+        baseline = baseline_new
+        if use_threshold:
+            y = np.minimum(
+                y0 if use_original else y,
+                baseline_new + num_std * np.std(y - baseline_new)
+            )
+        else:
+            residual = y - baseline_new
+            weight_array = _tukey_square(
+                residual / _median_absolute_differences(residual), scale, symmetric_weights
+            )
+
+    params = {'weights': weight_array}
+    if return_coef:
+        params['coef'] = np.array([_convert_coef(coef, original_domain) for coef in coefs])
+
+    return baseline[np.argsort(sort_order)], params
