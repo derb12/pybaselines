@@ -47,6 +47,8 @@ def difference_matrix(data_size, diff_order=2):
     """
     if diff_order < 0:
         raise ValueError('The differential order must be >= 0')
+    if diff_order > data_size:
+        diff_order = data_size
 
     diagonals = np.zeros(2 * diff_order + 1)
     diagonals[diff_order] = 1

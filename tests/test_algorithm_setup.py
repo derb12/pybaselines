@@ -62,6 +62,20 @@ def test_difference_matrix_order_neg():
         _algorithm_setup.difference_matrix(10, diff_order=-2)
 
 
+def test_difference_matrix_order_over():
+    """
+    Tests the (n + 1)th order differential matrix against the actual
+    representation, where n is the number of data points.
+
+    The differential matrix should be one of shape 0xn with 0 stored elements,
+    following a similar logic in np.diff.
+    """
+    diff_matrix = _algorithm_setup.difference_matrix(10, 11).toarray()
+    actual_matrix = np.empty(shape=(0, 10))
+
+    assert_array_equal(diff_matrix, actual_matrix)
+
+
 @pytest.fixture
 def small_data():
     """A small array of data for testing."""
