@@ -16,7 +16,7 @@ from pybaselines import _algorithm_setup
 
 @pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))
 def test_difference_matrix(diff_order):
-    """Tests all covered differential matrices."""
+    """Tests common differential matrices."""
     diff_matrix = _algorithm_setup.difference_matrix(10, diff_order).toarray()
     numpy_diff = np.diff(np.eye(10), diff_order).T
 
@@ -56,10 +56,10 @@ def test_difference_matrix_order_0():
     assert_array_equal(diff_matrix, actual_matrix)
 
 
-def test_difference_matrix_fail():
-    """Ensures differential matrix fails for non-covered order."""
+def test_difference_matrix_order_neg():
+    """Ensures differential matrix fails for non-positive order."""
     with pytest.raises(ValueError):
-        _algorithm_setup.difference_matrix(10, diff_order=10)
+        _algorithm_setup.difference_matrix(10, diff_order=-2)
 
 
 @pytest.fixture

@@ -21,8 +21,8 @@ def difference_matrix(data_size, diff_order=2):
     ----------
     data_size : int
         The number of data points.
-    diff_order : {2, 0, 1, 3, 4, 5}, optional
-        The integer differential order; either 0, 1, 2, 3, 4, or 5. Default is 2.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
 
     Returns
     -------
@@ -32,37 +32,28 @@ def difference_matrix(data_size, diff_order=2):
     Raises
     ------
     ValueError
-        Raised if diff_order is not 0, 1, 2, 3, 4, or 5.
+        Raised if diff_order is negative.
 
     Notes
     -----
     Most baseline algorithms use 2nd order differential matrices when
     doing penalized least squared fitting.
 
-    It would be possible to support any differential order by doing
-    np.diff(np.eye(data_size), diff_order), but the resulting matrix could
-    cause issues if data_size is large. Therefore, it's better to only
-    provide sparse arrays for the most commonly used differential orders.
-
     The resulting matrices are transposes of the result of
-    np.diff(np.eye(data_size), diff_order). Not sure why there is a discrepancy,
-    but this implementation allows using the differential matrices are they
-    are written in various publications, ie. D.T * D rather than having to
-    do D * D.T.
+    np.diff(np.eye(data_size), diff_order). This implementation allows using
+    the differential matrices are they are written in various publications,
+    ie. D.T * D rather than having to do D * D.T.
 
     """
-    if diff_order not in (0, 1, 2, 3, 4, 5):
-        raise ValueError('The differential order must be 0, 1, 2, 3, 4, or 5')
-    diagonals = {
-        0: [1],
-        1: [-1, 1],
-        2: [1, -2, 1],
-        3: [-1, 3, -3, 1],
-        4: [1, -4, 6, -4, 1],
-        5: [-1, 5, -10, 10, -5, 1]
-    }[diff_order]
+    if diff_order < 0:
+        raise ValueError('The differential order must be >= 0')
 
-    return diags(diagonals, list(range(diff_order + 1)), shape=(data_size - diff_order, data_size))
+    diagonals = np.zeros(2 * diff_order + 1)
+    diagonals[diff_order] = 1
+    for _ in range(diff_order):
+        diagonals = diagonals[:-1] - diagonals[1:]
+
+    return diags(diagonals, np.arange(diff_order + 1), shape=(data_size - diff_order, data_size))
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None):
@@ -77,8 +68,8 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
         The smoothing parameter, lambda. Typical values are between 10 and
         1e8, but it strongly depends on the penalized least square method
         and the differential order.
-    diff_order : {2, 1, 3, 4, 5}, optional
-        The integer differential order; either 1, 2, 3, 4, or 5. Default is 2.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
     weights : array-like, shape (M,), optional
         The weighting array. If None (default), then will be an array with
         shape (M,) and all values set to 1.
