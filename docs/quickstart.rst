@@ -11,23 +11,24 @@ A simple example is shown below.
 
 .. code-block:: python
 
-    import pybaselines
     import matplotlib.pyplot as plt
     import numpy as np
+    import pybaselines
+    from pybaselines import utils
 
     x = np.linspace(100, 4200, 1000)
     # a measured signal containing several Gaussian peaks
     signal = (
-        pybaselines.utils.gaussian(x, 2, 700, 50)
-        + pybaselines.utils.gaussian(x, 3, 1200, 150)
-        + pybaselines.utils.gaussian(x, 5, 1600, 100)
-        + pybaselines.utils.gaussian(x, 4, 2500, 50)
-        + pybaselines.utils.gaussian(x, 7, 3300, 100)
+        utils.gaussian(x, 2, 700, 50)
+        + utils.gaussian(x, 3, 1200, 150)
+        + utils.gaussian(x, 5, 1600, 100)
+        + utils.gaussian(x, 4, 2500, 50)
+        + utils.gaussian(x, 7, 3300, 100)
     )
     # baseline is a polynomial plus a broad gaussian
     true_baseline = (
         10 + 0.001 * x
-        + pybaselines.utils.gaussian(x, 6, 2000, 2000)
+        + utils.gaussian(x, 6, 2000, 2000)
     )
     noise = np.random.default_rng(1).normal(0, 0.2, x.size)
 

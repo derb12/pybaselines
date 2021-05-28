@@ -57,4 +57,6 @@ Created on March 5, 2021
 __version__ = '0.3.0'
 
 
-from . import manual, morphological, optimizers, polynomial, utils, whittaker, window
+# import utils first since it is imported by other modules; likewise, import
+# optimizers last since it imports the other modules
+from . import utils, manual, morphological, polynomial, whittaker, window, optimizers
