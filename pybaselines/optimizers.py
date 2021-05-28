@@ -19,8 +19,8 @@ from math import ceil
 import numpy as np
 
 from . import morphological, polynomial, whittaker
-from ._algorithm_setup import _setup_polynomial
 from .utils import gaussian
+from ._algorithm_setup import _setup_polynomial, _yx_arrays
 
 
 def _get_function(method, modules):
@@ -205,7 +205,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
         raise ValueError('side must be "left", "right", or "both"')
 
     fit_func = _get_function(method, (whittaker, polynomial, morphological))
-    y, x, *_ = _setup_polynomial(data, x_data)
+    y, x = _yx_arrays(data, x_data)
     sort_order = np.argsort(x)  # to ensure x is increasing
     x = x[sort_order]
     y = y[sort_order]

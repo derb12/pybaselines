@@ -61,6 +61,44 @@ def difference_matrix(data_size, diff_order=2):
     return diags(diagonals, np.arange(diff_order + 1), shape=(data_size - diff_order, data_size))
 
 
+def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
+    """
+    Converts input data into numpy arrays and provides x data if none is given.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1. to 1. with N points.
+    x_min : float, optional
+        The minimum x-value if `x_data` is None. Default is -1.
+    x_max : float, optional
+        The maximum x-value if `x_data` is None. Default is 1.
+
+    Returns
+    -------
+    y : numpy.ndarray, shape (N,)
+        A numpy array of the y-values of the measured data.
+    x : numpy.ndarray, shape (N,)
+        A numpy array of the x-values of the measured data, or a created array.
+
+    Notes
+    -----
+    Does not change the scale/domain of the input `x_data` if it is given, only
+    converts it to an array.
+
+    """
+    y = np.asarray(data)
+    if x_data is None:
+        x = np.linspace(x_min, x_max, y.shape[0])
+    else:
+        x = np.asarray(x_data)
+
+    return y, x
+
+
 def _setup_whittaker(data, lam, diff_order=2, weights=None):
     """
     Sets the starting parameters for doing penalized least squares.
@@ -194,7 +232,7 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
         The y-values of the measured data, converted to a numpy array.
     x : numpy.ndarray, shape (N,)
         The x-values for fitting the polynomial, converted to fit within
-        the domain [-1, 1].
+        the domain [-1., 1.].
     weight_array : numpy.ndarray, shape (N,)
         The weight array for fitting a polynomial to the data.
     original_domain : numpy.ndarray, shape (2,)
@@ -212,19 +250,17 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     Notes
     -----
     If x_data is given, its domain is reduced from [min(x_data), max(x_data)]
-    to [-1, 1] to improve the numerical stability of calculations; since the
+    to [-1., 1.] to improve the numerical stability of calculations; since the
     Vandermonde matrix goes from x^0 to x^poly_order, large values of x would
     otherwise cause difficulty when doing least squares minimization.
 
     """
-    y = np.asarray(data)
+    y, x = _yx_arrays(data, x_data)
     if x_data is None:
-        x = np.linspace(-1, 1, y.shape[0])
-        original_domain = np.array([-1, 1])
+        original_domain = np.array([-1., 1.])
     else:
-        x = np.asarray(x_data)
         original_domain = np.polynomial.polyutils.getdomain(x)
-        x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1, 1]))
+        x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1., 1.]))
     if weights is not None:
         weight_array = np.asarray(weights).copy()
     else:

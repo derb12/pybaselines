@@ -144,9 +144,40 @@ def test_setup_whittacker_diff_matrix_warns(small_data, diff_order):
     """Ensures using a diff_order > 3 with _setup_whittaker raises a warning."""
     with pytest.warns(UserWarning):
         _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
+
+
+@pytest.mark.parametrize('array_enum', (0, 1))
+def test_yx_arrays_output_array(small_data, array_enum):
+    """Ensures output y and x are always numpy arrays and that x is not scaled."""
+    if array_enum == 1:
+        small_data = small_data.tolist()
+    x_data = small_data.copy()
+    y, x = _algorithm_setup._yx_arrays(small_data, x_data)
+
+    actual_array = np.asarray(small_data)
+
+    assert isinstance(y, np.ndarray)
+    assert_array_equal(y, actual_array)
+    assert isinstance(x, np.ndarray)
+    assert_array_equal(x, actual_array)
+
+
+def test_yx_arrays_no_x(small_data):
+    """Ensures an x array is created if None is input."""
+    y, x = _algorithm_setup._yx_arrays(small_data)
+
+    assert isinstance(x, np.ndarray)
+    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
+
+
 @pytest.mark.parametrize('array_enum', (0, 1))
 def test_setup_polynomial_output_array(small_data, array_enum):
-    """Ensures output y and x are always numpy arrays and that x is scaled to [-1, 1]."""
+    """
+    Ensures output y and x are always numpy arrays and that x is scaled to [-1., 1.].
+
+    Similar test as for _yx_arrays, but want to double-check that
+    output is correct.
+    """
     if array_enum == 1:
         small_data = small_data.tolist()
     x_data = small_data.copy()
@@ -155,15 +186,20 @@ def test_setup_polynomial_output_array(small_data, array_enum):
     assert isinstance(y, np.ndarray)
     assert_array_equal(y, np.asarray(small_data))
     assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1, 1, y.shape[0]))
+    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
 
 
 def test_setup_polynomial_no_x(small_data):
-    """Ensures an x array is created if None is input."""
+    """
+    Ensures an x array is created if None is input.
+
+    Same test as for _yx_arrays, but want to double-check that
+    output is correct.
+    """
     y, x, *_ = _algorithm_setup._setup_polynomial(small_data)
 
     assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1, 1, y.shape[0]))
+    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))

@@ -20,7 +20,7 @@ import numpy as np
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
-from ._algorithm_setup import _setup_polynomial, _setup_whittaker, difference_matrix
+from ._algorithm_setup import _setup_whittaker, _yx_arrays, difference_matrix
 from .utils import _MIN_FLOAT, PERMC_SPEC, relative_difference
 
 
@@ -143,7 +143,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     """
     if p < 0 or p > 1:
         raise ValueError('p must be between 0 and 1')
-    y, x, *_ = _setup_polynomial(data, x_data)
+    y, x = _yx_arrays(data, x_data)
     if weights is None:
         baseline = np.polynomial.Polynomial.fit(x, y, 2)(x)
         mask = (y > baseline)
