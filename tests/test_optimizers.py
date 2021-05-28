@@ -104,14 +104,35 @@ class TestOptimizeExtendedRange(AlgorithmTester):
     @pytest.mark.parametrize(
         'method',
         ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
-         'poly', 'modpoly', 'imodpoly', 'penalized_poly')
+         'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess')
     )
     def test_all_methods(self, method):
-        super()._call_func(self.y, self.x, method=method)
+        """Tests all methods that should work with optimize_extended_range."""
+        if method == 'loess':
+            # reduce number of calculations for loess since it is much slower
+            kwargs = {'min_value': 1, 'max_value': 2}
+        else:
+            kwargs = {}
+        # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
+        super()._call_func(self.y, self.x, method=method, height_scale=0.1, **kwargs)
 
     def test_unknown_method_fails(self):
         with pytest.raises(AttributeError):
             super()._call_func(self.y, self.x, method='unknown function')
+
+    def test_unknown_side_fails(self):
+        with pytest.raises(ValueError):
+            super()._call_func(self.y, self.x, side='east')
+
+    @pytest.mark.parametrize('key', ('min_value', 'max_value', 'step'))
+    def test_polynomial_float_value_fails(self, key):
+        with pytest.raises(TypeError):
+            super()._call_func(self.y, self.x, method='modpoly', **{key: 1.5})
+
+    @pytest.mark.parametrize('key', ('min_value', 'max_value', 'step'))
+    def test_whittaker_high_value_fails(self, key):
+        with pytest.raises(ValueError):
+            super()._call_func(self.y, self.x, method='asls', **{key: 1e4})
 
 
 class TestAdaptiveMinMax(AlgorithmTester):
@@ -144,7 +165,6 @@ class TestAdaptiveMinMax(AlgorithmTester):
     @pytest.mark.parametrize('poly_order', (None, 0, [0], (0, 1)))
     def test_polyorder_inputs(self, poly_order):
         super()._test_output(self.y, self.y, self.x, poly_order)
-
 
     @pytest.mark.parametrize('poly_order', (0, [0], (0, 1)))
     def test_polyorder_outputs(self, poly_order):
