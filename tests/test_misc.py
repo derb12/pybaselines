@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
-"""Tests for pybaselines.manual.
+"""Tests for pybaselines.misc.
 
 @author: Donald Erb
 Created on March 20, 2021
 
 """
 
-from pybaselines import manual
+from pybaselines import misc
 
 from .conftest import AlgorithmTester, get_data
 
 
-class TestLinearInterp(AlgorithmTester):
-    """Class for testing linear_interp baseline."""
+class TestInterpPts(AlgorithmTester):
+    """Class for testing interp_pts baseline."""
 
-    func = manual.linear_interp
+    func = misc.interp_pts
     points = ((5, 10), (10, 20), (90, 100))
 
     def test_unchanged_data(self, data_fixture):

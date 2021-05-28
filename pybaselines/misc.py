@@ -15,16 +15,16 @@ import warnings
 import numpy as np
 
 
-def linear_interp(x_data, baseline_points=()):
+def interp_pts(x_data, baseline_points=()):
     """
-    Creates a linear baseline constructed from points.
+    Creates a baseline by interpolating through input points.
 
     Parameters
     ----------
     x_data : array-like, shape (N,)
         The x-values of the measured data.
-    baseline_points : Iterable(Container(float, float))
-        An iterable of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
+    baseline_points : array-like, shape (n, 2)
+        An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
         each point representing the baseline. Must be at least two points
         to have a non-zero baseline.
 
@@ -32,7 +32,7 @@ def linear_interp(x_data, baseline_points=()):
     -------
     baseline : numpy.ndarray, shape (N,)
         The baseline array constructed from connecting line segments between
-        each background point.
+        each input baseline point.
     dict
         An empty dictionary, just to match the output of all other algorithms.
 
@@ -45,6 +45,8 @@ def linear_interp(x_data, baseline_points=()):
     -----
     Assumes the background is represented by lines connecting each of the
     specified background points.
+
+    This method is only suggested for use within user-interfaces.
 
     """
     #TODO allow polynomial and spline interpolation

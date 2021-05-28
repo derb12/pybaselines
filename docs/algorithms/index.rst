@@ -39,4 +39,4 @@ are not fully optimized for the data).
    morphological
    window
    optimizers
-   manual
+   misc

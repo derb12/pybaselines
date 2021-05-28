@@ -1,7 +1,7 @@
 pybaselines Documentation
 =========================
 
-pybaselines is a collection of algorithms for fitting the baseline of experimental data.
+pybaselines is a collection of algorithms for estimating the baseline of experimental data.
 
 * For Python 3.6+
 * Open Source: BSD 3-Clause License

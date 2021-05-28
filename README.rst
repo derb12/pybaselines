@@ -19,7 +19,7 @@ pybaselines
     :alt: BSD 3-clause license
 
 
-pybaselines is a collection of baseline algorithms for fitting experimental data.
+pybaselines is a collection of algorithms for estimating the baseline of experimental data.
 
 * For Python 3.6+
 * Open Source: BSD 3-Clause License
@@ -83,9 +83,9 @@ e) Optimizers (pybaselines.optimizers)
     2) optimize_extended_range
     3) adaptive_minmax (Adaptive MinMax)
 
-f) Manual methods (pybaselines.manual)
+f) Miscellaneous methods (pybaselines.misc)
 
-    1) linear_interp (Linear interpolation between points)
+    1) interp_pts (Interpolation between points)
 
 
 Installation
