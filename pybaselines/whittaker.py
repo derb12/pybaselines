@@ -267,7 +267,7 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         residual = y - baseline
         neg_mask = residual < 0
         mean = np.mean(residual[neg_mask])
-        std = max(abs(np.std(residual[neg_mask])), _MIN_FLOAT)
+        std = max(np.std(residual[neg_mask]), _MIN_FLOAT)
         new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - mean)) / std))
         if relative_difference(weight_array, new_weights) < tol:
             break
@@ -329,7 +329,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
         )
         residual = y - baseline
         neg_mask = residual < 0
-        std = max(abs(np.std(residual[neg_mask])), _MIN_FLOAT)
+        std = max(np.std(residual[neg_mask]), _MIN_FLOAT)
         inner = np.exp(i) * (residual - (2 * std - np.mean(residual[neg_mask]))) / std
         new_weights = 0.5 * (1 - (inner / (1 + abs(inner))))
         if relative_difference(weight_array, new_weights) < tol:
@@ -385,7 +385,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     for i in range(1, max_iter + 1):
         baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
-        std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
+        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
         inner = np.exp(i) * (residual - 2 * std) / std
         new_weights = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
         if relative_difference(weight_array, new_weights) < tol:
@@ -455,7 +455,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
             weight_matrix + alpha_matrix * diff_matrix, weight_array * y, permc_spec=PERMC_SPEC
         )
         residual = y - baseline
-        std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
+        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
         new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
         if relative_difference(weight_array, new_weights) < tol:
             break
