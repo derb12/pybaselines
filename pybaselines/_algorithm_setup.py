@@ -6,6 +6,8 @@ Created on March 31, 2021
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.sparse import diags
@@ -46,8 +48,9 @@ def difference_matrix(data_size, diff_order=2):
 
     """
     if diff_order < 0:
-        raise ValueError('The differential order must be >= 0')
+        raise ValueError('the differential order must be >= 0')
     if diff_order > data_size:
+        # do not issue warning or exception to maintain parity with np.diff
         diff_order = data_size
 
     diagonals = np.zeros(2 * diff_order + 1)
@@ -71,7 +74,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
         1e8, but it strongly depends on the penalized least square method
         and the differential order.
     diff_order : int, optional
-        The integer differential order; must be >= 0. Default is 2.
+        The integer differential order; must be greater than 0. Default is 2.
     weights : array-like, shape (M,), optional
         The weighting array. If None (default), then will be an array with
         shape (M,) and all values set to 1.
@@ -88,13 +91,34 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
 
+    Raises
+    ------
+    ValueError
+        Raised is `diff_order` is less than 1.
+
+    Warns
+    -----
+    UserWarning
+        Raised if `diff_order` is greater than 3.
+
     """
     y = np.asarray(data)
+    if diff_order < 1:
+        raise ValueError(
+            'the differential order must be > 0 for Whittaker-smoothing-based methods'
+        )
+    elif diff_order > 3:
+        warnings.warn((
+            'differential orders greater than 3 can have numerical issues;'
+            ' consider using a differential order of 2 or 1 instead'
+        ))
     diff_matrix = difference_matrix(y.shape[0], diff_order)
+
     if weights is None:
         weight_array = np.ones(y.shape[0])
     else:
         weight_array = np.asarray(weights).copy()
+
     return y, lam * diff_matrix.T * diff_matrix, diags(weight_array), weight_array
 
 

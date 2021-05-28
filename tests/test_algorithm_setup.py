@@ -57,7 +57,7 @@ def test_difference_matrix_order_0():
 
 
 def test_difference_matrix_order_neg():
-    """Ensures differential matrix fails for non-positive order."""
+    """Ensures differential matrix fails for negative order."""
     with pytest.raises(ValueError):
         _algorithm_setup.difference_matrix(10, diff_order=-2)
 
@@ -67,8 +67,8 @@ def test_difference_matrix_order_over():
     Tests the (n + 1)th order differential matrix against the actual
     representation, where n is the number of data points.
 
-    The differential matrix should be one of shape 0xn with 0 stored elements,
-    following a similar logic in np.diff.
+    The differential matrix should be one of shape (0, n) with 0 stored elements,
+    following a similar logic as np.diff.
     """
     diff_matrix = _algorithm_setup.difference_matrix(10, 11).toarray()
     actual_matrix = np.empty(shape=(0, 10))
@@ -132,6 +132,18 @@ def test_setup_whittacker_weights(small_data, weight_enum):
     assert_array_equal(weight_matrix.toarray(), np.diag(desired_weights))
 
 
+@pytest.mark.parametrize('diff_order', (0, -1))
+def test_setup_whittacker_diff_matrix_fails(small_data, diff_order):
+    """Ensures using a diff_order < 1 with _setup_whittaker raises an exception."""
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
+
+
+@pytest.mark.parametrize('diff_order', (4, 5))
+def test_setup_whittacker_diff_matrix_warns(small_data, diff_order):
+    """Ensures using a diff_order > 3 with _setup_whittaker raises a warning."""
+    with pytest.warns(UserWarning):
+        _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
 @pytest.mark.parametrize('array_enum', (0, 1))
 def test_setup_polynomial_output_array(small_data, array_enum):
     """Ensures output y and x are always numpy arrays and that x is scaled to [-1, 1]."""
