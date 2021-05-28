@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 """Window-based techniques for fitting baselines to experimental data.
 
-Window
-    1) noise_median (Noise Median method)
-    2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
-    3) swima (Small-Window Moving Average)
-
 Created on March 7, 2021
 @author: Donald Erb
 
@@ -155,8 +150,10 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
            elimination in spectroscopic data. Nuclear Instruments and Methods in
            Physics Research A, 2009, 60, 478-487.
 
-    #TODO potentially add adaptive window sizes from [4]_
     """
+    #TODO potentially add adaptive window sizes from [4]_, or at least allow inputting
+    # an array of max_half_windows; would need to have a separate function for array
+    # windows since it would no longer be able to be vectorized
     if filter_order not in {2, 4, 6, 8}:
         raise ValueError('filter_order must be 2, 4, 6, or 8')
 

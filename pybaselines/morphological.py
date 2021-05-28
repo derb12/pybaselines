@@ -1,14 +1,6 @@
 # -*- coding: utf-8 -*-
 """Different techniques for fitting baselines to experimental data.
 
-Morphological
-    1) mpls (Morphological Penalized Least Squares)
-    2) mor (Morphological)
-    3) imor (Improved Morphological)
-    4) mormol (Morphological and Mollified Baseline)
-    5) amormol (Averaging Morphological and Mollified Baseline)
-    6) rolling_ball (Rolling Ball Baseline)
-
 Created on March 5, 2021
 @author: Donald Erb
 

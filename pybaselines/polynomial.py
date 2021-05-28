@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
 """Polynomial techniques for fitting baselines to experimental data.
 
-Polynomial
-    1) poly (Regular Polynomial)
-    2) modpoly (Modified Polynomial)
-    3) imodpoly (Improved Modified Polynomial)
-    4) penalized_poly (Penalized Polynomial)
-    5) loess (Locally Estimated Scatterplot Smoothing)
-
 Created on Feb. 27, 2021
 @author: Donald Erb
 

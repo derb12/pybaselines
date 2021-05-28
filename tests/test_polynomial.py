@@ -211,4 +211,3 @@ class TestLoess(AlgorithmTester):
         reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
 
         assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
-

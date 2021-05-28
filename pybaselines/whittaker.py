@@ -1,16 +1,6 @@
 # -*- coding: utf-8 -*-
 """Whittaker-smoothing-based techniques for fitting baselines to experimental data.
 
-Whittaker
-    1) asls (Asymmetric Least Squares)
-    2) iasls (Improved Asymmetric Least Squares)
-    3) airpls (Adaptive iteratively reweighted penalized least squares)
-    4) arpls (Asymmetrically reweighted penalized least squares)
-    5) drpls (Doubly reweighted penalized least squares)
-    6) iarpls (Improved Asymmetrically reweighted penalized least squares)
-    7) aspls (Adaptive smoothness penalized least squares)
-    8) psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
-
 Created on Sept. 13, 2019
 @author: Donald Erb
 

@@ -232,11 +232,6 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
     numpy.ndarray, shape (N,)
         The smoothed input array.
 
-    Notes
-    -----
-    Mirrors the data near the edges so that convolution does not
-    produce edge effects.
-
     """
     padding = (min(data.shape[0], kernel.shape[0]) // 2)
     convolution = np.convolve(

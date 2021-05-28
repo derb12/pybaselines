@@ -4,11 +4,6 @@
 Functions in this module make use of other baseline algorithms in
 pybaselines to provide better results or optimize parameters.
 
-Optimizers
-    1) collab_pls (Collaborative Penalized Least Squares)
-    2) optimize_extended_range
-    3) adaptive_minmax (Adaptive MinMax)
-
 Created on March 3, 2021
 @author: Donald Erb
 
