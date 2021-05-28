@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Functions for creating manually-created baselines.
-
-Manual
-    1) linear_interp (Linear interpolation between points)
-
+"""Miscellaneous functions for creating baselines.
 
 Created on April 2, 2021
 @author: Donald Erb
 
 """
 
-import warnings
-
 import numpy as np
+from scipy.interpolate import interp1d
 
 
-def interp_pts(x_data, baseline_points=()):
+def interp_pts(x_data, baseline_points=(), interp_method='linear'):
     """
     Creates a baseline by interpolating through input points.
 
@@ -25,40 +20,31 @@ def interp_pts(x_data, baseline_points=()):
         The x-values of the measured data.
     baseline_points : array-like, shape (n, 2)
         An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
-        each point representing the baseline. Must be at least two points
-        to have a non-zero baseline.
+        each point representing the baseline.
+    interp_method : string, optional
+        The method to use for interpolation. See :func:`scipy.interpolation.interp1d`
+        for all options. Default is 'linear', which connects each point with
+        a line segment.
 
     Returns
     -------
     baseline : numpy.ndarray, shape (N,)
-        The baseline array constructed from connecting line segments between
+        The baseline array constructed from interpolating between
         each input baseline point.
     dict
         An empty dictionary, just to match the output of all other algorithms.
 
-    Warns
-    -----
-    UserWarning
-        Raised if there are less than two points in baseline_points.
-
     Notes
     -----
-    Assumes the background is represented by lines connecting each of the
-    specified background points.
-
     This method is only suggested for use within user-interfaces.
 
     """
-    #TODO allow polynomial and spline interpolation
     x = np.asarray(x_data)
-    baseline = np.zeros(x.shape[0])
-    if len(baseline_points) < 2:
-        warnings.warn('there must be at least 2 background points to create a baseline')
-    else:
-        points = sorted(baseline_points, key=lambda p: p[0])
-        for i in range(len(points) - 1):
-            x_points, y_points = zip(*points[i:i + 2])
-            segment = (x >= x_points[0]) & (x <= x_points[1])
-            baseline[segment] = np.linspace(*y_points, x[segment].shape[0])
+    points = np.asarray(baseline_points).T
+
+    interpolator = interp1d(
+        *points, kind=interp_method, bounds_error=False, fill_value=0
+    )
+    baseline = interpolator(np.linspace(np.nanmin(x), np.nanmax(x), x.shape[0]))
 
     return baseline, {}
