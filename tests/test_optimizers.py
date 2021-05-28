@@ -144,3 +144,10 @@ class TestAdaptiveMinMax(AlgorithmTester):
     @pytest.mark.parametrize('poly_order', (None, 0, [0], (0, 1)))
     def test_polyorder_inputs(self, poly_order):
         super()._test_output(self.y, self.y, self.x, poly_order)
+
+
+    @pytest.mark.parametrize('poly_order', (0, [0], (0, 1)))
+    def test_polyorder_outputs(self, poly_order):
+        """Ensures that the correct polynomial orders were used."""
+        _, params = super()._call_func(self.y, self.x, poly_order)
+        assert params['poly_order'] == (0, 1)

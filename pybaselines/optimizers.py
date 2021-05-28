@@ -390,7 +390,7 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         poly_orders = (poly_order, poly_order + 1)
     elif poly_order is not None:
         if len(poly_order) == 1:
-            poly_orders = (poly_order[0], poly_order[0])
+            poly_orders = (poly_order[0], poly_order[0] + 1)
         else:
             poly_orders = (poly_order[0], poly_order[1])
     else:
