@@ -174,13 +174,15 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         The minimum value for the `lam` or `poly_order` value to use with the
         indicated method. If using a polynomial method, `min_value` must be an
         integer. If using a Whittaker-smoothing-based method, `min_value` should
-        be the exponent to raise to the power of 10 (eg. `min_value`=2 -> `lam`=10**2).
+        be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
+        designates a `lam` value of 10**2).
         Default is 2.
     max_value : int or float, optional
         The maximum value for the `lam` or `poly_order` value to use with the
         indicated method. If using a polynomial method, `max_value` must be an
         integer. If using a Whittaker-smoothing-based method, `max_value` should
-        be the exponent to raise to the power of 10 (eg. `max_value`=3 -> `lam`=10**3).
+        be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
+        designates a `lam` value of 10**3).
         Default is 8.
     step : int or float, optional
         The step size for iterating the parameter value from `min_value` to `max_value`.

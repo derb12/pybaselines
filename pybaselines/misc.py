@@ -22,9 +22,9 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear'):
         An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
         each point representing the baseline.
     interp_method : string, optional
-        The method to use for interpolation. See :func:`scipy.interpolation.interp1d`
-        for all options. Default is 'linear', which connects each point with
-        a line segment.
+        The method to use for interpolation. See :class:`scipy.interpolate.interp1d`
+        for all options. Default is 'linear', which connects each point with a
+        line segment.
 
     Returns
     -------
@@ -37,6 +37,10 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear'):
     Notes
     -----
     This method is only suggested for use within user-interfaces.
+
+    Regions of the baseline where `x_data` is less than the minimum x-value
+    or greater than the maximum x-value in `baseline_points` will be assigned
+    values of 0.
 
     """
     x = np.asarray(x_data)

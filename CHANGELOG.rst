@@ -2,6 +2,72 @@
 Changelog
 =========
 
+Version 0.4.0 (2021-05-30)
+--------------------------
+
+This is a minor version with new features, bug fixes, and deprecations.
+
+New Features
+~~~~~~~~~~~~
+
+* Significantly reduced both the calculation time and memory usage of polynomial.loess.
+  For example, getting the baseline for a dataset with 20,000 points now takes ~12 seconds
+  and ~0.7 Gb of memory compared to ~55 seconds and ~3 Gb of memory in version 0.3.
+* Added a `conserve_memory` parameter to polynomial.loess that will recalculate the distance
+  kernels each iteration, which is slower than the default but uses very little memory. For
+  example, using loess with `conserve_memory` set to True on a dataset with 20,000 points
+  takes ~18 seconds while using ~0 Gb of memory.
+* Allow more user inputs for optimizers.optimize_extended_range to allow specifying the range
+  of `lam`/`poly_order` values to test and to have more control over the added lines and
+  Gaussians on the sides.
+* Added a constant called PERMC_SPEC (accessed from pybaselines.utils.PERMC_SPEC),
+  which is used by SciPy's sparse solver when using Whittaker-smoothing-based algorithms.
+  Changed the default value to "NATURAL", which reduced the computation time of all
+  Whittaker-smoothing-based algorithms by ~5-35% compared to other permc_spec options
+  on the tested system.
+* misc.interp_pts (formerly manual.linear_interp) now allows specifying any interpolation
+  method supported by scipy.interpolate.interp1d, allowing for methods such as spline
+  interpolation.
+
+Bug Fixes
+~~~~~~~~~
+
+* Fixed poly_order calculation for optimizers.adaptive_minmax when poly_order was a
+  single item within a container.
+* Potential fix for namespace error with utils; accessing pybaselines.utils gave an
+  attribute error in very specific envinronments, so changed the import order in
+  pybaselines.__init__ to potentially fix it. Updated the quick start example in case
+  the fix is not correct so that the example will still work.
+* Increased minimum NumPy version to 1.14 to use rcond=None with numpy.linalg.lstsq.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* polynomial.loess now allows inputting weights, specifying a `use_original` keyword for
+  thresholding to match the modpoly and imodpoly functions, and specifying a `return_coef`
+  keyword to allow returning the polynomial coefficients for each x-value to recreate
+  the fitted polynomial, to match all other polynomial functions.
+* Changed the default `smooth_half_window` value in window.noise_median, window.snip, and
+  morphological.mormol to None, rather than being fixed values. Each function sets its default
+  slightly different but still follows the behavior in previous versions, except for
+  window.noise_median as noted below.
+* Changed default `smooth_half_window` value for window.noise_median to match specified
+  `half_window` value rather than 1.
+* Changed default `sigma` value for window.noise_median to scale with the specified
+  `smooth_half_window`, rather than being a fixed value.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Renamed pybaselines.manual to pybaselines.misc to allow for adding any future
+  miscellaneous algorithms that will not fit elsewhere.
+* Renamed the manual.linear_interp function to misc.interp_pts to reflect its more
+  general interpolation usage.
+* The parameter dictionary returned from Whittaker-smoothing-based functions
+  no longer includes 'roughness' and 'fidelity' values since the values were not used
+  elsewhere.
+
+
 Version 0.3.0 (2021-04-29)
 --------------------------
 

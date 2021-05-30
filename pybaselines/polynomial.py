@@ -4,6 +4,73 @@
 Created on Feb. 27, 2021
 @author: Donald Erb
 
+
+The function penalized_poly is adapted from MATLAB code from
+https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction
+(accessed March 18, 2021), which was licensed under the BSD-2-clause below.
+
+License: 2-clause BSD
+
+Copyright (c) 2012, Vincent Mazet
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in
+      the documentation and/or other materials provided with the distribution
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+
+The function loess is adapted from code from https://gist.github.com/agramfort/850437
+(accessed March 25, 2021), which was licensed under the BSD-3-clause below.
+
+# Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
+#
+# License: BSD (3-clause)
+Copyright (c) 2015, Alexandre Gramfort
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 """
 
 from math import ceil
@@ -519,8 +586,8 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
             * 'symmetric_truncated_quadratic'[7]_
             * 'asymmetric_huber'[7]_
             * 'symmetric_huber'[7]_
-            * 'asymmetric_indec'[9]_
-            * 'symmetric_indec'[9]_
+            * 'asymmetric_indec'[8]_
+            * 'symmetric_indec'[8]_
 
     threshold : float, optional
         The threshold value for the loss method, where the function goes from
@@ -561,17 +628,12 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     -----
     In baseline literature, this procedure is sometimes called "backcor".
 
-    Code was partially adapted from MATLAB code from [8]_.
-
     References
     ----------
     .. [7] Mazet, V., et al. Background removal from spectra by designing and
            minimising a non-quadratic cost function. Chemometrics and Intelligent
            Laboratory Systems, 2005, 76(2), 121–133.
-    .. [8] Vincent Mazet (2021). Background correction
-           (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction),
-           MATLAB Central File Exchange. Retrieved March 18, 2021.
-    .. [9] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+    .. [8] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
            Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
     """
@@ -895,8 +957,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         is None, which will use `fraction` * N to determine the number of points.
     scale : float, optional
         A scale factor applied to the weighted residuals to control the robustness
-        of the fit. Default is 3.0, as used in [10]_. Note that the original loess
-        procedure in [11]_ used a `scale` of 4.05.
+        of the fit. Default is 3.0, as used in [9]_. Note that the original loess
+        procedure in [10]_ used a `scale` of 4.05.
     poly_order : int, optional
         The polynomial order for fitting the baseline. Default is 1.
     tol : float, optional
@@ -905,14 +967,14 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         The maximum number of iterations. Default is 10.
     symmetric_weights : bool, optional
         If False (default), will apply weighting asymmetrically, with residuals
-        < 0 having a weight of 1, according to [10]_. If True, will apply weighting
+        < 0 having a weight of 1, according to [9]_. If True, will apply weighting
         the same for both positive and negative residuals, which is regular LOESS.
         If `use_threshold` is True, this parameter is ignored.
     use_threshold : bool, optional
         If False (default), will compute weights each iteration to perform the
         robust fitting, which is regular LOESS. If True, will apply a threshold
         on the data being fit each iteration, based on the maximum values of the
-        data and the fit baseline, as proposed by [12]_, similar to the modpoly
+        data and the fit baseline, as proposed by [11]_, similar to the modpoly
         and imodpoly techniques.
     num_std : float, optional
         The number of standard deviations to include when thresholding. Default
@@ -920,9 +982,9 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         `use_threshold` is True.
     use_original : bool, optional
         If False (default), will compare the baseline of each iteration with
-        the y-values of that iteration [13]_ when choosing minimum values for
+        the y-values of that iteration [12]_ when choosing minimum values for
         thresholding. If True, will compare the baseline with the original
-        y-values given by `data` [14]_. Only used if `use_threshold` is True.
+        y-values given by `data` [13]_. Only used if `use_threshold` is True.
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then will be an array with
         size equal to N and all values set to 1. Only used if `use_threshold` is
@@ -963,30 +1025,27 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     -----
     The iterative, robust, aspect of the fitting can be achieved either through
     reweighting based on the residuals (the typical usage), or thresholding the
-    fit data based on the residuals, as proposed by [12]_, similar to the modpoly
+    fit data based on the residuals, as proposed by [11]_, similar to the modpoly
     and imodpoly techniques.
 
     In baseline literature, this procedure is sometimes called "rbe", meaning
     "robust baseline estimate".
 
-    Code partially adapted from https://gist.github.com/agramfort/850437
-    (accessed March 25, 2021).
-
     References
     ----------
-    .. [10] Ruckstuhl, A.F., et al., Baseline subtraction using robust local
-            regression estimation. J. Quantitative Spectroscopy and Radiative
-            Transfer, 2001, 68, 179-193.
-    .. [11] Cleveland, W. Robust locally weighted regression and smoothing
+    .. [9] Ruckstuhl, A.F., et al., Baseline subtraction using robust local
+           regression estimation. J. Quantitative Spectroscopy and Radiative
+           Transfer, 2001, 68, 179-193.
+    .. [10] Cleveland, W. Robust locally weighted regression and smoothing
             scatterplots. Journal of the American Statistical Association,
             1979, 74(368), 829-836.
-    .. [12] Komsta, Ł. Comparison of Several Methods of Chromatographic
+    .. [11] Komsta, Ł. Comparison of Several Methods of Chromatographic
             Baseline Removal with a New Approach Based on Quantile Regression.
             Chromatographia, 2011, 73, 721-731.
-    .. [13] Gan, F., et al. Baseline correction by improved iterative polynomial
+    .. [12] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-    .. [14] Lieber, C., et al. Automated method for subtraction of fluorescence
+    .. [13] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
 
