@@ -1,28 +1,17 @@
 # -*- coding: utf-8 -*-
 """Whittaker-smoothing-based techniques for fitting baselines to experimental data.
 
-Whittaker
-    1) asls (Asymmetric Least Squares)
-    2) iasls (Improved Asymmetric Least Squares)
-    3) airpls (Adaptive iteratively reweighted penalized least squares)
-    4) arpls (Asymmetrically reweighted penalized least squares)
-    5) drpls (Doubly reweighted penalized least squares)
-    6) iarpls (Improved Asymmetrically reweighted penalized least squares)
-    7) aspls (Adaptive smoothness penalized least squares)
-    8) psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
-
 Created on Sept. 13, 2019
 @author: Donald Erb
 
 """
 
 import numpy as np
-from scipy.sparse import diags, identity
+from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
-from ._algorithm_setup import (_setup_polynomial, _setup_whittaker,
-                               difference_matrix)
-from .utils import _MIN_FLOAT, relative_difference
+from ._algorithm_setup import _setup_whittaker, _yx_arrays, difference_matrix
+from .utils import _MIN_FLOAT, PERMC_SPEC, relative_difference
 
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -78,7 +67,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
         raise ValueError('p must be between 0 and 1')
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         mask = (y > baseline)
         new_weights = p * mask + (1 - p) * (~mask)
         if relative_difference(weight_array, new_weights) < tol:
@@ -86,11 +75,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    residual = y - baseline
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -148,7 +133,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     """
     if p < 0 or p > 1:
         raise ValueError('p must be between 0 and 1')
-    y, x, *_ = _setup_polynomial(data, x_data)
+    y, x = _yx_arrays(data, x_data)
     if weights is None:
         baseline = np.polynomial.Polynomial.fit(x, y, 2)(x)
         mask = (y > baseline)
@@ -159,7 +144,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     diff_matrix_1 = lam_1 * diff_matrix_1.T * diff_matrix_1
     for _ in range(max_iter):
         weights_and_d1 = weight_matrix.T * weight_matrix + diff_matrix_1
-        baseline = spsolve(weights_and_d1 + diff_matrix, weights_and_d1 * y)
+        baseline = spsolve(weights_and_d1 + diff_matrix, weights_and_d1 * y, permc_spec=PERMC_SPEC)
         mask = (y > baseline)
         new_weights = p * mask + (1 - p) * (~mask)
         if relative_difference(weight_array, new_weights) < tol:
@@ -167,11 +152,8 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    residual = y - baseline
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline + residual.T * diff_matrix_1 * residual,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
+
     return baseline, params
 
 
@@ -216,7 +198,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     y_l1_norm = np.linalg.norm(y, 1)
     for i in range(1, max_iter + 1):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
         neg_mask = (residual < 0)
         # same as abs(residual[neg_mask]).sum() since residual[neg_mask] are all negative
@@ -226,10 +208,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         weight_array = np.exp(i * residual / residual_l1_norm) * neg_mask
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -274,21 +253,18 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
         neg_mask = residual < 0
         mean = np.mean(residual[neg_mask])
-        std = max(abs(np.std(residual[neg_mask])), _MIN_FLOAT)
+        std = max(np.std(residual[neg_mask]), _MIN_FLOAT)
         new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - mean)) / std))
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -335,15 +311,15 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, 2, weights)
     diff_matrix_1 = difference_matrix(y.shape[0], 1)
     diff_matrix_1 = diff_matrix_1.T * diff_matrix_1
-    identity_matrix = identity(y.shape[0])
+    identity_matrix = difference_matrix(y.shape[0], 0)
     for i in range(1, max_iter + 1):
         baseline = spsolve(
             weight_matrix + diff_matrix_1 + (identity_matrix - eta * weight_matrix) * diff_matrix,
-            weight_array * y
+            weight_array * y, permc_spec=PERMC_SPEC
         )
         residual = y - baseline
         neg_mask = residual < 0
-        std = max(abs(np.std(residual[neg_mask])), _MIN_FLOAT)
+        std = max(np.std(residual[neg_mask]), _MIN_FLOAT)
         inner = np.exp(i) * (residual - (2 * std - np.mean(residual[neg_mask]))) / std
         new_weights = 0.5 * (1 - (inner / (1 + abs(inner))))
         if relative_difference(weight_array, new_weights) < tol:
@@ -351,13 +327,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': (
-            (identity_matrix - eta * weight_matrix) * (baseline.T * diff_matrix * baseline)
-            + baseline.T * diff_matrix_1 * baseline
-        ),
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -403,9 +373,9 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
     y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     for i in range(1, max_iter + 1):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
-        std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
+        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
         inner = np.exp(i) * (residual - 2 * std) / std
         new_weights = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
         if relative_difference(weight_array, new_weights) < tol:
@@ -413,10 +383,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params
 
@@ -456,6 +423,8 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'alpha': numpy.ndarray, shape (N,)
+            The array of alpha values used for fitting the data in the final iteration.
 
     References
     ----------
@@ -472,22 +441,20 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     # Use a sparse matrix rather than an array for alpha in order to keep sparcity.
     alpha_matrix = diags(alpha_array, format='csr')
     for i in range(1, max_iter + 1):
-        baseline = spsolve(weight_matrix + alpha_matrix * diff_matrix, weight_array * y)
+        baseline = spsolve(
+            weight_matrix + alpha_matrix * diff_matrix, weight_array * y, permc_spec=PERMC_SPEC
+        )
         residual = y - baseline
-        std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
+        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
         new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
         abs_d = abs(residual)
-        alpha_matrix.setdiag(abs_d / np.nanmax(abs_d))
+        alpha_matrix.setdiag(abs_d / np.max(abs_d))
 
-    params = {
-        'roughness': baseline.T * alpha_matrix * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array,
-        'alpha': alpha_matrix.data[0]
-    }
+    params = {'weights': weight_array, 'alpha': alpha_matrix.data[0]}
 
     return baseline, params
 
@@ -564,7 +531,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
         k = np.std(y) / 10
 
     for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
         residual = y - baseline
         mask = residual > 0
         new_weights = mask * p * np.exp(-residual / k) + (~mask) * (1 - p)
@@ -573,9 +540,6 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
 
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array
-    }
+    params = {'weights': weight_array}
 
     return baseline, params

@@ -4,10 +4,24 @@
 Created on March 5, 2021
 @author: Donald Erb
 
+Attributes
+----------
+PERMC_SPEC : str
+    A string indicating the method used for sparsity preservation when solving
+    sparse linear equations, such as those used for the Whittaker-smoothing-based
+    algorithms. See :func:`scipy.sparse.linalg.spsolve` for more information.
+    Default value is "NATURAL", which was ~5-35% faster for all Whittaker
+    functions compared to the other `permc_spec` options (tested on a computer with
+    Windows 10, Intel i5-7200U CPU, scipy version 1.6.1). Times may vary based on
+    computer os/architecture, number of data points, and the Whittaker-smoothing-based
+    function used.
+
 """
 
 import numpy as np
 
+
+PERMC_SPEC = 'NATURAL'
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
 _MIN_FLOAT = np.finfo(float).eps
@@ -217,11 +231,6 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
     -------
     numpy.ndarray, shape (N,)
         The smoothed input array.
-
-    Notes
-    -----
-    Mirrors the data near the edges so that convolution does not
-    produce edge effects.
 
     """
     padding = (min(data.shape[0], kernel.shape[0]) // 2)

@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines import polynomial
 
-from .conftest import get_data, AlgorithmTester
+from .conftest import AlgorithmTester, get_data
 
 
 class TestPoly(AlgorithmTester):
@@ -202,3 +202,12 @@ class TestLoess(AlgorithmTester):
     def test_list_output(self):
         y_list = self.y.tolist()
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_x_ordering(self):
+        """Ensures arrays are correctly sorted within the function."""
+        reverse_x = self.x[::-1]
+        reverse_y = self.y[::-1]
+        regular_inputs_result = self._call_func(self.y, self.x)[0]
+        reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
+
+        assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])

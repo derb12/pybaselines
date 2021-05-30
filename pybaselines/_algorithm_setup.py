@@ -6,6 +6,8 @@ Created on March 31, 2021
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.sparse import diags
@@ -21,8 +23,8 @@ def difference_matrix(data_size, diff_order=2):
     ----------
     data_size : int
         The number of data points.
-    diff_order : {2, 1, 3, 4, 5}, optional
-        The integer differential order; either 1, 2, 3, 4, or 5. Default is 2.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
 
     Returns
     -------
@@ -32,36 +34,69 @@ def difference_matrix(data_size, diff_order=2):
     Raises
     ------
     ValueError
-        Raised if diff_order is not 1, 2, 3, 4, or 5.
+        Raised if diff_order is negative.
 
     Notes
     -----
     Most baseline algorithms use 2nd order differential matrices when
     doing penalized least squared fitting.
 
-    It would be possible to support any differential order by doing
-    np.diff(np.eye(data_size), diff_order), but the resulting matrix could
-    cause issues if data_size is large. Therefore, it's better to only
-    provide sparse arrays for the most commonly used differential orders.
-
     The resulting matrices are transposes of the result of
-    np.diff(np.eye(data_size), diff_order). Not sure why there is a discrepancy,
-    but this implementation allows using the differential matrices are they
-    are written in various publications, ie. D.T * D rather than having to
-    do D * D.T.
+    np.diff(np.eye(data_size), diff_order). This implementation allows using
+    the differential matrices are they are written in various publications,
+    ie. D.T * D rather than having to do D * D.T.
 
     """
-    if diff_order not in (1, 2, 3, 4, 5):
-        raise ValueError('The differential order must be 1, 2, 3, 4, or 5')
-    diagonals = {
-        1: [-1, 1],
-        2: [1, -2, 1],
-        3: [-1, 3, -3, 1],
-        4: [1, -4, 6, -4, 1],
-        5: [-1, 5, -10, 10, -5, 1]
-    }[diff_order]
+    if diff_order < 0:
+        raise ValueError('the differential order must be >= 0')
+    if diff_order > data_size:
+        # do not issue warning or exception to maintain parity with np.diff
+        diff_order = data_size
 
-    return diags(diagonals, list(range(diff_order + 1)), shape=(data_size - diff_order, data_size))
+    diagonals = np.zeros(2 * diff_order + 1)
+    diagonals[diff_order] = 1
+    for _ in range(diff_order):
+        diagonals = diagonals[:-1] - diagonals[1:]
+
+    return diags(diagonals, np.arange(diff_order + 1), shape=(data_size - diff_order, data_size))
+
+
+def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
+    """
+    Converts input data into numpy arrays and provides x data if none is given.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1. to 1. with N points.
+    x_min : float, optional
+        The minimum x-value if `x_data` is None. Default is -1.
+    x_max : float, optional
+        The maximum x-value if `x_data` is None. Default is 1.
+
+    Returns
+    -------
+    y : numpy.ndarray, shape (N,)
+        A numpy array of the y-values of the measured data.
+    x : numpy.ndarray, shape (N,)
+        A numpy array of the x-values of the measured data, or a created array.
+
+    Notes
+    -----
+    Does not change the scale/domain of the input `x_data` if it is given, only
+    converts it to an array.
+
+    """
+    y = np.asarray(data)
+    if x_data is None:
+        x = np.linspace(x_min, x_max, y.shape[0])
+    else:
+        x = np.asarray(x_data)
+
+    return y, x
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None):
@@ -76,8 +111,8 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
         The smoothing parameter, lambda. Typical values are between 10 and
         1e8, but it strongly depends on the penalized least square method
         and the differential order.
-    diff_order : {2, 1, 3, 4, 5}, optional
-        The integer differential order; either 1, 2, 3, 4, or 5. Default is 2.
+    diff_order : int, optional
+        The integer differential order; must be greater than 0. Default is 2.
     weights : array-like, shape (M,), optional
         The weighting array. If None (default), then will be an array with
         shape (M,) and all values set to 1.
@@ -94,13 +129,34 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
 
+    Raises
+    ------
+    ValueError
+        Raised is `diff_order` is less than 1.
+
+    Warns
+    -----
+    UserWarning
+        Raised if `diff_order` is greater than 3.
+
     """
     y = np.asarray(data)
+    if diff_order < 1:
+        raise ValueError(
+            'the differential order must be > 0 for Whittaker-smoothing-based methods'
+        )
+    elif diff_order > 3:
+        warnings.warn((
+            'differential orders greater than 3 can have numerical issues;'
+            ' consider using a differential order of 2 or 1 instead'
+        ))
     diff_matrix = difference_matrix(y.shape[0], diff_order)
+
     if weights is None:
         weight_array = np.ones(y.shape[0])
     else:
         weight_array = np.asarray(weights).copy()
+
     return y, lam * diff_matrix.T * diff_matrix, diags(weight_array), weight_array
 
 
@@ -176,7 +232,7 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
         The y-values of the measured data, converted to a numpy array.
     x : numpy.ndarray, shape (N,)
         The x-values for fitting the polynomial, converted to fit within
-        the domain [-1, 1].
+        the domain [-1., 1.].
     weight_array : numpy.ndarray, shape (N,)
         The weight array for fitting a polynomial to the data.
     original_domain : numpy.ndarray, shape (2,)
@@ -194,19 +250,17 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     Notes
     -----
     If x_data is given, its domain is reduced from [min(x_data), max(x_data)]
-    to [-1, 1] to improve the numerical stability of calculations; since the
+    to [-1., 1.] to improve the numerical stability of calculations; since the
     Vandermonde matrix goes from x^0 to x^poly_order, large values of x would
     otherwise cause difficulty when doing least squares minimization.
 
     """
-    y = np.asarray(data)
+    y, x = _yx_arrays(data, x_data)
     if x_data is None:
-        x = np.linspace(-1, 1, y.shape[0])
-        original_domain = np.array([-1, 1])
+        original_domain = np.array([-1., 1.])
     else:
-        x = np.asarray(x_data)
         original_domain = np.polynomial.polyutils.getdomain(x)
-        x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1, 1]))
+        x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1., 1.]))
     if weights is not None:
         weight_array = np.asarray(weights).copy()
     else:

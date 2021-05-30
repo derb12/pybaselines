@@ -19,7 +19,7 @@ pybaselines
     :alt: BSD 3-clause license
 
 
-pybaselines is a collection of baseline algorithms for fitting experimental data.
+pybaselines is a collection of algorithms for estimating the baseline of experimental data.
 
 * For Python 3.6+
 * Open Source: BSD 3-Clause License
@@ -83,9 +83,9 @@ e) Optimizers (pybaselines.optimizers)
     2) optimize_extended_range
     3) adaptive_minmax (Adaptive MinMax)
 
-f) Manual methods (pybaselines.manual)
+f) Miscellaneous methods (pybaselines.misc)
 
-    1) linear_interp (Linear interpolation between points)
+    1) interp_pts (Interpolation between points)
 
 
 Installation
@@ -97,8 +97,8 @@ Dependencies
 pybaselines requires `Python <https://python.org>`_ version 3.6 or later
 and the following libraries:
 
-* `NumPy <https://numpy.org>`_ (>= 1.9)
-* `SciPy <https://www.scipy.org/scipylib/index.html>`_
+* `NumPy <https://numpy.org>`_ (>= 1.14)
+* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.11)
 
 
 All of the required libraries should be automatically installed when
@@ -136,7 +136,7 @@ Once the repository is downloaded, it can be installed with:
 .. code-block:: console
 
     cd pybaselines
-    python setup.py install
+    pip install .
 
 
 .. _Github repo: https://github.com/derb12/pybaselines
@@ -160,23 +160,24 @@ A simple example is shown below.
 
 .. code-block:: python
 
-    import pybaselines
     import matplotlib.pyplot as plt
     import numpy as np
+    import pybaselines
+    from pybaselines import utils
 
     x = np.linspace(100, 4200, 1000)
     # a measured signal containing several Gaussian peaks
     signal = (
-        pybaselines.utils.gaussian(x, 2, 700, 50)
-        + pybaselines.utils.gaussian(x, 3, 1200, 150)
-        + pybaselines.utils.gaussian(x, 5, 1600, 100)
-        + pybaselines.utils.gaussian(x, 4, 2500, 50)
-        + pybaselines.utils.gaussian(x, 7, 3300, 100)
+        utils.gaussian(x, 2, 700, 50)
+        + utils.gaussian(x, 3, 1200, 150)
+        + utils.gaussian(x, 5, 1600, 100)
+        + utils.gaussian(x, 4, 2500, 50)
+        + utils.gaussian(x, 7, 3300, 100)
     )
     # baseline is a polynomial plus a broad gaussian
     true_baseline = (
         10 + 0.001 * x
-        + pybaselines.utils.gaussian(x, 6, 2000, 2000)
+        + utils.gaussian(x, 6, 2000, 2000)
     )
     noise = np.random.default_rng(1).normal(0, 0.2, x.size)
 

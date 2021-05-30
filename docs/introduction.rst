@@ -50,6 +50,6 @@ e) Optimizers (:mod:`pybaselines.optimizers`)
     2) optimize_extended_range
     3) adaptive_minmax (Adaptive MinMax)
 
-f) Manual methods (:mod:`pybaselines.manual`)
+f) Miscellaneous methods (:mod:`pybaselines.misc`)
 
-    1) linear_interp (Linear interpolation between points)
+    1) interp_pts (Interpolation between points)

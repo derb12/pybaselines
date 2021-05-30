@@ -1,10 +1,9 @@
 include LICENSE.txt
 include README.rst
 include LICENSES_bundled.txt
+include CHANGELOG.rst
 
-exclude .readthedocs.yaml
-exclude .gitattributes
-exclude .gitignore
+exclude .*
 
 recursive-exclude .git *
 recursive-exclude .github *

@@ -14,7 +14,7 @@ in pybaselines to distinguish them from polynomial techniques that also take
 advantage of weighted least squares (like :func:`.loess`) and penalized least
 squares (like :func:`.penalized_poly`).
 
-The general idea behnind WSB algorithms is to make the baseline match the measured
+The general idea behind WSB algorithms is to make the baseline match the measured
 data as well as it can while also penalizing the roughness of the baseline. The
 resulting general function that is minimized to determine the baseline is then
 

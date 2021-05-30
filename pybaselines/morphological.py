@@ -1,26 +1,17 @@
 # -*- coding: utf-8 -*-
 """Different techniques for fitting baselines to experimental data.
 
-Morphological
-    1) mpls (Morphological Penalized Least Squares)
-    2) mor (Morphological)
-    3) imor (Improved Morphological)
-    4) mormol (Morphological and Mollified Baseline)
-    5) amormol (Averaging Morphological and Mollified Baseline)
-    6) rolling_ball (Rolling Ball Baseline)
-
 Created on March 5, 2021
 @author: Donald Erb
 
 """
 
 import numpy as np
-from scipy.ndimage import (grey_closing, grey_dilation, grey_erosion,
-                           grey_opening, uniform_filter1d)
+from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import _optimize_window, _setup_morphology, _setup_whittaker
-from .utils import pad_edges, padded_convolve, relative_difference
+from .utils import PERMC_SPEC, pad_edges, padded_convolve, relative_difference
 
 
 # make _optimize_window available to users and document it so that
@@ -213,14 +204,9 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             w[index] = 1 - p
 
     _, diff_matrix, weight_matrix, weight_array = _setup_whittaker(y, lam, diff_order, w)
-    baseline = spsolve(weight_matrix + diff_matrix, weight_array * y)
+    baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
 
-    residual = y - baseline
-    params = {
-        'roughness': baseline.T * diff_matrix * baseline,
-        'fidelity': residual.T * weight_matrix * residual, 'weights': weight_array,
-        'half_window': half_wind
-    }
+    params = {'weights': weight_array, 'half_window': half_wind}
     return baseline, params
 
 
@@ -418,7 +404,7 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
     return baseline[data_bounds], {'half_window': half_wind}
 
 
-def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
+def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=None,
            pad_kwargs=None, **window_kwargs):
     """
     Iterative morphological and mollified (MorMol) baseline.
@@ -437,7 +423,8 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
         The maximum number of iterations. Default is 200.
     smooth_half_window : int, optional
         The half-window to use for smoothing the data before performing the
-        morphological operation. Default is 1.
+        morphological operation. Default is None, which will use a value of 1,
+        which gives no smoothing.
     pad_kwargs : dict, optional
         A dictionary of keyword arguments to pass to :func:`.pad_edges` for
         padding the edges of the data to prevent edge effects from convolution.
@@ -479,6 +466,8 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=1,
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
     window_size = 2 * half_wind + 1
     kernel = _mollifier_kernel(window_size)
+    if smooth_half_window is None:
+        smooth_half_window = 1
     smooth_kernel = _mollifier_kernel(smooth_half_window)
     data_bounds = slice(window_size, -window_size)
 

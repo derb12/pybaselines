@@ -4,11 +4,6 @@
 Functions in this module make use of other baseline algorithms in
 pybaselines to provide better results or optimize parameters.
 
-Optimizers
-    1) collab_pls (Collaborative Penalized Least Squares)
-    2) optimize_extended_range
-    3) adaptive_minmax (Adaptive MinMax)
-
 Created on March 3, 2021
 @author: Donald Erb
 
@@ -19,8 +14,8 @@ from math import ceil
 import numpy as np
 
 from . import morphological, polynomial, whittaker
-from ._algorithm_setup import _setup_polynomial
-from .utils import gaussian
+from ._algorithm_setup import _setup_polynomial, _yx_arrays
+from .utils import _get_edges, gaussian
 
 
 def _get_function(method, modules):
@@ -142,7 +137,9 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
     return best_baseline, min_var, other_params
 
 
-def optimize_extended_range(data, x_data=None, method='asls', side='both', **method_kwargs):
+def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
+                            height_scale=1., sigma_scale=1. / 12., min_value=2,
+                            max_value=8, step=1, pad_kwargs=None, **method_kwargs):
     """
     Extends data and finds the best parameter value for the given baseline method.
 
@@ -162,6 +159,38 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
         to use for fitting the baseline. Default is 'aspls'.
     side : {'both', 'left', 'right'}, optional
         The side of the measured data to extend. Default is 'both'.
+    width_scale : float, optional
+        The number of data points added to each side is `width_scale` * N. Default
+        is 0.1.
+    height_scale : float, optional
+        The height of the added Gaussian peak(s) is calculated as
+        `height_scale` * max(`data`). Default is 1.
+    sigma_scale : float, optional
+        The sigma value for the added Gaussian peak(s) is calculated as
+        `sigma_scale` * `width_scale` * N. Default is 1/12, which will make
+        the Gaussian span +- 6 sigma, making its total width about half of the
+        added length.
+    min_value : int or float, optional
+        The minimum value for the `lam` or `poly_order` value to use with the
+        indicated method. If using a polynomial method, `min_value` must be an
+        integer. If using a Whittaker-smoothing-based method, `min_value` should
+        be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
+        designates a `lam` value of 10**2).
+        Default is 2.
+    max_value : int or float, optional
+        The maximum value for the `lam` or `poly_order` value to use with the
+        indicated method. If using a polynomial method, `max_value` must be an
+        integer. If using a Whittaker-smoothing-based method, `max_value` should
+        be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
+        designates a `lam` value of 10**3).
+        Default is 8.
+    step : int or float, optional
+        The step size for iterating the parameter value from `min_value` to `max_value`.
+        If using a polynomial method, `step` must be an integer.
+    pad_kwargs : dict, optional
+        A dictionary of options to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from convolution. Default
+        is None, which will use an empty dictionary.
     **method_kwargs
         Keyword arguments to pass to the selected `method` function.
 
@@ -175,6 +204,9 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
         * 'optimal_parameter': int or float
             The `lam` or `poly_order` value that produced the lowest
             root-mean-squared-error.
+        * 'min_rmse': float
+            The minimum root-mean-squared-error obtained when using
+            the optimal parameter.
 
         Additional items depend on the output of the selected method.
 
@@ -182,6 +214,12 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
     ------
     ValueError
         Raised if `side` is not 'left', 'right', or 'both'.
+    TypeError
+        Raised if using a polynomial method and `min_value`, `max_value`, or
+        `step` is not an integer.
+    ValueError
+        Raised if using a Whittaker-smoothing-based method and `min_value`,
+        `max_value`, or `step` is greater than 100.
 
     Notes
     -----
@@ -201,11 +239,13 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
            Spectroscopy. 2012, 43(12), 1884-1894.
 
     """
-    if side.lower() not in ('left', 'right', 'both'):
+    method = method.lower()
+    side = side.lower()
+    if side not in ('left', 'right', 'both'):
         raise ValueError('side must be "left", "right", or "both"')
 
     fit_func = _get_function(method, (whittaker, polynomial, morphological))
-    y, x, *_ = _setup_polynomial(data, x_data)
+    y, x = _yx_arrays(data, x_data)
     sort_order = np.argsort(x)  # to ensure x is increasing
     x = x[sort_order]
     y = y[sort_order]
@@ -217,53 +257,69 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', **met
     fit_data = y
     lower_bound = upper_bound = 0
 
-    W = x.shape[0] // 10
-    #TODO use utils._get_edges
-
-    if side.lower() in ('right', 'both'):
-        added_x = np.linspace(max_x, max_x + x_range / 5, W)
-        line = np.polynomial.Polynomial.fit(
-            x[x > max_x - x_range / 20], y[x > max_x - x_range / 20], 1
-        )(added_x)
-        gaus = gaussian(added_x, np.nanmax(y), np.median(added_x), x_range / 50)
+    if pad_kwargs is None:
+        pad_kwargs = {}
+    added_window = int(x.shape[0] * width_scale)
+    added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
+    added_gaussian = gaussian(
+        np.linspace(-added_window / 2, added_window / 2, added_window),
+        height_scale * np.nanmax(y), 0, added_window * sigma_scale
+    )
+    if side in ('right', 'both'):
+        added_x = np.linspace(max_x, max_x + x_range * (width_scale / 2), added_window)
         fit_x_data = np.hstack((fit_x_data, added_x))
-        fit_data = np.hstack((fit_data, gaus + line))
-        known_background = line
-        upper_bound += W
-    if side.lower() in ('left', 'both'):
-        added_x = np.linspace(min_x - x_range / 5, min_x, W)
-        line = np.polynomial.Polynomial.fit(
-            x[x < min_x + x_range / 20], y[x < min_x + x_range / 20], 1
-        )(added_x)
-        gaus = gaussian(added_x, np.nanmax(y), np.median(added_x), x_range / 50)
+        fit_data = np.hstack((fit_data, added_gaussian + added_right))
+        known_background = added_right
+        upper_bound += added_window
+    if side in ('left', 'both'):
+        added_x = np.linspace(min_x - x_range * (width_scale / 2), min_x, added_window)
         fit_x_data = np.hstack((added_x, fit_x_data))
-        fit_data = np.hstack((gaus + line, fit_data))
-        known_background = np.hstack((known_background, line))
-        lower_bound += W
+        fit_data = np.hstack((added_gaussian + added_left, fit_data))
+        known_background = np.hstack((known_background, added_left))
+        lower_bound += added_window
 
-    if method.lower() in ('iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly'):
+    if method in ('iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly', 'loess'):
         method_kwargs['x_data'] = fit_x_data
 
-    if 'poly' in method.lower():
-        baseline, best_val, method_params = _iter_solve(
-            fit_func, fit_data, known_background, lower_bound, upper_bound, 'poly_order',
-            0, 20, 1, 4, **method_kwargs
-        )
+    if 'poly' in method or method == 'loess':
+        if any(not isinstance(val, int) for val in (min_value, max_value, step)):
+            raise TypeError((
+                'min_value, max_value, and step must all be integers when'
+                ' using a polynomial method'
+            ))
+        param_name = 'poly_order'
     else:
-        _, best_val, _ = _iter_solve(
-            fit_func, fit_data, known_background, lower_bound, upper_bound, 'lam',
-            1, 50, 1, 2, **method_kwargs
-        )
-        baseline, best_val, method_params = _iter_solve(
-            fit_func, fit_data, known_background, lower_bound, upper_bound, 'lam',
-            best_val - 0.9, best_val + 1.1, 0.1, 2, **method_kwargs
-        )
-    method_params['optimal_parameter'] = best_val
+        if any(val > 100 for val in (min_value, max_value, step)):
+            raise ValueError((
+                'min_value, max_value, and step should be the power of 10 to use '
+                '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
+                'thus should not be greater than 100'
+            ))
+        param_name = 'lam'
 
-    return (
-        baseline[[val[0] for val in sorted(enumerate(sort_order), key=lambda v: v[1])]],
-        method_params
-    )
+    min_rmse = np.inf
+    best_val = None
+    #TODO maybe switch to linspace since arange is inconsistent when using floats
+    for var in np.arange(min_value, max_value + step, step):
+        if param_name == 'lam':
+            method_kwargs[param_name] = 10**var
+        else:
+            method_kwargs[param_name] = var
+        fit_baseline, params = fit_func(fit_data, **method_kwargs)
+        #TODO change the known baseline so that np.roll does not have to be
+        # calculated each time, since it requires additional time
+        rmse = np.sqrt(np.mean(
+            (known_background - np.roll(fit_baseline, upper_bound)[:upper_bound + lower_bound])**2
+        ))
+
+        if rmse < min_rmse:
+            baseline = fit_baseline[lower_bound:fit_baseline.shape[0] - upper_bound]
+            best_val = var
+            min_rmse = rmse
+
+    params.update({'optimal_parameter': best_val, 'min_rmse': min_rmse})
+
+    return baseline[np.argsort(sort_order)], params
 
 
 def _determine_polyorders(y, x, poly_order, weights, fit_function, **fit_kwargs):
@@ -390,7 +446,7 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         poly_orders = (poly_order, poly_order + 1)
     elif poly_order is not None:
         if len(poly_order) == 1:
-            poly_orders = (poly_order[0], poly_order[0])
+            poly_orders = (poly_order[0], poly_order[0] + 1)
         else:
             poly_orders = (poly_order[0], poly_order[1])
     else:

@@ -84,8 +84,9 @@ if __name__ == '__main__':
             (swima, (y,), {'extrapolate_window': 50})
         ),
         'optimizers': (
-            (optimize_extended_range, (y, x, 'aspls', 'both')),
-            (adaptive_minmax, (y, x)),
+            (optimize_extended_range, (y, x, 'aspls', 'both', 0.25),
+             {'pad_kwargs': {'extrapolate_window': 50}}),
+            (adaptive_minmax, (y, x), {'constrained_fraction': 0.05}),
         )
     }
 
