@@ -29,9 +29,9 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given p weight, and values less than the baseline
         will be given p-1 weight. Default is 1e-2.
-    diff_order : {2, 1, 3}, optional
-        The order of the differential matrix. Default is 2 (second order
-        differential matrix).
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional
@@ -168,9 +168,9 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
-    diff_order : {2, 1, 3}, optional
-        The order of the differential matrix. Default is 2 (second order
-        differential matrix).
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional
@@ -224,9 +224,9 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
-    diff_order : {2, 1, 3}, optional
-        The order of the differential matrix. Default is 2 (second order
-        differential matrix).
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional
@@ -343,9 +343,9 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
-    diff_order : {2, 1, 3}, optional
-        The order of the differential matrix. Default is 2 (second order
-        differential matrix).
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional
@@ -399,9 +399,9 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
-    diff_order : {2, 1, 3}, optional
-        The order of the differential matrix. Default is 2 (second order
-        differential matrix).
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional
@@ -480,9 +480,9 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
         will produce similar results to :func:`.asls`.
-    diff_order : {2, 1, 3}, optional
-        The order of the differential matrix. Default is 2 (second order
-        differential matrix).
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional

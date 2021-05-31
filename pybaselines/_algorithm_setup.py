@@ -39,12 +39,12 @@ def difference_matrix(data_size, diff_order=2):
     Notes
     -----
     Most baseline algorithms use 2nd order differential matrices when
-    doing penalized least squared fitting.
+    doing penalized least squared fitting or Whittaker-smoothing-based fitting.
 
     The resulting matrices are transposes of the result of
     np.diff(np.eye(data_size), diff_order). This implementation allows using
     the differential matrices are they are written in various publications,
-    ie. D.T * D rather than having to do D * D.T.
+    ie. D.T * D.
 
     """
     if diff_order < 0:
