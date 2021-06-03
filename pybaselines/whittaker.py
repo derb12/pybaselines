@@ -454,7 +454,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
         abs_d = abs(residual)
         alpha_matrix.setdiag(abs_d / np.max(abs_d))
 
-    params = {'weights': weight_array, 'alpha': alpha_matrix.data[0]}
+    params = {'weights': weight_array, 'alpha': alpha_matrix.data}
 
     return baseline, params
 
