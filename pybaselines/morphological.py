@@ -8,10 +8,10 @@ Created on March 5, 2021
 
 import numpy as np
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
-from scipy.sparse.linalg import spsolve
+from scipy.linalg import solve_banded
 
 from ._algorithm_setup import _optimize_window, _setup_morphology, _setup_whittaker
-from .utils import PERMC_SPEC, pad_edges, padded_convolve, relative_difference
+from .utils import pad_edges, padded_convolve, relative_difference
 
 
 # make _optimize_window available to users and document it so that
@@ -203,8 +203,13 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
             w[index] = 1 - p
 
-    _, diff_matrix, weight_matrix, weight_array = _setup_whittaker(y, lam, diff_order, w)
-    baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
+    _, diff_matrix, weight_array = _setup_whittaker(
+        y, lam, diff_order, w, 'csc', None, False
+    )
+
+    ddata = diff_matrix.todia().data[::-1]
+    ddata[diff_order] = ddata[diff_order] + weight_array
+    baseline = solve_banded((diff_order, diff_order), ddata, weight_array * y, overwrite_b=True)
 
     params = {'weights': weight_array, 'half_window': half_wind}
     return baseline, params

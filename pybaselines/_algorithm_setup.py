@@ -15,7 +15,7 @@ from scipy.sparse import diags
 from .utils import pad_edges, relative_difference
 
 
-def difference_matrix(data_size, diff_order=2):
+def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
     Creates an n-order differential matrix.
 
@@ -58,7 +58,12 @@ def difference_matrix(data_size, diff_order=2):
     for _ in range(diff_order):
         diagonals = diagonals[:-1] - diagonals[1:]
 
-    return diags(diagonals, np.arange(diff_order + 1), shape=(data_size - diff_order, data_size))
+    diff_matrix = diags(
+        diagonals, np.arange(diff_order + 1), shape=(data_size - diff_order, data_size),
+        format=diff_format
+    )
+
+    return diff_matrix
 
 
 def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
@@ -99,7 +104,8 @@ def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
     return y, x
 
 
-def _setup_whittaker(data, lam, diff_order=2, weights=None):
+def _setup_whittaker(data, lam, diff_order=2, weights=None, diff_format='csr',
+                     weight_format='csr', return_wt_matrix=True):
     """
     Sets the starting parameters for doing penalized least squares.
 
@@ -150,14 +156,18 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
             'differential orders greater than 3 can have numerical issues;'
             ' consider using a differential order of 2 or 1 instead'
         ))
-    diff_matrix = difference_matrix(y.shape[0], diff_order)
+    diff_matrix = difference_matrix(y.shape[0], diff_order, diff_format)
 
     if weights is None:
         weight_array = np.ones(y.shape[0])
     else:
         weight_array = np.asarray(weights).copy()
 
-    return y, lam * diff_matrix.T * diff_matrix, diags(weight_array), weight_array
+    if not return_wt_matrix:
+        return y, lam * diff_matrix.T * diff_matrix, weight_array
+
+    weight_matrix = diags(weight_array, format=weight_format)
+    return y, lam * diff_matrix.T * diff_matrix, weight_matrix, weight_array
 
 
 def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
