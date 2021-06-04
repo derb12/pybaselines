@@ -6,6 +6,8 @@ Created on March 20, 2021
 
 """
 
+import pytest
+
 from pybaselines import whittaker
 
 from .conftest import AlgorithmTester, get_data
@@ -27,6 +29,12 @@ class TestAsLS(AlgorithmTester):
         y_list = self.y.tolist()
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)
+
 
 class TestIAsLS(AlgorithmTester):
     """Class for testing iasls baseline."""
@@ -46,6 +54,12 @@ class TestIAsLS(AlgorithmTester):
     def test_list_input(self):
         y_list = self.y.tolist()
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)
 
 
 class TestAirPLS(AlgorithmTester):
@@ -148,3 +162,9 @@ class TestPsalsa(AlgorithmTester):
     def test_list_input(self):
         y_list = self.y.tolist()
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)

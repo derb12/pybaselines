@@ -113,8 +113,7 @@ def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
     return y, x
 
 
-def _setup_whittaker(data, lam, diff_order=2, weights=None, diff_format='csr',
-                     weight_format='csr', return_wt_matrix=True):
+def _setup_whittaker(data, lam, diff_order=2, weights=None):
     """
     Sets the starting parameters for doing penalized least squares.
 
@@ -136,10 +135,9 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, diff_format='csr',
     -------
     y : numpy.ndarray, shape (N,)
         The y-values of the measured data, converted to a numpy array.
-    scipy.sparse.dia.dia_matrix
+    scipy.sparse.csr.csr_matrix
         The product of lam * D.T * D, where D is the sparse diagonal matrix of
         the differential, and D.T is the transpose of D.
-    scipy.sparse.dia.dia_matrix
         The sparse weight matrix with the weighting array as the diagonal values.
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
@@ -154,6 +152,11 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, diff_format='csr',
     UserWarning
         Raised if `diff_order` is greater than 3.
 
+    Notes
+    -----
+    Uses 'csc' format for the difference matrix since it it the fastest
+    format for performing D.T * D (the result of which is 'csr' format).
+
     """
     y = np.asarray(data)
     if diff_order < 1:
@@ -165,18 +168,14 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, diff_format='csr',
             'differential orders greater than 3 can have numerical issues;'
             ' consider using a differential order of 2 or 1 instead'
         ))
-    diff_matrix = difference_matrix(y.shape[0], diff_order, diff_format)
+    diff_matrix = difference_matrix(y.shape[0], diff_order, 'csc')
 
     if weights is None:
         weight_array = np.ones(y.shape[0])
     else:
         weight_array = np.asarray(weights).copy()
 
-    if not return_wt_matrix:
-        return y, lam * diff_matrix.T * diff_matrix, weight_array
-
-    weight_matrix = diags(weight_array, format=weight_format)
-    return y, lam * diff_matrix.T * diff_matrix, weight_matrix, weight_array
+    return y, lam * diff_matrix.T * diff_matrix, weight_array
 
 
 def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):

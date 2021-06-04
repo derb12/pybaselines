@@ -7,12 +7,10 @@ Created on Sept. 13, 2019
 """
 
 import numpy as np
-from scipy.sparse import diags
-from scipy.sparse.linalg import spsolve
 from scipy.linalg import solve_banded
 
 from ._algorithm_setup import _setup_whittaker, _yx_arrays, difference_matrix
-from .utils import _MIN_FLOAT, PERMC_SPEC, relative_difference
+from .utils import _MIN_FLOAT, relative_difference
 
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -64,18 +62,16 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     Leiden University Medical Centre Report, 2005, 1(1).
 
     """
-    if p < 0 or p > 1:
+    if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
-    y, diff_matrix, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, 'csc', None, False
-    )
+    y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     ddata = diff_matrix.todia().data[::-1]
     lower_upper = (diff_order, diff_order)
     main_diag = ddata[diff_order].copy()
     for i in range(max_iter):
         ddata[diff_order] = main_diag + weight_array
         baseline = solve_banded(lower_upper, ddata, weight_array * y, overwrite_b=True)
-        mask = (y > baseline)
+        mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
         if relative_difference(weight_array, new_weights) < tol:
             break
@@ -137,28 +133,32 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
 
     """
-    if p < 0 or p > 1:
+    if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
     y, x = _yx_arrays(data, x_data)
     if weights is None:
         baseline = np.polynomial.Polynomial.fit(x, y, 2)(x)
-        mask = (y > baseline)
+        mask = y > baseline
         weights = p * mask + (1 - p) * (~mask)
 
-    _, diff_matrix, weight_matrix, weight_array = _setup_whittaker(
-        y, lam, 2, weights, 'csc', 'csc'
-    )
+    _, diff_matrix, weight_array = _setup_whittaker(data, lam, 2, weights)
     diff_matrix_1 = difference_matrix(y.shape[0], 1, 'csc')
     diff_matrix_1 = lam_1 * diff_matrix_1.T * diff_matrix_1
-    for _ in range(max_iter):
-        weights_and_d1 = weight_matrix.T * weight_matrix + diff_matrix_1
-        baseline = spsolve(weights_and_d1 + diff_matrix, weights_and_d1 * y, permc_spec=PERMC_SPEC)
-        mask = (y > baseline)
+    ddata = (diff_matrix + diff_matrix_1).todia().data[::-1]
+    lower_upper = (2, 2)
+    main_diag = ddata[2].copy()
+
+    d1_y = diff_matrix_1 * y
+    for i in range(max_iter):
+        weight_squared = weight_array * weight_array
+        ddata[2] = main_diag + weight_squared
+        baseline = solve_banded(lower_upper, ddata, weight_squared * y + d1_y, overwrite_b=True)
+        mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_diff = relative_difference(weight_array, new_weights)
+        if calc_diff < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array}
 
@@ -203,9 +203,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
     """
-    y, diff_matrix, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, 'csc', None, False
-    )
+    y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     y_l1_norm = np.linalg.norm(y, 1)
     ddata = diff_matrix.todia().data[::-1]
     lower_upper = (diff_order, diff_order)
@@ -214,7 +212,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         ddata[diff_order] = main_diag + weight_array
         baseline = solve_banded(lower_upper, ddata, weight_array * y, overwrite_b=True)
         residual = y - baseline
-        neg_mask = (residual < 0)
+        neg_mask = residual < 0
         # same as abs(residual[neg_mask]).sum() since residual[neg_mask] are all negative
         residual_l1_norm = -1 * residual[neg_mask].sum()
         if residual_l1_norm / y_l1_norm < tol:
@@ -264,9 +262,7 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
     """
-    y, diff_matrix, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, 'csc', None, False
-    )
+    y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     ddata = diff_matrix.todia().data[::-1]
     lower_upper = (diff_order, diff_order)
     main_diag = ddata[diff_order].copy()
@@ -326,16 +322,22 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(
-        data, lam, 2, weights, 'csc'
-    )
+    y, diff_matrix, weight_array = _setup_whittaker(data, lam, 2, weights)
     diff_matrix_1 = difference_matrix(y.shape[0], 1, 'csc')
     diff_matrix_1 = diff_matrix_1.T * diff_matrix_1
-    identity_matrix = difference_matrix(y.shape[0], 0, 'csr')
+    rollers = [-2, -1, 0, 1, 2]
+    lower_upper = (2, 2)
+
+    d1d2_data = (diff_matrix_1 + diff_matrix).todia().data[::-1]
+    d2_data = (difference_matrix(y.shape[0], 0, 'csr') - eta * diff_matrix).todia().data[::-1]
     for i in range(1, max_iter + 1):
-        baseline = spsolve(
-            weight_matrix + diff_matrix_1 + (identity_matrix - eta * weight_matrix) * diff_matrix,
-            weight_array * y, permc_spec=PERMC_SPEC
+        ddata_fit = d2_data * weight_array
+        for j, roll_val in enumerate(rollers):
+            ddata_fit[j] = np.roll(ddata_fit[j], roll_val)
+
+        baseline = solve_banded(
+            lower_upper, d1d2_data + ddata_fit[::-1],
+            weight_array * y, overwrite_b=True, overwrite_ab=True
         )
         residual = y - baseline
         neg_mask = residual < 0
@@ -345,7 +347,6 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array}
 
@@ -391,9 +392,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     59, 10933-10943.
 
     """
-    y, diff_matrix, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, 'csc', None, False
-    )
+    y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     ddata = diff_matrix.todia().data[::-1]
     lower_upper = (diff_order, diff_order)
     main_diag = ddata[diff_order].copy()
@@ -458,30 +457,32 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     Spectroscopy Letters, 2020, 53(3), 222-233.
 
     """
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, 'csr', 'csc'
-    )
+    y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     if alpha is None:
         alpha_array = np.ones_like(weight_array)
     else:
         alpha_array = np.asarray(alpha).copy()
-    # Use a sparse matrix rather than an array for alpha in order to keep sparcity.
-    alpha_matrix = diags(alpha_array, format='csc')
+    rollers = np.arange(-diff_order, diff_order + 1)
+
+    ddata = diff_matrix.todia().data[::-1]
+    lower_upper = (diff_order, diff_order)
     for i in range(1, max_iter + 1):
-        baseline = spsolve(
-            weight_matrix + alpha_matrix * diff_matrix, weight_array * y, permc_spec=PERMC_SPEC
-        )
+        ddata_fit = ddata * alpha_array
+        for j, val in enumerate(rollers):
+            ddata_fit[j] = np.roll(ddata_fit[j], val)
+        ddata_fit[diff_order] = ddata_fit[diff_order] + weight_array
+        baseline = solve_banded(lower_upper, ddata_fit[::-1], weight_array * y, overwrite_b=True)
         residual = y - baseline
-        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
+        std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
         new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_diff = relative_difference(weight_array, new_weights)
+        if calc_diff < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
         abs_d = abs(residual)
-        alpha_matrix.setdiag(abs_d / np.max(abs_d))
+        alpha_array = abs_d / np.max(abs_d)
 
-    params = {'weights': weight_array, 'alpha': alpha_matrix.data}
+    params = {'weights': weight_array, 'alpha': alpha_array}
 
     return baseline, params
 
@@ -551,11 +552,9 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     Systems, Signals, and Devices, 2014, 1-5.
 
     """
-    if p < 0 or p > 1:
+    if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
-    y, diff_matrix, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, 'csc', None, False
-    )
+    y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
     if k is None:
         k = np.std(y) / 10
 

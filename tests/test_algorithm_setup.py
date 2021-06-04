@@ -113,7 +113,7 @@ def test_setup_whittacker_y_array(small_data, array_enum):
 @pytest.mark.parametrize('lam', (1, 20))
 def test_setup_whittacker_diff_matrix(small_data, lam, diff_order):
     """Ensures output difference matrix is lam * diff_matrix.T * diff_matrix."""
-    _, diff_matrix, *_ = _algorithm_setup._setup_whittaker(small_data, lam, diff_order)
+    _, diff_matrix, _ = _algorithm_setup._setup_whittaker(small_data, lam, diff_order)
 
     # numpy gives transpose of the desired differential matrix
     numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order).T
@@ -124,7 +124,7 @@ def test_setup_whittacker_diff_matrix(small_data, lam, diff_order):
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
 def test_setup_whittacker_weights(small_data, weight_enum):
-    """Ensures output weight matrix and array are correct."""
+    """Ensures output weight array is correct."""
     if weight_enum == 0:
         # no weights specified
         weights = None
@@ -142,11 +142,10 @@ def test_setup_whittacker_weights(small_data, weight_enum):
         weights = np.arange(small_data.shape[0]).tolist()
         desired_weights = np.arange(small_data.shape[0])
 
-    _, _, weight_matrix, weight_array = _algorithm_setup._setup_whittaker(small_data, 1, 2, weights)
+    _, _, weight_array = _algorithm_setup._setup_whittaker(small_data, 1, 2, weights)
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
-    assert_array_equal(weight_matrix.toarray(), np.diag(desired_weights))
 
 
 @pytest.mark.parametrize('diff_order', (0, -1))

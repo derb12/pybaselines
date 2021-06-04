@@ -7,8 +7,8 @@ Created on March 5, 2021
 """
 
 import numpy as np
-from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 from scipy.linalg import solve_banded
+from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import _optimize_window, _setup_morphology, _setup_whittaker
 from .utils import pad_edges, padded_convolve, relative_difference
@@ -203,9 +203,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
             w[index] = 1 - p
 
-    _, diff_matrix, weight_array = _setup_whittaker(
-        y, lam, diff_order, w, 'csc', None, False
-    )
+    _, diff_matrix, weight_array = _setup_whittaker(y, lam, diff_order, w)
 
     ddata = diff_matrix.todia().data[::-1]
     ddata[diff_order] = ddata[diff_order] + weight_array
