@@ -137,9 +137,9 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
         The penalizing weighting factor. Must be between 0 and 1. Residuals
         above the data will be given p weight, and residuals below the data
         will be given p-1 weight. Default is 0.0.
-    diff_order : {2, 1, 3}, optional
-        The order of the differential matrix. Default is 2 (second order
-        differential matrix).
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional
