@@ -10,14 +10,14 @@ import warnings
 
 import numpy as np
 from scipy.ndimage import grey_opening
-from scipy.sparse import diags
+from scipy.sparse import diags, identity
 
 from .utils import pad_edges, relative_difference
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
-    Creates an n-order differential matrix.
+    Creates an n-order finite-difference matrix.
 
     Parameters
     ----------
@@ -25,16 +25,19 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
         The number of data points.
     diff_order : int, optional
         The integer differential order; must be >= 0. Default is 2.
+    diff_format : str or None, optional
+        The sparse format to use for the difference matrix. Default is None,
+        which will use the default specified in :func:`scipy.sparse.diags`.
 
     Returns
     -------
-    scipy.sparse.dia.dia_matrix
-        The sparse diagonal matrix of the differential.
+    diff_matrix : scipy.sparse.base.spmatrix
+        The sparse difference matrix.
 
     Raises
     ------
     ValueError
-        Raised if diff_order is negative.
+        Raised if `diff_order` or `data_size` is negative.
 
     Notes
     -----
@@ -49,19 +52,25 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
     if diff_order < 0:
         raise ValueError('the differential order must be >= 0')
-    if diff_order > data_size:
+    elif data_size < 0:
+        raise ValueError('data size must be >= 0')
+    elif diff_order > data_size:
         # do not issue warning or exception to maintain parity with np.diff
         diff_order = data_size
 
-    diagonals = np.zeros(2 * diff_order + 1)
-    diagonals[diff_order] = 1
-    for _ in range(diff_order):
-        diagonals = diagonals[:-1] - diagonals[1:]
+    if diff_order == 0:
+        # faster to directly create identity matrix
+        diff_matrix = identity(data_size, format=diff_format)
+    else:
+        diagonals = np.zeros(2 * diff_order + 1)
+        diagonals[diff_order] = 1
+        for _ in range(diff_order):
+            diagonals = diagonals[:-1] - diagonals[1:]
 
-    diff_matrix = diags(
-        diagonals, np.arange(diff_order + 1), shape=(data_size - diff_order, data_size),
-        format=diff_format
-    )
+        diff_matrix = diags(
+            diagonals, np.arange(diff_order + 1),
+            shape=(data_size - diff_order, data_size), format=diff_format
+        )
 
     return diff_matrix
 

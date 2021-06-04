@@ -76,6 +76,23 @@ def test_difference_matrix_order_over():
     assert_array_equal(diff_matrix, actual_matrix)
 
 
+def test_difference_matrix_size_neg():
+    """Ensures differential matrix fails for negative data size."""
+    with pytest.raises(ValueError):
+        _algorithm_setup.difference_matrix(-1)
+
+
+@pytest.mark.parametrize('form', ('dia', 'csc', 'csr'))
+def test_difference_matrix_formats(form):
+    """
+    Ensures that the sparse format is correctly passed to the constructor.
+
+    Tests both 0-order and 2-order, since 0-order uses a different constructor.
+    """
+    assert _algorithm_setup.difference_matrix(10, 2, form).format == form
+    assert _algorithm_setup.difference_matrix(10, 0, form).format == form
+
+
 @pytest.fixture
 def small_data():
     """A small array of data for testing."""
