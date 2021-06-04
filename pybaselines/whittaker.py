@@ -7,7 +7,7 @@ Created on Sept. 13, 2019
 """
 
 import numpy as np
-from scipy.linalg import solve_banded
+from scipy.linalg import solve_banded, solveh_banded
 
 from ._algorithm_setup import _setup_whittaker, _yx_arrays, difference_matrix
 from .utils import _MIN_FLOAT, relative_difference
@@ -20,7 +20,8 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
@@ -65,12 +66,13 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
     y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
-    ddata = diff_matrix.todia().data[::-1]
-    lower_upper = (diff_order, diff_order)
-    main_diag = ddata[diff_order].copy()
+    ddata = diff_matrix.todia().data[diff_order::-1]
+    main_diag = ddata[0].copy()
     for i in range(max_iter):
-        ddata[diff_order] = main_diag + weight_array
-        baseline = solve_banded(lower_upper, ddata, weight_array * y, overwrite_b=True)
+        ddata[0] = main_diag + weight_array
+        baseline = solveh_banded(
+            ddata, weight_array * y, overwrite_b=True, lower=True, check_finite=False
+        )
         mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
         if relative_difference(weight_array, new_weights) < tol:
@@ -91,7 +93,8 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
@@ -141,18 +144,19 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         mask = y > baseline
         weights = p * mask + (1 - p) * (~mask)
 
-    _, diff_matrix, weight_array = _setup_whittaker(data, lam, 2, weights)
+    _, diff_matrix, weight_array = _setup_whittaker(y, lam, 2, weights)
     diff_matrix_1 = difference_matrix(y.shape[0], 1, 'csc')
     diff_matrix_1 = lam_1 * diff_matrix_1.T * diff_matrix_1
-    ddata = (diff_matrix + diff_matrix_1).todia().data[::-1]
-    lower_upper = (2, 2)
-    main_diag = ddata[2].copy()
+    ddata = (diff_matrix + diff_matrix_1).todia().data[2::-1]
+    main_diag = ddata[0].copy()
 
     d1_y = diff_matrix_1 * y
     for i in range(max_iter):
         weight_squared = weight_array * weight_array
-        ddata[2] = main_diag + weight_squared
-        baseline = solve_banded(lower_upper, ddata, weight_squared * y + d1_y, overwrite_b=True)
+        ddata[0] = main_diag + weight_squared
+        baseline = solveh_banded(
+            ddata, weight_squared * y + d1_y, overwrite_b=True, lower=True, check_finite=False
+        )
         mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
         calc_diff = relative_difference(weight_array, new_weights)
@@ -172,7 +176,8 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     Parameters
     ----------
     data : array-like
-        The y-values of the measured data.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
@@ -204,20 +209,25 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
     """
     y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
-    y_l1_norm = np.linalg.norm(y, 1)
-    ddata = diff_matrix.todia().data[::-1]
-    lower_upper = (diff_order, diff_order)
-    main_diag = ddata[diff_order].copy()
+    y_l1_norm = np.abs(y).sum()
+    ddata = diff_matrix.todia().data[diff_order::-1]
+    main_diag = ddata[0].copy()
     for i in range(1, max_iter + 1):
-        ddata[diff_order] = main_diag + weight_array
-        baseline = solve_banded(lower_upper, ddata, weight_array * y, overwrite_b=True)
+        ddata[0] = main_diag + weight_array
+        baseline = solveh_banded(
+            ddata, weight_array * y, overwrite_b=True, lower=True, check_finite=False
+        )
         residual = y - baseline
         neg_mask = residual < 0
-        # same as abs(residual[neg_mask]).sum() since residual[neg_mask] are all negative
-        residual_l1_norm = -1 * residual[neg_mask].sum()
-        if residual_l1_norm / y_l1_norm < tol:
+        neg_residual = residual[neg_mask]
+        # same as abs(neg_residual).sum() since neg_residual are all negative
+        residual_l1_norm = -1 * neg_residual.sum()
+        calc_diff = residual_l1_norm / y_l1_norm
+        if calc_diff < tol:
             break
-        weight_array = np.exp(i * residual / residual_l1_norm) * neg_mask
+        weight_array[~neg_mask] = 0
+        # only use negative residual in exp to avoid exponential overflow warnings
+        weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
 
     params = {'weights': weight_array}
 
@@ -231,7 +241,8 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
@@ -263,12 +274,13 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
     """
     y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
-    ddata = diff_matrix.todia().data[::-1]
-    lower_upper = (diff_order, diff_order)
-    main_diag = ddata[diff_order].copy()
+    ddata = diff_matrix.todia().data[diff_order::-1]
+    main_diag = ddata[0].copy()
     for i in range(max_iter):
-        ddata[diff_order] = main_diag + weight_array
-        baseline = solve_banded(lower_upper, ddata, weight_array * y, overwrite_b=True)
+        ddata[0] = main_diag + weight_array
+        baseline = solveh_banded(
+            ddata, weight_array * y, overwrite_b=True, lower=True, check_finite=False
+        )
         residual = y - baseline
         neg_mask = residual < 0
         mean = np.mean(residual[neg_mask])
@@ -290,7 +302,8 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
@@ -325,19 +338,16 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     y, diff_matrix, weight_array = _setup_whittaker(data, lam, 2, weights)
     diff_matrix_1 = difference_matrix(y.shape[0], 1, 'csc')
     diff_matrix_1 = diff_matrix_1.T * diff_matrix_1
-    rollers = [-2, -1, 0, 1, 2]
-    lower_upper = (2, 2)
-
     d1d2_data = (diff_matrix_1 + diff_matrix).todia().data[::-1]
     d2_data = (difference_matrix(y.shape[0], 0, 'csr') - eta * diff_matrix).todia().data[::-1]
     for i in range(1, max_iter + 1):
         ddata_fit = d2_data * weight_array
-        for j, roll_val in enumerate(rollers):
+        for j, roll_val in enumerate((-2, -1, 0, 1, 2)):
             ddata_fit[j] = np.roll(ddata_fit[j], roll_val)
 
         baseline = solve_banded(
-            lower_upper, d1d2_data + ddata_fit[::-1],
-            weight_array * y, overwrite_b=True, overwrite_ab=True
+            (2, 2), d1d2_data + ddata_fit[::-1], weight_array * y,
+            overwrite_b=True, overwrite_ab=True, check_finite=False
         )
         residual = y - baseline
         neg_mask = residual < 0
@@ -360,7 +370,8 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
@@ -393,12 +404,13 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
     """
     y, diff_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
-    ddata = diff_matrix.todia().data[::-1]
-    lower_upper = (diff_order, diff_order)
-    main_diag = ddata[diff_order].copy()
+    ddata = diff_matrix.todia().data[diff_order::-1]
+    main_diag = ddata[0].copy()
     for i in range(1, max_iter + 1):
-        ddata[diff_order] = main_diag + weight_array
-        baseline = solve_banded(lower_upper, ddata, weight_array * y, overwrite_b=True)
+        ddata[0] = main_diag + weight_array
+        baseline = solveh_banded(
+            ddata, weight_array * y, overwrite_b=True, lower=True, check_finite=False
+        )
         residual = y - baseline
         std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
         inner = np.exp(i) * (residual - 2 * std) / std
@@ -419,7 +431,8 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
@@ -450,6 +463,11 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
         * 'alpha': numpy.ndarray, shape (N,)
             The array of alpha values used for fitting the data in the final iteration.
 
+    Raises
+    ------
+    ValueError
+        Raised if `alpha` and `data` do not have the same shape.
+
     References
     ----------
     Zhang, F., et al. Baseline correction for infrared spectra using
@@ -461,19 +479,24 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     if alpha is None:
         alpha_array = np.ones_like(weight_array)
     else:
-        alpha_array = np.asarray(alpha).copy()
-    rollers = np.arange(-diff_order, diff_order + 1)
+        alpha_array = np.asarray(alpha)
+        if alpha_array.shape != y.shape:
+            raise ValueError('alpha must have the same shape as the input data')
 
-    ddata = diff_matrix.todia().data[::-1]
+    rollers = list(range(-diff_order, diff_order + 1))
     lower_upper = (diff_order, diff_order)
+    ddata = diff_matrix.todia().data[::-1]
     for i in range(1, max_iter + 1):
         ddata_fit = ddata * alpha_array
         for j, val in enumerate(rollers):
             ddata_fit[j] = np.roll(ddata_fit[j], val)
         ddata_fit[diff_order] = ddata_fit[diff_order] + weight_array
-        baseline = solve_banded(lower_upper, ddata_fit[::-1], weight_array * y, overwrite_b=True)
+        baseline = solve_banded(
+            lower_upper, ddata_fit[::-1], weight_array * y,
+            overwrite_b=True, check_finite=False
+        )
         residual = y - baseline
-        std = max(abs(np.std(residual[residual < 0])), _MIN_FLOAT)
+        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
         new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
         calc_diff = relative_difference(weight_array, new_weights)
         if calc_diff < tol:
@@ -494,7 +517,8 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
@@ -558,12 +582,13 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     if k is None:
         k = np.std(y) / 10
 
-    ddata = diff_matrix.todia().data[::-1]
-    lower_upper = (diff_order, diff_order)
-    main_diag = ddata[diff_order].copy()
+    ddata = diff_matrix.todia().data[diff_order::-1]
+    main_diag = ddata[0].copy()
     for i in range(max_iter):
-        ddata[diff_order] = main_diag + weight_array
-        baseline = solve_banded(lower_upper, ddata, weight_array * y, overwrite_b=True)
+        ddata[0] = main_diag + weight_array
+        baseline = solveh_banded(
+            ddata, weight_array * y, overwrite_b=True, lower=True, check_finite=False
+        )
         residual = y - baseline
         mask = residual > 0
         new_weights = mask * p * np.exp(-residual / k) + (~mask) * (1 - p)

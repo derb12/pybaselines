@@ -7,7 +7,7 @@ Created on March 5, 2021
 """
 
 import numpy as np
-from scipy.linalg import solve_banded
+from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import _optimize_window, _setup_morphology, _setup_whittaker
@@ -205,9 +205,12 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
 
     _, diff_matrix, weight_array = _setup_whittaker(y, lam, diff_order, w)
 
-    ddata = diff_matrix.todia().data[::-1]
-    ddata[diff_order] = ddata[diff_order] + weight_array
-    baseline = solve_banded((diff_order, diff_order), ddata, weight_array * y, overwrite_b=True)
+    ddata = diff_matrix.todia().data[diff_order::-1]
+    ddata[0] = ddata[0] + weight_array
+    baseline = solveh_banded(
+        ddata, weight_array * y, overwrite_ab=True, overwrite_b=True,
+        lower=True, check_finite=False
+    )
 
     params = {'weights': weight_array, 'half_window': half_wind}
     return baseline, params

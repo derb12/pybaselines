@@ -6,6 +6,7 @@ Created on March 20, 2021
 
 """
 
+import numpy as np
 import pytest
 
 from pybaselines import whittaker
@@ -145,6 +146,12 @@ class TestAsPLS(AlgorithmTester):
     def test_list_input(self):
         y_list = self.y.tolist()
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_wrong_alpha_shape(self):
+        """Ensures that an exception is raised if input alpha and data are different shapes."""
+        alpha = np.ones(self.y.shape[0] + 1)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, alpha=alpha)
 
 
 class TestPsalsa(AlgorithmTester):

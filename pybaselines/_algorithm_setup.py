@@ -119,17 +119,18 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
 
     Parameters
     ----------
-    data : array-like, shape (M,)
-        The y-values of the measured data, with M data points.
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float
         The smoothing parameter, lambda. Typical values are between 10 and
         1e8, but it strongly depends on the penalized least square method
         and the differential order.
     diff_order : int, optional
         The integer differential order; must be greater than 0. Default is 2.
-    weights : array-like, shape (M,), optional
+    weights : array-like, shape (N,), optional
         The weighting array. If None (default), then will be an array with
-        shape (M,) and all values set to 1.
+        shape (N,) and all values set to 1.
 
     Returns
     -------
@@ -138,7 +139,6 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
     scipy.sparse.csr.csr_matrix
         The product of lam * D.T * D, where D is the sparse diagonal matrix of
         the differential, and D.T is the transpose of D.
-        The sparse weight matrix with the weighting array as the diagonal values.
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
 
@@ -146,6 +146,8 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
     ------
     ValueError
         Raised is `diff_order` is less than 1.
+    ValueError
+        Raised if `weights` and `data` do not have the same shape.
 
     Warns
     -----
@@ -158,7 +160,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
     format for performing D.T * D (the result of which is 'csr' format).
 
     """
-    y = np.asarray(data)
+    y = np.asarray_chkfinite(data)
     if diff_order < 1:
         raise ValueError(
             'the differential order must be > 0 for Whittaker-smoothing-based methods'
@@ -174,6 +176,8 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
         weight_array = np.ones(y.shape[0])
     else:
         weight_array = np.asarray(weights).copy()
+        if weight_array.shape != y.shape:
+            raise ValueError('weights must have the same shape as the input data')
 
     return y, lam * diff_matrix.T * diff_matrix, weight_array
 

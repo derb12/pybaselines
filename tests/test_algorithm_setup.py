@@ -96,11 +96,11 @@ def test_difference_matrix_formats(form):
 @pytest.fixture
 def small_data():
     """A small array of data for testing."""
-    return np.arange(10)
+    return np.arange(10, dtype=float)
 
 
 @pytest.mark.parametrize('array_enum', (0, 1))
-def test_setup_whittacker_y_array(small_data, array_enum):
+def test_setup_whittaker_y_array(small_data, array_enum):
     """Ensures output y is always a numpy array."""
     if array_enum == 1:
         small_data = small_data.tolist()
@@ -111,7 +111,7 @@ def test_setup_whittacker_y_array(small_data, array_enum):
 
 @pytest.mark.parametrize('diff_order', (1, 2))
 @pytest.mark.parametrize('lam', (1, 20))
-def test_setup_whittacker_diff_matrix(small_data, lam, diff_order):
+def test_setup_whittaker_diff_matrix(small_data, lam, diff_order):
     """Ensures output difference matrix is lam * diff_matrix.T * diff_matrix."""
     _, diff_matrix, _ = _algorithm_setup._setup_whittaker(small_data, lam, diff_order)
 
@@ -123,7 +123,7 @@ def test_setup_whittacker_diff_matrix(small_data, lam, diff_order):
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_whittacker_weights(small_data, weight_enum):
+def test_setup_whittaker_weights(small_data, weight_enum):
     """Ensures output weight array is correct."""
     if weight_enum == 0:
         # no weights specified
@@ -148,15 +148,30 @@ def test_setup_whittacker_weights(small_data, weight_enum):
     assert_array_equal(weight_array, desired_weights)
 
 
+@pytest.mark.parametrize('filler', (np.nan, np.inf, -np.inf))
+def test_setup_whittaker_nan_inf_data_fails(small_data, filler):
+    """Ensures NaN and Inf values within data will raise an exception."""
+    small_data[0] = filler
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_whittaker(small_data, 1)
+
+
+def test_setup_whittaker_wrong_weight_shape(small_data):
+    """Ensures that an exception is raised if input weights and data are different shapes."""
+    weights = np.ones(small_data.shape[0] + 1)
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_whittaker(small_data, 1, 2, weights)
+
+
 @pytest.mark.parametrize('diff_order', (0, -1))
-def test_setup_whittacker_diff_matrix_fails(small_data, diff_order):
+def test_setup_whittaker_diff_matrix_fails(small_data, diff_order):
     """Ensures using a diff_order < 1 with _setup_whittaker raises an exception."""
     with pytest.raises(ValueError):
         _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
 
 
 @pytest.mark.parametrize('diff_order', (4, 5))
-def test_setup_whittacker_diff_matrix_warns(small_data, diff_order):
+def test_setup_whittaker_diff_matrix_warns(small_data, diff_order):
     """Ensures using a diff_order > 3 with _setup_whittaker raises a warning."""
     with pytest.warns(UserWarning):
         _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
