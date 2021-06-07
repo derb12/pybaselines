@@ -9,7 +9,7 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
-from scipy.sparse import identity
+from scipy.sparse import dia_matrix, identity
 
 from pybaselines import _algorithm_setup
 
@@ -64,11 +64,12 @@ def test_difference_matrix_order_neg():
 
 def test_difference_matrix_order_over():
     """
-    Tests the (n + 1)th order differential matrix against the actual
-    representation, where n is the number of data points.
+    Tests the (n + 1)th order differential matrix against the actual representation.
 
-    The differential matrix should be one of shape (0, n) with 0 stored elements,
+    If n is the number of data points and the difference order is greater than n,
+    then differential matrix should have a shape of (0, n) with 0 stored elements,
     following a similar logic as np.diff.
+
     """
     diff_matrix = _algorithm_setup.difference_matrix(10, 11).toarray()
     actual_matrix = np.empty(shape=(0, 10))
@@ -93,6 +94,36 @@ def test_difference_matrix_formats(form):
     assert _algorithm_setup.difference_matrix(10, 0, form).format == form
 
 
+@pytest.mark.parametrize('data_size', (10, 1001))
+@pytest.mark.parametrize('upper_only', (True, False))
+def test_diff_2_diags(data_size, upper_only):
+    """Ensures the output of _diff_2_diags is the correct shape and values."""
+    diagonal_data = _algorithm_setup._diff_2_diags(data_size, upper_only)
+
+    diff_matrix = _algorithm_setup.difference_matrix(data_size, 2)
+    diag_matrix = (diff_matrix.T * diff_matrix).todia()
+    actual_diagonal_data = diag_matrix.data
+    if upper_only:
+        actual_diagonal_data = diag_matrix.data[2:]
+
+    assert_array_equal(diagonal_data, actual_diagonal_data[::-1])
+
+
+@pytest.mark.parametrize('data_size', (10, 1001))
+@pytest.mark.parametrize('upper_only', (True, False))
+def test_diff_1_diags(data_size, upper_only):
+    """Ensures the output of _diff_1_diags is the correct shape and values."""
+    diagonal_data = _algorithm_setup._diff_1_diags(data_size, upper_only)
+
+    diff_matrix = _algorithm_setup.difference_matrix(data_size, 1)
+    diag_matrix = (diff_matrix.T * diff_matrix).todia()
+    actual_diagonal_data = diag_matrix.data
+    if upper_only:
+        actual_diagonal_data = diag_matrix.data[1:]
+
+    assert_array_equal(diagonal_data, actual_diagonal_data[::-1])
+
+
 @pytest.fixture
 def small_data():
     """A small array of data for testing."""
@@ -111,15 +142,20 @@ def test_setup_whittaker_y_array(small_data, array_enum):
 
 @pytest.mark.parametrize('diff_order', (1, 2))
 @pytest.mark.parametrize('lam', (1, 20))
-def test_setup_whittaker_diff_matrix(small_data, lam, diff_order):
-    """Ensures output difference matrix is lam * diff_matrix.T * diff_matrix."""
-    _, diff_matrix, _ = _algorithm_setup._setup_whittaker(small_data, lam, diff_order)
+@pytest.mark.parametrize('upper_only', (True, False))
+def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, upper_only):
+    """Ensures output difference matrix diagonal data is in desired format."""
+    _, diagonal_data, _ = _algorithm_setup._setup_whittaker(
+        small_data, lam, diff_order, upper_only=upper_only
+    )
 
     # numpy gives transpose of the desired differential matrix
     numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order).T
-    desired_diff_matrix = lam * np.dot(numpy_diff.T, numpy_diff)
+    desired_diagonals = dia_matrix(lam * np.dot(numpy_diff.T, numpy_diff)).data
+    if upper_only:  # only include the upper diagonals
+        desired_diagonals = desired_diagonals[diff_order:]
 
-    assert_array_almost_equal(diff_matrix.toarray(), desired_diff_matrix)
+    assert_array_almost_equal(diagonal_data, desired_diagonals[::-1])
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))

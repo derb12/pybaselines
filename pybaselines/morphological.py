@@ -203,13 +203,10 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
             w[index] = 1 - p
 
-    _, diff_matrix, weight_array = _setup_whittaker(y, lam, diff_order, w)
-
-    ddata = diff_matrix.todia().data[diff_order::-1]
-    ddata[0] = ddata[0] + weight_array
+    _, ddata, weight_array = _setup_whittaker(y, lam, diff_order, w)
+    ddata[-1] = ddata[-1] + weight_array
     baseline = solveh_banded(
-        ddata, weight_array * y, overwrite_ab=True, overwrite_b=True,
-        lower=True, check_finite=False
+        ddata, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False
     )
 
     params = {'weights': weight_array, 'half_window': half_wind}

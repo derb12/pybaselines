@@ -113,7 +113,116 @@ def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
     return y, x
 
 
-def _setup_whittaker(data, lam, diff_order=2, weights=None):
+def _diff_2_diags(data_size, upper_only=True):
+    """
+    Creates the the diagonals of the square of a second-order finite-difference matrix.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    upper_only : bool, optional
+        If True (default), will return only the upper diagonals of the
+        matrix. If False, will include all diagonals of the matrix.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The array containing the diagonal data. Has a shape of (3, `data_size`)
+        if `upper_only` is True, otherwise (5, `data_size`).
+
+    Notes
+    -----
+    Equivalent to calling:
+
+        diff_matrix = difference_matrix(data_size, 2)
+        diag_matrix = (diff_matrix.T * diff_matrix).todia()
+        if upper_only:
+            output = diag_matrix.data[2:][::-1]
+        else:
+            output = diag_matrix.data[::-1]
+
+    but is several orders of magnitude times faster. The data is reversed
+    in order to fit the format required by SciPy's solve_banded and solveh_banded.
+
+    """
+    output = np.ones((3 if upper_only else 5, data_size))
+    output[0, 0] = output[1, 0] = output[0, 1] = 0
+    output[1, 1] = output[1, -1] = -2
+    output[2, 1] = output[2, -2] = 5
+    output[1, 2:-1] = -4
+    output[2, 2:-2] = 6
+
+    if upper_only:
+        return output
+
+    output[-1, -1] = output[-1, -2] = output[-2, -1] = 0
+    output[-2, 0] = output[-2, -2] = -2
+    output[-3, 1] = output[-3, -2] = 5
+    output[-2, 1:-2] = -4
+
+    return output
+
+
+def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
+    """
+    Creates the the diagonals of the square of a first-order finite-difference matrix.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    upper_only : bool, optional
+        If True (default), will return only the upper diagonals of the
+        matrix. If False, will include all diagonals of the matrix.
+    add_zeros : bool, optional
+        If True, will stack a row of zeros on top of the output, and on the bottom
+        if `upper_only` is False, so that the output array can be added to the output
+        of :func:`_diff_2_diags`.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The array containing the diagonal data. Has a shape of (2, `data_size`)
+        if `upper_only` is True, otherwise (3, `data_size`).
+
+    Notes
+    -----
+    Equivalent to calling:
+
+        diff_matrix = difference_matrix(data_size, 1)
+        diag_matrix = (diff_matrix.T * diff_matrix).todia()
+        if upper_only:
+            output = diag_matrix.data[1:][::-1]
+        else:
+            output = diag_matrix.data[::-1]
+
+    but is several orders of magnitude times faster. The data is reversed
+    in order to fit the format required by SciPy's solve_banded and solveh_banded.
+
+    """
+    output = np.full((2 if upper_only else 3, data_size), -1.)
+
+    output[0, 0] = 0
+    output[1, 0] = output[1, -1] = 1
+    output[1, 1:-1] = 2
+
+    if add_zeros:
+        zeros = np.zeros(data_size)
+
+    if upper_only:
+        if add_zeros:
+            output = np.vstack((zeros, output))
+        return output
+
+    output[-1, -1] = 0
+    if add_zeros:
+        output = np.vstack((zeros, output, zeros))
+
+    return output
+
+
+def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False, upper_only=True):
     """
     Sets the starting parameters for doing penalized least squares.
 
@@ -131,14 +240,23 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then will be an array with
         shape (N,) and all values set to 1.
+    copy_weights : boolean, optional
+        If True, will copy the array of input weights. Only needed if the
+        algorithm changes the weights in-place. Default is False.
+    upper_only : boolean, optional
+        If True (default), will include only the upper non-zero diagonals of
+        the squared difference matrix. If False, will include all non-zero diagonals.
 
     Returns
     -------
     y : numpy.ndarray, shape (N,)
         The y-values of the measured data, converted to a numpy array.
-    scipy.sparse.csr.csr_matrix
-        The product of lam * D.T * D, where D is the sparse diagonal matrix of
-        the differential, and D.T is the transpose of D.
+    numpy.ndarray
+        The array containing the diagonal data of the product of `lam` and the
+        squared finite-difference matrix of order `diff_order`. Has a shape of
+        (`diff_order` + 1, N) if `upper_only` is True, otherwise
+        (`diff_order` * 2 + 1, N).
+
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
 
@@ -154,11 +272,6 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
     UserWarning
         Raised if `diff_order` is greater than 3.
 
-    Notes
-    -----
-    Uses 'csc' format for the difference matrix since it it the fastest
-    format for performing D.T * D (the result of which is 'csr' format).
-
     """
     y = np.asarray_chkfinite(data)
     if diff_order < 1:
@@ -170,16 +283,30 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None):
             'differential orders greater than 3 can have numerical issues;'
             ' consider using a differential order of 2 or 1 instead'
         ))
-    diff_matrix = difference_matrix(y.shape[0], diff_order, 'csc')
+    num_y = y.shape[0]
+    # use hard-coded values for diff_order of 1 and 2 since it is much faster
+    if diff_order == 1:
+        diagonal_data = _diff_1_diags(num_y, upper_only)
+    elif diff_order == 2:
+        diagonal_data = _diff_2_diags(num_y, upper_only)
+    else:  #TODO figure out the general formula to avoid using the sparse matrices
+        # csc format is fastest for the D.T * D operation
+        diff_matrix = difference_matrix(num_y, diff_order, 'csc')
+        diff_matrix = diff_matrix.T * diff_matrix
+        diagonal_data = diff_matrix.todia().data[diff_order if upper_only else 0:][::-1]
 
     if weights is None:
-        weight_array = np.ones(y.shape[0])
+        weight_array = np.ones(num_y)
     else:
-        weight_array = np.asarray(weights).copy()
+        if copy_weights:
+            weight_array = np.asarray(weights).copy()
+        else:
+            weight_array = np.asarray(weights)
+
         if weight_array.shape != y.shape:
             raise ValueError('weights must have the same shape as the input data')
 
-    return y, lam * diff_matrix.T * diff_matrix, weight_array
+    return y, lam * diagonal_data, weight_array
 
 
 def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
