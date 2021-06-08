@@ -225,3 +225,39 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
         pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'
     )
     return convolution
+
+
+def _safe_std(array, **kwargs):
+    """
+    Calculates the standard deviation and protects against nan and 0.
+
+    Used to prevent propogating nan or dividing by 0.
+
+    Parameters
+    ----------
+    array : numpy.ndarray
+        The array of values for calculating the standard deviation.
+    **kwargs
+        Additional keyword arguments to pass to :func:`numpy.std`.
+
+    Returns
+    -------
+    std : float
+        The standard deviation of the array, or `_MIN_FLOAT` if the
+        calculated standard deviation was 0 or if `array` was empty.
+
+    Notes
+    -----
+    Does not protect against the calculated standard deviation of a non-empty
+    array being nan because that would indicate that nan or inf was within the
+    array, which should not be protected.
+
+    """
+    if array.size < 2:  # std would be 0 for an array with size of 1
+        std = _MIN_FLOAT
+    else:
+        std = np.std(array, **kwargs)
+        if std == 0:
+            std = _MIN_FLOAT
+
+    return std

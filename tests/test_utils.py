@@ -79,3 +79,59 @@ def test_relative_difference_zero():
     norm_ab = np.sqrt(((a - b)**2).sum())
 
     assert_almost_equal(utils.relative_difference(a, b), norm_ab / np.finfo(float).eps)
+
+
+def test_safe_std():
+    """Checks that the calculated standard deviation is correct."""
+    array = np.array((1, 2, 3))
+    calc_std = utils._safe_std(array)
+
+    assert_almost_equal(calc_std, np.std(array))
+
+
+def test_safe_std_kwargs():
+    """Checks that kwargs given to _safe_std are passed to numpy.std."""
+    array = np.array((1, 2, 3))
+    calc_std = utils._safe_std(array, ddof=1)
+
+    assert_almost_equal(calc_std, np.std(array, ddof=1))
+
+
+def test_safe_std_empty():
+    """Checks that the returned standard deviation of an empty array is not nan."""
+    calc_std = utils._safe_std(np.array(()))
+    assert_almost_equal(calc_std, utils._MIN_FLOAT)
+
+
+def test_safe_std_single():
+    """Checks that the returned standard deviation of an array with a single value is not 0."""
+    calc_std = utils._safe_std(np.array((1,)))
+    assert_almost_equal(calc_std, utils._MIN_FLOAT)
+
+
+def test_safe_std_zero():
+    """Checks that the returned standard deviation is not 0."""
+    calc_std = utils._safe_std(np.array((1, 1, 1)))
+    assert_almost_equal(calc_std, utils._MIN_FLOAT)
+
+
+@pytest.mark.parametrize('run_enum', (0, 1))
+def test_safe_std_allow_nan(run_enum):
+    """
+    Ensures that the standard deviation is allowed to be nan under certain conditions.
+
+    _safe_std should allow the calculated standard deviation to be nan if there is
+    more than one item in the array, since that would indicate that nan or inf is
+    in the array and nan propogation would not want to be stopped in those cases.
+
+    """
+    if run_enum:
+        array = np.array((1, 2, np.nan))
+        calc_std = utils._safe_std(array)
+    else:
+        array = np.array((1, 2, np.inf))
+        # need to ignore the RuntimeWarning when using inf
+        with pytest.warns(RuntimeWarning):
+            calc_std = utils._safe_std(array)
+
+    assert np.isnan(calc_std)

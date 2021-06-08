@@ -10,7 +10,7 @@ import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
 
 from ._algorithm_setup import _diff_1_diags, _setup_whittaker, _yx_arrays
-from .utils import _MIN_FLOAT, relative_difference
+from .utils import _safe_std, relative_difference
 
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -230,7 +230,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         if calc_diff < tol:
             break
         # only use negative residual in exp to avoid exponential overflow warnings
-        # and accidently creating a weight of inf
+        # and accidently creating a weight of nan (inf * 0 = nan)
         weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
         weight_array[~neg_mask] = 0
 
@@ -287,7 +287,7 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         )
         residual = y - baseline
         neg_residual = residual[residual < 0]
-        std = max(np.std(neg_residual), _MIN_FLOAT)
+        std = _safe_std(neg_residual)
         new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - np.mean(neg_residual))) / std))
         if relative_difference(weight_array, new_weights) < tol:
             break
@@ -362,7 +362,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
         )
         residual = y - baseline
         neg_residual = residual[residual < 0]
-        std = max(np.std(neg_residual), _MIN_FLOAT)
+        std = _safe_std(neg_residual)
         inner = np.exp(i) * (residual - (2 * std - np.mean(neg_residual))) / std
         new_weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
         if relative_difference(weight_array, new_weights) < tol:
@@ -422,7 +422,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
             ddata, weight_array * y, overwrite_b=True, check_finite=False
         )
         residual = y - baseline
-        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
+        std = _safe_std(residual[residual < 0])
         inner = np.exp(i) * (residual - 2 * std) / std
         new_weights = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
         if relative_difference(weight_array, new_weights) < tol:
@@ -513,7 +513,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
             overwrite_ab=True, overwrite_b=True, check_finite=False
         )
         residual = y - baseline
-        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
+        std = _safe_std(residual[residual < 0])
         new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
         calc_diff = relative_difference(weight_array, new_weights)
         if calc_diff < tol:
