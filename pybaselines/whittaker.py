@@ -599,6 +599,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     if k is None:
         k = np.std(y) / 10
 
+    num_y = y.shape[0]
     main_diag = ddata[-1].copy()
     for i in range(max_iter):
         ddata[-1] = main_diag + weight_array
@@ -606,8 +607,11 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
             ddata, weight_array * y, overwrite_b=True, check_finite=False
         )
         residual = y - baseline
+        # only use positive residual in exp to avoid exponential overflow warnings
+        # and accidently creating a weight of nan (inf * 0 = nan)
+        new_weights = np.full(num_y, 1 - p)
         mask = residual > 0
-        new_weights = mask * p * np.exp(-residual / k) + (~mask) * (1 - p)
+        new_weights[mask] = p * np.exp(-residual[mask] / k)
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
