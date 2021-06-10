@@ -104,12 +104,17 @@ and the following libraries:
 All of the required libraries should be automatically installed when
 installing pybaselines using either of the two installation methods below.
 
+Additionally, pybaselines has the following optional dependencies:
+
+* `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
+  provides a faster solver for Whittaker-smoothing-based methods
+
 
 Stable Release
 ~~~~~~~~~~~~~~
 
-pybaselines is easily installed using `pip <https://pip.pypa.io>`_, simply by running
-the following command in your terminal:
+pybaselines is easily installed from `pypi <https://pypi.org/project/pybaselines>`_
+using `pip <https://pip.pypa.io>`_, by running the following command in your terminal:
 
 .. code-block:: console
 
@@ -117,6 +122,12 @@ the following command in your terminal:
 
 This is the preferred method to install pybaselines, as it will always install the
 most recent stable release.
+
+To also install the optional dependencies when installing pybaselines, do:
+
+.. code-block:: console
+
+    pip install --upgrade pybaselines[full]
 
 
 Development Version

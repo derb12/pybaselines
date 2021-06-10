@@ -102,7 +102,8 @@ todo_include_todos = False
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None)
+    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
+    'pentapy': ('https://geostat-framework.readthedocs.io/projects/pentapy/en/stable/', None)
 }
 
 # cache remote doc inventories for 14 days
@@ -130,6 +131,9 @@ autoapi_python_class_content = 'both' # include class docstring from both class 
 #autoapi_keep_files = True # keep the files after generation
 #autoapi_add_toctree_entry = False # need to manually add to toctree if False
 #autoapi_generate_api_docs = False # will not generate new docs when False
+
+# ignore an import warning from sphinx-autoapi due to double import of utils
+suppress_warnings = ['autoapi.python_import_resolution']
 
 # -- Options for HTML output -------------------------------------------
 
