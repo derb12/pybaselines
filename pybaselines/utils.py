@@ -9,6 +9,28 @@ Created on March 5, 2021
 import numpy as np
 
 
+try:
+    from pentapy import solve as _pentapy_solve
+    _HAS_PENTAPY = True
+except ImportError:
+    _HAS_PENTAPY = False
+
+    def _pentapy_solve(*args, **kwargs):
+        """Dummy function in case pentapy is not installed."""
+        raise NotImplementedError('must have pentapy installed to use its solver')
+
+
+# Note: the triple quotes are for including the attributes within the documentation
+PENTAPY_SOLVER = 2
+"""An integer designating the solver to use if pentapy is installed.
+pentapy's solver can be used for solving pentadiagonal linear systems, such
+as those used for the Whittaker-smoothing-based algorithms. Should be 2 (default)
+or 1. See :func:`pentapy.core.solve` for more details.
+"""
+
+PERMC_SPEC = None
+"""A deprecated constant used in previous versions. Will be removed in v0.6.0."""
+
 # the minimum positive float values such that a + _MIN_FLOAT != a
 _MIN_FLOAT = np.finfo(float).eps
 

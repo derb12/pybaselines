@@ -140,13 +140,14 @@ def test_setup_whittaker_y_array(small_data, array_enum):
     assert isinstance(y, np.ndarray)
 
 
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lam', (1, 20))
 @pytest.mark.parametrize('upper_only', (True, False))
-def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, upper_only):
+@pytest.mark.parametrize('reverse_diags', (True, False))
+def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, upper_only, reverse_diags):
     """Ensures output difference matrix diagonal data is in desired format."""
     _, diagonal_data, _ = _algorithm_setup._setup_whittaker(
-        small_data, lam, diff_order, upper_only=upper_only
+        small_data, lam, diff_order, upper_only=upper_only, reverse_diags=reverse_diags
     )
 
     # numpy gives transpose of the desired differential matrix
@@ -155,7 +156,12 @@ def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, upper_only):
     if upper_only:  # only include the upper diagonals
         desired_diagonals = desired_diagonals[diff_order:]
 
-    assert_array_almost_equal(diagonal_data, desired_diagonals[::-1])
+    # the diagonals should be in the opposite order as the diagonal matrix's data
+    # if reverse_diags is False
+    if not reverse_diags:
+        desired_diagonals = desired_diagonals[::-1]
+
+    assert_array_almost_equal(diagonal_data, desired_diagonals)
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))

@@ -222,7 +222,8 @@ def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
     return output
 
 
-def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False, upper_only=True):
+def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
+                     upper_only=True, reverse_diags=False):
     """
     Sets the starting parameters for doing penalized least squares.
 
@@ -246,6 +247,9 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False, 
     upper_only : boolean, optional
         If True (default), will include only the upper non-zero diagonals of
         the squared difference matrix. If False, will include all non-zero diagonals.
+    reverse_diags : boolean, optional
+        If True, will reverse the order of the diagonals of the squared difference
+        matrix. Default is False.
 
     Returns
     -------
@@ -294,6 +298,9 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False, 
         diff_matrix = difference_matrix(num_y, diff_order, 'csc')
         diff_matrix = diff_matrix.T * diff_matrix
         diagonal_data = diff_matrix.todia().data[diff_order if upper_only else 0:][::-1]
+
+    if reverse_diags:
+        diagonal_data = diagonal_data[::-1]
 
     if weights is None:
         weight_array = np.ones(num_y)

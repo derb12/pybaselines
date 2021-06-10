@@ -6,13 +6,15 @@ Created on March 20, 2021
 
 """
 
+from unittest import mock
+
 import numpy as np
-from numpy.testing import assert_array_almost_equal
+from numpy.testing import assert_allclose, assert_array_almost_equal
 import pytest
 
 from pybaselines import morphological
 
-from .conftest import AlgorithmTester, get_data
+from .conftest import AlgorithmTester, get_data, has_pentapy
 
 
 class TestMPLS(AlgorithmTester):
@@ -30,6 +32,21 @@ class TestMPLS(AlgorithmTester):
     def test_list_input(self):
         y_list = self.y.tolist()
         super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e4, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    @has_pentapy
+    def test_pentapy_solver(self):
+        """Ensure pentapy solver gives similar result to SciPy's solver."""
+        with mock.patch.object(morphological, '_HAS_PENTAPY', False):
+            scipy_output = self._call_func(self.y)[0]
+        pentapy_output = self._call_func(self.y)[0]
+
+        assert_allclose(pentapy_output, scipy_output, 1e-4)
 
 
 class TestMor(AlgorithmTester):

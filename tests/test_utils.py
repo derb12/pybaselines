@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import utils
 
-from .conftest import gaussian
+from .conftest import gaussian, has_pentapy, no_pentapy
 
 
 @pytest.fixture(scope='module')
@@ -47,9 +47,12 @@ def test_gaussian_kernel(window_size, sigma):
     assert_almost_equal(np.sum(kernel), 1)
 
 
-def test_relative_difference_scalar():
+@pytest.mark.parametrize('sign', (1, -1))
+def test_relative_difference_scalar(sign):
     """Tests relative_difference to ensure it uses abs for scalars."""
-    assert_almost_equal(utils.relative_difference(3.0, 4), 1 / 3)
+    old = 3.0 * sign
+    new = 4
+    assert_almost_equal(utils.relative_difference(old, new), abs((old - new) / old))
 
 
 def test_relative_difference_array():
@@ -115,6 +118,8 @@ def test_safe_std_zero():
     assert_almost_equal(calc_std, utils._MIN_FLOAT)
 
 
+# ignore the RuntimeWarning when using inf
+@pytest.mark.filterwarnings('ignore::RuntimeWarning')
 @pytest.mark.parametrize('run_enum', (0, 1))
 def test_safe_std_allow_nan(run_enum):
     """
@@ -127,11 +132,22 @@ def test_safe_std_allow_nan(run_enum):
     """
     if run_enum:
         array = np.array((1, 2, np.nan))
-        calc_std = utils._safe_std(array)
     else:
         array = np.array((1, 2, np.inf))
-        # need to ignore the RuntimeWarning when using inf
-        with pytest.warns(RuntimeWarning):
-            calc_std = utils._safe_std(array)
 
-    assert np.isnan(calc_std)
+    assert np.isnan(utils._safe_std(array))
+
+
+@has_pentapy
+def test_pentapy_installed():
+    """Ensure proper setup when pentapy is installed."""
+    assert utils._HAS_PENTAPY
+
+
+@no_pentapy
+def test_pentapy_not_installed():
+    """Ensure proper setup when pentapy is not installed."""
+    assert not utils._HAS_PENTAPY
+
+    with pytest.raises(NotImplementedError):
+        utils._pentapy_solve()

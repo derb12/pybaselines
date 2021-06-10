@@ -111,6 +111,9 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         if method == 'loess':
             # reduce number of calculations for loess since it is much slower
             kwargs = {'min_value': 1, 'max_value': 2}
+        elif 'poly' not in method:
+            # speed up whittaker tests
+            kwargs = {'min_value': 4}
         else:
             kwargs = {}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
