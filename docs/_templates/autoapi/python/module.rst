@@ -55,7 +55,23 @@ Submodules
 
 {% set visible_classes = visible_children|selectattr("type", "equalto", "class")|list %}
 {% set visible_functions = visible_children|selectattr("type", "equalto", "function")|list %}
-{% if "show-module-summary" in autoapi_options and (visible_classes or visible_functions) %}
+{% set visible_attributes = visible_children|selectattr("type", "equalto", "data")|list %}
+{% if "show-module-summary" in autoapi_options and (visible_classes or visible_functions or visible_attributes) %}
+{% block attributes scoped %}
+{% if visible_attributes %}
+Attributes
+~~~~~~~~~~
+
+.. autoapisummary::
+
+{% for attribute in visible_attributes %}
+   {{ attribute.id }}
+{% endfor %}
+
+
+{% endif %}
+{% endblock %}
+
 {% block classes scoped %}
 {% if visible_classes %}
 Classes

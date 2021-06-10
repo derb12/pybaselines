@@ -11,6 +11,16 @@ from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
 
 
+try:
+    import pentapy  # noqa
+except ImportError:
+    no_pentapy = pytest.mark.skipif(False, reason='pentapy is not installed')
+    has_pentapy = pytest.mark.skipif(True, reason='pentapy is not installed')
+else:
+    no_pentapy = pytest.mark.skipif(True, reason='pentapy is installed')
+    has_pentapy = pytest.mark.skipif(False, reason='pentapy is installed')
+
+
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     """
     Generates a gaussian distribution based on height, center, and sigma.

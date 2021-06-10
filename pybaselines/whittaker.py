@@ -7,11 +7,58 @@ Created on Sept. 13, 2019
 """
 
 import numpy as np
-from scipy.sparse import diags
-from scipy.sparse.linalg import spsolve
+from scipy.linalg import solve_banded, solveh_banded
 
-from ._algorithm_setup import _setup_whittaker, _yx_arrays, difference_matrix
-from .utils import _MIN_FLOAT, PERMC_SPEC, relative_difference
+from . import utils
+from ._algorithm_setup import _diff_1_diags, _setup_whittaker, _yx_arrays
+from .utils import _HAS_PENTAPY, _pentapy_solve, _safe_std, relative_difference
+
+
+def _shift_rows(matrix, diagonals=2):
+    """
+    Shifts the rows of a matrix with equal number of upper and lower off-diagonals.
+
+    Parameters
+    ----------
+    matrix : numpy.ndarray
+        The matrix to be shifted. Note that all modifications are done in-place.
+    diagonals : int
+        The number of upper or lower (same for symmetric matrix) diagonals, not
+        including the main diagonal. For example, a matrix with five diagonal rows
+        would use a `diagonals` of 2.
+
+    Returns
+    -------
+    matrix : numpy.ndarray
+        The shifted matrix.
+
+    Notes
+    -----
+    Necessary to match the diagonal matrix format required by SciPy's solve_banded
+    function.
+
+    Performs the following transformation (left is input, right is output):
+
+        [[a b c ... d 0 0]        [[0 0 a ... b c d]
+         [e f g ... h i 0]         [0 e f ... g h i]
+         [j k l ... m n o]   -->   [j k l ... m n o]
+         [0 p q ... r s t]         [p q r ... s t 0]
+         [0 0 u ... v w x]]        [u v w ... x 0 0]]
+
+    The right matrix would be directly obtained when using SciPy's sparse diagonal
+    matrices, but when using multiplication with NumPy arrays, the result is the
+    left matrix, which has to be shifted to match the desired format.
+
+    """
+    for row, shift in enumerate(range(-diagonals, 0)):
+        matrix[row, -shift:] = matrix[row, :shift]
+        matrix[row, :-shift] = 0
+
+    for row, shift in enumerate(range(1, diagonals + 1), diagonals + 1):
+        matrix[row, :-shift] = matrix[row, shift:]
+        matrix[row, -shift:] = 0
+
+    return matrix
 
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -21,7 +68,8 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
@@ -63,17 +111,27 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     Leiden University Medical Centre Report, 2005, 1(1).
 
     """
-    if p < 0 or p > 1:
+    if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
-    for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
-        mask = (y > baseline)
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    y, diagonals, weight_array = _setup_whittaker(
+        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
+    )
+    main_diag_idx = diff_order if using_pentapy else -1
+    main_diagonal = diagonals[main_diag_idx].copy()
+    for i in range(max_iter):
+        diagonals[main_diag_idx] = main_diagonal + weight_array
+        if using_pentapy:
+            baseline = _pentapy_solve(diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER)
+        else:
+            baseline = solveh_banded(
+                diagonals, weight_array * y, overwrite_b=True, check_finite=False
+            )
+        mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array}
 
@@ -89,7 +147,8 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
@@ -131,26 +190,52 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
 
     """
-    if p < 0 or p > 1:
+    if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
-    y, x = _yx_arrays(data, x_data)
     if weights is None:
+        y, x = _yx_arrays(data, x_data)
         baseline = np.polynomial.Polynomial.fit(x, y, 2)(x)
-        mask = (y > baseline)
+        mask = y > baseline
         weights = p * mask + (1 - p) * (~mask)
 
-    _, diff_matrix, weight_matrix, weight_array = _setup_whittaker(y, lam, 2, weights)
-    diff_matrix_1 = difference_matrix(y.shape[0], 1)
-    diff_matrix_1 = lam_1 * diff_matrix_1.T * diff_matrix_1
-    for _ in range(max_iter):
-        weights_and_d1 = weight_matrix.T * weight_matrix + diff_matrix_1
-        baseline = spsolve(weights_and_d1 + diff_matrix, weights_and_d1 * y, permc_spec=PERMC_SPEC)
-        mask = (y > baseline)
+        _, d2_diags, weight_array = _setup_whittaker(
+            y, lam, 2, weights, False, not _HAS_PENTAPY, _HAS_PENTAPY
+        )
+    else:
+        y, d2_diags, weight_array = _setup_whittaker(
+            data, lam, 2, weights, False, not _HAS_PENTAPY, _HAS_PENTAPY
+        )
+
+    diagonals = (
+        d2_diags
+        + _diff_1_diags(y.shape[0], not _HAS_PENTAPY, True)[::-1 if _HAS_PENTAPY else 1]
+    )
+    main_diag_idx = 2 if _HAS_PENTAPY else -1
+    main_diagonal = diagonals[main_diag_idx].copy()
+
+    # lam_1 * D_1.T * D_1 * y
+    d1_y = y.copy()
+    d1_y[0] = y[0] - y[1]
+    d1_y[-1] = y[-1] - y[-2]
+    d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
+    d1_y = lam_1 * d1_y
+    for i in range(max_iter):
+        weight_squared = weight_array * weight_array
+        diagonals[main_diag_idx] = main_diagonal + weight_squared
+        if _HAS_PENTAPY:
+            baseline = _pentapy_solve(
+                diagonals, weight_squared * y + d1_y, True, True, utils.PENTAPY_SOLVER
+            )
+        else:
+            baseline = solveh_banded(
+                diagonals, weight_squared * y + d1_y, overwrite_b=True, check_finite=False
+            )
+        mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_diff = relative_difference(weight_array, new_weights)
+        if calc_diff < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array}
 
@@ -164,7 +249,8 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     Parameters
     ----------
     data : array-like
-        The y-values of the measured data.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
@@ -195,18 +281,35 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
     """
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
-    y_l1_norm = np.linalg.norm(y, 1)
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    y, diagonals, weight_array = _setup_whittaker(
+        data, lam, diff_order, weights, True, not using_pentapy, using_pentapy
+    )
+    y_l1_norm = np.abs(y).sum()
+    main_diag_idx = diff_order if using_pentapy else -1
+    main_diagonal = diagonals[main_diag_idx].copy()
     for i in range(1, max_iter + 1):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
+        diagonals[main_diag_idx] = main_diagonal + weight_array
+        if using_pentapy:
+            baseline = _pentapy_solve(
+                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+            )
+        else:
+            baseline = solveh_banded(
+                diagonals, weight_array * y, overwrite_b=True, check_finite=False
+            )
         residual = y - baseline
-        neg_mask = (residual < 0)
-        # same as abs(residual[neg_mask]).sum() since residual[neg_mask] are all negative
-        residual_l1_norm = -1 * residual[neg_mask].sum()
-        if residual_l1_norm / y_l1_norm < tol:
+        neg_mask = residual < 0
+        neg_residual = residual[neg_mask]
+        # same as abs(neg_residual).sum() since neg_residual are all negative
+        residual_l1_norm = -1 * neg_residual.sum()
+        calc_diff = residual_l1_norm / y_l1_norm
+        if calc_diff < tol:
             break
-        weight_array = np.exp(i * residual / residual_l1_norm) * neg_mask
-        weight_matrix.setdiag(weight_array)
+        # only use negative residual in exp to avoid exponential overflow warnings
+        # and accidently creating a weight of nan (inf * 0 = nan)
+        weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
+        weight_array[~neg_mask] = 0
 
     params = {'weights': weight_array}
 
@@ -215,12 +318,13 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
 def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
-    Asymmetrically reweighted penalized least squares smoothing (ArPLS).
+    Asymmetrically reweighted penalized least squares smoothing (arPLS).
 
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
@@ -251,18 +355,29 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
     """
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
-    for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    y, diagonals, weight_array = _setup_whittaker(
+        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
+    )
+    main_diag_idx = diff_order if using_pentapy else -1
+    main_diagonal = diagonals[main_diag_idx].copy()
+    for i in range(max_iter):
+        diagonals[main_diag_idx] = main_diagonal + weight_array
+        if using_pentapy:
+            baseline = _pentapy_solve(
+                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+            )
+        else:
+            baseline = solveh_banded(
+                diagonals, weight_array * y, overwrite_b=True, check_finite=False
+            )
         residual = y - baseline
-        neg_mask = residual < 0
-        mean = np.mean(residual[neg_mask])
-        std = max(np.std(residual[neg_mask]), _MIN_FLOAT)
-        new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - mean)) / std))
+        neg_residual = residual[residual < 0]
+        std = _safe_std(neg_residual)
+        new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - np.mean(neg_residual))) / std))
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array}
 
@@ -271,12 +386,13 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
 def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     """
-    Doubly reweighted penalized least squares baseline.
+    Doubly reweighted penalized least squares (drPLS) baseline.
 
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
@@ -308,24 +424,33 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, 2, weights)
-    diff_matrix_1 = difference_matrix(y.shape[0], 1)
-    diff_matrix_1 = diff_matrix_1.T * diff_matrix_1
-    identity_matrix = difference_matrix(y.shape[0], 0)
+    y, d2_diagonals, weight_array = _setup_whittaker(data, lam, 2, weights, False, False)
+    d1_d2_diagonals = d2_diagonals + _diff_1_diags(y.shape[0], False, True)
+    if _HAS_PENTAPY:
+        d1_d2_diagonals = d1_d2_diagonals[::-1]
+    # identity - eta * D_2.T * D_2; overwrite d2_diagonals since it's no longer needed;
+    # reversed to match the original diagonal structure of the D_2.T * D_2 sparse matrix
+    d2_diagonals = -eta * d2_diagonals[::-1]
+    d2_diagonals[2] += 1.
     for i in range(1, max_iter + 1):
-        baseline = spsolve(
-            weight_matrix + diff_matrix_1 + (identity_matrix - eta * weight_matrix) * diff_matrix,
-            weight_array * y, permc_spec=PERMC_SPEC
-        )
+        d2_w_diagonals = d2_diagonals * weight_array
+        if _HAS_PENTAPY:
+            baseline = _pentapy_solve(
+                d1_d2_diagonals + d2_w_diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+            )
+        else:
+            baseline = solve_banded(
+                (2, 2), d1_d2_diagonals + _shift_rows(d2_w_diagonals), weight_array * y,
+                overwrite_b=True, overwrite_ab=True, check_finite=False
+            )
         residual = y - baseline
-        neg_mask = residual < 0
-        std = max(np.std(residual[neg_mask]), _MIN_FLOAT)
-        inner = np.exp(i) * (residual - (2 * std - np.mean(residual[neg_mask]))) / std
-        new_weights = 0.5 * (1 - (inner / (1 + abs(inner))))
+        neg_residual = residual[residual < 0]
+        std = _safe_std(neg_residual)
+        inner = np.exp(i) * (residual - (2 * std - np.mean(neg_residual))) / std
+        new_weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array}
 
@@ -339,7 +464,8 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
@@ -371,31 +497,44 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     59, 10933-10943.
 
     """
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    y, diagonals, weight_array = _setup_whittaker(
+        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
+    )
+    main_diag_idx = diff_order if using_pentapy else -1
+    main_diagonal = diagonals[main_diag_idx].copy()
     for i in range(1, max_iter + 1):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
+        diagonals[main_diag_idx] = main_diagonal + weight_array
+        if using_pentapy:
+            baseline = _pentapy_solve(
+                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+            )
+        else:
+            baseline = solveh_banded(
+                diagonals, weight_array * y, overwrite_b=True, check_finite=False
+            )
         residual = y - baseline
-        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
+        std = _safe_std(residual[residual < 0])
         inner = np.exp(i) * (residual - 2 * std) / std
         new_weights = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array}
 
     return baseline, params
 
 
-def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alpha=None):
+def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alpha=None):
     """
     Adaptive smoothness penalized least squares smoothing (asPLS).
 
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e5.
@@ -426,6 +565,11 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
         * 'alpha': numpy.ndarray, shape (N,)
             The array of alpha values used for fitting the data in the final iteration.
 
+    Raises
+    ------
+    ValueError
+        Raised if `alpha` and `data` do not have the same shape.
+
     References
     ----------
     Zhang, F., et al. Baseline correction for infrared spectra using
@@ -433,28 +577,41 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, alph
     Spectroscopy Letters, 2020, 53(3), 222-233.
 
     """
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    y, diagonals, weight_array = _setup_whittaker(
+        data, lam, diff_order, weights, False, False, True
+    )
     if alpha is None:
         alpha_array = np.ones_like(weight_array)
     else:
-        alpha_array = np.asarray(alpha).copy()
-    # Use a sparse matrix rather than an array for alpha in order to keep sparcity.
-    alpha_matrix = diags(alpha_array, format='csr')
+        alpha_array = np.asarray(alpha)
+        if alpha_array.shape != y.shape:
+            raise ValueError('alpha must have the same shape as the input data')
+
+    lower_upper = (diff_order, diff_order)
     for i in range(1, max_iter + 1):
-        baseline = spsolve(
-            weight_matrix + alpha_matrix * diff_matrix, weight_array * y, permc_spec=PERMC_SPEC
-        )
+        alpha_diagonals = diagonals * alpha_array
+        alpha_diagonals[diff_order] = alpha_diagonals[diff_order] + weight_array
+        if using_pentapy:
+            baseline = _pentapy_solve(
+                alpha_diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+            )
+        else:
+            baseline = solve_banded(
+                lower_upper, _shift_rows(alpha_diagonals, diff_order), weight_array * y,
+                overwrite_ab=True, overwrite_b=True, check_finite=False
+            )
         residual = y - baseline
-        std = max(np.std(residual[residual < 0]), _MIN_FLOAT)
+        std = _safe_std(residual[residual < 0])
         new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_diff = relative_difference(weight_array, new_weights)
+        if calc_diff < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
-        abs_d = abs(residual)
-        alpha_matrix.setdiag(abs_d / np.max(abs_d))
+        abs_d = np.abs(residual)
+        alpha_array = abs_d / abs_d.max()
 
-    params = {'weights': weight_array, 'alpha': alpha_matrix.data}
+    params = {'weights': weight_array, 'alpha': alpha_array}
 
     return baseline, params
 
@@ -463,10 +620,15 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     """
     Peaked Signal's Asymmetric Least Squares Algorithm (psalsa).
 
+    Similar to the asymmetric least squares (AsLS) algorithm, but applies an
+    exponential decay weighting to values greater than the baseline to allow
+    using a higher `p` value to better fit noisy data.
+
     Parameters
     ----------
     data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
@@ -508,10 +670,6 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
 
     Notes
     -----
-    Similar to the asymmetric least squares (AsLS) algorithm, but applies an
-    exponential decay weighting to values greater than the baseline to allow
-    using a higher `p` value to better fit noisy data.
-
     The exit criteria for the original algorithm was to check whether the signs
     of the residuals do not change between two iterations, but the comparison of
     the l2 norms of the weight arrays between iterations is used instead to be
@@ -524,21 +682,37 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     Systems, Signals, and Devices, 2014, 1-5.
 
     """
-    if p < 0 or p > 1:
+    if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
-    y, diff_matrix, weight_matrix, weight_array = _setup_whittaker(data, lam, diff_order, weights)
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    y, diagonals, weight_array = _setup_whittaker(
+        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
+    )
     if k is None:
         k = np.std(y) / 10
 
-    for _ in range(max_iter):
-        baseline = spsolve(weight_matrix + diff_matrix, weight_array * y, permc_spec=PERMC_SPEC)
+    num_y = y.shape[0]
+    main_diag_idx = diff_order if using_pentapy else -1
+    main_diagonal = diagonals[main_diag_idx].copy()
+    for i in range(max_iter):
+        diagonals[main_diag_idx] = main_diagonal + weight_array
+        if using_pentapy:
+            baseline = _pentapy_solve(
+                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+            )
+        else:
+            baseline = solveh_banded(
+                diagonals, weight_array * y, overwrite_b=True, check_finite=False
+            )
         residual = y - baseline
+        # only use positive residual in exp to avoid exponential overflow warnings
+        # and accidently creating a weight of nan (inf * 0 = nan)
+        new_weights = np.full(num_y, 1 - p, dtype=float)
         mask = residual > 0
-        new_weights = mask * p * np.exp(-residual / k) + (~mask) * (1 - p)
+        new_weights[mask] = p * np.exp(-residual[mask] / k)
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array}
 

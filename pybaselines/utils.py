@@ -4,24 +4,32 @@
 Created on March 5, 2021
 @author: Donald Erb
 
-Attributes
-----------
-PERMC_SPEC : str
-    A string indicating the method used for sparsity preservation when solving
-    sparse linear equations, such as those used for the Whittaker-smoothing-based
-    algorithms. See :func:`scipy.sparse.linalg.spsolve` for more information.
-    Default value is "NATURAL", which was ~5-35% faster for all Whittaker
-    functions compared to the other `permc_spec` options (tested on a computer with
-    Windows 10, Intel i5-7200U CPU, scipy version 1.6.1). Times may vary based on
-    computer os/architecture, number of data points, and the Whittaker-smoothing-based
-    function used.
-
 """
 
 import numpy as np
 
 
-PERMC_SPEC = 'NATURAL'
+try:
+    from pentapy import solve as _pentapy_solve
+    _HAS_PENTAPY = True
+except ImportError:
+    _HAS_PENTAPY = False
+
+    def _pentapy_solve(*args, **kwargs):
+        """Dummy function in case pentapy is not installed."""
+        raise NotImplementedError('must have pentapy installed to use its solver')
+
+
+# Note: the triple quotes are for including the attributes within the documentation
+PENTAPY_SOLVER = 2
+"""An integer designating the solver to use if pentapy is installed.
+pentapy's solver can be used for solving pentadiagonal linear systems, such
+as those used for the Whittaker-smoothing-based algorithms. Should be 2 (default)
+or 1. See :func:`pentapy.core.solve` for more details.
+"""
+
+PERMC_SPEC = None
+"""A deprecated constant used in previous versions. Will be removed in v0.6.0."""
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
 _MIN_FLOAT = np.finfo(float).eps
@@ -239,3 +247,39 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
         pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'
     )
     return convolution
+
+
+def _safe_std(array, **kwargs):
+    """
+    Calculates the standard deviation and protects against nan and 0.
+
+    Used to prevent propogating nan or dividing by 0.
+
+    Parameters
+    ----------
+    array : numpy.ndarray
+        The array of values for calculating the standard deviation.
+    **kwargs
+        Additional keyword arguments to pass to :func:`numpy.std`.
+
+    Returns
+    -------
+    std : float
+        The standard deviation of the array, or `_MIN_FLOAT` if the
+        calculated standard deviation was 0 or if `array` was empty.
+
+    Notes
+    -----
+    Does not protect against the calculated standard deviation of a non-empty
+    array being nan because that would indicate that nan or inf was within the
+    array, which should not be protected.
+
+    """
+    if array.size < 2:  # std would be 0 for an array with size of 1
+        std = _MIN_FLOAT
+    else:
+        std = np.std(array, **kwargs)
+        if std == 0:
+            std = _MIN_FLOAT
+
+    return std

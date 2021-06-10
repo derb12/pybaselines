@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import utils
 
-from .conftest import gaussian
+from .conftest import gaussian, has_pentapy, no_pentapy
 
 
 @pytest.fixture(scope='module')
@@ -47,9 +47,12 @@ def test_gaussian_kernel(window_size, sigma):
     assert_almost_equal(np.sum(kernel), 1)
 
 
-def test_relative_difference_scalar():
+@pytest.mark.parametrize('sign', (1, -1))
+def test_relative_difference_scalar(sign):
     """Tests relative_difference to ensure it uses abs for scalars."""
-    assert_almost_equal(utils.relative_difference(3.0, 4), 1 / 3)
+    old = 3.0 * sign
+    new = 4
+    assert_almost_equal(utils.relative_difference(old, new), abs((old - new) / old))
 
 
 def test_relative_difference_array():
@@ -79,3 +82,72 @@ def test_relative_difference_zero():
     norm_ab = np.sqrt(((a - b)**2).sum())
 
     assert_almost_equal(utils.relative_difference(a, b), norm_ab / np.finfo(float).eps)
+
+
+def test_safe_std():
+    """Checks that the calculated standard deviation is correct."""
+    array = np.array((1, 2, 3))
+    calc_std = utils._safe_std(array)
+
+    assert_almost_equal(calc_std, np.std(array))
+
+
+def test_safe_std_kwargs():
+    """Checks that kwargs given to _safe_std are passed to numpy.std."""
+    array = np.array((1, 2, 3))
+    calc_std = utils._safe_std(array, ddof=1)
+
+    assert_almost_equal(calc_std, np.std(array, ddof=1))
+
+
+def test_safe_std_empty():
+    """Checks that the returned standard deviation of an empty array is not nan."""
+    calc_std = utils._safe_std(np.array(()))
+    assert_almost_equal(calc_std, utils._MIN_FLOAT)
+
+
+def test_safe_std_single():
+    """Checks that the returned standard deviation of an array with a single value is not 0."""
+    calc_std = utils._safe_std(np.array((1,)))
+    assert_almost_equal(calc_std, utils._MIN_FLOAT)
+
+
+def test_safe_std_zero():
+    """Checks that the returned standard deviation is not 0."""
+    calc_std = utils._safe_std(np.array((1, 1, 1)))
+    assert_almost_equal(calc_std, utils._MIN_FLOAT)
+
+
+# ignore the RuntimeWarning when using inf
+@pytest.mark.filterwarnings('ignore::RuntimeWarning')
+@pytest.mark.parametrize('run_enum', (0, 1))
+def test_safe_std_allow_nan(run_enum):
+    """
+    Ensures that the standard deviation is allowed to be nan under certain conditions.
+
+    _safe_std should allow the calculated standard deviation to be nan if there is
+    more than one item in the array, since that would indicate that nan or inf is
+    in the array and nan propogation would not want to be stopped in those cases.
+
+    """
+    if run_enum:
+        array = np.array((1, 2, np.nan))
+    else:
+        array = np.array((1, 2, np.inf))
+
+    assert np.isnan(utils._safe_std(array))
+
+
+@has_pentapy
+def test_pentapy_installed():
+    """Ensure proper setup when pentapy is installed."""
+    assert utils._HAS_PENTAPY
+
+
+@no_pentapy
+def test_pentapy_not_installed():
+    """Ensure proper setup when pentapy is not installed."""
+    assert not utils._HAS_PENTAPY
+
+    with pytest.raises(NotImplementedError):
+        utils._pentapy_solve()
