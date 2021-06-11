@@ -2,6 +2,43 @@
 Changelog
 =========
 
+Version 0.4.1 (2021-06-10)
+--------------------------
+
+This is a minor patch with new features, bug fixes, and pending deprecations.
+
+New Features
+~~~~~~~~~~~~
+
+* Switched to using banded solvers for all Whittaker-smoothing-based algorithms
+  (all functions in pybaselines.whittaker as well as pybaselines.morphological.mpls),
+  which reduced their computation time by ~60-85% compared to version 0.4.0.
+* Added pentapy as an optional dependency. All Whittaker-smoothing-based functions
+  will use pentapy's solver, which is faster than SciPy's solve_banded and solveh_banded
+  functions, if pentapy is installed and the system is pentadiagonal (`diff_order` is 2).
+  All Whittaker functions with pentapy installed take ~80-95% less time compared to
+  pybaselines version 0.4.0.
+
+Bug Fixes
+~~~~~~~~~
+
+* The `alpha` item in the dictionary output of whittaker.aspls is now the full alpha
+  array rather than a single value.
+* The weighting for several Whittaker-smoothing-based functions was made more robust
+  and less likely to create nan weights.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Increased the default `max_iter` for whittaker.aspls to 100.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* The constant pybaselines.utils.PERMC_SPEC is no longer used. It will be removed
+  in version 0.6.0.
+
+
 Version 0.4.0 (2021-05-30)
 --------------------------
 
@@ -12,7 +49,7 @@ New Features
 
 * Significantly reduced both the calculation time and memory usage of polynomial.loess.
   For example, getting the baseline for a dataset with 20,000 points now takes ~12 seconds
-  and ~0.7 Gb of memory compared to ~55 seconds and ~3 Gb of memory in version 0.3.
+  and ~0.7 Gb of memory compared to ~55 seconds and ~3 Gb of memory in version 0.3.0.
 * Added a `conserve_memory` parameter to polynomial.loess that will recalculate the distance
   kernels each iteration, which is slower than the default but uses very little memory. For
   example, using loess with `conserve_memory` set to True on a dataset with 20,000 points
