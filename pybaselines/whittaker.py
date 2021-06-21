@@ -97,6 +97,10 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     Raises
     ------
@@ -129,11 +133,12 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
             )
         mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'iterations': i + 1, 'last_tol': calc_difference}
 
     return baseline, params
 
@@ -178,6 +183,10 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     Raises
     ------
@@ -232,12 +241,12 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
             )
         mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
-        calc_diff = relative_difference(weight_array, new_weights)
-        if calc_diff < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'iterations': i + 1, 'last_tol': calc_difference}
 
     return baseline, params
 
@@ -274,6 +283,10 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     References
     ----------
@@ -303,15 +316,15 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         neg_residual = residual[neg_mask]
         # same as abs(neg_residual).sum() since neg_residual are all negative
         residual_l1_norm = -1 * neg_residual.sum()
-        calc_diff = residual_l1_norm / y_l1_norm
-        if calc_diff < tol:
+        calc_difference = residual_l1_norm / y_l1_norm
+        if calc_difference < tol:
             break
         # only use negative residual in exp to avoid exponential overflow warnings
         # and accidently creating a weight of nan (inf * 0 = nan)
         weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
         weight_array[~neg_mask] = 0
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'iterations': i, 'last_tol': calc_difference}
 
     return baseline, params
 
@@ -348,6 +361,10 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     References
     ----------
@@ -375,11 +392,12 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         neg_residual = residual[residual < 0]
         std = _safe_std(neg_residual)
         new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - np.mean(neg_residual))) / std))
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'iterations': i + 1, 'last_tol': calc_difference}
 
     return baseline, params
 
@@ -417,6 +435,10 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     References
     ----------
@@ -448,11 +470,12 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
         std = _safe_std(neg_residual)
         inner = np.exp(i) * (residual - (2 * std - np.mean(neg_residual))) / std
         new_weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'iterations': i, 'last_tol': calc_difference}
 
     return baseline, params
 
@@ -489,6 +512,10 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     References
     ----------
@@ -517,11 +544,12 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         std = _safe_std(residual[residual < 0])
         inner = np.exp(i) * (residual - 2 * std) / std
         new_weights = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'iterations': i, 'last_tol': calc_difference}
 
     return baseline, params
 
@@ -564,6 +592,10 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
             The weight array used for fitting the data.
         * 'alpha': numpy.ndarray, shape (N,)
             The array of alpha values used for fitting the data in the final iteration.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     Raises
     ------
@@ -604,14 +636,17 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
         residual = y - baseline
         std = _safe_std(residual[residual < 0])
         new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
-        calc_diff = relative_difference(weight_array, new_weights)
-        if calc_diff < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        if calc_difference < tol:
             break
         weight_array = new_weights
         abs_d = np.abs(residual)
         alpha_array = abs_d / abs_d.max()
 
-    params = {'weights': weight_array, 'alpha': alpha_array}
+    params = {
+        'weights': weight_array, 'alpha': alpha_array,
+        'iterations': i, 'last_tol': calc_difference
+    }
 
     return baseline, params
 
@@ -662,6 +697,10 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     Raises
     ------
@@ -710,10 +749,11 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
         new_weights = np.full(num_y, 1 - p, dtype=float)
         mask = residual > 0
         new_weights[mask] = p * np.exp(-residual[mask] / k)
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'iterations': i + 1, 'last_tol': calc_difference}
 
     return baseline, params

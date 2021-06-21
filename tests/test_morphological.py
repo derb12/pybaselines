@@ -27,7 +27,7 @@ class TestMPLS(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('weights', 'half_window'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -59,7 +59,7 @@ class TestMor(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('half_window',))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -76,7 +76,7 @@ class TestIMor(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -93,7 +93,7 @@ class TestAMorMol(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -110,7 +110,7 @@ class TestMorMol(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -133,7 +133,7 @@ class TestRollingBall(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y, half_window, smooth_half_window)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('half_window',))
 
     def test_list_input(self):
         y_list = self.y.tolist()

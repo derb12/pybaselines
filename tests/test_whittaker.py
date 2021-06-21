@@ -69,7 +69,7 @@ class TestAsLS(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -110,7 +110,7 @@ class TestIAsLS(AlgorithmTester):
         super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -142,7 +142,7 @@ class TestAirPLS(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -174,7 +174,7 @@ class TestArPLS(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -206,7 +206,7 @@ class TestDrPLS(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -232,7 +232,7 @@ class TestIArPLS(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -264,7 +264,9 @@ class TestAsPLS(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(
+            self.y, self.y, checked_keys=('weights', 'alpha', 'iterations', 'last_tol')
+        )
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -302,7 +304,7 @@ class TestPsalsa(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
         y_list = self.y.tolist()

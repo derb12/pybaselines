@@ -49,7 +49,7 @@ class TestCollabPLS(AlgorithmTester):
 
     def test_output(self):
         stacked_y = self._stack(self.y)
-        super()._test_output(stacked_y, stacked_y)
+        self._test_output(stacked_y, stacked_y, checked_keys=('weights',))
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -93,7 +93,11 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
 
     def test_output(self):
-        super()._test_output(self.y, self.y, None)
+        # will need to change checked_keys if default method is changed
+        self._test_output(
+            self.y, self.y,
+            checked_keys=('weights', 'iterations', 'last_tol', 'optimal_parameter', 'min_rmse')
+        )
 
     def test_list_input(self):
         y_list = self.y.tolist()
@@ -151,7 +155,9 @@ class TestAdaptiveMinMax(AlgorithmTester):
         super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        self._test_output(
+            self.y, self.y, checked_keys=('weights', 'constrained_weights', 'poly_order')
+        )
 
     def test_list_output(self):
         y_list = self.y.tolist()

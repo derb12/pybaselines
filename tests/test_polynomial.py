@@ -29,8 +29,12 @@ class TestPoly(AlgorithmTester):
     def test_no_x(self):
         super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
-    def test_output(self):
-        super()._test_output(self.y, self.y)
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        param_keys = ['weights']
+        if return_coef:
+            param_keys.append('coef')
+        self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
         y_list = self.y.tolist()
@@ -49,12 +53,16 @@ class TestModPoly(AlgorithmTester):
     def test_no_x(self):
         super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
-    def test_output(self):
-        super()._test_output(self.y, self.y)
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        param_keys = ['weights', 'iterations', 'last_tol']
+        if return_coef:
+            param_keys.append('coef')
+        self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
 class TestIModPoly(AlgorithmTester):
@@ -69,8 +77,12 @@ class TestIModPoly(AlgorithmTester):
     def test_no_x(self):
         super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
-    def test_output(self):
-        super()._test_output(self.y, self.y)
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        param_keys = ['weights', 'iterations', 'last_tol']
+        if return_coef:
+            param_keys.append('coef')
+        self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
         y_list = self.y.tolist()
@@ -111,8 +123,12 @@ class TestPenalizedPoly(AlgorithmTester):
     def test_no_x(self):
         super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
-    def test_output(self):
-        super()._test_output(self.y, self.y)
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        param_keys = ['weights', 'iterations', 'last_tol']
+        if return_coef:
+            param_keys.append('coef')
+        self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
         y_list = self.y.tolist()
@@ -196,8 +212,12 @@ class TestLoess(AlgorithmTester):
     def test_no_x(self):
         super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
-    def test_output(self):
-        super()._test_output(self.y, self.y)
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        param_keys = ['weights', 'iterations', 'last_tol']
+        if return_coef:
+            param_keys.append('coef')
+        self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
         y_list = self.y.tolist()

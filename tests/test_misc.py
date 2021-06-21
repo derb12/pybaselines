@@ -22,7 +22,7 @@ class TestInterpPts(AlgorithmTester):
         super()._test_unchanged_data(data_fixture, None, x, x, self.points)
 
     def test_output(self):
-        super()._test_output(self.x, self.x, self.points)
+        self._test_output(self.x, self.x, self.points, checked_keys=())
 
     def test_list_input(self):
         x_list = self.x.tolist()

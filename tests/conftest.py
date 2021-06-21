@@ -94,12 +94,25 @@ class AlgorithmTester:
     x, y = get_data()
 
     @classmethod
-    def _test_output(cls, y, *args, **kwargs):
+    def _test_output(cls, y, *args, checked_keys=None, **kwargs):
         """
         Ensures that the output is correct/consistent.
 
         Ensures that output has two elements, a numpy array and a param dictionary,
         and that the output baseline is the same shape as the input y-data.
+
+        Parameters
+        ----------
+        y : array-like
+            The data to pass to the fitting function.
+        *args : tuple
+            Any arguments to pass to the fitting function.
+        checked_keys : Iterable, optional
+            The keys to ensure are present in the parameter dictionary output of the
+            fitting function. If None (default), will not check the param dictionary.
+            Used to track changes to the output params.
+        **kwargs : dict
+            Any keyword arguments to pass to the fitting function.
 
         """
         output = cls.func(*args, **kwargs)
@@ -108,6 +121,15 @@ class AlgorithmTester:
         assert isinstance(output[0], np.ndarray), 'output[0] should be a numpy ndarray'
         assert isinstance(output[1], dict), 'output[1] should be a dictionary'
         assert y.shape == output[0].shape, 'output[0] must have same shape as y-data'
+
+        # check all entries in output param dictionary
+        if checked_keys is not None:
+            for key in checked_keys:
+                if key not in output[1]:
+                    assert False, f'key "{key}" missing from param dictionary'
+                output[1].pop(key)
+            if output[1]:
+                assert False, f'unchecked keys in param dictionary: {output[1]}'
 
     @classmethod
     def _test_unchanged_data(cls, static_data, y=None, x=None, *args, **kwargs):

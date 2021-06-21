@@ -80,6 +80,11 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     -------
     np.ndarray, shape (M, N)
         An array of all of the baselines.
+    dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array for all of the baselines.
 
     References
     ----------
@@ -103,7 +108,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     method_kwargs['tol'] = np.inf
     baselines = []
     for entry in dataset:
-        baselines.append(fit_func(entry, **method_kwargs)[0])
+        baselines.append(fit_func(entry, **method_kwargs)[0]) #TODO need to create a list for each item in param dict
 
     return np.vstack(baselines), {'weights': method_kwargs['weights']}
 
@@ -156,7 +161,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         array from -1 to 1 with N points.
     method : str, optional
         A string indicating the Whittaker-smoothing-based or polynomial method
-        to use for fitting the baseline. Default is 'aspls'.
+        to use for fitting the baseline. Default is 'asls'.
     side : {'both', 'left', 'right'}, optional
         The side of the measured data to extend. Default is 'both'.
     width_scale : float, optional
@@ -305,7 +310,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
             method_kwargs[param_name] = 10**var
         else:
             method_kwargs[param_name] = var
-        fit_baseline, params = fit_func(fit_data, **method_kwargs)
+        fit_baseline, fit_params = fit_func(fit_data, **method_kwargs)
         #TODO change the known baseline so that np.roll does not have to be
         # calculated each time, since it requires additional time
         rmse = np.sqrt(np.mean(
@@ -314,6 +319,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
         if rmse < min_rmse:
             baseline = fit_baseline[lower_bound:fit_baseline.shape[0] - upper_bound]
+            params = fit_params
             best_val = var
             min_rmse = rmse
 
@@ -460,6 +466,7 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     constrained_weights[:constrained_range] = constrained_weight
     constrained_weights[-constrained_range:] = constrained_weight
 
+    #TODO should make parameters available; a list with an item for each fit like collab_pls
     baselines = np.empty((4, y.shape[0]))
     baselines[0] = fit_func(y, x, poly_orders[0], weights=weight_array, **method_kwargs)[0]
     baselines[1] = fit_func(y, x, poly_orders[0], weights=constrained_weights, **method_kwargs)[0]

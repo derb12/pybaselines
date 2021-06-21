@@ -46,7 +46,7 @@ def _output_wrong_shape(data):
 
 
 def _good_output(data, x_data=None):
-    return data, {}
+    return data, {'param': 1, 'param2': 2}
 
 
 class TestAlgorithmTesterPasses(AlgorithmTester):
@@ -62,6 +62,17 @@ class TestAlgorithmTesterPasses(AlgorithmTester):
 
     def test_output(self):
         super()._test_output(self.y, self.y)
+
+    def test_output_params(self):
+        self._test_output(self.y, self.x, checked_keys=('param', 'param2'))
+
+    def test_output_params_unchecked_param_fails(self):
+        with pytest.raises(AssertionError):
+            self._test_output(self.y, self.x, checked_keys=('param',))
+
+    def test_output_params_unknown_param_fails(self):
+        with pytest.raises(AssertionError):
+            self._test_output(self.y, self.x, checked_keys=('param', 'param2', 'param3'))
 
     def test_list_input(self):
         y_list = self.y.tolist()
