@@ -239,12 +239,13 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
         vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
     for _ in range(max_iter - 1):
+        baseline_old = baseline
         y = np.minimum(y0 if use_original else y, baseline)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
-        baseline_new = np.dot(vander, coef)
-        if relative_difference(baseline, baseline_new) < tol:
+        baseline = np.dot(vander, coef)
+        calc_difference = relative_difference(baseline_old, baseline)
+        if calc_difference < tol:
             break
-        baseline = baseline_new
 
     params = {'weights': weight_array}
     if return_coef:
@@ -660,12 +661,12 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     coef = np.dot(pseudo_inverse, y)
     baseline = np.dot(vander, coef)
     for _ in range(max_iter):
+        baseline_old = baseline
         coef = np.dot(pseudo_inverse, y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
-        baseline_new = np.dot(vander, coef)
-
-        if relative_difference(baseline, baseline_new) < tol:
+        baseline = np.dot(vander, coef)
+        calc_difference = relative_difference(baseline_old, baseline)
+        if calc_difference < tol:
             break
-        baseline = baseline_new
 
     params = {'weights': weight_array}
     if return_coef:
@@ -1062,11 +1063,15 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     sort_order = np.argsort(x)  # to ensure x is increasing
     x = x[sort_order]
     y = y[sort_order]
+    if use_original:
+        y0 = y
+
     vander = _get_vander(x, poly_order, calc_pinv=False)
 
     baseline = y
     coefs = np.empty((num_x, poly_order + 1))
     for i in range(max_iter):
+        baseline_old = baseline
         if conserve_memory:
             _loess_low_memory(
                 x, y, coefs, vander, total_points, num_x, use_threshold, weight_array
@@ -1081,21 +1086,17 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             )
 
         # einsum is same as np.array([np.dot(vander[i], coefs[i]) for i in range(num_x)])
-        baseline_new = np.einsum('ij,ij->i', vander, coefs)
-        if relative_difference(baseline, baseline_new) < tol:
-            if i == 0:
-                # in case tol was reached on first iteration
-                baseline = baseline_new
+        baseline = np.einsum('ij,ij->i', vander, coefs)
+        calc_difference = relative_difference(baseline_old, baseline)
+        if calc_difference < tol:
             break
 
-        baseline = baseline_new
         if use_threshold:
             y = np.minimum(
-                y0 if use_original else y,
-                baseline_new + num_std * np.std(y - baseline_new)
+                y0 if use_original else y, baseline + num_std * np.std(y - baseline)
             )
         else:
-            residual = y - baseline_new
+            residual = y - baseline
             weight_array = _tukey_square(
                 residual / _median_absolute_differences(residual), scale, symmetric_weights
             )
