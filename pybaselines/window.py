@@ -80,15 +80,15 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
         The y-values of the measured data, with N data points.
     max_half_window : int or Sequence(int, int)
         The maximum number of iterations. Should be set such that
-        `max_half_window`=(w-1)/2, where w is the index-based width of a
-        feature or peak. `max_half_window` can also be a sequence of two
-        integers for asymmetric peaks, with the first item corresponding to
+        `max_half_window` is approxiamtely ``(w-1)/2``, where ``w`` is the index-based
+        width of a feature or peak. `max_half_window` can also be a sequence of
+        two integers for asymmetric peaks, with the first item corresponding to
         the `max_half_window` of the peak's left edge, and the second item
         for the peak's right edge [3]_.
     decreasing : bool, optional
         If False (default), will iterate through window sizes from 1 to
-        max_half_window. If True, will reverse the order and iterate from
-        max_half_window to 1, which gives a smoother baseline according to [3]_
+        `max_half_window`. If True, will reverse the order and iterate from
+        `max_half_window` to 1, which gives a smoother baseline according to [3]_
         and [4]_.
     smooth_half_window : int, optional
         The half window to use for smoothing the data. If `smooth_half_window`
@@ -128,11 +128,11 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
 
     If data covers several orders of magnitude, better results can be obtained
     by first transforming the data using log-log-square transform before
-    using SNIP [2]_:
+    using SNIP [2]_::
 
         transformed_data =  np.log(np.log(np.sqrt(data + 1) + 1) + 1)
 
-    and then baseline can then be reverted back to the original scale using inverse:
+    and then baseline can then be reverted back to the original scale using inverse::
 
         baseline = -1 + (np.exp(np.exp(snip(transformed_data)) - 1) - 1)**2
 

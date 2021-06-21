@@ -19,7 +19,8 @@ pybaselines
     :alt: BSD 3-clause license
 
 
-pybaselines is a collection of algorithms for estimating the baseline of experimental data.
+pybaselines is a library of baseline correction algorithms to help estimate
+the baseline of experimental data.
 
 * For Python 3.6+
 * Open Source: BSD 3-Clause License
@@ -34,16 +35,16 @@ pybaselines is a collection of algorithms for estimating the baseline of experim
 Introduction
 ------------
 
-pybaselines provides many different algorithms for fitting baselines to data from
-experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. The aim of
+pybaselines provides many different baseline correction algorithms for fitting baselines
+to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. The aim of
 the project is to provide a semi-unified API to allow quickly testing and comparing
-multiple baseline algorithms to find the best one for a set of data.
+multiple baseline correction algorithms to find the best one for a set of data.
 
-pybaselines has 25+ baseline algorithms. Baseline fitting techniques are grouped
+pybaselines has 25+ baseline correction algorithms. The algorithms are grouped
 accordingly (note: when a method is labelled as 'improved', that is the method's
 name, not editorialization):
 
-a) Polynomial (pybaselines.polynomial)
+a) Polynomial methods (pybaselines.polynomial)
 
     1) poly (Regular Polynomial)
     2) modpoly (Modified Polynomial)
@@ -51,7 +52,7 @@ a) Polynomial (pybaselines.polynomial)
     4) penalized_poly (Penalized Polynomial)
     5) loess (Locally Estimated Scatterplot Smoothing)
 
-b) Whittaker-smoothing-based techniques (pybaselines.whittaker)
+b) Whittaker-smoothing-based methods (pybaselines.whittaker)
 
     1) asls (Asymmetric Least Squares)
     2) iasls (Improved Asymmetric Least Squares)
@@ -62,7 +63,7 @@ b) Whittaker-smoothing-based techniques (pybaselines.whittaker)
     7) aspls (Adaptive Smoothness Penalized Least Squares)
     8) psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 
-c) Morphological (pybaselines.morphological)
+c) Morphological methods (pybaselines.morphological)
 
     1) mpls (Morphological Penalized Least Squares)
     2) mor (Morphological)
@@ -71,7 +72,7 @@ c) Morphological (pybaselines.morphological)
     5) amormol (Averaging Morphological and Mollified Baseline)
     6) rolling_ball (Rolling Ball Baseline)
 
-d) Window-based (pybaselines.window)
+d) Window-based methods (pybaselines.window)
 
     1) noise_median (Noise Median method)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
@@ -157,9 +158,9 @@ Quick Start
 -----------
 
 To use the various functions in pybaselines, simply input the measured
-data and any required parameters. All baseline functions in pybaselines
+data and any required parameters. All baseline correction functions in pybaselines
 will output two items: a numpy array of the calculated baseline and a
-dictionary of parameters that can be helpful for reusing the functions.
+dictionary of potentially useful parameters.
 
 For more details on each baseline algorithm, refer to the `algorithms section`_ of
 pybaselines's documentation.
@@ -176,36 +177,36 @@ A simple example is shown below.
     import pybaselines
     from pybaselines import utils
 
-    x = np.linspace(100, 4200, 1000)
+    x = np.linspace(1, 1000, 1000)
     # a measured signal containing several Gaussian peaks
     signal = (
-        utils.gaussian(x, 2, 700, 50)
-        + utils.gaussian(x, 3, 1200, 150)
-        + utils.gaussian(x, 5, 1600, 100)
-        + utils.gaussian(x, 4, 2500, 50)
-        + utils.gaussian(x, 7, 3300, 100)
+        utils.gaussian(x, 4, 120, 5)
+        + utils.gaussian(x, 5, 220, 12)
+        + utils.gaussian(x, 5, 350, 10)
+        + utils.gaussian(x, 7, 400, 8)
+        + utils.gaussian(x, 4, 550, 6)
+        + utils.gaussian(x, 5, 680, 14)
+        + utils.gaussian(x, 4, 750, 12)
+        + utils.gaussian(x, 5, 880, 8)
     )
-    # baseline is a polynomial plus a broad gaussian
-    true_baseline = (
-        10 + 0.001 * x
-        + utils.gaussian(x, 6, 2000, 2000)
-    )
+    # exponentially decaying baseline
+    true_baseline = 2 + 10 * np.exp(-x / 400)
     noise = np.random.default_rng(1).normal(0, 0.2, x.size)
 
     y = signal + true_baseline + noise
 
     bkg_1 = pybaselines.polynomial.modpoly(y, x, poly_order=3)[0]
-    bkg_2 = pybaselines.whittaker.asls(y, lam=1e7, p=0.01)[0]
-    bkg_3 = pybaselines.morphological.imor(y, half_window=25)[0]
+    bkg_2 = pybaselines.whittaker.asls(y, lam=1e7, p=0.02)[0]
+    bkg_3 = pybaselines.morphological.mor(y, half_window=30)[0]
     bkg_4 = pybaselines.window.snip(
-        y, max_half_window=40, decreasing=True, smooth_half_window=1
+        y, max_half_window=40, decreasing=True, smooth_half_window=3
     )[0]
 
     plt.plot(x, y, label='raw data', lw=1.5)
     plt.plot(x, true_baseline, lw=3, label='true baseline')
     plt.plot(x, bkg_1, '--', label='modpoly')
     plt.plot(x, bkg_2, '--', label='asls')
-    plt.plot(x, bkg_3, '--', label='imor')
+    plt.plot(x, bkg_3, '--', label='mor')
     plt.plot(x, bkg_4, '--', label='snip')
 
     plt.legend()

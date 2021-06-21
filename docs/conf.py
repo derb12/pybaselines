@@ -40,6 +40,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'matplotlib.sphinxext.plot_directive'
 ]
 
 #autosummary_generate = True # enables autosummary extension
