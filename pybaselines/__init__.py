@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-pybaselines - A collection of algorithms for estimating the baseline of experimental data.
-==========================================================================================
+pybaselines - A library of baseline correction algorithms.
+==========================================================
 
 pybaselines provides different techniques for fitting baselines to experimental data.
 
-a) Polynomial (:mod:`pybaselines.polynomial`)
+a) Polynomial methods (:mod:`pybaselines.polynomial`)
 
     1) poly (Regular Polynomial)
     2) modpoly (Modified Polynomial)
@@ -13,7 +13,7 @@ a) Polynomial (:mod:`pybaselines.polynomial`)
     4) penalized_poly (Penalized Polynomial)
     5) loess (Locally Estimated Scatterplot Smoothing)
 
-b) Whittaker-smoothing-based techniques (:mod:`pybaselines.whittaker`)
+b) Whittaker-smoothing-based methods (:mod:`pybaselines.whittaker`)
 
     1) asls (Asymmetric Least Squares)
     2) iasls (Improved Asymmetric Least Squares)
@@ -24,7 +24,7 @@ b) Whittaker-smoothing-based techniques (:mod:`pybaselines.whittaker`)
     7) aspls (Adaptive Smoothness Penalized Least Squares)
     8) psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 
-c) Morphological (:mod:`pybaselines.morphological`)
+c) Morphological methods (:mod:`pybaselines.morphological`)
 
     1) mpls (Morphological Penalized Least Squares)
     2) mor (Morphological)
@@ -33,7 +33,7 @@ c) Morphological (:mod:`pybaselines.morphological`)
     5) amormol (Averaging Morphological and Mollified Baseline)
     6) rolling_ball (Rolling Ball Baseline)
 
-d) Window-based (:mod:`pybaselines.window`)
+d) Window-based methods (:mod:`pybaselines.window`)
 
     1) noise_median (Noise Median method)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)

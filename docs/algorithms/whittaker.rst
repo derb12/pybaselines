@@ -31,13 +31,21 @@ some techniques use both the first and second order differential matrices.
 The difference between WSB algorithms is the selection of weights and/or the
 function that is minimized.
 
+.. note::
+   The :math:`\lambda` (``lam``) value required to fit a particular baseline for all WSB
+   methods will increase as the number of data points increases, with the relationship
+   being roughly :math:`\log(\lambda) \propto \log(\text{number of data points})`. For example,
+   a ``lam`` value of :math:`10^3` that fits a dataset with 100 points may have to be :math:`10^7`
+   to fit the same data with 1000 points, and :math:`10^{11}` for 10000 points.
+
+
 Algorithms
 ----------
 
 asls (Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The :func:`.asls` (sometimes called ALS in literature) function is the
+The :func:`.asls` (sometimes called "ALS" in literature) function is the
 original implementation of Whittaker smoothing for baseline fitting.
 
 Minimized function:
@@ -56,8 +64,103 @@ Weighting:
     \end{array}\right.
 
 
+.. plot::
+   :align: center
+   :context: reset
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from pybaselines.utils import gaussian
+    from pybaselines import whittaker
+
+    def create_plots():
+        fig, axes = plt.subplots(
+            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
+            gridspec_kw={'wspace': 0, 'hspace': 0}
+        )
+        axes = axes.ravel()
+        for ax in axes:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.tick_params(
+                which='both', labelbottom=False, labelleft=False,
+                labeltop=False, labelright=False
+            )
+        return fig, axes
+
+
+    def create_data():
+        x = np.linspace(1, 1000, 500)
+        signal = (
+            gaussian(x, 6, 180, 5)
+            + gaussian(x, 8, 350, 10)
+            + gaussian(x, 6, 550, 5)
+            + gaussian(x, 9, 800, 10)
+        )
+        signal_2 = (
+            gaussian(x, 9, 100, 12)
+            + gaussian(x, 15, 400, 8)
+            + gaussian(x, 13, 700, 12)
+            + gaussian(x, 9, 880, 8)
+        )
+        signal_3 = (
+            gaussian(x, 8, 150, 10)
+            + gaussian(x, 20, 120, 12)
+            + gaussian(x, 16, 300, 20)
+            + gaussian(x, 12, 550, 5)
+            + gaussian(x, 20, 750, 12)
+            + gaussian(x, 18, 800, 18)
+            + gaussian(x, 15, 830, 12)
+        )
+        noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+        linear_baseline = 3 + 0.01 * x
+        exponential_baseline = 5 + 15 * np.exp(-x / 400)
+        gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
+
+        baseline_1 = linear_baseline
+        baseline_2 = gaussian_baseline
+        baseline_3 = exponential_baseline
+        baseline_4 = 10 - 0.005 * x + gaussian(x, 5, 850, 200)
+        baseline_5 = linear_baseline + 20
+
+        y1 = signal * 2 + baseline_1 + 5 * noise
+        y2 = signal + signal_2 + signal_3 + baseline_2 + noise
+        y3 = signal + signal_2 + baseline_3 + noise
+        y4 = signal + + signal_2 + baseline_4 + noise * 0.5
+        y5 = signal * 2 - signal_2 + baseline_5 + noise
+
+        baselines = baseline_1, baseline_2, baseline_3, baseline_4, baseline_5
+        data = (y1, y2, y3, y4, y5)
+
+        fig, axes = create_plots()
+        for ax, y, baseline in zip(axes, data, baselines):
+            data_handle = ax.plot(y)
+            baseline_handle = ax.plot(baseline, lw=2.5)
+        fit_handle = axes[-1].plot((), (), 'g--')
+        axes[-1].legend(
+            (data_handle[0], baseline_handle[0], fit_handle[0]),
+            ('data', 'real baseline', 'estimated baseline'),
+            loc='center', frameon=False
+        )
+
+        return axes, data
+
+
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            lam = 1e6
+        else:
+            lam = 1e5
+        baseline = whittaker.asls(y, lam=lam)
+        ax.plot(baseline[0], 'g--')
+
+
 iasls (Improved Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.iasls` is an attempt to improve the asls algorithm by considering
+both the roughness of the baseline and the first derivative of the residual
+(data - baseline).
 
 Minimized function:
 
@@ -77,8 +180,25 @@ Weighting:
     \end{array}\right.
 
 
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            lam = 1e6
+        else:
+            lam = 1e4
+        baseline = whittaker.iasls(y, lam=lam, lam_1=1e-1, p=0.1)
+        ax.plot(baseline[0], 'g--')
+
+
 airpls (Adaptive Iteratively Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.airpls` uses an exponential weighting of the negative residuals to
+attempt to provide a better fit than the asls method.
 
 Minimized function:
 
@@ -98,8 +218,22 @@ Weighting:
 where :math:`t` is the iteration number and :math:`|\mathbf{d}^-|` is the l1-norm of the negative
 values in the residual vector :math:`\mathbf d`, ie. :math:`\sum\limits_{y_i - z_i < 0} |y_i - z_i|`.
 
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for ax, y in zip(*create_data()):
+        baseline = whittaker.airpls(y, 1e5)
+        ax.plot(baseline[0], 'g--')
+
+
 arpls (Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.arpls` uses a single weighting function that is designed to account
+for noisy data.
 
 Minimized function:
 
@@ -122,8 +256,23 @@ where :math:`d_i = y_i - z_i` and :math:`\mu^-` and :math:`\sigma^-` are the mea
 deviation, respectively, of the negative values in the residual vector :math:`\mathbf d`.
 
 
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for ax, y in zip(*create_data()):
+        baseline = whittaker.arpls(y, 1e5)
+        ax.plot(baseline[0], 'g--')
+
+
 drpls (Doubly Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.drpls` uses a single weighting function that is designed to account
+for noisy data, similar to arpls. Further, it takes into account both the
+first and second derivatives of the baseline and uses a parameter :math:`\eta`
+to adjust the fit in peak versus non-peak regions.
 
 Minimized function:
 
@@ -152,8 +301,26 @@ where :math:`d_i = y_i - z_i`, :math:`t` is the iteration number, and
 respectively, of the negative values in the residual vector :math:`\mathbf d`.
 
 
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 3:
+            lam = 1e5
+        else:
+            lam = 1e6
+        baseline = whittaker.drpls(y, lam=lam)
+        ax.plot(baseline[0], 'g--')
+
+
 iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.iarpls` is an attempt to improve the arpls method, which has a tendency
+to overestimate the baseline when fitting small peaks in noisy data, by using an
+adjusted weighting formula.
 
 Minimized function:
 
@@ -177,8 +344,21 @@ where :math:`d_i = y_i - z_i`, :math:`t` is the iteration number, and
 the residual vector :math:`\mathbf d`.
 
 
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for ax, y in zip(*create_data()):
+        baseline = whittaker.iarpls(y, 1e4)
+        ax.plot(baseline[0], 'g--')
+
+
 aspls (Adaptive Smoothness Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.aspls`, similar to the iarpls method, is an attempt to improve the arpls method,
+which it does by using an adjusted weighting function and an additional parameter :math:`\alpha`.
 
 Minimized function:
 
@@ -192,8 +372,8 @@ where
 .. math::
 
     \alpha_i = \frac
-        {abs(y_i - z_i)}
-        {max(abs(y_i - z_i))}
+        {abs(d_i)}
+        {max(abs(\mathbf d))}
 
 Weighting:
 
@@ -209,8 +389,21 @@ where :math:`d_i = y_i - z_i`  and :math:`\sigma^-` is the standard deviation
 of the negative values in the residual vector :math:`\mathbf d`.
 
 
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for ax, y in zip(*create_data()):
+        baseline = whittaker.aspls(y, 1e6)
+        ax.plot(baseline[0], 'g--')
+
+
 psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.psalsa` is an attempt at improving the asls method to better fit noisy data
+by using an exponential decaying weighting for positive residuals.
 
 Minimized function:
 
@@ -230,3 +423,16 @@ Weighting:
 where :math:`k` is a factor that controls the exponential decay of the weights for baseline
 values greater than the data and should be approximately the height at which a value could
 be considered a peak.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 0:
+            k = 2
+        else:
+            k = 0.5
+        baseline = whittaker.psalsa(y, 1e5, k=k)
+        ax.plot(baseline[0], 'g--')

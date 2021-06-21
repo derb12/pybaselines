@@ -7,8 +7,8 @@ Version 0.4.1 (2021-06-10)
 
 This is a minor patch with new features, bug fixes, and pending deprecations.
 
-New Features
-~~~~~~~~~~~~
+New Features/Improvements
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Switched to using banded solvers for all Whittaker-smoothing-based algorithms
   (all functions in pybaselines.whittaker as well as pybaselines.morphological.mpls),
@@ -44,8 +44,8 @@ Version 0.4.0 (2021-05-30)
 
 This is a minor version with new features, bug fixes, and deprecations.
 
-New Features
-~~~~~~~~~~~~
+New Features/Improvements
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Significantly reduced both the calculation time and memory usage of polynomial.loess.
   For example, getting the baseline for a dataset with 20,000 points now takes ~12 seconds
@@ -111,8 +111,8 @@ Version 0.3.0 (2021-04-29)
 This is a minor version with new features, bug fixes, deprecations,
 and documentation improvements.
 
-New Features
-~~~~~~~~~~~~
+New Features/Improvements
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Added the small-window moving average (swima) baseline to pybaselines.window,
   which iteratively smooths the data with a moving average to eliminate peaks
@@ -179,8 +179,8 @@ Version 0.2.0 (2021-04-02)
 This is a minor version with new features, bug fixes, deprecations,
 and documentation improvements.
 
-New Features
-~~~~~~~~~~~~
+New Features/Improvements
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Added the morphological and mollified (mormol) function to pybaselines.morphological,
   which uses a combination of morphology for baseline estimation and mollification for

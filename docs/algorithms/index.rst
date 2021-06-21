@@ -2,33 +2,17 @@
 Algorithms
 ==========
 
-The current available baseline algorithms in pybaselines are split into
-polynomial, whittaker, morphological, and window. Note that this classification
-is more for grouping code, and not a hard classification of the algorithms.
+The currently available baseline correction algorithms in pybaselines are split into
+polynomial, whittaker, morphological, window, optimizers, and miscellaneous (misc).
+Note that this classification is more for grouping code, and not a hard classification
+of the algorithms.
 
-Plots showing the various baseline algorithms are shown below (note that the
-baselines in the figures are to show examples for each algorithm, and that most
-are not fully optimized for the data).
+This section of the documentation is to help provide some context for each algorithm.
+In addition, most algorithms will have a figure that shows how well the algorithm fits
+various baselines to help choose the correct algorithm for a particular baseline. Refer
+to the :doc:`API section <../api/index>` of the documentation for the full parameter and
+reference listing for any algorithm.
 
-.. image:: ../images/polynomial.jpg
-   :align: center
-   :alt: polynomial baselines
-
-.. image:: ../images/whittaker.jpg
-   :align: center
-   :alt: whittaker baselines
-
-.. image:: ../images/morphological.jpg
-   :align: center
-   :alt: morphological baselines
-
-.. image:: ../images/window.jpg
-   :align: center
-   :alt: window baselines
-
-.. image:: ../images/optimizers.jpg
-   :align: center
-   :alt: optimizer baselines
 
 .. toctree::
    :maxdepth: 2
