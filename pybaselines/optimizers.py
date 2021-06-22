@@ -78,13 +78,17 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
 
     Returns
     -------
-    np.ndarray, shape (M, N)
+    baselines : np.ndarray, shape (M, N)
         An array of all of the baselines.
-    dict
+    params : dict
         A dictionary with the following items:
 
-        * 'weights': numpy.ndarray, shape (N,)
-            The weight array for all of the baselines.
+        * 'average_weights': numpy.ndarray, shape (N,)
+            The weight array used to fit all of the baselines.
+
+        Additional items depend on the output of the selected method. Every
+        other key will have a list of values, with each item corresponding to a
+        fit.
 
     References
     ----------
@@ -106,11 +110,6 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
         method_kwargs['weights'] = np.mean(weights.T, 1)
 
     method_kwargs['tol'] = np.inf
-    baselines = []
-    for entry in dataset:
-        baselines.append(fit_func(entry, **method_kwargs)[0]) #TODO need to create a list for each item in param dict
-
-    return np.vstack(baselines), {'weights': method_kwargs['weights']}
 
 
 def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, variable,
@@ -138,8 +137,18 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
             misses += 1
             if misses > allowed_misses:
                 break
+    baselines = np.empty(dataset.shape)
+    params = {'average_weights': method_kwargs['weights']}
+    for i, entry in enumerate(dataset):
+        baselines[i], param = fit_func(entry, **method_kwargs)
+        for key, value in param.items():
+            if key in params:
+                params[key].append(value)
+            else:
+                params[key] = [value]
 
     return best_baseline, min_var, other_params
+    return baselines, params
 
 
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,

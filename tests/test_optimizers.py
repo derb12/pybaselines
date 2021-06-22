@@ -49,7 +49,11 @@ class TestCollabPLS(AlgorithmTester):
 
     def test_output(self):
         stacked_y = self._stack(self.y)
-        self._test_output(stacked_y, stacked_y, checked_keys=('weights',))
+        # will need to change checked_keys if default method is changed
+        self._test_output(
+            stacked_y, stacked_y,
+            checked_keys=('average_weights', 'weights', 'iterations', 'last_tol')
+        )
 
     def test_list_input(self):
         y_list = self.y.tolist()
