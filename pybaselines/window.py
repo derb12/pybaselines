@@ -151,7 +151,7 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
            Physics Research A, 2009, 60, 478-487.
 
     """
-    #TODO potentially add adaptive window sizes from [4]_, or at least allow inputting
+    # TODO potentially add adaptive window sizes from [4]_, or at least allow inputting
     # an array of max_half_windows; would need to have a separate function for array
     # windows since it would no longer be able to be vectorized
     if filter_order not in {2, 4, 6, 8}:

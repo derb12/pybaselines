@@ -23,22 +23,26 @@ class TestPoly(AlgorithmTester):
     func = polynomial.poly
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(data_fixture, y, x, y, x)
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
+        """Ensures that the output has the desired format."""
         param_keys = ['weights']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
 class TestModPoly(AlgorithmTester):
@@ -47,20 +51,24 @@ class TestModPoly(AlgorithmTester):
     func = polynomial.modpoly
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(data_fixture, y, x, y, x)
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
+        """Ensures that the output has the desired format."""
         param_keys = ['weights', 'iterations', 'last_tol']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
@@ -71,22 +79,26 @@ class TestIModPoly(AlgorithmTester):
     func = polynomial.imodpoly
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(data_fixture, y, x, y, x)
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
+        """Ensures that the output has the desired format."""
         param_keys = ['weights', 'iterations', 'last_tol']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
 class TestPenalizedPoly(AlgorithmTester):
@@ -108,31 +120,37 @@ class TestPenalizedPoly(AlgorithmTester):
         )
     )
     def test_unchanged_data(self, data_fixture, cost_function):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x, cost_function=cost_function)
+        self._test_unchanged_data(data_fixture, y, x, y, x, cost_function=cost_function)
 
     @pytest.mark.parametrize('cost_function', ('huber', 'p_huber', ''))
     def test_unknown_cost_function_prefix_fails(self, cost_function):
+        """Ensures cost function with no prefix or a wrong prefix fails."""
         with pytest.raises(ValueError):
-            super()._call_func(self.y, self.x, cost_function=cost_function)
+            self._call_func(self.y, self.x, cost_function=cost_function)
 
     def test_unknown_cost_function_fails(self):
+        """Ensures than an unknown cost function fails."""
         with pytest.raises(KeyError):
-            super()._call_func(self.y, self.x, cost_function='a_hub')
+            self._call_func(self.y, self.x, cost_function='a_hub')
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
+        """Ensures that the output has the desired format."""
         param_keys = ['weights', 'iterations', 'last_tol']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
     def test_weighting(self, weight_enum):
@@ -206,22 +224,26 @@ class TestLoess(AlgorithmTester):
 
     @pytest.mark.parametrize('use_threshold', (False, True))
     def test_unchanged_data(self, data_fixture, use_threshold):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x, use_threshold=use_threshold)
+        self._test_unchanged_data(data_fixture, y, x, y, x, use_threshold=use_threshold)
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
+        """Ensures that the output has the desired format."""
         param_keys = ['weights', 'iterations', 'last_tol']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
 
     def test_list_output(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     def test_x_ordering(self):
         """Ensures arrays are correctly sorted within the function."""

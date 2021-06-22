@@ -65,15 +65,18 @@ class TestAsLS(AlgorithmTester):
     func = whittaker.asls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -103,18 +106,22 @@ class TestIAsLS(AlgorithmTester):
     func = whittaker.iasls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(data_fixture, y, x, y, x)
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -138,15 +145,18 @@ class TestAirPLS(AlgorithmTester):
     func = whittaker.airpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -170,15 +180,18 @@ class TestArPLS(AlgorithmTester):
     func = whittaker.arpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -202,15 +215,18 @@ class TestDrPLS(AlgorithmTester):
     func = whittaker.drpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @has_pentapy
     def test_pentapy_solver(self):
@@ -228,15 +244,18 @@ class TestIArPLS(AlgorithmTester):
     func = whittaker.iarpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -260,17 +279,20 @@ class TestAsPLS(AlgorithmTester):
     func = whittaker.aspls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(
             self.y, self.y, checked_keys=('weights', 'alpha', 'iterations', 'last_tol')
         )
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     def test_wrong_alpha_shape(self):
         """Ensures that an exception is raised if input alpha and data are different shapes."""
@@ -300,15 +322,18 @@ class TestPsalsa(AlgorithmTester):
     func = whittaker.psalsa
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):

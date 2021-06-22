@@ -21,7 +21,7 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear'):
     baseline_points : array-like, shape (n, 2)
         An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
         each point representing the baseline.
-    interp_method : string, optional
+    interp_method : str, optional
         The method to use for interpolation. See :class:`scipy.interpolate.interp1d`
         for all options. Default is 'linear', which connects each point with a
         line segment.

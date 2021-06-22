@@ -96,7 +96,7 @@ class AlgorithmTester:
     @classmethod
     def _test_output(cls, y, *args, checked_keys=None, **kwargs):
         """
-        Ensures that the output is correct/consistent.
+        Ensures that the output has the desired format.
 
         Ensures that output has two elements, a numpy array and a param dictionary,
         and that the output baseline is the same shape as the input y-data.
@@ -146,7 +146,7 @@ class AlgorithmTester:
         --------
         >>> def test_unchanged_data(self, data_fixture):
         >>>     x, y = get_data()
-        >>>     super()._test_unchanged_data(data_fixture, y, x, y, x, lam=100)
+        >>>     self._test_unchanged_data(data_fixture, y, x, y, x, lam=100)
 
         """
         cls.func(*args, **kwargs)
@@ -164,7 +164,7 @@ class AlgorithmTester:
     def _test_algorithm_no_x(cls, with_args=(), with_kwargs=None,
                              without_args=(), without_kwargs=None):
         """
-        Ensures that function output is same when no x is input.
+        Ensures that function output is the same when no x is input.
 
         Maybe only valid for evenly spaced data, such as used for testing.
         """

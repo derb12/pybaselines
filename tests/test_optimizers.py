@@ -17,15 +17,19 @@ from .conftest import AlgorithmTester, get_data
 
 @pytest.mark.parametrize('method', ('collab_pls', 'COLLAB_pls'))
 def test_get_function(method):
-    optimizers._get_function(method, [optimizers])
+    """Ensures _get_function gets the correct method, regardless of case."""
+    selected_func = optimizers._get_function(method, [optimizers])
+    assert selected_func is optimizers.collab_pls
 
 
 def test_get_function_fails_wrong_method():
+    """Ensures _get_function fails when an no function with the input name is available."""
     with pytest.raises(AttributeError):
         optimizers._get_function('unknown function', [optimizers])
 
 
 def test_get_function_fails_no_module():
+    """Ensures _get_function fails when not given any modules to search."""
     with pytest.raises(AttributeError):
         optimizers._get_function('collab_pls', [])
 
@@ -37,17 +41,20 @@ class TestCollabPLS(AlgorithmTester):
 
     @staticmethod
     def _stack(data):
+        """Makes the data two-dimensional with shape (M, N) as required by collab_pls."""
         return np.vstack((data, data))
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
 
         data_x, data_y = data_fixture
         stacked_data = (self._stack(data_x), self._stack(data_y))
         stacked_y = self._stack(y)
-        super()._test_unchanged_data(stacked_data, stacked_y, None, stacked_y)
+        self._test_unchanged_data(stacked_data, stacked_y, None, stacked_y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         stacked_y = self._stack(self.y)
         # will need to change checked_keys if default method is changed
         self._test_output(
@@ -56,20 +63,23 @@ class TestCollabPLS(AlgorithmTester):
         )
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         stacked_y = self._stack(self.y)
-        super()._test_algorithm_list(array_args=(stacked_y,), list_args=([y_list, y_list],))
+        self._test_algorithm_list(array_args=(stacked_y,), list_args=([y_list, y_list],))
 
     @pytest.mark.parametrize(
         'method',
         ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa')
     )
     def test_all_methods(self, method):
-        super()._call_func(self._stack(self.y), method=method)
+        """Ensures all available methods work."""
+        self._call_func(self._stack(self.y), method=method)
 
     def test_unknown_method_fails(self):
+        """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):
-            super()._call_func(self._stack(self.y), method='unknown function')
+            self._call_func(self._stack(self.y), method='unknown function')
 
 
 class TestOptimizeExtendedRange(AlgorithmTester):
@@ -79,11 +89,13 @@ class TestOptimizeExtendedRange(AlgorithmTester):
 
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
     def test_unchanged_data(self, data_fixture, side):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x, side=side)
+        self._test_unchanged_data(data_fixture, y, x, y, x, side=side)
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
             with_args=(self.y, self.x), without_args=(self.y, None)
         )
 
@@ -97,6 +109,7 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         # will need to change checked_keys if default method is changed
         self._test_output(
             self.y, self.y,
@@ -104,8 +117,9 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         )
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(
+        self._test_algorithm_list(
             array_args=(self.y, None), list_args=(y_list, None)
         )
 
@@ -125,25 +139,36 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         else:
             kwargs = {}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
-        super()._call_func(self.y, self.x, method=method, height_scale=0.1, **kwargs)
+        self._call_func(self.y, self.x, method=method, height_scale=0.1, **kwargs)
 
     def test_unknown_method_fails(self):
+        """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):
-            super()._call_func(self.y, self.x, method='unknown function')
+            self._call_func(self.y, self.x, method='unknown function')
 
     def test_unknown_side_fails(self):
+        """Ensures function fails when the input side is not 'left', 'right', or 'both'."""
         with pytest.raises(ValueError):
-            super()._call_func(self.y, self.x, side='east')
+            self._call_func(self.y, self.x, side='east')
 
     @pytest.mark.parametrize('key', ('min_value', 'max_value', 'step'))
     def test_polynomial_float_value_fails(self, key):
+        """Ensures function fails when using a polynomial method with a float poly_order value."""
         with pytest.raises(TypeError):
-            super()._call_func(self.y, self.x, method='modpoly', **{key: 1.5})
+            self._call_func(self.y, self.x, method='modpoly', **{key: 1.5})
 
     @pytest.mark.parametrize('key', ('min_value', 'max_value', 'step'))
     def test_whittaker_high_value_fails(self, key):
+        """
+        Ensures function fails when using a Whittaker method and input lambda exponent is too high.
+
+        Since the function uses 10**exponent, do not want to allow a high exponent to be used,
+        since the user probably thought the actual lam value had to be specficied rather than
+        just the exponent.
+
+        """
         with pytest.raises(ValueError):
-            super()._call_func(self.y, self.x, method='asls', **{key: 1e4})
+            self._call_func(self.y, self.x, method='asls', **{key: 1e4})
 
 
 class TestAdaptiveMinMax(AlgorithmTester):
@@ -152,35 +177,42 @@ class TestAdaptiveMinMax(AlgorithmTester):
     func = optimizers.adaptive_minmax
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(data_fixture, y, x, y, x)
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(
             self.y, self.y, checked_keys=('weights', 'constrained_weights', 'poly_order')
         )
 
     def test_list_output(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
     def test_methods(self, method):
-        super()._test_output(self.y, self.y, self.x, method=method)
+        """Ensures all available methods work."""
+        self._test_output(self.y, self.y, self.x, method=method)
 
     def test_unknown_method_fails(self):
+        """Ensures function fails when an unknown function is given."""
         with pytest.raises(KeyError):
-            super()._test_output(self.y, self.y, method='unknown')
+            self._test_output(self.y, self.y, method='unknown')
 
     @pytest.mark.parametrize('poly_order', (None, 0, [0], (0, 1)))
     def test_polyorder_inputs(self, poly_order):
-        super()._test_output(self.y, self.y, self.x, poly_order)
+        """Tests valid inputs for poly_order."""
+        self._test_output(self.y, self.y, self.x, poly_order)
 
     @pytest.mark.parametrize('poly_order', (0, [0], (0, 1)))
     def test_polyorder_outputs(self, poly_order):
         """Ensures that the correct polynomial orders were used."""
-        _, params = super()._call_func(self.y, self.x, poly_order)
+        _, params = self._call_func(self.y, self.x, poly_order)
         assert params['poly_order'] == (0, 1)

@@ -23,15 +23,18 @@ class TestMPLS(AlgorithmTester):
     func = morphological.mpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'half_window'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -55,15 +58,18 @@ class TestMor(AlgorithmTester):
     func = morphological.mor
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('half_window',))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
 class TestIMor(AlgorithmTester):
@@ -72,15 +78,18 @@ class TestIMor(AlgorithmTester):
     func = morphological.imor
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
 class TestAMorMol(AlgorithmTester):
@@ -89,15 +98,18 @@ class TestAMorMol(AlgorithmTester):
     func = morphological.amormol
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
 class TestMorMol(AlgorithmTester):
@@ -106,15 +118,18 @@ class TestMorMol(AlgorithmTester):
     func = morphological.mormol
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
 class TestRollingBall(AlgorithmTester):
@@ -129,33 +144,50 @@ class TestRollingBall(AlgorithmTester):
         'smooth_half_window', (None, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0])
     )
     def test_unchanged_data(self, data_fixture, half_window, smooth_half_window):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y, half_window, smooth_half_window)
+        self._test_unchanged_data(data_fixture, y, None, y, half_window, smooth_half_window)
 
     def test_output(self):
+        """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('half_window',))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     def test_incorrect_half_window_fails(self):
+        """Ensures an exception is raised if half_window is an array with len != len(data)."""
         with pytest.raises(ValueError):
-            super()._call_func(self.y, np.array([1, 1]))
+            self._call_func(self.y, np.array([1, 1]))
 
     def test_incorrect_smooth_half_window_fails(self):
+        """Ensures exception is raised if smooth_half_window is an array with len != len(data)."""
         with pytest.raises(ValueError):
-            super()._call_func(self.y, 1, np.array([1, 1]))
+            self._call_func(self.y, 1, np.array([1, 1]))
 
     def test_array_half_window_output(self):
-        baseline_1 = super()._call_func(self.y, 1, 1)[0]
-        baseline_2 = super()._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
+        """
+        Checks the array-based rolling ball versus the constant value implementation.
+
+        Ensures that both give the same answer if the array of half-window values
+        is the same value as the single half-window.
+        """
+        baseline_1 = self._call_func(self.y, 1, 1)[0]
+        baseline_2 = self._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
 
         assert_array_almost_equal(baseline_1, baseline_2)
 
     def test_array_smooth_half_window_output(self):
-        baseline_1 = super()._call_func(self.y, 1, 1)[0]
-        baseline_2 = super()._call_func(self.y, 1, np.full(self.y.shape[0], 1))[0]
+        """
+        Checks the smoothing array-based rolling ball versus the constant value implementation.
+
+        Ensures that both give the same answer if the array of smooth-half-window
+        values is the same value as the single smooth-half-window.
+        """
+        baseline_1 = self._call_func(self.y, 1, 1)[0]
+        baseline_2 = self._call_func(self.y, 1, np.full(self.y.shape[0], 1))[0]
 
         # avoid the edges since the two smoothing techniques will give slighly
         # different  results on the edges
@@ -164,19 +196,19 @@ class TestRollingBall(AlgorithmTester):
 
     def test_different_array_half_window_output(self):
         """Ensures that the output is different when using changing window sizes."""
-        baseline_1 = super()._call_func(self.y, 1, 1)[0]
+        baseline_1 = self._call_func(self.y, 1, 1)[0]
 
         half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        baseline_2 = super()._call_func(self.y, half_windows, 1)[0]
+        baseline_2 = self._call_func(self.y, half_windows, 1)[0]
 
         assert not np.allclose(baseline_1, baseline_2)
 
     def test_different_array_smooth_half_window_output(self):
         """Ensures that the output is different when using changing smoothing window sizes."""
-        baseline_1 = super()._call_func(self.y, 1, 1)[0]
+        baseline_1 = self._call_func(self.y, 1, 1)[0]
 
         smooth_half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        baseline_2 = super()._call_func(self.y, 1, smooth_half_windows)[0]
+        baseline_2 = self._call_func(self.y, 1, smooth_half_windows)[0]
 
         # avoid the edges since the two smoothing techniques will give slighly
         # different  results on the edges and want to ensure the rest of the

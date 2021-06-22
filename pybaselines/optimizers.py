@@ -110,33 +110,6 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
         method_kwargs['weights'] = np.mean(weights.T, 1)
 
     method_kwargs['tol'] = np.inf
-
-
-def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, variable,
-                min_value, max_value, step=1, allowed_misses=1, **func_kwargs):
-    """Iterates through possible values to find the one with lowest root-mean-square-error."""
-    min_rmse = np.inf
-    misses = 0
-    for var in np.arange(min_value, max_value, step):
-        if variable == 'lam':
-            func_kwargs[variable] = 10**var
-        else:
-            func_kwargs[variable] = var
-        baseline, other_params = func(fit_data, **func_kwargs)
-        #TODO change the known baseline so that np.roll does not have to be
-        # calculated each time, since it requires additional time
-        rmse = np.sqrt(np.mean(
-            (known_background - np.roll(baseline, upper_bound)[:upper_bound + lower_bound])**2
-        ))
-        if rmse < min_rmse:
-            best_baseline = baseline[lower_bound:baseline.shape[0] - upper_bound]
-            min_var = var
-            misses = 0
-            min_rmse = rmse
-        else:
-            misses += 1
-            if misses > allowed_misses:
-                break
     baselines = np.empty(dataset.shape)
     params = {'average_weights': method_kwargs['weights']}
     for i, entry in enumerate(dataset):
@@ -147,7 +120,6 @@ def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, vari
             else:
                 params[key] = [value]
 
-    return best_baseline, min_var, other_params
     return baselines, params
 
 
@@ -313,14 +285,14 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
     min_rmse = np.inf
     best_val = None
-    #TODO maybe switch to linspace since arange is inconsistent when using floats
+    # TODO maybe switch to linspace since arange is inconsistent when using floats
     for var in np.arange(min_value, max_value + step, step):
         if param_name == 'lam':
             method_kwargs[param_name] = 10**var
         else:
             method_kwargs[param_name] = var
         fit_baseline, fit_params = fit_func(fit_data, **method_kwargs)
-        #TODO change the known baseline so that np.roll does not have to be
+        # TODO change the known baseline so that np.roll does not have to be
         # calculated each time, since it requires additional time
         rmse = np.sqrt(np.mean(
             (known_background - np.roll(fit_baseline, upper_bound)[:upper_bound + lower_bound])**2
@@ -475,14 +447,14 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     constrained_weights[:constrained_range] = constrained_weight
     constrained_weights[-constrained_range:] = constrained_weight
 
-    #TODO should make parameters available; a list with an item for each fit like collab_pls
+    # TODO should make parameters available; a list with an item for each fit like collab_pls
     baselines = np.empty((4, y.shape[0]))
     baselines[0] = fit_func(y, x, poly_orders[0], weights=weight_array, **method_kwargs)[0]
     baselines[1] = fit_func(y, x, poly_orders[0], weights=constrained_weights, **method_kwargs)[0]
     baselines[2] = fit_func(y, x, poly_orders[1], weights=weight_array, **method_kwargs)[0]
     baselines[3] = fit_func(y, x, poly_orders[1], weights=constrained_weights, **method_kwargs)[0]
 
-    #TODO should the coefficients also be made available? Would need to get them from
+    # TODO should the coefficients also be made available? Would need to get them from
     # each of the fits
     params = {
         'weights': weight_array, 'constrained_weights': constrained_weights,

@@ -241,7 +241,7 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
         The smoothed input array.
 
     """
-    #TODO need to revisit this and ensure everything is correct
+    # TODO need to revisit this and ensure everything is correct
     padding = min(data.shape[0], kernel.shape[0]) // 2
     convolution = np.convolve(
         pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'

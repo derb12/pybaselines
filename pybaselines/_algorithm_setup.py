@@ -293,7 +293,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
         diagonal_data = _diff_1_diags(num_y, upper_only)
     elif diff_order == 2:
         diagonal_data = _diff_2_diags(num_y, upper_only)
-    else:  #TODO figure out the general formula to avoid using the sparse matrices
+    else:  # TODO figure out the general formula to avoid using the sparse matrices
         # csc format is fastest for the D.T * D operation
         diff_matrix = difference_matrix(num_y, diff_order, 'csc')
         diff_matrix = diff_matrix.T * diff_matrix
