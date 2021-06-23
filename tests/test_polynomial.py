@@ -9,7 +9,7 @@ Created on March 20, 2021
 from math import ceil
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal
+from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
 
 from pybaselines import polynomial
@@ -187,7 +187,7 @@ class TestPenalizedPoly(AlgorithmTester):
         elif weight_enum == 2:
             # binary mask, only fitting the first half of the data
             weights = np.ones_like(self.y)
-            weights[self.x < 0.5 * (max(self.x) + min(self.x))] = 0
+            weights[self.x < 0.5 * (np.max(self.x) + np.min(self.x))] = 0
         else:
             # weight array where the two endpoints have weighting >> 1
             weights = np.ones_like(self.y)
@@ -222,11 +222,14 @@ class TestLoess(AlgorithmTester):
 
     func = polynomial.loess
 
+    @pytest.mark.parametrize('conserve_memory', (True, False))
     @pytest.mark.parametrize('use_threshold', (False, True))
-    def test_unchanged_data(self, data_fixture, use_threshold):
+    def test_unchanged_data(self, data_fixture, use_threshold, conserve_memory):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x, use_threshold=use_threshold)
+        self._test_unchanged_data(
+            data_fixture, y, x, y, x, use_threshold=use_threshold, conserve_memory=conserve_memory
+        )
 
     def test_no_x(self):
         """Ensures that function output is the same when no x is input."""
@@ -253,3 +256,43 @@ class TestLoess(AlgorithmTester):
         reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
 
         assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+
+    @pytest.mark.parametrize('fraction', (-0.1, 1.1, 5))
+    def test_wrong_fraction_fails(self, fraction):
+        """Ensures a fraction value outside of (0, 1) raises an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, fraction)
+
+    @pytest.mark.parametrize('poly_order', (0, 1, 2, 3))
+    def test_too_small_window_fails(self, poly_order):
+        """Ensures a window smaller than poly_order + 1 raises an exception."""
+        for num_points in range(poly_order + 1):
+            with pytest.raises(ValueError):
+                self._call_func(self.y, self.x, total_points=num_points, poly_order=poly_order)
+
+    @pytest.mark.parametrize('conserve_memory', (True, False))
+    def test_use_threshold_weights_reset(self, conserve_memory):
+        """Ensures weights are reset to 1 after first iteration if use_threshold is True."""
+        weights = np.arange(self.y.shape[0])
+        one_weights = np.ones(self.y.shape[0])
+        # will exit fitting loop before weights are reset on first loop
+        _, params_first_iter = self._call_func(
+            self.y, self.x, weights=weights, conserve_memory=conserve_memory,
+            use_threshold=True, tol=1e10
+        )
+        assert_array_equal(weights, params_first_iter['weights'])
+
+        # will exit fitting loop after first iteration but after reassigning weights
+        _, params_second_iter = self._call_func(
+            self.y, self.x, weights=weights, conserve_memory=conserve_memory,
+            use_threshold=True, tol=-1, max_iter=1
+        )
+        # will exit fitting loop after second iteration
+        _, params_third_iter = self._call_func(
+            self.y, self.x, weights=weights, conserve_memory=conserve_memory,
+            use_threshold=True, tol=-1, max_iter=2
+        )
+
+        assert_array_equal(one_weights, params_second_iter['weights'])
+        assert_array_equal(one_weights, params_third_iter['weights'])
+

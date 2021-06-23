@@ -789,12 +789,14 @@ def _median_absolute_differences(array_1, array_2=None, errors=None):
     else:
         difference = array_1 - array_2
     if errors is not None:
+        # TODO errors were never actually implemented into loess function; should
+        # they, or should this be removed?
         return np.median(np.sqrt(errors) * np.abs(difference)) / 0.6745
     else:
         return np.median(np.abs(difference)) / 0.6745
 
 
-def _loess_low_memory(x, y, coefs, vander, total_points, num_x, use_threshold, weights):
+def _loess_low_memory(x, y, coefs, vander, total_points, num_x):
     """
     A version of loess that uses near constant memory.
 
@@ -816,11 +818,6 @@ def _loess_low_memory(x, y, coefs, vander, total_points, num_x, use_threshold, w
         The number of points to include when fitting each x-value.
     num_x : int
         The number of data points in `x`, also known as N.
-    use_threshold : bool
-        If False, will also use `weights` when calculating the total weighting
-        for each window.
-    weights : numpy.ndarray, shape (N,)
-        The array of weights for the data. Only used if `use_threshold` is False.
 
     Notes
     -----
@@ -828,31 +825,27 @@ def _loess_low_memory(x, y, coefs, vander, total_points, num_x, use_threshold, w
 
     """
     left = 0
-    right = total_points - 1
-    max_right = num_x - 1
+    right = total_points
     for i, x_val in enumerate(x):
-        difference = abs(x - x_val)
-        while right < max_right and difference[left] > difference[right + 1]:
+        # TODO should still keep indices so later iterations are slightly faster
+        # without using significant memory
+        while right < num_x and x_val - x[left] > x[right] - x_val:
             left += 1
             right += 1
-        window_slice = slice(left, right + 1)
-        inner = difference[window_slice] / max(difference[left], difference[right])
-        inner = inner * inner * inner
-        inner = 1 - inner
-        kernel = np.sqrt(inner * inner * inner)
-        if use_threshold:
-            weight_array = kernel
-        else:
-            weight_array = kernel * weights[window_slice]
+        difference = np.abs(x[left:right] - x_val)
+        difference = difference / max(difference[0], difference[total_points - 1])
+        difference = difference * difference * difference
+        difference = 1 - difference
+        kernel = np.sqrt(difference * difference * difference)
 
         coefs[i] = np.linalg.lstsq(
-            weight_array[:, np.newaxis] * vander[window_slice],
-            weight_array * y[window_slice],
+            kernel[:, np.newaxis] * vander[left:right],
+            kernel * y[left:right],
             None
         )[0]
 
 
-def _loess_first_loop(x, y, coefs, vander, total_points, num_x, use_threshold, weights):
+def _loess_first_loop(x, y, coefs, vander, total_points, num_x):
     """
     The initial fit for loess that also caches the window values for each x-value.
 
@@ -871,19 +864,14 @@ def _loess_first_loop(x, y, coefs, vander, total_points, num_x, use_threshold, w
         The number of points to include when fitting each x-value.
     num_x : int
         The number of data points in `x`, also known as N.
-    use_threshold : bool
-        If False, will also use `weights` when calculating the total weighting
-        for each window.
-    weights : numpy.ndarray, shape (N,)
-        The array of weights for the data. Only used if `use_threshold` is False.
 
     Returns
     -------
     kernels : numpy.ndarray, shape (num_x, total_points)
         The array containing the distance-weighted kernel for each x-value.
-    windows : list(slice)
-        A list of slices that define the indices for each window to use for
-        fitting each x-value. Has a length of `num_x`.
+    windows : numpy.ndarray, shape (N, 2)
+        An array of integer pairs that define the left and right indices for each
+        window to use for fitting each x-value.
 
     Notes
     -----
@@ -891,38 +879,31 @@ def _loess_first_loop(x, y, coefs, vander, total_points, num_x, use_threshold, w
 
     """
     left = 0
-    right = total_points - 1
-    max_right = num_x - 1
+    right = total_points
     kernels = np.empty((num_x, total_points))
-    windows = [None] * num_x
+    windows = np.empty((num_x, 2), np.int32)
     for i, x_val in enumerate(x):
-        difference = abs(x - x_val)
-        while right < max_right and difference[left] > difference[right + 1]:
+        while right < num_x and x_val - x[left] > x[right] - x_val:
             left += 1
             right += 1
-        window_slice = slice(left, right + 1)
+        difference = np.abs(x[left:right] - x_val)
+        difference = difference / max(difference[0], difference[total_points - 1])
+        difference = difference * difference * difference
+        difference = 1 - difference
+        kernel = np.sqrt(difference * difference * difference)
 
-        inner = difference[window_slice] / max(difference[left], difference[right])
-        inner = inner * inner * inner
-        inner = 1 - inner
-        kernel = np.sqrt(inner * inner * inner)
-        if use_threshold:
-            weight_array = kernel
-        else:
-            weight_array = kernel * weights[window_slice]
-
-        windows[i] = window_slice
+        windows[i] = (left, right)
         kernels[i] = kernel
         coefs[i] = np.linalg.lstsq(
-            weight_array[:, np.newaxis] * vander[window_slice],
-            weight_array * y[window_slice],
+            kernel[:, np.newaxis] * vander[left:right],
+            kernel * y[left:right],
             None
         )[0]
 
     return kernels, windows
 
 
-def _loess_nonfirst_loops(y, coefs, vander, use_threshold, weights, kernels, windows):
+def _loess_nonfirst_loops(y, coefs, vander, kernels, windows):
     """
     The loess fit to use after the first loop that uses the cached window values.
 
@@ -935,17 +916,12 @@ def _loess_nonfirst_loops(y, coefs, vander, use_threshold, weights, kernels, win
         for each value in `x`.
     vander : numpy.ndarray, shape (N, poly_order + 1)
         The Vandermonde matrix for the `x` array.
-    use_threshold : bool
-        If False, will also use `weights` when calculating the total weighting
-        for each window.
-    weights : numpy.ndarray, shape (N,)
-        The array of weights for the data. Only used if `use_threshold` is False.
     kernels : numpy.ndarray, shape (N, total_points)
         The array containing the distance-weighted kernel for each x-value. Each
         kernel has a length of total_points.
-    windows : list(slice)
-        A list of slices that define the indices for each window to use for
-        fitting each x-value. Has a length of N.
+    windows : numpy.ndarray, shape (N, 2)
+        An array of integer pairs that define the left and right indices for each
+        window to use for fitting each x-value.
 
     Notes
     -----
@@ -953,15 +929,10 @@ def _loess_nonfirst_loops(y, coefs, vander, use_threshold, weights, kernels, win
 
     """
     for i, kernel in enumerate(kernels):
-        window_slice = windows[i]
-        if use_threshold:
-            weight_array = kernel
-        else:
-            weight_array = kernel * weights[window_slice]
-
+        window = windows[i]
         coefs[i] = np.linalg.lstsq(
-            weight_array[:, np.newaxis] * vander[window_slice],
-            weight_array * y[window_slice],
+            kernel[:, np.newaxis] * vander[window[0]:window[1]],
+            kernel * y[window[0]:window[1]],
             None
         )[0]
 
@@ -1019,8 +990,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         y-values given by `data` [13]_. Only used if `use_threshold` is True.
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then will be an array with
-        size equal to N and all values set to 1. Only used if `use_threshold` is
-        False.
+        size equal to N and all values set to 1. Only used for the first iteration
+        if `use_threshold` is True.
     return_coef : bool, optional
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input x_data and return them in the params dictionary.
@@ -1055,7 +1026,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     Raises
     ------
     ValueError
-        Raised if the number of points for the fitting is less than 2.
+        Raised if the number of points per window for the fitting is less than
+        `poly_order + 1 or greater than the total number of points.
     ValueError
         Raised if `max_iter` is less than 1.
 
@@ -1096,6 +1068,11 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         total_points = ceil(fraction * num_x)
     if total_points < poly_order + 1:
         raise ValueError('total points must be greater than polynomial order + 1')
+    elif total_points > num_x:
+        raise ValueError((
+            'points per window is higher than total number of points; lower either '
+            '"fraction" or "total_points"'
+        ))
     sort_order = np.argsort(x)  # to ensure x is increasing
     x = x[sort_order]
     y = y[sort_order]
@@ -1108,20 +1085,23 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     coefs = np.empty((num_x, poly_order + 1))
     for i in range(max_iter):
         baseline_old = baseline
+        # multiply weights with y and vander before passing to functions since otherwise
+        # would have to multiply each y[window] and vander[window] with weights[window]
         if conserve_memory:
             _loess_low_memory(
-                x, y, coefs, vander, total_points, num_x, use_threshold, weight_array
+                x, y * weight_array, coefs, weight_array[:, None] * vander, total_points, num_x
             )
         elif i == 0:
             kernels, windows = _loess_first_loop(
-                x, y, coefs, vander, total_points, num_x, use_threshold, weight_array
+                x, y * weight_array, coefs, weight_array[:, None] * vander, total_points, num_x
             )
         else:
             _loess_nonfirst_loops(
-                y, coefs, vander, use_threshold, weight_array, kernels, windows
+                y * weight_array, coefs, weight_array[:, None] * vander, kernels, windows
             )
 
         # einsum is same as np.array([np.dot(vander[i], coefs[i]) for i in range(num_x)])
+        # but faster
         baseline = np.einsum('ij,ij->i', vander, coefs)
         calc_difference = relative_difference(baseline_old, baseline)
         if calc_difference < tol:
@@ -1131,8 +1111,12 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             y = np.minimum(
                 y0 if use_original else y, baseline + num_std * np.std(y - baseline)
             )
+            if i == 0:
+                # reset all weights to 1
+                weight_array = np.ones(num_x)
         else:
             residual = y - baseline
+            # TODO can the MAD be 0? should prevent dividing by 0 if so
             weight_array = _tukey_square(
                 residual / _median_absolute_differences(residual), scale, symmetric_weights
             )
