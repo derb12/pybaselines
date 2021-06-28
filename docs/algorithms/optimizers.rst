@@ -39,7 +39,8 @@ An example of data with added baseline and Gaussian peaks is shown below.
         + gaussian(x, 9, 880, 8)
     )
     baseline = 5 + 10 * np.exp(-x / 800)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal * 0.5 + baseline + noise
 
     # parameters that define the added baseline and gaussian peaks
@@ -129,7 +130,8 @@ added linear regions is selected as the optimal parameter.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+        np.random.seed(1)  # set random seed
+        noise = np.random.normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -203,7 +205,8 @@ algorithm versus the individual baselines from the mpls method.
         + gaussian(x, 9, 800, 10)
     )
     baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + baseline + noise
     y2 = signal * 1.3 + baseline * 2 + noise
     y3 = signal * 0.5 + baseline * 0.5 + noise * 3

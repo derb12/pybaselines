@@ -57,7 +57,8 @@ a polynomial that spans the entirety of the original dataset.
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     # bitwise "or" (|) and "and" (&) operators for indexing numpy array
@@ -105,7 +106,8 @@ a polynomial that spans the entirety of the original dataset.
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     # bitwise "or" (|) and "and" (&) operators for indexing numpy array
@@ -155,7 +157,8 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     # bitwise "or" (|) and "and" (&) operators for indexing numpy array
@@ -200,7 +203,8 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     # bitwise "or" (|) and "and" (&) operators for indexing numpy array
@@ -269,7 +273,8 @@ The figure below illustrates the iterative thresholding.
         + gaussian(x, 9, 880, 8)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     fig, axes = plt.subplots(
@@ -366,7 +371,8 @@ of the data since masking is time-consuming.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+        np.random.seed(1)  # set random seed
+        noise = np.random.normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)

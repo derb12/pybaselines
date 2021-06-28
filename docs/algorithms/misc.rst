@@ -37,7 +37,8 @@ with user interfaces and is not encouraged otherwise.
         + gaussian(x, 9, 800, 10)
     )
     baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + baseline + noise
 
     # (x, y) pairs representing each point

@@ -191,7 +191,8 @@ A simple example is shown below.
     )
     # exponentially decaying baseline
     true_baseline = 2 + 10 * np.exp(-x / 400)
-    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
 
     y = signal + true_baseline + noise
 
