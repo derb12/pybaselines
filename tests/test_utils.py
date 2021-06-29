@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import utils
 
-from .conftest import gaussian, has_pentapy, no_pentapy
+from .conftest import gaussian
 
 
 @pytest.fixture(scope='module')
@@ -136,18 +136,3 @@ def test_safe_std_allow_nan(run_enum):
         array = np.array((1, 2, np.inf))
 
     assert np.isnan(utils._safe_std(array))
-
-
-@has_pentapy
-def test_pentapy_installed():
-    """Ensure proper setup when pentapy is installed."""
-    assert utils._HAS_PENTAPY
-
-
-@no_pentapy
-def test_pentapy_not_installed():
-    """Ensure proper setup when pentapy is not installed."""
-    assert not utils._HAS_PENTAPY
-
-    with pytest.raises(NotImplementedError):
-        utils._pentapy_solve()

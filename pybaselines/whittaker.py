@@ -11,7 +11,8 @@ from scipy.linalg import solve_banded, solveh_banded
 
 from . import utils
 from ._algorithm_setup import _diff_1_diags, _setup_whittaker, _yx_arrays
-from .utils import _HAS_PENTAPY, _pentapy_solve, _safe_std, relative_difference
+from ._compat import _HAS_PENTAPY, _pentapy_solve
+from .utils import ParameterWarning, _safe_std, relative_difference
 
 
 def _shift_rows(matrix, diagonals=2):

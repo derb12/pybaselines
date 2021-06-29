@@ -12,7 +12,8 @@ from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_openin
 
 from . import utils
 from ._algorithm_setup import _optimize_window, _setup_morphology, _setup_whittaker
-from .utils import _HAS_PENTAPY, _pentapy_solve, pad_edges, padded_convolve, relative_difference
+from ._compat import _HAS_PENTAPY, _pentapy_solve
+from .utils import pad_edges, padded_convolve, relative_difference
 
 
 # make _optimize_window available to users and document it so that

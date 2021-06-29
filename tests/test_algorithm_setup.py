@@ -12,6 +12,7 @@ import pytest
 from scipy.sparse import dia_matrix, identity
 
 from pybaselines import _algorithm_setup
+from pybaselines.utils import ParameterWarning
 
 
 @pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))
@@ -215,7 +216,7 @@ def test_setup_whittaker_diff_matrix_fails(small_data, diff_order):
 @pytest.mark.parametrize('diff_order', (4, 5))
 def test_setup_whittaker_diff_matrix_warns(small_data, diff_order):
     """Ensures using a diff_order > 3 with _setup_whittaker raises a warning."""
-    with pytest.warns(UserWarning):
+    with pytest.warns(ParameterWarning):
         _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
 
 

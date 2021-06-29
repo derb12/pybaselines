@@ -9,17 +9,6 @@ Created on March 5, 2021
 import numpy as np
 
 
-try:
-    from pentapy import solve as _pentapy_solve
-    _HAS_PENTAPY = True
-except ImportError:
-    _HAS_PENTAPY = False
-
-    def _pentapy_solve(*args, **kwargs):
-        """Dummy function in case pentapy is not installed."""
-        raise NotImplementedError('must have pentapy installed to use its solver')
-
-
 # Note: the triple quotes are for including the attributes within the documentation
 PENTAPY_SOLVER = 2
 """An integer designating the solver to use if pentapy is installed.
@@ -32,7 +21,20 @@ PERMC_SPEC = None
 """A deprecated constant used in previous versions. Will be removed in v0.6.0."""
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
+# TODO this is mostly used to prevent dividing by 0; is there a better way to do that?
+# especially since it is usually max(value, _MIN_FLOAT) and in some cases value could be
+# < _MIN_FLOAT but still > 0 and useful; think about it
 _MIN_FLOAT = np.finfo(float).eps
+
+
+class ParameterWarning(UserWarning):
+    """
+    Warning issued when a parameter value is outside of the recommended range.
+
+    For cases where a parameter value is valid and will not cause errors, but is
+    outside of the recommended range of values and as a result may cause issues
+    such as numerical instability that would otherwise be hard to diagnose.
+    """
 
 
 def relative_difference(old, new, norm_order=None):

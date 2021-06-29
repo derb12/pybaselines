@@ -12,7 +12,7 @@ import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.sparse import diags, identity
 
-from .utils import pad_edges, relative_difference
+from .utils import ParameterWarning, pad_edges, relative_difference
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
@@ -283,10 +283,11 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
             'the differential order must be > 0 for Whittaker-smoothing-based methods'
         )
     elif diff_order > 3:
-        warnings.warn((
-            'differential orders greater than 3 can have numerical issues;'
-            ' consider using a differential order of 2 or 1 instead'
-        ))
+        warnings.warn(
+            ('differential orders greater than 3 can have numerical issues;'
+             ' consider using a differential order of 2 or 1 instead'),
+            ParameterWarning
+        )
     num_y = y.shape[0]
     # use hard-coded values for diff_order of 1 and 2 since it is much faster
     if diff_order == 1:

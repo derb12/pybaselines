@@ -74,11 +74,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 from math import ceil
+import warnings
 
 import numpy as np
 
 from ._algorithm_setup import _get_vander, _setup_polynomial
-from .utils import _MIN_FLOAT, relative_difference
+from .utils import _MIN_FLOAT, ParameterWarning, relative_difference
 
 
 def _convert_coef(coef, original_domain):
@@ -1073,6 +1074,11 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             'points per window is higher than total number of points; lower either '
             '"fraction" or "total_points"'
         ))
+    elif poly_order > 2:
+        warnings.warn(
+            ('polynomial orders greater than 2 can have numerical issues;'
+             ' consider using a polynomial order of 1 or 2 instead'), ParameterWarning
+        )
     sort_order = np.argsort(x)  # to ensure x is increasing
     x = x[sort_order]
     y = y[sort_order]

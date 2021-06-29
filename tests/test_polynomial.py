@@ -13,6 +13,7 @@ from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
 
 from pybaselines import polynomial
+from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data
 
@@ -223,7 +224,7 @@ class TestLoess(AlgorithmTester):
     func = polynomial.loess
 
     @pytest.mark.parametrize('conserve_memory', (True, False))
-    @pytest.mark.parametrize('use_threshold', (False, True))
+    @pytest.mark.parametrize('use_threshold', (True, False))
     def test_unchanged_data(self, data_fixture, use_threshold, conserve_memory):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
@@ -248,14 +249,41 @@ class TestLoess(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
-    def test_x_ordering(self):
+    @pytest.mark.parametrize('use_threshold', (True, False))
+    def test_x_ordering(self, use_threshold):
         """Ensures arrays are correctly sorted within the function."""
         reverse_x = self.x[::-1]
         reverse_y = self.y[::-1]
-        regular_inputs_result = self._call_func(self.y, self.x)[0]
-        reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
 
-        assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+        if use_threshold:
+            # test both True and False for use_original
+            regular_inputs_result = self._call_func(
+                self.y, self.x, use_threshold=use_threshold, use_original=False
+            )[0]
+            reverse_inputs_result = self._call_func(
+                reverse_y, reverse_x, use_threshold=use_threshold, use_original=False
+            )[0]
+
+            assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+
+            regular_inputs_result = self._call_func(
+                self.y, self.x, use_threshold=use_threshold, use_original=True
+            )[0]
+            reverse_inputs_result = self._call_func(
+                reverse_y, reverse_x, use_threshold=use_threshold, use_original=True
+            )[0]
+
+            assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+
+        else:
+            regular_inputs_result = self._call_func(
+                self.y, self.x, use_threshold=use_threshold
+            )[0]
+            reverse_inputs_result = self._call_func(
+                reverse_y, reverse_x, use_threshold=use_threshold
+            )[0]
+
+            assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
 
     @pytest.mark.parametrize('fraction', (-0.1, 1.1, 5))
     def test_wrong_fraction_fails(self, fraction):
@@ -269,6 +297,15 @@ class TestLoess(AlgorithmTester):
         for num_points in range(poly_order + 1):
             with pytest.raises(ValueError):
                 self._call_func(self.y, self.x, total_points=num_points, poly_order=poly_order)
+
+    @pytest.mark.parametrize('poly_order', (0, 1, 2, 3, 4))
+    def test_high_polynomial_order_warns(self, poly_order):
+        """Ensure a warning is emitted when using a polynomial order above 2."""
+        if poly_order > 2:
+            with pytest.warns(ParameterWarning):
+                self._call_func(self.y, self.x, poly_order=poly_order)
+        else:  # no warning should be emitted
+            self._call_func(self.y, self.x, poly_order=poly_order)
 
     @pytest.mark.parametrize('conserve_memory', (True, False))
     def test_use_threshold_weights_reset(self, conserve_memory):
