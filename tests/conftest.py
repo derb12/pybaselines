@@ -51,7 +51,7 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
 
 
-def get_data():
+def get_data(include_noise=True):
     """Creates x- and y-data for testing."""
     # use np.random.default_rng(0) once minimum numpy version is >= 1.17
     np.random.seed(0)
@@ -61,16 +61,23 @@ def get_data():
         + gaussian(x_data, 10, 25)
         + gaussian(x_data, 20, 50)
         + gaussian(x_data, 10, 75)
-        + np.random.normal(0, 0.5, x_data.size)
     )
+    if include_noise:
+        y_data += np.random.normal(0, 0.5, x_data.size)
 
     return x_data, y_data
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def data_fixture():
     """Test fixture for creating x- and y-data for testing."""
     return get_data()
+
+
+@pytest.fixture()
+def no_noise_data_fixture():
+    """Test fixture that creates x- and y-data without noise for testing."""
+    return get_data(include_noise=False)
 
 
 def _raise_error(*args, **kwargs):

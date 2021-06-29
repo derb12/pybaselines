@@ -6,6 +6,8 @@ Created on Sept. 13, 2019
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
 
@@ -315,6 +317,15 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         residual = y - baseline
         neg_mask = residual < 0
         neg_residual = residual[neg_mask]
+        if neg_residual.size < 2:
+            # exit if there are < 2 negative residuals since all points or all but one
+            # point would get a weight of 0, which fails the solver
+            warnings.warn(
+                ('almost all baseline points are below the data, indicating that "tol"'
+                 ' is too low and/or "max_iter" is too high'), ParameterWarning
+            )
+            break
+
         # same as abs(neg_residual).sum() since neg_residual are all negative
         residual_l1_norm = -1 * neg_residual.sum()
         calc_difference = residual_l1_norm / y_l1_norm
@@ -391,8 +402,8 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
             )
         residual = y - baseline
         neg_residual = residual[residual < 0]
-        std = _safe_std(neg_residual)
-        new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - np.mean(neg_residual))) / std))
+        std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+        new_weights = 1 / (1 + np.exp((2 / std) * (residual - (2 * std - np.mean(neg_residual)))))
         calc_difference = relative_difference(weight_array, new_weights)
         if calc_difference < tol:
             break
@@ -468,11 +479,22 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
             )
         residual = y - baseline
         neg_residual = residual[residual < 0]
-        std = _safe_std(neg_residual)
-        inner = np.exp(i) * (residual - (2 * std - np.mean(neg_residual))) / std
+        std = _safe_std(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
+        inner = (np.exp(i) / std) * (residual - (2 * std - np.mean(neg_residual)))
         new_weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
         calc_difference = relative_difference(weight_array, new_weights)
-        if calc_difference < tol:
+        if not np.isfinite(calc_difference):
+            # catches nan, inf and -inf due to exp(i) being too high or if there
+            # are too few negative residuals; no way to catch both conditions before
+            # new_weights calculation since it is hard to estimate if
+            # (exp(i) / std) * residual will overflow; check calc_difference rather
+            # than checking new_weights since non-finite values rarely occur
+            warnings.warn(
+                ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
+                 '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+            )
+            break
+        elif calc_difference < tol:
             break
         weight_array = new_weights
 
@@ -542,11 +564,22 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False
             )
         residual = y - baseline
-        std = _safe_std(residual[residual < 0])
-        inner = np.exp(i) * (residual - 2 * std) / std
-        new_weights = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
+        std = _safe_std(residual[residual < 0], ddof=1)  # dof=1 since sampling a subset
+        inner = (np.exp(i) / std) * (residual - 2 * std)
+        new_weights = 0.5 * (1 - (inner / np.sqrt(1 + inner**2)))
         calc_difference = relative_difference(weight_array, new_weights)
-        if calc_difference < tol:
+        if not np.isfinite(calc_difference):
+            # catches nan, inf and -inf due to exp(i) being too high or if there
+            # are too few negative residuals; no way to catch both conditions before
+            # new_weights calculation since it is hard to estimate if
+            # (exp(i) / std) * residual will overflow; check calc_difference rather
+            # than checking new_weights since non-finite values rarely occur
+            warnings.warn(
+                ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
+                 '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+            )
+            break
+        elif calc_difference < tol:
             break
         weight_array = new_weights
 
@@ -635,8 +668,8 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
                 overwrite_ab=True, overwrite_b=True, check_finite=False
             )
         residual = y - baseline
-        std = _safe_std(residual[residual < 0])
-        new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
+        std = _safe_std(residual[residual < 0], ddof=1)  # use dof=1 since sampling a subset
+        new_weights = 1 / (1 + np.exp((2 / std) * (residual - std)))
         calc_difference = relative_difference(weight_array, new_weights)
         if calc_difference < tol:
             break

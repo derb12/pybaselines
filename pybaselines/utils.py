@@ -277,10 +277,12 @@ def _safe_std(array, **kwargs):
     array, which should not be protected.
 
     """
-    if array.size < 2:  # std would be 0 for an array with size of 1
+    # std would be 0 for an array with size of 1 and inf if size <= ddof; only
+    # internally use ddof=1, so the second condition is already covered
+    if array.size < 2:
         std = _MIN_FLOAT
     else:
-        std = np.std(array, **kwargs)
+        std = array.std(**kwargs)
         if std == 0:
             std = _MIN_FLOAT
 

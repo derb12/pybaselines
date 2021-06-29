@@ -13,6 +13,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import whittaker
+from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data, has_pentapy
 
@@ -173,6 +174,30 @@ class TestAirPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures the that function gracefully exits when non-finite weights are created.
+
+        When there are no negative residuals, which occurs when a low tol value is used with
+        a high max_iter value, the weighting function would produce non-finite values.
+        The returned baseline should be the last iteration that was successful, and thus
+        should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(ParameterWarning):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
 
 class TestArPLS(AlgorithmTester):
     """Class for testing arpls baseline."""
@@ -237,6 +262,30 @@ class TestDrPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures the that function gracefully exits when non-finite weights are created.
+
+        When there are no negative residuals or exp(iterations) / std is very high, both
+        of which occur when a low tol value is used with a high max_iter value, the
+        weighting function would produce non-finite values. The returned baseline should
+        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(ParameterWarning):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
 
 class TestIArPLS(AlgorithmTester):
     """Class for testing iarpls baseline."""
@@ -271,6 +320,30 @@ class TestIArPLS(AlgorithmTester):
         pentapy_output = self._call_func(self.y)[0]
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures the that function gracefully exits when non-finite weights are created.
+
+        When there are no negative residuals or exp(iterations) / std is very high, both
+        of which occur when a low tol value is used with a high max_iter value, the
+        weighting function would produce non-finite values. The returned baseline should
+        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(ParameterWarning):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
 
 
 class TestAsPLS(AlgorithmTester):
