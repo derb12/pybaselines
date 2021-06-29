@@ -49,11 +49,11 @@ New Features/Improvements
 
 * Significantly reduced both the calculation time and memory usage of polynomial.loess.
   For example, getting the baseline for a dataset with 20,000 points now takes ~12 seconds
-  and ~0.7 Gb of memory compared to ~55 seconds and ~3 Gb of memory in version 0.3.0.
+  and ~0.7 GB of memory compared to ~55 seconds and ~3 GB of memory in version 0.3.0.
 * Added a `conserve_memory` parameter to polynomial.loess that will recalculate the distance
   kernels each iteration, which is slower than the default but uses very little memory. For
   example, using loess with `conserve_memory` set to True on a dataset with 20,000 points
-  takes ~18 seconds while using ~0 Gb of memory.
+  takes ~18 seconds while using ~0 GB of memory.
 * Allow more user inputs for optimizers.optimize_extended_range to allow specifying the range
   of `lam`/`poly_order` values to test and to have more control over the added lines and
   Gaussians on the sides.

@@ -7,7 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_almost_equal, assert_array_equal
 import pytest
 
 
@@ -204,3 +204,27 @@ class AlgorithmTester:
     def _call_func(cls, *args, **kwargs):
         """Class method to allow calling the class's function."""
         return cls.func(*args, **kwargs)
+
+    @classmethod
+    def _test_accuracy(cls, known_output, *args, assertion_kwargs=None, **kwargs):
+        """
+        Compares the output of the baseline function to a known output.
+
+        Useful for ensuring results are consistent across versions, or for
+        comparing to the output of a method from another library.
+
+        Parameters
+        ----------
+        known_output : numpy.ndarray
+            The output to compare against. Should be from an earlier version if testing
+            for changes, or against the output of an established method.
+        assertion_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to
+            :func:`numpy.testing.assert_allclose`. Default is None.
+
+        """
+        if assertion_kwargs is None:
+            assertion_kwargs = {}
+        output = cls.func(*args, **kwargs)[0]
+
+        assert_allclose(output, known_output, **assertion_kwargs)

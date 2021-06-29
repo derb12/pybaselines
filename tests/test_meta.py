@@ -7,6 +7,7 @@ Created on March 22, 2021
 """
 
 import numpy as np
+from numpy.testing import assert_array_equal
 import pytest
 
 from .conftest import AlgorithmTester, get_data
@@ -93,6 +94,28 @@ class TestAlgorithmTesterPasses(AlgorithmTester):
         """Ensures test passes when output is the same, regardless of input data type."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_call_func(self):
+        """Make sure call_func returns the output of the class's function."""
+        out = self._call_func(self.y)
+        assert_array_equal(self.y, out[0])
+
+    def test_accuracy_passes(self):
+        """Ensures test_accuracy passes when the arrays are equal."""
+        self._test_accuracy(self.y, self.y)
+
+    def test_accuracy_fails(self):
+        """Ensures test_accuracy fails when the arrays are not close."""
+        with pytest.raises(AssertionError):
+            self._test_accuracy(self.y * 10, self.y)
+
+    def test_accuracy_kwargs(self):
+        """Ensures kwargs are correctly passed to test_accuracy."""
+        offset_data = self.y + 1e-5
+        self._test_accuracy(offset_data, self.y)
+        # should fail when tolerances are changed
+        with pytest.raises(AssertionError):
+            self._test_accuracy(offset_data, self.y, assertion_kwargs={'atol': 1e-6, 'rtol': 0})
 
 
 class TestAlgorithmTesterFailures(AlgorithmTester):

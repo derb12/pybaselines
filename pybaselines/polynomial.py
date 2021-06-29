@@ -79,6 +79,7 @@ import warnings
 import numpy as np
 
 from ._algorithm_setup import _get_vander, _setup_polynomial
+from ._compat import jit, prange
 from .utils import _MIN_FLOAT, ParameterWarning, relative_difference
 
 
@@ -747,36 +748,40 @@ def _tukey_square(residual, scale=3, symmetric=False):
         weights = np.maximum(0, 1 - inner * inner)
     else:
         weights = np.ones_like(residual)
-        mask = residual >= 0
+        mask = residual > 0
         inner = residual[mask] / scale
         weights[mask] = np.maximum(0, 1 - inner * inner)
     return weights
 
 
-def _median_absolute_differences(array_1, array_2=None, errors=None):
+def _median_absolute_value(values):
     """
-    Computes the median absolute difference (MAD) between two arrays.
+    Computes the median absolute value (MAV) of an array.
 
     Parameters
     ----------
-    array_1 : numpy.ndarray
-        The first array. If `array_2` is None, then `array_1` is assumed to
-        be the difference of the two arrays.
-    array_2 : numpy.ndarray, optional
-        The second array. If None (default), then the function assumes the
-        difference of the two arrays was already computed and input as `array_1`.
-    errors : numpy.ndarray, optional
-        The array of errors associated with the measurement.
+    values : array-like
+        The array of values to use for the calculation.
 
     Returns
     -------
     float
-        The scaled median absolute difference for the input arrays.
+        The scaled median absolute value for the input array.
 
     Notes
     -----
-    The 1/0.6745 scale factor is to make the result comparable to the
-    standard deviation of a Gaussian distribution.
+    The 1/0.6744897501960817 scale factor is to make the result comparable to the
+    standard deviation of a Gaussian distribution. The divisor is obtained by
+    calculating the value at which the cumulative distribution function of a Gaussian
+    distribution is 0.75 (see https://en.wikipedia.org/wiki/Median_absolute_deviation),
+    which can be obtained by::
+
+        from scipy.special import ndtri
+        ndtri(0.75)  # equals 0.6744897501960817
+
+    To calculate the median absolute difference (MAD) using this function, simply do::
+
+        _median_absolute_value(values - np.median(values))
 
     Reference
     ---------
@@ -784,20 +789,45 @@ def _median_absolute_differences(array_1, array_2=None, errors=None):
     estimation. J. Quantitative Spectroscopy and Radiative Transfer, 2001, 68,
     179-193.
 
+    https://en.wikipedia.org/wiki/Median_absolute_deviation.
+
     """
-    if array_2 is None:
-        difference = array_1
-    else:
-        difference = array_1 - array_2
-    if errors is not None:
-        # TODO errors were never actually implemented into loess function; should
-        # they, or should this be removed?
-        return np.median(np.sqrt(errors) * np.abs(difference)) / 0.6745
-    else:
-        return np.median(np.abs(difference)) / 0.6745
+    return np.median(np.abs(values)) / 0.6744897501960817
 
 
-def _loess_low_memory(x, y, coefs, vander, total_points, num_x):
+@jit(nopython=True, cache=True)
+def _loess_solver(AT, b):
+    """
+    Solves the equation `A x = b` given `A.T` and `b`.
+
+    Parameters
+    ----------
+    AT : numpy.ndarray, shape (M, N)
+        The transposed `A` matrix.
+    b : numpy.ndarray, shape (N,)
+        The `b` array.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N,)
+        The solution to the normal equation.
+
+    Notes
+    -----
+    Uses np.linalg.solve (which uses LU decomposition) rather than np.linalg.lstsq
+    (which uses SVD) since solve is ~30-60% faster. np.linalg.solve requires ``A.T * A``,
+    which squares the condition number of ``A``, but on tested datasets the relative
+    difference when using solve vs lstsq (using np.allclose) is ~1e-10 to 1e-13 for
+    poly_orders of 1 or 2, which seems fine; the relative differences increase to
+    ~1e-6 to 1e-9 for a poly_order of 3, and ~1e-4 to 1e-6 for a poly_order of 4, but
+    loess should use a poly_order <= 2, so that should not be a problem.
+
+    """
+    return np.linalg.solve(AT.dot(AT.T), AT.dot(b))
+
+
+@jit(nopython=True, cache=True, parallel=True)
+def _loess_low_memory(x, y, coefs, vander, total_points, num_x, windows):
     """
     A version of loess that uses near constant memory.
 
@@ -825,28 +855,23 @@ def _loess_low_memory(x, y, coefs, vander, total_points, num_x):
     The coefficient array, `coefs`, is modified inplace.
 
     """
-    left = 0
-    right = total_points
-    for i, x_val in enumerate(x):
-        # TODO should still keep indices so later iterations are slightly faster
-        # without using significant memory
-        while right < num_x and x_val - x[left] > x[right] - x_val:
-            left += 1
-            right += 1
-        difference = np.abs(x[left:right] - x_val)
-        difference = difference / max(difference[0], difference[total_points - 1])
+    for i in prange(num_x):
+        left = windows[i][0]
+        right = windows[i][1]
+
+        difference = np.abs(x[left:right] - x[i])
+        difference = difference / max(difference[0], difference[-1])
         difference = difference * difference * difference
         difference = 1 - difference
         kernel = np.sqrt(difference * difference * difference)
 
-        coefs[i] = np.linalg.lstsq(
-            kernel[:, np.newaxis] * vander[left:right],
-            kernel * y[left:right],
-            None
-        )[0]
+        coefs[i] = _loess_solver(
+            kernel * vander[:, left:right], kernel * y[left:right]
+        )
 
 
-def _loess_first_loop(x, y, coefs, vander, total_points, num_x):
+@jit(nopython=True, cache=True, parallel=True)
+def _loess_first_loop(x, y, coefs, vander, total_points, num_x, windows):
     """
     The initial fit for loess that also caches the window values for each x-value.
 
@@ -865,46 +890,41 @@ def _loess_first_loop(x, y, coefs, vander, total_points, num_x):
         The number of points to include when fitting each x-value.
     num_x : int
         The number of data points in `x`, also known as N.
+    windows : numpy.ndarray, shape (N, 2)
+        An array of integer pairs that define the left and right indices for each
+        window to use for fitting each x-value.
 
     Returns
     -------
     kernels : numpy.ndarray, shape (num_x, total_points)
         The array containing the distance-weighted kernel for each x-value.
-    windows : numpy.ndarray, shape (N, 2)
-        An array of integer pairs that define the left and right indices for each
-        window to use for fitting each x-value.
 
     Notes
     -----
     The coefficient array, `coefs`, is modified inplace.
 
     """
-    left = 0
-    right = total_points
     kernels = np.empty((num_x, total_points))
-    windows = np.empty((num_x, 2), np.int32)
-    for i, x_val in enumerate(x):
-        while right < num_x and x_val - x[left] > x[right] - x_val:
-            left += 1
-            right += 1
-        difference = np.abs(x[left:right] - x_val)
-        difference = difference / max(difference[0], difference[total_points - 1])
+    for i in prange(num_x):
+        left = windows[i][0]
+        right = windows[i][1]
+
+        difference = np.abs(x[left:right] - x[i])
+        difference = difference / max(difference[0], difference[-1])
         difference = difference * difference * difference
         difference = 1 - difference
         kernel = np.sqrt(difference * difference * difference)
 
-        windows[i] = (left, right)
         kernels[i] = kernel
-        coefs[i] = np.linalg.lstsq(
-            kernel[:, np.newaxis] * vander[left:right],
-            kernel * y[left:right],
-            None
-        )[0]
+        coefs[i] = _loess_solver(
+            kernel * vander[:, left:right], kernel * y[left:right]
+        )
 
-    return kernels, windows
+    return kernels
 
 
-def _loess_nonfirst_loops(y, coefs, vander, kernels, windows):
+@jit(nopython=True, cache=True, parallel=True)
+def _loess_nonfirst_loops(y, coefs, vander, kernels, windows, num_x):
     """
     The loess fit to use after the first loop that uses the cached window values.
 
@@ -923,24 +943,70 @@ def _loess_nonfirst_loops(y, coefs, vander, kernels, windows):
     windows : numpy.ndarray, shape (N, 2)
         An array of integer pairs that define the left and right indices for each
         window to use for fitting each x-value.
+    num_x : int
+        The total number of values, N.
 
     Notes
     -----
     The coefficient array, `coefs`, is modified inplace.
 
     """
-    for i, kernel in enumerate(kernels):
+    for i in prange(num_x):
+        kernel = kernels[i]
         window = windows[i]
-        coefs[i] = np.linalg.lstsq(
-            kernel[:, np.newaxis] * vander[window[0]:window[1]],
-            kernel * y[window[0]:window[1]],
-            None
-        )[0]
+        coefs[i] = _loess_solver(
+            kernel * vander[:, window[0]:window[1]], kernel * y[window[0]:window[1]]
+        )
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def _determine_windows(x, num_x, total_points):
+    """
+    Sets the left and right indices for the loess fit for each x-value.
+
+    The windows are set before fitting so that fitting can be done in parallel
+    when numba is installed, since the left and right indices would otherwise
+    need to be determined in order.
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (N,)
+        The array of x-values.
+    num_x : int
+        The total number of x-values, N.
+    total_points : int
+        The number of values to include in each fitting window.
+
+    Returns
+    -------
+    windows : numpy.ndarray, shape (N, 2)
+        An array of left and right indices that define the fitting window for each x-value.
+        Set such that the number of values in `x[windows[i][0]:windows[i][1]] is equal
+        to `total_points`.
+
+    Notes
+    -----
+    The dtype `np.intp` is used to be consistent with numpy since numpy internally uses
+    that type when referring to indices.
+
+    """
+    left = 0
+    right = total_points
+    windows = np.empty((num_x, 2), dtype=np.intp)
+    for i in range(num_x):
+        x_val = x[i]
+        while right < num_x and x_val - x[left] > x[right] - x_val:
+            left += 1
+            right += 1
+        windows[i][0] = left
+        windows[i][1] = right
+
+    return windows
 
 
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
           tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
-          use_original=False, weights=None, return_coef=False, conserve_memory=False):
+          use_original=False, weights=None, return_coef=False, conserve_memory=True):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -998,12 +1064,14 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         a form that fits the input x_data and return them in the params dictionary.
         Default is False, since the conversion takes time.
     conserve_memory : bool, optional
-        If False (default), will cache the distance-weighted kernels for each value
+        If False, will cache the distance-weighted kernels for each value
         in `x_data` on the first iteration and reuse them on subsequent iterations to
         save time. The shape of the array of kernels is (len(`x_data`), `total_points`).
-        If True, will recalculate the kernels each iteration, which uses very little memory,
-        but is slower. Only need to set to True if `x_data` and `total_points` are quite
-        large and the function causes memory issues when cacheing the kernels.
+        If True (default), will recalculate the kernels each iteration, which uses very
+        little memory, but is slower. Can usually set to False unless `x_data` and`total_points`
+        are quite large and the function causes memory issues when cacheing the kernels. If
+        numba is installed, there is no significant time difference since the calculations are
+        sped up.
 
     Returns
     -------
@@ -1028,9 +1096,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     ------
     ValueError
         Raised if the number of points per window for the fitting is less than
-        `poly_order + 1 or greater than the total number of points.
-    ValueError
-        Raised if `max_iter` is less than 1.
+        `poly_order` + 1 or greater than the total number of points. Also raised
+        if `max_iter` is less than 1.
 
     Notes
     -----
@@ -1044,7 +1111,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
 
     References
     ----------
-    .. [9] Ruckstuhl, A.F., et al., Baseline subtraction using robust local
+    .. [9] Ruckstuhl, A.F., et al. Baseline subtraction using robust local
            regression estimation. J. Quantitative Spectroscopy and Radiative
            Transfer, 2001, 68, 179-193.
     .. [10] Cleveland, W. Robust locally weighted regression and smoothing
@@ -1085,25 +1152,34 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     if use_original:
         y0 = y
 
-    vander = _get_vander(x, poly_order, calc_pinv=False)
+    # find the indices for fitting beforehand so that the fitting can be done
+    # in parallel
+    windows = _determine_windows(x, num_x, total_points)
+
+    # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
+    # when matrix multiplied with the C-ordered coefficient array gives a warning
+    # when using numba, so convert Vandermonde matrix to C-ordering.
+    vander = np.ascontiguousarray(_get_vander(x, poly_order, calc_pinv=False))
 
     baseline = y
     coefs = np.empty((num_x, poly_order + 1))
     for i in range(max_iter):
         baseline_old = baseline
         # multiply weights with y and vander before passing to functions since otherwise
-        # would have to multiply each y[window] and vander[window] with weights[window]
+        # would have to multiply each y[window] and vander[window] with weights[window];
+        # use tranpose of vander so that each kernel does not need to be reshaped from (N,)
+        # to (N, 1) shape to slightly speed up calculation
         if conserve_memory:
             _loess_low_memory(
-                x, y * weight_array, coefs, weight_array[:, None] * vander, total_points, num_x
+                x, y * weight_array, coefs, weight_array * vander.T, total_points, num_x, windows
             )
         elif i == 0:
-            kernels, windows = _loess_first_loop(
-                x, y * weight_array, coefs, weight_array[:, None] * vander, total_points, num_x
+            kernels = _loess_first_loop(
+                x, y * weight_array, coefs, weight_array * vander.T, total_points, num_x, windows
             )
         else:
             _loess_nonfirst_loops(
-                y * weight_array, coefs, weight_array[:, None] * vander, kernels, windows
+                y * weight_array, coefs, weight_array * vander.T, kernels, windows, num_x
             )
 
         # einsum is same as np.array([np.dot(vander[i], coefs[i]) for i in range(num_x)])
@@ -1124,7 +1200,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             residual = y - baseline
             # TODO can the MAD be 0? should prevent dividing by 0 if so
             weight_array = _tukey_square(
-                residual / _median_absolute_differences(residual), scale, symmetric_weights
+                residual / _median_absolute_value(residual), scale, symmetric_weights
             )
 
     params = {'weights': weight_array, 'iterations': i + 1, 'last_tol': calc_difference}
