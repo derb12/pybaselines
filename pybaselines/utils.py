@@ -8,6 +8,8 @@ Created on March 5, 2021
 
 import numpy as np
 
+from ._compat import jit
+
 
 # Note: the triple quotes are for including the attributes within the documentation
 PENTAPY_SOLVER = 2
@@ -287,3 +289,24 @@ def _safe_std(array, **kwargs):
             std = _MIN_FLOAT
 
     return std
+
+
+@jit(nopython=True, cache=True)
+def _interp_inplace(x, y):
+    """
+    Interpolates values inplace between the two ends of an array.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The x-values for interpolation. All values are assumed to be valid.
+    y : numpy.ndarray
+        The y-values. The two endpoints, y[0] and y[-1] are assumed to be valid,
+        and all values inbetween (ie. y[1:-1]) will be replaced by interpolation.
+
+    Notes
+    -----
+    No return since all modifications to `y` are done inplace.
+
+    """
+    y[1:-1] = y[0] + (x[1:-1] - x[0]) * ((y[-1] - y[0]) / (x[-1] - x[0]))

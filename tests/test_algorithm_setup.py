@@ -312,7 +312,8 @@ def test_setup_polynomial_domain(small_data):
 
 
 @pytest.mark.parametrize('vander_enum', (0, 1, 2, 3))
-def test_setup_polynomial_vandermonde(small_data, vander_enum):
+@pytest.mark.parametrize('include_pinv', (True, False))
+def test_setup_polynomial_vandermonde(small_data, vander_enum, include_pinv):
     """Ensures that the Vandermonde matrix and the pseudo-inverse matrix are correct."""
     if vander_enum == 0:
         # no weights specified
@@ -331,15 +332,20 @@ def test_setup_polynomial_vandermonde(small_data, vander_enum):
         weights = np.arange(small_data.shape[0]).tolist()
         poly_order = 4
 
-    _, x, weight_array, _, vander_matrix, pinv_matrix = _algorithm_setup._setup_polynomial(
-        small_data, small_data, weights, poly_order, True, True
+    output = _algorithm_setup._setup_polynomial(
+        small_data, small_data, weights, poly_order, True, include_pinv
     )
+    if include_pinv:
+        _, x, weight_array, _, vander_matrix, pinv_matrix = output
+    else:
+        _, x, weight_array, _, vander_matrix = output
 
     desired_vander = np.polynomial.polynomial.polyvander(x, poly_order)
     assert_array_almost_equal(desired_vander, vander_matrix)
 
-    desired_pinv = np.linalg.pinv(np.sqrt(weight_array)[:, np.newaxis] * desired_vander)
-    assert_array_almost_equal(desired_pinv, pinv_matrix)
+    if include_pinv:
+        desired_pinv = np.linalg.pinv(np.sqrt(weight_array)[:, np.newaxis] * desired_vander)
+        assert_array_almost_equal(desired_pinv, pinv_matrix)
 
 
 @pytest.mark.parametrize('array_enum', (0, 1))

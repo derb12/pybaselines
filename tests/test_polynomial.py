@@ -9,13 +9,37 @@ Created on March 20, 2021
 from math import ceil
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_almost_equal, assert_array_equal
 import pytest
 
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data
+
+
+@pytest.mark.parametrize('x', (np.array([-5, -2, 0, 1, 8]), np.array([1, 2, 3, 4, 5])))
+@pytest.mark.parametrize(
+    'coefs', (
+        np.array([1, 2]), np.array([-1, 10, 0.2]), np.array([0, 1, 0]),
+        np.array([0, 0, 0]), np.array([2, 1e-19])
+    )
+)
+def test_convert_coef(x, coefs):
+    """Checks that polynomial coefficients are correctly converted to the original domain."""
+    original_domain = np.array([x.min(), x.max()])
+    y = np.zeros_like(x)
+    for i, coef in enumerate(coefs):
+        y = y + coef * x**i
+
+    fit_polynomial = np.polynomial.Polynomial.fit(x, y, coefs.size - 1)
+    # fit_coefs correspond to the domain [-1, 1] rather than the original
+    # domain of x
+    fit_coefs = fit_polynomial.coef
+
+    converted_coefs = polynomial._convert_coef(fit_coefs, original_domain)
+
+    assert_allclose(converted_coefs, coefs, atol=1e-10)
 
 
 class TestPoly(AlgorithmTester):
@@ -45,6 +69,13 @@ class TestPoly(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
+    def test_output_coefs(self):
+        """Ensures the output coefficients can correctly reproduce the baseline."""
+        baseline, params = self._call_func(self.y, self.x, return_coef=True)
+        recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
+
+        assert_allclose(baseline, recreated_poly)
+
 
 class TestModPoly(AlgorithmTester):
     """Class for testing ModPoly baseline."""
@@ -73,6 +104,13 @@ class TestModPoly(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
+    def test_output_coefs(self):
+        """Ensures the output coefficients can correctly reproduce the baseline."""
+        baseline, params = self._call_func(self.y, self.x, return_coef=True)
+        recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
+
+        assert_allclose(baseline, recreated_poly)
+
 
 class TestIModPoly(AlgorithmTester):
     """Class for testing IModPoly baseline."""
@@ -100,6 +138,13 @@ class TestIModPoly(AlgorithmTester):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_output_coefs(self):
+        """Ensures the output coefficients can correctly reproduce the baseline."""
+        baseline, params = self._call_func(self.y, self.x, return_coef=True)
+        recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
+
+        assert_allclose(baseline, recreated_poly)
 
 
 class TestPenalizedPoly(AlgorithmTester):
@@ -217,19 +262,183 @@ class TestPenalizedPoly(AlgorithmTester):
 
         assert_array_almost_equal(modpoly_baseline, penalized_poly_2)
 
+    def test_output_coefs(self):
+        """Ensures the output coefficients can correctly reproduce the baseline."""
+        baseline, params = self._call_func(self.y, self.x, return_coef=True)
+        recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
+
+        assert_allclose(baseline, recreated_poly)
+
+
+@pytest.mark.parametrize(
+    'residual', (np.arange(100), -np.arange(100), np.linspace(-100, 100, 100))
+)
+@pytest.mark.parametrize('scale', (-3, 0.01, 1, 3, 50))
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_tukey_square(residual, scale, symmetric):
+    """
+    Tests the Tukey square (sqrt of Tukey's bisquare) weighting for loess.
+
+    Note for future, a negative scale is included to ensure it has no effect since it is
+    squared in the weighting.
+
+    """
+    weights = polynomial._tukey_square(residual, scale, symmetric)
+
+    assert np.all(weights >= 0)
+    assert np.all(weights <= 1)
+
+    if not symmetric:
+        assert np.all(weights[residual < 0] == 1)
+
+    # ensure that skipping the second squaring part of Tukey's bisquare does not change
+    # the weights
+    assert_allclose(weights, np.sqrt(weights**2))
+
+
+@pytest.mark.parametrize(
+    'values', (np.arange(10), np.linspace(-10, 10), np.full(10, 1))
+)
+def test_median_absolute_value(values):
+    """Tests the median absolute values function."""
+    mav_calc = polynomial._median_absolute_value(values)
+    mav_actual = np.median(np.abs(values)) / 0.6744897501960817
+
+    assert_allclose(mav_calc, mav_actual)
+
+
+def test_loess_solver():
+    """Tests that the loess solver solves `Ax=b` given `A.T` and `b`."""
+    x = np.linspace(-1.0, 1.0, 50)
+    coefs = np.array([2.0, -1.0, 0.2])
+    y = coefs[0] + coefs[1] * x + coefs[2] * x**2
+
+    vander = np.polynomial.polynomial.polyvander(x, coefs.size - 1)
+
+    solved_coefs = polynomial._loess_solver(vander.T, y)
+
+    assert_allclose(solved_coefs, coefs)
+
+
+def test_determine_fits_simple():
+    """A simple test to ensure the inner workings of _determine_fits work."""
+    x = np.arange(21, dtype=float)
+    num_x = x.shape[0]
+    total_points = 5
+    skip_dx = 1.5  # should skip every other x-value, excluding the endpoints
+
+    windows, fits, skips = polynomial._determine_fits(x, num_x, total_points, skip_dx)
+
+    # always fit first point
+    desired_windows = [[0, total_points]]
+    desired_fits = [0]
+    desired_skips = []
+    left = 0
+    right = total_points
+    for i, x_val in enumerate(x[1:-1], 1):
+        if i % 2:  # all odd indices are skipped in this test setup
+            # should be a slice that includes the last fit index and next fit index
+            desired_skips.append([i - 1, i + 2])
+        else:
+            desired_fits.append(i)
+            while right < num_x and x_val - x[left] > x[right] - x_val:
+                left += 1
+                right += 1
+            desired_windows.append([left, right])
+    # always fit last point
+    desired_fits.append(num_x - 1)
+    desired_windows.append([num_x - total_points, num_x])
+
+    assert_array_equal(windows, desired_windows)
+    assert_array_equal(fits, desired_fits)
+    assert_array_equal(skips, desired_skips)
+
+
+@pytest.mark.parametrize('skip_dx', (0.0, 0.01, 0.5, -1.0, 3.0, np.nan, np.inf, -np.inf))
+@pytest.mark.parametrize('total_points', (2, 10, 25, 50))
+def test_determine_fits(skip_dx, total_points):
+    """Tests various inputs for _determine_fits to ensure any float skip_dx works."""
+    x = np.linspace(-1, 1, 50)
+    num_x = x.shape[0]
+
+    windows, fits, skips = polynomial._determine_fits(x, num_x, total_points, skip_dx)
+
+    assert windows.shape[0] == fits.shape[0]
+    assert windows.shape[1] == 2
+
+    # always fit first and last x-values
+    assert fits[0] == 0
+    assert fits[-1] == num_x - 1
+    assert_array_equal(windows[0], (0, total_points))
+    assert_array_equal(windows[-1], (num_x - total_points, num_x))
+
+    # each window should be separated by total_points indices
+    windows_transpose = windows.T
+    assert_array_equal(
+        windows_transpose[1] - windows_transpose[0],
+        np.full(windows.shape[0], total_points)
+    )
+
+    if skip_dx <= 0:  # no points should be skipped
+        assert skips.shape[0] == 0
+        assert windows.shape[0] == num_x
+        assert fits.shape[0] == num_x
+
+        assert_array_equal(fits, np.arange(num_x))
+
+
+def test_fill_skips():
+    """Tests the linear interpolation performed by _fill_skips."""
+    x = np.arange(20)
+    y_actual = 2 + 5 * x
+    y_calc = y_actual.copy()
+    # `skips` slices y[left:right] where y_slice[0] and y_slice[-1] are actual values
+    # and inbetween will be calculated using interpolation; fill in the sections
+    # [left+1:right-1] in y_calc with zeros, and then check that they are returned to
+    # the correct value by _fill_skips
+    skips = np.array([[0, 5], [8, 14], [16, x.shape[0]]], dtype=np.intp)
+    for (left, right) in skips:
+        y_calc[left + 1:right - 1] = 0
+
+    output = polynomial._fill_skips(x, y_calc, skips)
+
+    # should not output anything from the function
+    assert output is None
+    # y_calc should be same as y_actual after interpolating each section
+    assert_allclose(y_calc, y_actual)
+
+
+def test_fill_skips_no_skips():
+    """Ensures _fill_skips does not affect the input array when there are no skipped points."""
+    skips = np.array([], np.intp).reshape(0, 2)
+
+    x = np.arange(10)
+    y_calc = np.empty(x.shape[0])
+    y_calc[0] = 5
+    y_calc[-1] = 10
+
+    y_calc_before = y_calc.copy()
+
+    polynomial._fill_skips(x, y_calc, skips)
+
+    # y_calc should be unchanged since skips is an empty array
+    assert_array_equal(y_calc, y_calc_before)
+
 
 class TestLoess(AlgorithmTester):
     """Class for testing LOESS baseline."""
 
     func = polynomial.loess
 
+    @pytest.mark.parametrize('skip_dx', (0, 0.01))
     @pytest.mark.parametrize('conserve_memory', (True, False))
     @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_unchanged_data(self, data_fixture, use_threshold, conserve_memory):
+    def test_unchanged_data(self, data_fixture, use_threshold, conserve_memory, skip_dx):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
         self._test_unchanged_data(
-            data_fixture, y, x, y, x, use_threshold=use_threshold, conserve_memory=conserve_memory
+            data_fixture, y, x, y, x, use_threshold=use_threshold,
+            conserve_memory=conserve_memory, skip_dx=skip_dx
         )
 
     def test_no_x(self):
@@ -333,6 +542,26 @@ class TestLoess(AlgorithmTester):
         assert_array_equal(one_weights, params_second_iter['weights'])
         assert_array_equal(one_weights, params_third_iter['weights'])
 
+    @pytest.mark.parametrize('poly_order', (1, 2))
+    @pytest.mark.parametrize('skip_dx', (0, 0.01))
+    def test_output_coefs(self, poly_order, skip_dx):
+        """Ensures the output coefficients can correctly reproduce the baseline."""
+        baseline, params = self._call_func(
+            self.y, self.x, return_coef=True, poly_order=poly_order, skip_dx=skip_dx
+        )
+        # have to build the polynomial using the coefficients for each x-value
+        recreated_poly = np.empty_like(baseline)
+        for i, coef in enumerate(params['coef']):
+            recreated_poly[i] = np.polynomial.Polynomial(coef)(self.x[i])
+
+        # ignore coefficients that are all 0 since that means no fitting was done for
+        # that x-value, so there are no actual coefficients available
+        if skip_dx > 0:
+            mask = np.all(params['coef'] == 0, axis=1)
+            baseline[mask] = 0
+
+        assert_allclose(baseline, recreated_poly)
+
     @pytest.mark.parametrize('conserve_memory', (True, False))
     def test_comparison_to_statsmodels(self, conserve_memory):
         """
@@ -373,6 +602,7 @@ class TestLoess(AlgorithmTester):
         # once min numpy version is >= 1.17, can use the following to create x and y:
         # random_generator = np.random.default_rng(0)
         # x = np.sort(random_generator.uniform(0, 10 * np.pi, num_x))
+        # use a simple sine function since only smoothing the data
         # y = np.sin(x) + random_generator.normal(0, 0.3, num_x)
         x = np.array([
             0.08603252016391653, 0.4620121964065525, 0.5192309835763667, 0.8896887082266529,

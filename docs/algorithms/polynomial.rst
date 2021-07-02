@@ -587,7 +587,7 @@ is reduced by iterative reweighting.
 
 .. note::
    Although not its intended use, the loess function can be used for smoothing like
-   "traditional loess", simply by settting ``symmetric_weights`` to True and ``scale`` to 4.05.
+   "traditional loess", simply by settting ``symmetric_weights`` to True and ``scale`` to ~4.05.
 
 
 .. plot::
@@ -601,12 +601,19 @@ is reduced by iterative reweighting.
         else:
             symmetric_weights = False
         if i == 1:
-            fraction = 0.4
+            fraction = 0.55
+            scale = 1.5  # reduce scale to lower the effect of grouped peaks
         else:
-            fraction = 0.2
+            fraction = 0.35
+            scale = 3
+        if i in (0, 4):
+            poly_order = 1
+        else:
+            poly_order = 2
 
         baseline = polynomial.loess(
-            y, fraction=fraction, symmetric_weights=symmetric_weights
+            y, poly_order=poly_order, scale=scale, fraction=fraction,
+            symmetric_weights=symmetric_weights
         )
         ax.plot(baseline[0], 'g--')
 

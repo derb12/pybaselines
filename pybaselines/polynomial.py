@@ -80,7 +80,7 @@ import numpy as np
 
 from ._algorithm_setup import _get_vander, _setup_polynomial
 from ._compat import jit, prange
-from .utils import _MIN_FLOAT, ParameterWarning, relative_difference
+from .utils import _MIN_FLOAT, ParameterWarning, _interp_inplace, relative_difference
 
 
 def _convert_coef(coef, original_domain):
@@ -102,12 +102,23 @@ def _convert_coef(coef, original_domain):
 
     Returns
     -------
-    numpy.ndarray
+    output_coefs : numpy.ndarray
         The array of coefficients scaled for the original domain.
 
     """
+    zeros_mask = np.equal(coef, 0)
+    if zeros_mask.any():
+        # coefficients with one or several zeros sometimes get compressed
+        # to leave out some of the coefficients, so replace zero with another value
+        # and then fill in later
+        coef = coef.copy()
+        coef[zeros_mask] = _MIN_FLOAT  # could probably fill it with any non-zero value
+
     fit_polynomial = np.polynomial.Polynomial(coef, domain=original_domain)
-    return fit_polynomial.convert().coef
+    output_coefs = fit_polynomial.convert().coef
+    output_coefs[zeros_mask] = 0
+
+    return output_coefs
 
 
 def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
@@ -783,8 +794,8 @@ def _median_absolute_value(values):
 
         _median_absolute_value(values - np.median(values))
 
-    Reference
-    ---------
+    References
+    ----------
     Ruckstuhl, A.F., et al., Baseline subtraction using robust local regression
     estimation. J. Quantitative Spectroscopy and Radiative Transfer, 2001, 68,
     179-193.
@@ -827,7 +838,38 @@ def _loess_solver(AT, b):
 
 
 @jit(nopython=True, cache=True, parallel=True)
-def _loess_low_memory(x, y, coefs, vander, total_points, num_x, windows):
+def _fill_skips(x, baseline, skips):
+    """
+    Fills in the skipped baseline points using linear interpolation.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The array of x-values.
+    baseline : numpy.ndarray
+        The array of baseline values with all fit points allocated. All skipped points
+        will be filled in using interpolation.
+    skips : numpy.ndarray, shape (G, 2)
+        The array of left and right indices that define the windows for interpolation,
+        with length G being the number of interpolation segments. Indices are set such
+        that `baseline[skips[i][0]:skips[i][1]]` will have fitted values at the first
+        and last indices and all other values (the slice [1:-1]) will be calculated by
+        interpolation.
+
+    Notes
+    -----
+    All changes to `baseline` are done inplace.
+
+    """
+    for i in prange(skips.shape[0]):
+        window = skips[i]
+        left = window[0]
+        right = window[1]
+        _interp_inplace(x[left:right], baseline[left:right])
+
+
+@jit(nopython=True, cache=True, parallel=True)
+def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     """
     A version of loess that uses near constant memory.
 
@@ -840,24 +882,35 @@ def _loess_low_memory(x, y, coefs, vander, total_points, num_x, windows):
         The x-values of the measured data, with N data points.
     y : numpy.ndarray, shape (N,)
         The y-values of the measured data, with N points.
+    weights : numpy.ndarray, shape (N,)
+        The array of weights.
     coefs : numpy.ndarray, shape (N, poly_order + 1)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
     vander : numpy.ndarray, shape (N, poly_order + 1)
         The Vandermonde matrix for the `x` array.
-    total_points : int
-        The number of points to include when fitting each x-value.
     num_x : int
         The number of data points in `x`, also known as N.
+    windows : numpy.ndarray, shape (F, 2)
+        An array of left and right indices that define the fitting window for each fit
+        x-value. The length is F, which is the total number of fit points. If `fit_dx`
+        is <= 0, F is equal to N, the total number of x-values.
+    fits : numpy.ndarray, shape (F,)
+        The array of indices indicating which x-values to fit.
 
     Notes
     -----
     The coefficient array, `coefs`, is modified inplace.
 
     """
-    for i in prange(num_x):
-        left = windows[i][0]
-        right = windows[i][1]
+    baseline = np.empty(num_x)
+    y_fit = y * weights
+    vander_fit = vander.T * weights
+    for idx in prange(fits.shape[0]):
+        i = fits[idx]
+        window = windows[idx]
+        left = window[0]
+        right = window[1]
 
         difference = np.abs(x[left:right] - x[i])
         difference = difference / max(difference[0], difference[-1])
@@ -865,13 +918,17 @@ def _loess_low_memory(x, y, coefs, vander, total_points, num_x, windows):
         difference = 1 - difference
         kernel = np.sqrt(difference * difference * difference)
 
-        coefs[i] = _loess_solver(
-            kernel * vander[:, left:right], kernel * y[left:right]
+        coef = _loess_solver(
+            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
         )
+        baseline[i] = vander[i].dot(coef)
+        coefs[i] = coef
+
+    return baseline
 
 
 @jit(nopython=True, cache=True, parallel=True)
-def _loess_first_loop(x, y, coefs, vander, total_points, num_x, windows):
+def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows, fits):
     """
     The initial fit for loess that also caches the window values for each x-value.
 
@@ -881,6 +938,8 @@ def _loess_first_loop(x, y, coefs, vander, total_points, num_x, windows):
         The x-values of the measured data, with N data points.
     y : numpy.ndarray, shape (N,)
         The y-values of the measured data, with N points.
+    weights : numpy.ndarray, shape (N,)
+        The array of weights.
     coefs : numpy.ndarray, shape (N, poly_order + 1)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
@@ -890,9 +949,12 @@ def _loess_first_loop(x, y, coefs, vander, total_points, num_x, windows):
         The number of points to include when fitting each x-value.
     num_x : int
         The number of data points in `x`, also known as N.
-    windows : numpy.ndarray, shape (N, 2)
-        An array of integer pairs that define the left and right indices for each
-        window to use for fitting each x-value.
+    windows : numpy.ndarray, shape (F, 2)
+        An array of left and right indices that define the fitting window for each fit
+        x-value. The length is F, which is the total number of fit points. If `fit_dx`
+        is <= 0, F is equal to N, the total number of x-values.
+    fits : numpy.ndarray, shape (F,)
+        The array of indices indicating which x-values to fit.
 
     Returns
     -------
@@ -905,9 +967,14 @@ def _loess_first_loop(x, y, coefs, vander, total_points, num_x, windows):
 
     """
     kernels = np.empty((num_x, total_points))
-    for i in prange(num_x):
-        left = windows[i][0]
-        right = windows[i][1]
+    baseline = np.empty(num_x)
+    y_fit = y * weights
+    vander_fit = vander.T * weights
+    for idx in prange(fits.shape[0]):
+        i = fits[idx]
+        window = windows[idx]
+        left = window[0]
+        right = window[1]
 
         difference = np.abs(x[left:right] - x[i])
         difference = difference / max(difference[0], difference[-1])
@@ -916,15 +983,17 @@ def _loess_first_loop(x, y, coefs, vander, total_points, num_x, windows):
         kernel = np.sqrt(difference * difference * difference)
 
         kernels[i] = kernel
-        coefs[i] = _loess_solver(
-            kernel * vander[:, left:right], kernel * y[left:right]
+        coef = _loess_solver(
+            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
         )
+        baseline[i] = vander[i].dot(coef)
+        coefs[i] = coef
 
-    return kernels
+    return kernels, baseline
 
 
 @jit(nopython=True, cache=True, parallel=True)
-def _loess_nonfirst_loops(y, coefs, vander, kernels, windows, num_x):
+def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fits):
     """
     The loess fit to use after the first loop that uses the cached window values.
 
@@ -932,6 +1001,8 @@ def _loess_nonfirst_loops(y, coefs, vander, kernels, windows, num_x):
     ----------
     y : numpy.ndarray, shape (N,)
         The y-values of the measured data, with N points.
+    weights : numpy.ndarray, shape (N,)
+        The array of weights.
     coefs : numpy.ndarray, shape (N, poly_order + 1)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
@@ -940,33 +1011,48 @@ def _loess_nonfirst_loops(y, coefs, vander, kernels, windows, num_x):
     kernels : numpy.ndarray, shape (N, total_points)
         The array containing the distance-weighted kernel for each x-value. Each
         kernel has a length of total_points.
-    windows : numpy.ndarray, shape (N, 2)
-        An array of integer pairs that define the left and right indices for each
-        window to use for fitting each x-value.
+    windows : numpy.ndarray, shape (F, 2)
+        An array of left and right indices that define the fitting window for each fit
+        x-value. The length is F, which is the total number of fit points. If `fit_dx`
+        is <= 0, F is equal to N, the total number of x-values.
     num_x : int
         The total number of values, N.
+    fits : numpy.ndarray, shape (F,)
+        The array of indices indicating which x-values to fit.
 
     Notes
     -----
     The coefficient array, `coefs`, is modified inplace.
 
     """
-    for i in prange(num_x):
+    baseline = np.empty(num_x)
+    y_fit = y * weights
+    vander_fit = vander.T * weights
+    for idx in prange(fits.shape[0]):
+        i = fits[idx]
+        window = windows[idx]
+        left = window[0]
+        right = window[1]
         kernel = kernels[i]
-        window = windows[i]
-        coefs[i] = _loess_solver(
-            kernel * vander[:, window[0]:window[1]], kernel * y[window[0]:window[1]]
+        coef = _loess_solver(
+            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
         )
+        baseline[i] = vander[i].dot(coef)
+        coefs[i] = coef
+
+    return baseline
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def _determine_windows(x, num_x, total_points):
+def _determine_fits(x, num_x, total_points, skip_dx):
     """
-    Sets the left and right indices for the loess fit for each x-value.
+    Determines the x-values to fit and the left and right indices for each fit x-value.
 
     The windows are set before fitting so that fitting can be done in parallel
     when numba is installed, since the left and right indices would otherwise
-    need to be determined in order.
+    need to be determined in order. Similarly, determining which x-values to fit would
+    not be able to be done in parallel since it requires knowledge of the last x-value
+    fit.
 
     Parameters
     ----------
@@ -976,37 +1062,97 @@ def _determine_windows(x, num_x, total_points):
         The total number of x-values, N.
     total_points : int
         The number of values to include in each fitting window.
+    skip_dx : float
+        If `skip_dx` is > 0, will skip all x-values less than x_last + `skip_dx`,
+        where x_last is the last x-value to be fit. Fits all x-values if `skip_dx` is <= 0.
 
     Returns
     -------
-    windows : numpy.ndarray, shape (N, 2)
-        An array of left and right indices that define the fitting window for each x-value.
-        Set such that the number of values in `x[windows[i][0]:windows[i][1]] is equal
-        to `total_points`.
+    windows : numpy.ndarray, shape (F, 2)
+        An array of left and right indices that define the fitting window for each fit
+        x-value. The length is F, which is the total number of fit points. If `fit_dx`
+        is <= 0, F is equal to N, the total number of x-values. Indices are set such
+        that the number of values in `x[windows[i][0]:windows[i][1]] is equal to
+        `total_points`.
+    fits : numpy.ndarray, shape (F,)
+        The array of indices indicating which x-values to fit.
+    skips : numpy.ndarray, shape (G, 2)
+        The array of left and right indices that define the windows for interpolation,
+        with length G being the number of interpolation segments. G is 0 if `fit_dx` is
+        <= 0. Indices are set such that `baseline[skips[i][0]:skips[i][1]]` will have
+        fitted values at the first and last indices and all other values (the slice [1:-1])
+        will be calculated by interpolation.
 
     Notes
     -----
-    The dtype `np.intp` is used to be consistent with numpy since numpy internally uses
-    that type when referring to indices.
+    The dtype `np.intp` is used for `fits`, `skips`, and `windows` to be consistent with
+    numpy since numpy internally uses that type when referring to indices.
 
     """
+    # faster to allocate array and return only filled in sections
+    # rather than constanly appending to a list
+    if skip_dx > 0:
+        check_fits = True
+        fits = np.empty(num_x, dtype=np.intp)
+        fits[0] = 0  # always fit first item
+        skips = np.empty((num_x, 2), dtype=np.intp)
+    else:
+        # TODO maybe use another function when fitting all points in order
+        # to skip the if check_fits check for every x-value; does it affect
+        # calculation time that much?
+        check_fits = False
+        fits = np.arange(num_x, dtype=np.intp)
+        # numba cannot compile in nopython mode when directly creating
+        # np.array([], dtype=np.intp), so work-around by creating np.array([[0, 0]])
+        # and then index with [:total_skips], which becomes np.array([])
+        # since total_skips is 0 when skip_dx is <= 0.
+        skips = np.array([[0, 0]], dtype=np.intp)
+
+    windows = np.empty((num_x, 2), dtype=np.intp)
+    windows[0] = (0, total_points)
+    total_fits = 1
+    total_skips = 0
+    skip_start = 0
+    last_fit = x[0]
     left = 0
     right = total_points
-    windows = np.empty((num_x, 2), dtype=np.intp)
-    for i in range(num_x):
+    for i in range(1, num_x - 1):
         x_val = x[i]
+        if check_fits:
+            if x_val < last_fit + skip_dx:
+                if not skip_start:
+                    skip_start = i
+                continue
+            else:
+                last_fit = x_val
+                fits[total_fits] = i
+                if skip_start:
+                    skips[total_skips] = (skip_start - 1, i + 1)
+                    total_skips += 1
+                    skip_start = 0
+
         while right < num_x and x_val - x[left] > x[right] - x_val:
             left += 1
             right += 1
-        windows[i][0] = left
-        windows[i][1] = right
+        window = windows[total_fits]
+        window[0] = left
+        window[1] = right
+        total_fits += 1
 
-    return windows
+    # always fit last item
+    fits[total_fits] = num_x - 1
+    windows[total_fits] = (num_x - total_points, num_x)
+    total_fits += 1
+    if skip_start:
+        skips[total_skips] = (skip_start - 1, num_x)
+        total_skips += 1
+
+    return windows[:total_fits], fits[:total_fits], skips[:total_skips]
 
 
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
           tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
-          use_original=False, weights=None, return_coef=False, conserve_memory=True):
+          use_original=False, weights=None, return_coef=False, conserve_memory=True, skip_dx=0.0):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -1028,7 +1174,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     scale : float, optional
         A scale factor applied to the weighted residuals to control the robustness
         of the fit. Default is 3.0, as used in [9]_. Note that the original loess
-        procedure in [10]_ used a `scale` of 4.05.
+        procedure in [10]_ used a `scale` of ~4.05.
     poly_order : int, optional
         The polynomial order for fitting the baseline. Default is 1.
     tol : float, optional
@@ -1072,6 +1218,13 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         are quite large and the function causes memory issues when cacheing the kernels. If
         numba is installed, there is no significant time difference since the calculations are
         sped up.
+    skip_dx : float, optional
+        If `skip_dx` is > 0, will skip all x-values less than x_last + `skip_dx`,
+        where x_last is the last x-value to be fit. Fits all x-values if `skip_dx` is <= 0.
+        Default is 0.0. Note that `x_data` is scaled to fit in the range (-1, 1), so `skip_dx`
+        should likewise be scaled. For example, if the desired `skip_dx` value was
+        ``0.01 * (max(x_values) - min(x_values))``, then the correctly scaled `skip_dx` would be
+        0.02 (ie. ``0.01 * (1 - (-1))``).
 
     Returns
     -------
@@ -1089,8 +1242,9 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             The calculated tolerance value of the last iteration.
         * 'coef': numpy.ndarray, shape (N, poly_order + 1)
             Only if `return_coef` is True. The array of polynomial parameters
-            for the baseline, in increasing order. Can be used to create a
-            polynomial using numpy.polynomial.polynomial.Polynomial().
+            for the baseline, in increasing order. Can be used to create a polynomial
+            using numpy.polynomial.polynomial.Polynomial(). If `skip_dx` is > 0, the
+            coefficients for any skipped x-value will all be 0.
 
     Raises
     ------
@@ -1153,8 +1307,9 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         y0 = y
 
     # find the indices for fitting beforehand so that the fitting can be done
-    # in parallel
-    windows = _determine_windows(x, num_x, total_points)
+    # in parallel; cast skip_dx as float so numba does not have to compile for
+    # both int and float
+    windows, fits, skips = _determine_fits(x, num_x, total_points, float(skip_dx))
 
     # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
     # when matrix multiplied with the C-ordered coefficient array gives a warning
@@ -1162,29 +1317,24 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     vander = np.ascontiguousarray(_get_vander(x, poly_order, calc_pinv=False))
 
     baseline = y
-    coefs = np.empty((num_x, poly_order + 1))
+    coefs = np.zeros((num_x, poly_order + 1))
     for i in range(max_iter):
         baseline_old = baseline
-        # multiply weights with y and vander before passing to functions since otherwise
-        # would have to multiply each y[window] and vander[window] with weights[window];
-        # use tranpose of vander so that each kernel does not need to be reshaped from (N,)
-        # to (N, 1) shape to slightly speed up calculation
         if conserve_memory:
-            _loess_low_memory(
-                x, y * weight_array, coefs, weight_array * vander.T, total_points, num_x, windows
+            baseline = _loess_low_memory(
+                x, y, weight_array, coefs, vander, num_x, windows, fits
             )
         elif i == 0:
-            kernels = _loess_first_loop(
-                x, y * weight_array, coefs, weight_array * vander.T, total_points, num_x, windows
+            kernels, baseline = _loess_first_loop(
+                x, y, weight_array, coefs, vander, total_points, num_x, windows, fits
             )
         else:
-            _loess_nonfirst_loops(
-                y * weight_array, coefs, weight_array * vander.T, kernels, windows, num_x
+            baseline = _loess_nonfirst_loops(
+                y, weight_array, coefs, vander, kernels, windows, num_x, fits
             )
 
-        # einsum is same as np.array([np.dot(vander[i], coefs[i]) for i in range(num_x)])
-        # but faster
-        baseline = np.einsum('ij,ij->i', vander, coefs)
+        _fill_skips(x, baseline, skips)
+
         calc_difference = relative_difference(baseline_old, baseline)
         if calc_difference < tol:
             break
@@ -1198,13 +1348,17 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
                 weight_array = np.ones(num_x)
         else:
             residual = y - baseline
-            # TODO can the MAD be 0? should prevent dividing by 0 if so
+            # TODO median_absolute_value can be 0 if more than half of residuals are
+            # the same value; can that ever really happen? if so, should prevent dividing by 0
             weight_array = _tukey_square(
                 residual / _median_absolute_value(residual), scale, symmetric_weights
             )
 
     params = {'weights': weight_array, 'iterations': i + 1, 'last_tol': calc_difference}
     if return_coef:
+        # TODO maybe leave out the coefficients from the rest of the calculations
+        # since they are otherwise unused, and just fit x vs baseline here; would
+        # save a little memory; is providing coefficients for loess even useful?
         params['coef'] = np.array([_convert_coef(coef, original_domain) for coef in coefs])
 
     return baseline[np.argsort(sort_order)], params

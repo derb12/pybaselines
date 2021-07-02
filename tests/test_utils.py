@@ -136,3 +136,20 @@ def test_safe_std_allow_nan(run_enum):
         array = np.array((1, 2, np.inf))
 
     assert np.isnan(utils._safe_std(array))
+
+
+def test_interp_inplace():
+    """Tests that _interp_inplace modified the input array inplace."""
+    x = np.arange(10)
+    y_actual = 2 + 5 * x
+
+    y_calc = np.empty_like(y_actual)
+    y_calc[0] = y_actual[0]
+    y_calc[-1] = y_actual[-1]
+
+    output = utils._interp_inplace(x, y_calc)
+
+    # should not output anything from the function
+    assert output is None
+
+    assert_array_almost_equal(y_calc, y_actual)
