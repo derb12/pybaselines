@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Different techniques for fitting baselines to experimental data.
+"""Morphological techniques for fitting baselines to experimental data.
 
 Created on March 5, 2021
 @author: Donald Erb
@@ -691,5 +691,81 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
             )[smooth_half_window:-smooth_half_window]
     else:
         baseline = _changing_smooth_window(rough_baseline, smooth_half_window)
+
+    return baseline, {'half_window': half_wind}
+
+
+def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None, **window_kwargs):
+    """
+    Moving window minimum value (MWMV) baseline.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window used for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    smooth_half_window : int, optional
+        The half-window to use for smoothing the data after performing the
+        morphological operation. Default is None, which will use the same
+        value as used for the morphological operation.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for
+        padding the edges of the data to prevent edge effects from the moving average.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'half_window': int
+            The half window used for the morphological calculations.
+
+    Notes
+    -----
+    Performs poorly when baseline is rapidly changing.
+
+    References
+    ----------
+    Yaroshchyk, P., et al. Automatic correction of continuum background in Laser-induced
+    Breakdown Spectroscopy using a model-free algorithm. Spectrochimica Acta Part B, 2014,
+    99, 138-149.
+
+    """
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    if smooth_half_window is None:
+        smooth_half_window = half_wind
+
+    rough_baseline = grey_erosion(y, 2 * half_wind + 1)
+    if smooth_half_window < 1:
+        baseline = rough_baseline
+    else:
+        pad_kws = pad_kwargs if pad_kwargs is not None else {}
+        baseline = uniform_filter1d(
+            pad_edges(rough_baseline, smooth_half_window, **pad_kws),
+            2 * smooth_half_window + 1
+        )[smooth_half_window:-smooth_half_window]
 
     return baseline, {'half_window': half_wind}

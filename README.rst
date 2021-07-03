@@ -71,6 +71,7 @@ c) Morphological methods (pybaselines.morphological)
     4) mormol (Morphological and Mollified Baseline)
     5) amormol (Averaging Morphological and Mollified Baseline)
     6) rolling_ball (Rolling Ball Baseline)
+    7) mwmv (Moving Window Minimum Value)
 
 d) Window-based methods (pybaselines.window)
 

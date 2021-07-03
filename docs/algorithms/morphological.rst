@@ -224,3 +224,23 @@ resembles rolling a ball across the data.
         baseline = morphological.rolling_ball(y, half_window, smooth_half_window=20)
         ax.plot(baseline[0], 'g--')
 
+
+mwmv (Moving Window Minimum Value)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.mwmv` performs a morphological erosion on the data and
+then smooths the result with a moving average.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            half_window = 22
+        else:
+            half_window = 12
+        baseline = morphological.mwmv(y, half_window, smooth_half_window=int(4 * half_window))
+        ax.plot(baseline[0], 'g--')
+
