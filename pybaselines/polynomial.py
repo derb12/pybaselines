@@ -5,7 +5,7 @@ Created on Feb. 27, 2021
 @author: Donald Erb
 
 
-The function penalized_poly is adapted from MATLAB code from
+The function penalized_poly was adapted from MATLAB code from
 https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction
 (accessed March 18, 2021), which was licensed under the BSD-2-clause below.
 
@@ -37,7 +37,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 
-The function loess is adapted from code from https://gist.github.com/agramfort/850437
+The function loess was adapted from code from https://gist.github.com/agramfort/850437
 (accessed March 25, 2021), which was licensed under the BSD-3-clause below.
 
 # Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>

@@ -20,6 +20,13 @@ else:
     no_pentapy = pytest.mark.skipif(True, reason='pentapy is installed')
     has_pentapy = pytest.mark.skipif(False, reason='pentapy is installed')
 
+try:
+    import numba  # noqa
+except ImportError:
+    if_has_numba = pytest.mark.skipif(True, reason='numba is not installed')
+else:
+    if_has_numba = pytest.mark.skipif(False, reason='numba is installed')
+
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     """
@@ -51,11 +58,27 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
 
 
-def get_data(include_noise=True):
-    """Creates x- and y-data for testing."""
+def get_data(include_noise=True, num_points=1000):
+    """Creates x- and y-data for testing.
+
+    Parameters
+    ----------
+    include_noise : bool, optional
+        If True (default), will include noise with the y-data.
+    num_points : int, optional
+        The number of data points to use. Default is 1000.
+
+    Returns
+    -------
+    x_data : numpy.ndarray
+        The x-values.
+    y_data : numpy.ndarray
+        The y-values.
+
+    """
     # use np.random.default_rng(0) once minimum numpy version is >= 1.17
     np.random.seed(0)
-    x_data = np.linspace(1, 100, 1000)
+    x_data = np.linspace(1, 100, num_points)
     y_data = (
         500  # constant baseline
         + gaussian(x_data, 10, 25)
@@ -99,7 +122,7 @@ class AlgorithmTester:
     """
 
     func = _raise_error
-    x, y = get_data()
+    x, y = get_data()  # TODO remove this and make it a per-function call
 
     @classmethod
     def _test_output(cls, y, *args, checked_keys=None, **kwargs):

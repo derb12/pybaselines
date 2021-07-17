@@ -6,11 +6,16 @@ Created on March 20, 2021
 
 """
 
+from unittest import mock
+
+import numpy as np
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy.sparse import dia_matrix, diags, spdiags, vstack
 
-from pybaselines import misc
+from pybaselines import _algorithm_setup, misc
 
-from .conftest import AlgorithmTester, get_data
+from .conftest import AlgorithmTester, get_data, if_has_numba
 
 
 class TestInterpPts(AlgorithmTester):
@@ -37,3 +42,406 @@ class TestInterpPts(AlgorithmTester):
         self._test_algorithm_list(
             array_args=(self.x, self.points), list_args=(x_list, self.points)
         )
+
+
+def test_banded_dot_vector():
+    """Ensures the dot product of a banded matrix and a vector is correct."""
+    # random, square, non-symmetric banded matrix
+    matrix_1 = dia_matrix(np.array([
+        [0, 1, 0, 0, 0],
+        [1, 3, 4, 0, 0],
+        [2, 4, 9, 8, 0],
+        [9, 5, 12, -4, 19],
+        [0, -29, 8, 29, 12]
+    ]))
+    rows_1, columns_1 = matrix_1.shape
+    bands_1 = matrix_1.todia().data[::-1]
+    vector_1 = np.array([-12, 92, 3, 12345, 59])
+
+    banded_output_1 = misc._banded_dot_vector(
+        bands_1, vector_1, 3, 1, rows_1, columns_1
+    )
+    assert_array_equal(banded_output_1, matrix_1 * vector_1)
+
+    # random, square, symmetric banded matrix
+    matrix_2 = dia_matrix(np.array([
+        [0, 1, 22, 0, 0, 0.0],
+        [1, 3, 4, 5, 0, 0],
+        [22, 4, 9, 97, -3, 0],
+        [0, 5, 97, -4, 19, 12],
+        [0, 0, -3, 19, 12, 8],
+        [0, 0, 0, 12, 8, 7]
+    ]))
+    rows_2, columns_2 = matrix_2.shape
+    bands_2 = matrix_2.todia().data[::-1]
+
+    vector_2 = np.array([-12.23, 92.85, 3.0001, 12345.678, 59, 10.12])
+    banded_output_2 = misc._banded_dot_vector(
+        bands_2, vector_2, 2, 2, rows_2, columns_2
+    )
+    assert_allclose(banded_output_2, matrix_2 * vector_2, rtol=1e-11)
+
+
+# test fails for the first matrix since additional rows full of zeros are created
+# for the banded multiplication; this is the desired effect in most cases, but should
+# be documented and further investigated; most likely occurs since number of diagonals
+# is greater than the number of rows/columns in the full matrices; the blas function used for
+# banded-vector multiplication makes this check and fails; is that the desired behavior
+# for the banded-banded multiplication too? Would need to input the shape of the two input
+# matrices if so; leaving this failing test until it is addressed
+@pytest.mark.xfail
+def test_banded_dot_banded():
+    """Ensures the dot product of two square banded matrices is correct."""
+    # random, square, non-symmetric banded matrix
+    matrix_1 = dia_matrix(np.array([
+        [0, 1, 0, 0, 0],
+        [1, 3, 4, 0, 0],
+        [2, 4, 9, 8, 0],
+        [9, 5, 12, -4, 19],
+        [0, -29, 8, 29, 12]
+    ]))
+    bands_1 = matrix_1.todia().data[::-1]
+
+    actual_output_1 = (matrix_1 * matrix_1).todia().data[::-1]
+    banded_output_1 = misc._banded_dot_banded(
+        bands_1, bands_1, 3, 1, 3, 1
+    )
+    assert_array_equal(banded_output_1, actual_output_1)
+
+    # random, square, symmetric banded matrix
+    matrix_2 = dia_matrix(np.array([
+        [0, 1, 22, 0, 0, 0],
+        [1, 3, 4, 5, 0, 0],
+        [22, 4, 9, 97, -3, 0],
+        [0, 5, 97, -4, 19, 12],
+        [0, 0, -3, 19, 12, 8],
+        [0, 0, 0, 12, 8, 7]
+    ]))
+    bands_2 = matrix_2.todia().data[::-1]
+
+    actual_output_2 = (matrix_2 * matrix_2).todia().data[::-1]
+    banded_output_2 = misc._banded_dot_banded(
+        bands_2, bands_2, 2, 2, 2, 2
+    )
+    assert_array_equal(banded_output_2, actual_output_2)
+
+    # also test symmetric_output=True since matrix_2 * matrix_2 is also symmetric
+    banded_output_3 = misc._banded_dot_banded(
+        bands_2, bands_2, 2, 2, 2, 2, True
+    )
+    assert_array_equal(banded_output_3, actual_output_2)
+
+
+def test_parabola():
+    """Ensures the parabola fits the two endpoints and equals min(y) at the midpoint."""
+    num_points = 51
+    x = np.arange(num_points)
+    mid_point = num_points // 2
+    y = np.sin(x) + 0.1 * x + np.random.uniform(0, 0.05, x.size)
+
+    parabola = misc._parabola(y)
+
+    assert_allclose(parabola[0], y[0])
+    assert_allclose(parabola[-1], y[-1])
+    assert_allclose(parabola[mid_point], y.min())
+
+
+@pytest.mark.parametrize('filter_type', (1, 2))
+def test_high_pass_filter_simple(filter_type):
+    """Simple test to ensure _high_pass_filter works."""
+    num_points = 5
+    freq_cutoff = 0.3
+    if filter_type == 1:
+        desired_B_full = np.array([
+            [2., -1., 0., 0., 0.],
+            [-1., 2., -1., 0., 0.],
+            [0., -1., 2., -1., 0.],
+            [0., 0., -1., 2., -1.],
+            [0., 0., 0., -1., 2.]
+        ])
+        desired_A_full = np.array([
+            [5.78885438, 0.89442719, 0., 0., 0.],
+            [0.89442719, 5.78885438, 0.89442719, 0., 0.],
+            [0., 0.89442719, 5.78885438, 0.89442719, 0.],
+            [0., 0., 0.89442719, 5.78885438, 0.89442719],
+            [0., 0., 0., 0.89442719, 5.78885438]
+        ])
+    else:
+        desired_B_full = np.array([
+            [6., -4., 1., 0., 0.],
+            [-4., 6., -4., 1., 0.],
+            [1., -4., 6., -4., 1.],
+            [0., 1., -4., 6., -4.],
+            [0., 0., 1., -4., 6.]
+        ])
+        desired_A_full = np.array([
+            [27.53312629, 10.35541753, 4.58885438, 0., 0.],
+            [10.35541753, 27.53312629, 10.35541753, 4.58885438, 0.],
+            [4.58885438, 10.35541753, 27.53312629, 10.35541753, 4.58885438],
+            [0., 4.58885438, 10.35541753, 27.53312629, 10.35541753],
+            [0., 0., 4.58885438, 10.35541753, 27.53312629]
+        ])
+    desired_A_banded = dia_matrix(desired_A_full).data[::-1]
+    desired_B_banded = dia_matrix(desired_B_full).data[::-1]
+
+    A_sparse, B_sparse = misc._high_pass_filter(num_points, freq_cutoff, filter_type, True)
+    A_banded, B_banded = misc._high_pass_filter(num_points, freq_cutoff, filter_type, False)
+
+    # check values
+    assert_allclose(A_sparse.toarray(), desired_A_full)
+    assert_allclose(B_sparse.toarray(), desired_B_full)
+    assert_allclose(A_banded, desired_A_banded)
+    assert_allclose(B_banded, desired_B_banded)
+
+    # check that the full A and B matrices are symmetric
+    assert_array_equal(A_sparse.T.toarray(), A_sparse.toarray())
+    assert_array_equal(B_sparse.T.toarray(), B_sparse.toarray())
+
+    # check shapes
+    assert A_sparse.shape == (num_points, num_points)
+    assert B_sparse.shape == (num_points, num_points)
+    assert A_banded.shape == (2 * filter_type + 1, num_points)
+    assert B_banded.shape == (2 * filter_type + 1, num_points)
+
+
+@pytest.mark.parametrize('filter_type', (1, 2, 3, 4))
+@pytest.mark.parametrize('freq_cutoff', (0.499999, 0.1, 0.01, 0.001, 0.00001))
+def test_high_pass_filter(filter_type, freq_cutoff):
+    """Tests various inputs for _high_pass_filter to ensure output is correct."""
+    num_points = 100
+    A_sparse, B_sparse = misc._high_pass_filter(num_points, freq_cutoff, filter_type, True)
+    A_banded, B_banded = misc._high_pass_filter(num_points, freq_cutoff, filter_type, False)
+
+    # check that values match for banded and sparse matrices
+    assert_allclose(A_banded, A_sparse.todia().data[::-1])
+    assert_allclose(B_banded, B_sparse.todia().data[::-1])
+
+    # check that the full A and B matrices are symmetric
+    assert_array_equal(A_sparse.T.toarray(), A_sparse.toarray())
+    assert_array_equal(B_sparse.T.toarray(), B_sparse.toarray())
+
+    # check shapes
+    assert A_sparse.shape == (num_points, num_points)
+    assert B_sparse.shape == (num_points, num_points)
+    assert A_banded.shape == (2 * filter_type + 1, num_points)
+    assert B_banded.shape == (2 * filter_type + 1, num_points)
+
+
+@pytest.fixture()
+def beads_data():
+    """Setup code for testing internal calculations for the beads algorithm."""
+    num_points = 100
+    # random large values for lam to ensure they have an effect when added/multiplied
+    lam_0 = 1145
+    lam_1 = 2478
+    lam_2 = 3395
+
+    return num_points, lam_0, lam_1, lam_2
+
+
+@pytest.mark.parametrize('filter_type', (1, 2))
+@pytest.mark.parametrize('freq_cutoff', (0.49, 0.01, 0.001))
+def test_beads_diff_matrix_calculation(beads_data, filter_type, freq_cutoff):
+    """
+    Check that the lam * (D.T * Lam * D) and A.T * M * A calculations are correct.
+
+    D is the stacked first and second order difference matrices, Lam is a diagonal matrix,
+    and lam is a scalar. M is the output of Gamma + lam * (D.T * Lam * D), and can let
+    Gamma just be 0 for the test.
+
+    The actual calculation for D.T * Lam * D uses just the banded structure, which allows
+    using arrays rather than having to use and update three separate sparse matrices (the
+    full calculation is Gamma + D.T * Lam * D, where both Gamma and Lam are sparse matrices
+    with one diagonal that gets updated each iteration), which is much faster and has no
+    significant effect on memory.
+
+    """
+    num_points, lam_0, lam_1, lam_2 = beads_data
+    A, B = misc._high_pass_filter(num_points, freq_cutoff, filter_type, True)
+    A_banded, B_banded = misc._high_pass_filter(num_points, freq_cutoff, filter_type, False)
+    x, y = get_data(True, num_points)
+    lam_12_array = np.concatenate((
+        np.full(num_points - 1, lam_1), np.full(num_points - 2, lam_2)
+    ))
+    diff_1_matrix = _algorithm_setup.difference_matrix(num_points, 1)
+    diff_2_matrix = _algorithm_setup.difference_matrix(num_points, 2)
+    d1_y = np.diff(y)
+    d2_y = np.diff(y, 2)
+    d_y = np.concatenate((d1_y, d2_y))
+    diff_matrix = vstack((diff_1_matrix, diff_2_matrix))  # the full difference matrix, D
+
+    # D.T * diags(weight_function(derivative of y)) * D,
+    # let weight_function(d_y) just return d_y since it doesn't matter.
+    # the calculation as written in the beads paper (see docstring of beads function for reference)
+    true_calculation = (
+        lam_1 * diff_1_matrix.T * diags(d1_y) * diff_1_matrix
+        + lam_2 * diff_2_matrix.T * diags(d2_y) * diff_2_matrix
+    )
+
+    # the calculation as written in the MATLAB beads function, puts lam_1 and lam_2 within Lam
+    matlab_calculation = diff_matrix.T * diags(lam_12_array * d_y) * diff_matrix
+
+    assert_allclose(true_calculation.toarray(), matlab_calculation.toarray())
+
+    # now do the same calculation, using the banded matrices
+    diff_1_banded = np.zeros((5, num_points))
+    diff_2_banded = np.zeros((5, num_points))
+    # D.T * L * D == D_1.T * L_1 * D_1 + D_2.T * L_2 + D_2, so can calculate the
+    # individual differences separately
+    diff_1_banded[1][1:] = diff_1_banded[3][:-1] = -d1_y
+    diff_1_banded[2] = -(diff_1_banded[1] + diff_1_banded[3])
+
+    diff_2_banded[0][2:] = diff_2_banded[-1][:-2] = d2_y
+    diff_2_banded[1] = (
+        2 * (diff_2_banded[0] - np.roll(diff_2_banded[0], -1, 0))
+        - 4 * diff_2_banded[0]
+    )
+    diff_2_banded[-2][:-1] = diff_2_banded[1][1:]
+    diff_2_banded[2] = -(
+        diff_2_banded[0] + diff_2_banded[1] + diff_2_banded[-1] + diff_2_banded[-2]
+    )
+
+    banded_calculation = lam_1 * diff_1_banded + lam_2 * diff_2_banded
+
+    assert_allclose(matlab_calculation.todia().data[::-1], banded_calculation)
+
+    # now test calculation of A.T * M * A where A is the D.T * Lam * D results
+    ATMA_actual = A.T * true_calculation * A
+    ATMA_actual_bands = ATMA_actual.todia().data[::-1]
+
+    sparse_DTD = spdiags(banded_calculation, np.arange(2, -3, -1), num_points, num_points)
+
+    assert_allclose(ATMA_actual.toarray(), (A.T * sparse_DTD * A).toarray())
+    # also check without tranposing A since A is symmetric and that's what is used in pybaselines
+    assert_allclose(ATMA_actual.toarray(), (A * sparse_DTD * A).toarray())
+
+    # now check banded result; banded calculation also uses A instead of A.T
+    ATMA_banded = misc._banded_dot_banded(
+        misc._banded_dot_banded(
+            A_banded, banded_calculation, filter_type, filter_type, 2, 2
+        ),
+        A_banded, filter_type + 2, filter_type + 2, filter_type, filter_type
+    )
+    assert_allclose(ATMA_actual_bands, ATMA_banded)
+    # also the check banded result with symmetric_output set to True for the second
+    # matrix multiplication, since the output should be symmetric
+    ATMA_banded_2 = misc._banded_dot_banded(
+        misc._banded_dot_banded(
+            A_banded, banded_calculation, filter_type, filter_type, 2, 2
+        ),
+        A_banded, filter_type + 2, filter_type + 2, filter_type, filter_type, True
+    )
+    assert_allclose(ATMA_actual_bands, ATMA_banded_2)
+
+
+@pytest.mark.parametrize('filter_type', (1, 2))
+@pytest.mark.parametrize('freq_cutoff', (0.49, 0.01, 0.001))
+def test_beads_BTB(beads_data, filter_type, freq_cutoff):
+    """
+    Check that B.T * B calculation is correct for sparse and banded matrices.
+
+    The calculation used in pybaselines does not use the tranpose of B since it
+    should be symmetric.
+
+    """
+    num_points, lam_0, lam_1, lam_2 = beads_data
+    A, B = misc._high_pass_filter(num_points, freq_cutoff, filter_type, True)
+    A_banded, B_banded = misc._high_pass_filter(num_points, freq_cutoff, filter_type, False)
+
+    # check that B.T * B is the same as B * B since B is symmetric
+    actual_BTB = B.T * B
+    actual_BTB_banded = actual_BTB.todia().data[::-1]
+
+    assert_allclose(actual_BTB.toarray(), (B * B).toarray())
+
+    banded_BTB = misc._banded_dot_banded(
+        B_banded, B_banded, filter_type, filter_type, filter_type, filter_type
+    )
+
+    assert_allclose(actual_BTB_banded, banded_BTB)
+
+    # can also use symmetric_output=True for _banded_dot_banded since the output should
+    # also be symmetric
+    banded_BTB_symmetric = misc._banded_dot_banded(
+        B_banded, B_banded, filter_type, filter_type, filter_type, filter_type, True
+    )
+
+    assert_allclose(actual_BTB_banded, banded_BTB_symmetric)
+
+
+@pytest.mark.parametrize('filter_type', (1, 2))
+@pytest.mark.parametrize('freq_cutoff', (0.49, 0.01, 0.001))
+def test_beads_ATb(beads_data, filter_type, freq_cutoff):
+    """
+    Check that the lam_0 * A.T * b calculation is correct.
+
+    The calculation used in pybaselines does not use the tranpose of A since it
+    should be symmetric, and it puts lam_0 into b to skip a multiplication step.
+
+    """
+    num_points, lam_0, lam_1, lam_2 = beads_data
+    A, B = misc._high_pass_filter(num_points, freq_cutoff, filter_type, True)
+    A_banded, B_banded = misc._high_pass_filter(num_points, freq_cutoff, filter_type, False)
+    # b is just a constant array; fill with random value
+    fill_value = -5
+    b = np.full(num_points, fill_value)
+
+    # first just check A.T * b
+    ATb_actual = A.T * b
+
+    # check that the tranpose is unnessesary since A is symmetric
+    assert_allclose(ATb_actual, A * b)
+
+    # check the banded solution
+    ATb_banded = misc._banded_dot_vector(
+        A_banded, b, filter_type, filter_type, num_points, num_points
+    )
+
+    # use rtol=1.5e-7 since values are very small for d=2 and small freq_cutoff
+    assert_allclose(ATb_actual, ATb_banded, rtol=1.5e-7)
+
+    # now check lam_0 * A.T * b
+    lam_ATb_actual = lam_0 * A.T * b
+
+    # actual calculation places lam_0 in the vector so that an additional
+    # multiplication step can be skipped
+    b_2 = np.full(num_points, lam_0 * fill_value)
+
+    assert_allclose(lam_ATb_actual, A * b_2)
+
+    # check the banded solution
+    lam_ATb_banded = misc._banded_dot_vector(
+        A_banded, b_2, filter_type, filter_type, num_points, num_points
+    )
+
+    # use rtol=1.5e-7 since values are very small for d=2 and small freq_cutoff
+    assert_allclose(lam_ATb_actual, lam_ATb_banded, rtol=1.5e-7)
+
+
+class TestBeads(AlgorithmTester):
+    """Class for testing beads baseline."""
+
+    func = misc.beads
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('signal', 'iterations', 'last_tol'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @if_has_numba
+    def test_beads_algorithms(self):
+        """Ensure the sparse and banded forms for beads give similar results."""
+        with mock.patch.object(misc, '_HAS_NUMBA', False):
+            sparse_output = self._call_func(self.y)[0]
+        banded_output = self._call_func(self.y)[0]
+
+        assert_allclose(banded_output, sparse_output, 1e-6)

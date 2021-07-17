@@ -21,7 +21,9 @@ except ImportError:
 
 try:
     from numba import jit, prange
+    _HAS_NUMBA = True
 except ImportError:
+    _HAS_NUMBA = False
 
     def prange(*args):
         """Dummy function that acts exactly like `range` if numba is not installed."""
