@@ -363,3 +363,65 @@ def test_setup_window_shape(small_data):
     pad_length = 4
     y = _algorithm_setup._setup_window(small_data, pad_length, mode='edge')
     assert y.shape[0] == small_data.shape[0] + 2 * pad_length
+
+
+@pytest.mark.parametrize('array_enum', (0, 1))
+def test_setup_classification_output_array(small_data, array_enum):
+    """Ensures output y and x are always numpy arrays and that x is scaled to [-1., 1.]."""
+    if array_enum == 1:
+        small_data = small_data.tolist()
+    x_data = small_data.copy()
+    y, x, *_ = _algorithm_setup._setup_polynomial(small_data, x_data)
+
+    assert isinstance(y, np.ndarray)
+    assert_array_equal(y, np.asarray(small_data))
+    assert isinstance(x, np.ndarray)
+    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
+
+
+def test_setup_classification_no_x(small_data):
+    """
+    Ensures an x array is created if None is input.
+
+    Same test as for _yx_arrays, but want to double-check that
+    output is correct.
+    """
+    y, x, *_ = _algorithm_setup._setup_classification(small_data)
+
+    assert isinstance(x, np.ndarray)
+    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
+
+
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+def test_setup_classification_weights(small_data, weight_enum):
+    """Ensures output weight array is correctly handled in classification setup."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones(small_data.shape[0], bool)
+    elif weight_enum == 1:
+        # uniform 1 weighting, input as boolean dtype
+        weights = np.ones(small_data.shape[0], bool)
+        desired_weights = weights.copy()
+    elif weight_enum == 2:
+        # different weights for all points, input as ints
+        weights = np.arange(small_data.shape[0])
+        desired_weights = np.arange(small_data.shape[0]).astype(bool)
+    elif weight_enum == 3:
+        # different weights for all points, weights input as a list of floats
+        weights = np.arange(small_data.shape[0], dtype=float).tolist()
+        desired_weights = np.arange(small_data.shape[0]).astype(bool)
+
+    _, _, weight_array, _ = _algorithm_setup._setup_classification(small_data, weights=weights)
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
+
+
+def test_setup_classification_domain(small_data):
+    """Ensures output domain array is correct."""
+    x = np.linspace(-5, 20, len(small_data))
+
+    *_, original_domain = _algorithm_setup._setup_classification(small_data, x)
+
+    assert_array_equal(original_domain, np.array([-5, 20]))

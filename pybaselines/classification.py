@@ -10,32 +10,115 @@ from math import ceil
 import warnings
 
 import numpy as np
-from scipy.ndimage import binary_erosion, grey_dilation, grey_erosion, uniform_filter1d
+from scipy.ndimage import (
+    binary_dilation, binary_erosion, grey_dilation, grey_erosion, uniform_filter1d
+)
 
-from ._algorithm_setup import _get_vander, _yx_arrays, _setup_polynomial
-from .utils import _interp_inplace, pad_edges, relative_difference, ParameterWarning
+from ._algorithm_setup import _get_vander, _optimize_window, _setup_classification
+from .utils import ParameterWarning, _convert_coef, _interp_inplace, pad_edges, relative_difference
 
 
 def _remove_single_points(mask):
     """
-    Removes lone True or False values from the mask.
+    Removes lone True or False values from a boolean mask.
 
+    Parameters
+    ----------
+    mask : numpy.ndarray
+        The boolean array designating baseline points as True and peak points as False.
+
+    Returns
+    -------
+    numpy.ndarray
+        The input mask after removing lone True and False values.
+
+    Notes
+    -----
     Removes the lone True values first since True values designate the baseline.
     That way, the approach is more conservative with assigning baseline points.
 
     """
-    # TODO need to verify this works completely; check edges as well
-    baseline_mask = np.asarray(mask, bool)
     # convert lone True values to False
     # same (check) as baseline_mask ^ binary_erosion(~baseline_mask, [1, 0, 1], border_value=1)
-    temp = binary_erosion(baseline_mask, [1, 1, 0]) + binary_erosion(baseline_mask, [0, 1, 1])
+    temp = binary_erosion(mask, [1, 1, 0]) | binary_erosion(mask, [0, 1, 1])
     # convert lone False values to True
-    return temp + binary_erosion(temp, [1, 0, 1])
+    return temp | binary_erosion(temp, [1, 0, 1])
 
 
-def golotvin(data, half_window, x_data=None, n_sigma=2.0, sections=32, smooth_half_window=20):
+def _find_peak_segments(mask):
     """
-    [summary]
+    Identifies the peak starts and ends from a boolean mask.
+
+    Parameters
+    ----------
+    mask : numpy.ndarray
+        The boolean mask with peak points as 0 or False and baseline points
+        as 1 or True.
+
+    Returns
+    -------
+    peak_starts : numpy.ndarray
+        The array identifying the indices where each peak begins.
+    peak_ends : numpy.ndarray
+        The array identifying the indices where each peak ends.
+
+    """
+    extended_mask = np.concatenate(([True], mask, [True]))
+    peak_starts = extended_mask[1:-1] < extended_mask[:-2]
+    peak_starts = np.flatnonzero(peak_starts)
+    if peak_starts.size:
+        peak_starts[1 if peak_starts[0] == 0 else 0:] -= 1
+
+    peak_ends = extended_mask[1:-1] < extended_mask[2:]
+    peak_ends = np.flatnonzero(peak_ends)
+    if peak_ends.size:
+        peak_ends[:None if peak_ends[-1] == mask.shape[0] else -1] += 1
+
+    return peak_starts, peak_ends
+
+
+def _averaged_interp(x, y, mask, interp_window=0):
+    """
+    Averages each anchor point and then interpolates between segments.
+
+    Parameters
+    ----------
+    x : [type]
+        [description]
+    y : [type]
+        [description]
+    mask : [type]
+        [description]
+    interp_window : [type]
+        [description]
+    """
+    output = y.copy()
+    mask_sum = mask.sum()
+    if not mask_sum:  # all points belong to peaks
+        # will just interpolate between first and last points
+        warnings.warn('there were no baseline points found', ParameterWarning)
+    elif mask_sum == mask.shape[0]:  # all points belong to baseline
+        warnings.warn('there were no peak points found', ParameterWarning)
+        return output
+
+    peak_starts, peak_ends = _find_peak_segments(mask)
+    num_y = y.shape[0]
+    for i, start_point in enumerate(peak_starts):
+        end_point = peak_ends[i]
+        section = output[start_point:end_point + 1]
+        section[0] = y[max(0, start_point - interp_window):start_point + 1].mean()
+        section[-1] = y[end_point:min(end_point + interp_window, num_y)].mean()
+
+        _interp_inplace(x[start_point:end_point + 1], section)
+
+    return output
+
+
+def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
+             smooth_half_window=None, interp_window=5, weights=None,
+             window_kwargs=None, **pad_kwargs):
+    """
+    Golotvin's method for identifying peak regions.
 
     Parameters
     ----------
@@ -43,7 +126,7 @@ def golotvin(data, half_window, x_data=None, n_sigma=2.0, sections=32, smooth_ha
         [description]
     half_window : [type]
         [description]
-    n_sigma : float, optional
+    num_std : float, optional
         [description]. Default is 2.
     smooth_half_window : int, optional
         [description]. Default is 20.
@@ -59,52 +142,103 @@ def golotvin(data, half_window, x_data=None, n_sigma=2.0, sections=32, smooth_ha
     FT NMR Spectra. Journal of Magnetic Resonance. 2000, 146, 122-125.
 
     """
-    y, x = _yx_arrays(data, x_data, 0, len(data))
-    y = np.asarray(data)
-    n = y.shape[0]
+    y, x, weight_array, *_ = _setup_classification(data, x_data, weights)
+    if half_window is None:
+        if window_kwargs is None:
+            win_kwargs = {}
+        else:
+            win_kwargs = window_kwargs
+        half_window = _optimize_window(y, **win_kwargs)
+    if smooth_half_window is None:
+        smooth_half_window = half_window
+    num_y = y.shape[0]
     min_sigma = np.inf
     for i in range(sections):
         # use ddof=1 since sampling subsets of the data
         min_sigma = min(
             min_sigma,
-            np.std(y[i * n // sections:(i + 1) * n // sections], ddof=1)
+            np.std(y[i * num_y // sections:((i + 1) * num_y) // sections], ddof=1)
         )
 
     mask = (
         grey_dilation(y, 2 * half_window + 1) - grey_erosion(y, 2 * half_window + 1)
-    ) < n_sigma * min_sigma
-    mask = _remove_single_points(mask)
+    ) < num_std * min_sigma
+    mask = _remove_single_points(mask) & weight_array
 
-    if not mask.sum():
-        warnings.warn(
-            'no baseline points found; try increasing "n_sigma" or changing "half_window"',
-            ParameterWarning
-        )
-        return np.zeros_like(y)  # TODO return zeros or throw an error?
+    rough_baseline = _averaged_interp(x, y, mask, interp_window)
+    baseline = uniform_filter1d(
+        pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
+        2 * smooth_half_window + 1
+    )[smooth_half_window:num_y + smooth_half_window]
 
-    # plt.plot(x, y, '-', x[mask], y[mask], 'o-')
-    # plt.show()
-
-    # TODO maybe allow taking the mean of neighboring points when interpolating, like the other
-    # methods
-    rough_baseline = np.interp(x, x[mask], y[mask])
-    # TODO pad the baseline before smoothing?
-    baseline = uniform_filter1d(rough_baseline, 2 * smooth_half_window + 1)
-
-    return baseline
+    return baseline, {'mask': mask}
 
 
-def dietrich(data, x_data=None, smooth_half_window=None, n_sigma=3.0, mean_half_window=10,
-             poly_order=5, max_iter=50, tol=1e-3, **pad_kwargs):
+def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
+             interp_window=10, poly_order=5, max_iter=50, tol=1e-3, weights=None,
+             return_coef=False, **pad_kwargs):
     """
-    [summary]
+    Dietrich's method for identifying peak regions.
+
+    Identifies baseline points by
 
     Parameters
     ----------
-    data : [type]
-        [description]
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
     smooth_half_window : int, optional
-        [description]
+        The half window to use for smoothing the input data with a moving average.
+        Default is None, which will use N / 256. Set to 0 to not smooth the data.
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Higher values
+        will assign more points as baseline. Default is 3.0.
+    interp_window : int, optional
+        When interpolating between baseline segments, will use `start - interp_window`
+        and `end + interp_window`, where `start` and `end` and the peak start and end
+        positions, respectively to fit the linear segment. Default is 10.
+    poly_order : int, optional
+        The polynomial order for fitting the identified baseline. Default is 5.
+    max_iter : int, optional
+        The maximum number of iterations for fitting a polynomial to the identified
+        baseline. If `max_iter` is 0, the returned baseline will be just the linear
+        interpolation of the baseline segments. Default is 50.
+    tol : float, optional
+        The exit criteria for fitting a polynomial to the identified baseline points.
+        Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    return_coef : bool, optional
+        If True, will convert the polynomial coefficients for the fit baseline to
+        a form that fits the input `x_data` and return them in the params dictionary.
+        Default is False, since the conversion takes time.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'mask': numpy.ndarray, shape (N,)
+            The boolean array designating baseline points as True and peak points
+            as False.
+        * 'coef': numpy.ndarray, shape (poly_order,)
+            Only if `return_coef` is True and `max_iter` is greater than 0. The array
+            of polynomial coefficients for the baseline, in increasing order. Can be
+            used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
+
+
+    Notes
+    -----
+    When choosing parameters, first choose a `smooth_half_window` that appropriately
+    smooths the data, and then reduce `num_std` until no peak regions are included in
+    the baseline. If no value of `num_std` works, change `smooth_half_window` and repeat.
 
     References
     ----------
@@ -112,7 +246,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, n_sigma=3.0, mean_half_
     Two-Dimensional NMR Spectra. Journal of Magnetic Resonance. 1991, 91, 1-11.
 
     """
-    y, x, *_ = _setup_polynomial(data, x_data)
+    y, x, weight_array, original_domain = _setup_classification(data, x_data, weights)
     num_y = y.shape[0]
 
     if smooth_half_window is None:
@@ -120,57 +254,44 @@ def dietrich(data, x_data=None, smooth_half_window=None, n_sigma=3.0, mean_half_
     smooth_y = uniform_filter1d(
         pad_edges(y, smooth_half_window, **pad_kwargs),
         2 * smooth_half_window + 1
-    )[smooth_half_window:-smooth_half_window]
-
-    power = np.diff(np.hstack((smooth_y[0], smooth_y)))**2
-    mask = power < np.mean(power) + n_sigma * np.std(power, ddof=1)
+    )[smooth_half_window:num_y + smooth_half_window]
+    # TODO should do dy/dx if x is given since it should(?) be more exact
+    # for non-uniform x-values
+    power = np.diff(np.concatenate((smooth_y[:1], smooth_y)))**2
+    mask = power < np.mean(power) + num_std * np.std(power, ddof=1)
     old_mask = np.ones_like(mask)
     while not np.array_equal(mask, old_mask):
         old_mask = mask
         masked_power = power[mask]
-        if masked_power.size < 2:  # need at least 2 points for interpolation later
+        if masked_power.size < 2:  # need at least 2 points for std calculation
             warnings.warn(
-                'not enough baseline points found; "n_sigma" is most likely too low',
+                'not enough baseline points found; "num_std" is likely too low',
                 ParameterWarning
             )
-            return np.zeros_like(y)  # TODO return zeros or throw an error?
-        mask = power < np.mean(masked_power) + n_sigma * np.std(masked_power, ddof=1)
-
-    mask = _remove_single_points(mask)
-    if mask.sum() < 2:
-        warnings.warn(
-            'not enough baseline points found; try increasing "n_sigma"', ParameterWarning
-        )
-        return np.zeros_like(y)  # TODO return zeros or throw an error?
-
-    rough_baseline = y.copy()
-    indices = np.flatnonzero(mask)
-    for i, point in enumerate(indices[:-1]):
-        # TODO this is probably not right; want to only connect peak segments, not every other point
-        point_2 = indices[i + 1]
-        rough_baseline[point] = np.mean(
-            y[max(0, point - mean_half_window):min(point + mean_half_window + 1, num_y)]
-        )
-        rough_baseline[point_2] = np.mean(
-            y[max(0, point_2 - mean_half_window):min(point_2 + mean_half_window + 1, num_y)]
-        )
-        _interp_inplace(x[point:point_2 + 1], rough_baseline[point:point_2 + 1])
-
-    baseline = rough_baseline
-    old_coefs = np.zeros(poly_order + 1)
-    vander, pseudo_inverse = _get_vander(x, poly_order)
-    for i in range(max_iter):
-        coefs = np.dot(pseudo_inverse, rough_baseline)
-        baseline = np.dot(vander, coefs)
-        if relative_difference(old_coefs, coefs) < tol:
             break
-        old_coefs = coefs
-        rough_baseline[mask] = baseline[mask]
+        mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
 
-    # plt.plot(x, y, '-', x[mask], smooth_y[mask], 'o-')
-    # plt.show()
+    mask = _remove_single_points(mask) & weight_array
+    rough_baseline = _averaged_interp(x, y, mask, interp_window)
 
-    return baseline
+    params = {'mask': mask}
+    baseline = rough_baseline
+    if max_iter > 0:
+        vander, pseudo_inverse = _get_vander(x, poly_order)
+        old_coef = coef = np.dot(pseudo_inverse, rough_baseline)
+        baseline = np.dot(vander, coef)
+        for i in range(max_iter - 1):
+            rough_baseline[mask] = baseline[mask]
+            coef = np.dot(pseudo_inverse, rough_baseline)
+            baseline = np.dot(vander, coef)
+            if relative_difference(old_coef, coef) < tol:
+                break
+            old_coef = coef
+
+        if return_coef:
+            params['coef'] = _convert_coef(coef, original_domain)
+
+    return baseline, params
 
 
 def _rolling_std(data, half_window, ddof=0):
@@ -185,11 +306,11 @@ def _rolling_std(data, half_window, ddof=0):
         The half-window the rolling calculation. The full number of points for each
         window is ``half_window * 2 + 1``.
     ddof : int, optional
-        The degrees of freedom for the calculation. Default is 0.
+        The delta degrees of freedom for the calculation. Default is 0.
 
     Returns
     -------
-    rolled_std : numpy.ndarray
+    numpy.ndarray
         The array of the rolling standard deviation for each window.
 
     """
@@ -215,9 +336,13 @@ def _signal_start(mask):
     return np.array(sig_start)
 
 
-def noise_distribution(data, half_window, mean_half_window=5, smooth_half_window=None):
     """
-    [summary]
+
+
+def noise_distribution(data, x_data=None, half_window=20, interp_window=5,
+                       smooth_half_window=None, weights=None, **pad_kwargs):
+    """
+    Identifies baseline segments by analyzing the rolling standard deviation distribution.
 
     Parameters
     ----------
@@ -233,39 +358,31 @@ def noise_distribution(data, half_window, mean_half_window=5, smooth_half_window
     Analytical Chemistry. 2013, 85, 1231-1239.
 
     """
-    y = np.asarray(data)
-    num_y = y.shape[0]
+    y, x, weight_array, _ = _setup_classification(data, x_data, weights)
     if smooth_half_window is None:
         smooth_half_window = half_window
 
-    std = _rolling_std(y, half_window, 1)  # use dof=1 since sampling a subset of the data
-    med = np.median(std)
-    med2 = np.median(std[std < 2 * med])
-    while med2 / med < 0.999:  # TODO make the 0.999 an input?
-        med = med2
-        med2 = np.median(std[std < 2 * med])
-    noise_std = med2
+    # use dof=1 since sampling a subset of the data; reflect the data since the
+    # standard deviation calculation requires noisy data to work
+    std = _rolling_std(np.pad(y, half_window, 'reflect'), half_window, 1)[half_window:-half_window]
+    median = np.median(std)
+    median_2 = np.median(std[std < 2 * median])  # TODO make the 2 an input?
+    while median_2 / median < 0.999:  # TODO make the 0.999 an input?
+        median = median_2
+        median_2 = np.median(std[std < 2 * median])
+    noise_std = median_2
 
-    # TODO currently, this is peaks==1, baseline==0; switch to match golotvin & dietrich
-    mask = np.zeros(num_y, int)
     half_win = 3  # TODO make the half_win an input
-    for i in range(num_y):
-        if std[i] > 1.1 * noise_std:  # TODO make the 1.1 an input; call threshold or cutoff or num_std
-            mask[max(0, i - half_win):min(i + half_win + 1, num_y)] = 1
+    # use ~ to convert from peak==1, baseline==0 to peak==0, baseline==1; if done before,
+    # would have to do ~binary_dilation(~mask) or binary_erosion(np.hstack((1, mask, 1))[1:-1]
+    # TODO make the 1.1 an input?
+    mask = ~binary_dilation(std > 1.1 * noise_std, np.ones(2 * half_win + 1)) & weight_array
 
-    sig_start = _signal_start(mask)
-    sig_end = num_y - 1 - _signal_start(mask[::-1])[::-1]
-    rough_z = y.copy()
-    filler = np.arange(num_y, dtype=float)
-    for i in range(sig_start.shape[0]):
-        start = sig_start[i]
-        end = sig_end[i]
-        rough_z[start] = np.mean(
-            y[max(0, start - mean_half_window):min(start + mean_half_window + 1, num_y)]
-        )
-        rough_z[end] = np.mean(
-            y[max(0, end - mean_half_window):min(end + mean_half_window + 1, num_y)]
-        )
-        _interp_inplace(filler[start:end + 1], rough_z[start:end + 1])
-    # TODO pad rough_z before smoothing? or pad y before doing rolling std?
-    return uniform_filter1d(rough_z, 2 * smooth_half_window + 1)
+    rough_baseline = _averaged_interp(x, y, mask, interp_window)
+
+    baseline = uniform_filter1d(
+        pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
+        2 * smooth_half_window + 1
+    )[smooth_half_window:y.shape[0] + smooth_half_window]
+
+    return baseline, {'mask': mask}

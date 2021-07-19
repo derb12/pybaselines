@@ -579,3 +579,50 @@ def _setup_window(data, half_window, **pad_kwargs):
 
     """
     return pad_edges(data, half_window, **pad_kwargs)
+
+
+def _setup_classification(data, x_data=None, weights=None):
+    """
+    Sets the starting parameters for doing classification algorithms.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
+
+    Returns
+    -------
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, converted to a numpy array.
+    x : numpy.ndarray, shape (N,)
+        The x-values for fitting the polynomial, converted to fit within
+        the domain [-1., 1.].
+    weight_array : numpy.ndarray, shape (N,)
+        The weight array for the data, with boolean dtype.
+    original_domain : numpy.ndarray, shape (2,)
+        The minimum and maximum values of the original x_data values. Can
+        be used to convert the coefficents found during least squares
+        minimization using the normalized x into usable polynomial coefficients
+        for the original x_data.
+
+    """
+    y, x = _yx_arrays(data, x_data)
+    # TODO should remove the x-scaling here since most methods don't need it; can
+    # make a separate function for it, which _setup_polynomial could also use
+    if x_data is None:
+        original_domain = np.array([-1., 1.])
+    else:
+        original_domain = np.polynomial.polyutils.getdomain(x)
+        x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1., 1.]))
+    if weights is not None:
+        weight_array = np.asarray(weights, bool)
+    else:
+        weight_array = np.ones(y.shape[0], bool)
+
+    return y, x, weight_array, original_domain
