@@ -15,6 +15,7 @@ from scipy.ndimage import (
 )
 
 from ._algorithm_setup import _get_vander, _optimize_window, _setup_classification
+from ._compat import jit
 from .utils import ParameterWarning, _convert_coef, _interp_inplace, pad_edges, relative_difference
 
 
@@ -294,6 +295,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
     return baseline, params
 
 
+@jit(nopython=True, cache=True)
 def _rolling_std(data, half_window, ddof=0):
     """
     Computes the rolling standard deviation of an array.
@@ -301,7 +303,8 @@ def _rolling_std(data, half_window, ddof=0):
     Parameters
     ----------
     data : numpy.ndarray
-        The array for the calculation.
+        The array for the calculation. Should be padded on the left and right
+        edges by `half_window`.
     half_window : int
         The half-window the rolling calculation. The full number of points for each
         window is ``half_window * 2 + 1``.
@@ -313,30 +316,47 @@ def _rolling_std(data, half_window, ddof=0):
     numpy.ndarray
         The array of the rolling standard deviation for each window.
 
+    Notes
+    -----
+    This implementation is a version of Welford's method [1]_, modified for a
+    fixed-length window [2]_. It is slightly modified from the version in [2]_
+    in that it assumes the data is padded on the left and right. Other deviations
+    from [2]_ are noted within the function.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+    .. [2] Chmielowiec, A. Algorithm for error-free determination of the variance of all
+           contiguous subsequences and fixed-length contiguous subsequences for a sequence
+           of industrial measurement data. Computational Statistics. 2021, 1-28.
+
     """
-    # TODO this is a nieve approach; switch to Welford's method when possible;
-    # cannot use numba with this approach since numba's std does not allow specifying
-    # ddof
+    window_size = half_window * 2 + 1
     num_y = data.shape[0]
-    rolling_std = np.array([
-        np.std(data[max(0, i - half_window):min(i + half_window + 1, num_y)], ddof=ddof)
-        for i in range(num_y)
-    ])
+    squared_diff = np.zeros(num_y)
+    mean = data[0]
+    # fill the first window
+    for i in range(1, window_size):
+        val = data[i]
+        size_factor = i / (i + 1)
+        squared_diff[i] = squared_diff[i - 1] + 2 * size_factor * (val - mean)**2
+        mean = mean * size_factor + val / (i + 1)
+    # at this point, mean == np.mean(data[:window_size])
 
-    return rolling_std
+    # update squared_diff[half_window] with squared_diff[window_size - 1] / 2; if
+    # this isn't done, all values within [half_window:-half_window] in the output are
+    # off; no idea why... but it works
+    squared_diff[half_window] = squared_diff[window_size - 1] / 2
+    for j in range(half_window + 1, num_y):
+        old_val = data[j - half_window - 1]
+        new_val = data[j + half_window]
+        val_diff = new_val - old_val  # reference divided by window_size here
 
+        new_mean = mean + val_diff / window_size
+        squared_diff[j] = squared_diff[j - 1] + val_diff * (old_val + new_val - mean - new_mean)
+        mean = new_mean
 
-def _signal_start(mask):
-    # TODO find a way to join this with golotvin's and dietrich's methods
-    sig_start = [0] if mask[0] else []
-    for i in range(1, mask.shape[0]):
-        if mask[i] > mask[i - 1]:
-            sig_start.append(i)
-
-    return np.array(sig_start)
-
-
-    """
+    return np.sqrt(squared_diff / (window_size - ddof))
 
 
 def noise_distribution(data, x_data=None, half_window=20, interp_window=5,
