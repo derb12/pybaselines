@@ -292,7 +292,7 @@ def _safe_std(array, **kwargs):
 
 
 @jit(nopython=True, cache=True)
-def _interp_inplace(x, y):
+def _interp_inplace(x, y, y_start=None, y_end=None):
     """
     Interpolates values inplace between the two ends of an array.
 
@@ -303,13 +303,26 @@ def _interp_inplace(x, y):
     y : numpy.ndarray
         The y-values. The two endpoints, y[0] and y[-1] are assumed to be valid,
         and all values inbetween (ie. y[1:-1]) will be replaced by interpolation.
+    y_start : float, optional
+        The initial y-value for interpolation. Default is None, which will use the
+        first item in `y`.
+    y_end : float, optional
+        The end y-value for interpolation. Default is None, which will use the
+        last item in `y`.
 
-    Notes
-    -----
-    No return since all modifications to `y` are done inplace.
+    Returns
+    -------
+    y : numpy.ndarray
+        The input `y` array, with the interpolation performed inplace.
 
     """
-    y[1:-1] = y[0] + (x[1:-1] - x[0]) * ((y[-1] - y[0]) / (x[-1] - x[0]))
+    if y_start is None:
+        y_start = y[0]
+    if y_end is None:
+        y_end = y[-1]
+    y[1:-1] = y_start + (x[1:-1] - x[0]) * ((y_end - y_start) / (x[-1] - x[0]))
+
+    return y
 
 
 def _convert_coef(coef, original_domain):

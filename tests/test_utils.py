@@ -149,10 +149,43 @@ def test_interp_inplace():
 
     output = utils._interp_inplace(x, y_calc)
 
-    # should not output anything from the function
-    assert output is None
+    # output should be the same object as the input y array
+    assert output is y_calc
 
     assert_array_almost_equal(y_calc, y_actual)
+
+
+def test_interp_inplace_endpoints():
+    """Tests _interp_inplace when specifying the endpoint y-values."""
+    x = np.arange(10)
+    y_actual = 2 + 5 * x
+
+    # specify both the left and right points
+    y_calc = np.zeros_like(y_actual)
+    output = utils._interp_inplace(x, y_calc, y_actual[0], y_actual[-1])
+
+    # output should be the same object as the input y array
+    assert output is y_calc
+    assert_array_almost_equal(y_calc[1:-1], y_actual[1:-1])
+    # first and last values should still be 0
+    assert y_calc[0] == 0
+    assert y_calc[-1] == 0
+
+    # specify only the right point
+    y_calc = np.zeros_like(y_actual)
+    y_calc[0] = y_actual[0]
+    utils._interp_inplace(x, y_calc, None, y_actual[-1])
+
+    assert_array_almost_equal(y_calc[:-1], y_actual[:-1])
+    assert y_calc[-1] == 0
+
+    # specify only the left point
+    y_calc = np.zeros_like(y_actual)
+    y_calc[-1] = y_actual[-1]
+    utils._interp_inplace(x, y_calc, y_actual[0])
+
+    assert_array_almost_equal(y_calc[1:], y_actual[1:])
+    assert y_calc[0] == 0
 
 
 @pytest.mark.parametrize('x', (np.array([-5, -2, 0, 1, 8]), np.array([1, 2, 3, 4, 5])))

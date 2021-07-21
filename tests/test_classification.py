@@ -11,6 +11,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import classification
+from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data
 
@@ -74,7 +75,7 @@ def test_rolling_std(y_scale, half_window, ddof):
 
 
 @pytest.mark.parametrize(
-    'inputs',
+    'mask_and_expected',
     (
         [[0, 1, 1, 0, 1, 1, 0], [0, 1, 1, 1, 1, 1, 0]],
         [[0, 1, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0, 0]],
@@ -82,7 +83,7 @@ def test_rolling_std(y_scale, half_window, ddof):
         [[0, 1, 1, 0, 0, 1, 1], [0, 1, 1, 0, 0, 1, 1]]
     )
 )
-def test_remove_single_points(inputs):
+def test_remove_single_points(mask_and_expected):
     """
     Test that _remove_single_points fills holes in binary mask.
 
@@ -90,10 +91,83 @@ def test_remove_single_points(inputs):
     the edges should convert to False unless there are two True values.
 
     """
-    mask, expected_mask = np.asarray(inputs, bool)
+    mask, expected_mask = np.asarray(mask_and_expected, bool)
     output_mask = classification._remove_single_points(mask)
 
     assert_array_equal(expected_mask, output_mask)
+
+
+@pytest.mark.parametrize(
+    'mask_and_expected',
+    (   # mask, peak-starts, peak-ends
+        ([0, 0, 1, 0, 0, 0, 1, 1, 0], [0, 2, 7], [2, 6, 8]),
+        ([1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1], [2, 5], [4, 9]),
+        ([0, 0, 0, 0, 0, 0, 0], [0], [6]),  # all peak points, will assign first and last indices
+        ([1, 1, 1, 1, 1, 1, 1], [], [])  # all baseline points, will not assign any starts or ends
+    )
+)
+def test_find_peak_segments(mask_and_expected):
+    """Ensures peak starts and ends are correct for boolean and binary masks."""
+    mask, expected_starts, expected_ends = mask_and_expected
+    expected_starts = np.array(expected_starts)
+    expected_ends = np.array(expected_ends)
+
+    calc_starts, calc_ends = classification._find_peak_segments(np.array(mask, dtype=bool))
+
+    assert_array_equal(expected_starts, calc_starts)
+    assert_array_equal(expected_ends, calc_ends)
+
+    # test that it also works with a binary array with 0s and 1s
+    calc_starts, calc_ends = classification._find_peak_segments(np.array(mask, dtype=int))
+
+    assert_array_equal(expected_starts, calc_starts)
+    assert_array_equal(expected_ends, calc_ends)
+
+
+@pytest.mark.parametrize('interp_half_window', (0, 1, 3, 1000))
+def test_averaged_interp(interp_half_window):
+    """Ensures the averaged interpolated works for different interpolation windows."""
+    mask = np.array([1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1], bool)
+    peak_starts = [3, 9]
+    peak_ends = [6, 13]
+
+    x = np.arange(mask.shape[0])
+    y = np.sin(x)
+    num_y = y.shape[0]
+    expected_output = y.copy()
+    for start, end in zip(peak_starts, peak_ends):
+        left_mean = np.mean(
+            y[max(0, start - interp_half_window):min(start + interp_half_window + 1, num_y)]
+        )
+        right_mean = np.mean(
+            y[max(0, end - interp_half_window):min(end + interp_half_window + 1, num_y)]
+        )
+        expected_output[start + 1:end] = np.linspace(left_mean, right_mean, end - start + 1)[1:-1]
+
+    calc_output = classification._averaged_interp(x, y, mask, interp_half_window)
+
+    assert_allclose(calc_output, expected_output)
+
+
+def test_averaged_interp_warns():
+    """Ensure warning is issued when mask is all 0s or all 1s."""
+    num_points = 50
+    x = np.arange(num_points)
+    y = np.sin(x)
+
+    # all ones indicate all baseline points; output should be the same as y
+    mask = np.ones(num_points, dtype=bool)
+    expected_output = np.linspace(y[0], y[-1], num_points)
+    with pytest.warns(ParameterWarning):
+        output = classification._averaged_interp(x, y, mask)
+    assert_array_equal(output, y)
+
+    # all zeros indicate all peak points; output should interpolate between first and last points
+    mask = np.zeros(num_points, dtype=bool)
+    expected_output = np.linspace(y[0], y[-1], num_points)
+    with pytest.warns(ParameterWarning):
+        output = classification._averaged_interp(x, y, mask)
+    assert_allclose(output, expected_output)
 
 
 class TestGolotvin(AlgorithmTester):

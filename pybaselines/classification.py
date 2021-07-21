@@ -73,25 +73,34 @@ def _find_peak_segments(mask):
     peak_ends = extended_mask[1:-1] < extended_mask[2:]
     peak_ends = np.flatnonzero(peak_ends)
     if peak_ends.size:
-        peak_ends[:None if peak_ends[-1] == mask.shape[0] else -1] += 1
+        peak_ends[:-1 if peak_ends[-1] == mask.shape[0] - 1 else None] += 1
 
     return peak_starts, peak_ends
 
 
-def _averaged_interp(x, y, mask, interp_window=0):
+def _averaged_interp(x, y, mask, interp_half_window=0):
     """
     Averages each anchor point and then interpolates between segments.
 
     Parameters
     ----------
-    x : [type]
-        [description]
-    y : [type]
-        [description]
-    mask : [type]
-        [description]
-    interp_window : [type]
-        [description]
+    x : numpy.ndarray
+        The x-values.
+    y : numpy.ndarray
+        The y-values.
+    mask : numpy.ndarray
+        A boolean array with 0 or False designating peak points and 1 or True
+        designating baseline points.
+    interp_half_window : int, optional
+        The half-window to use for averaging around the anchor points before interpolating.
+        Default is 0, which uses just the anchor point value.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        A copy of the input `y` array with peak values in `mask` calulcated using linear
+        interpolation.
+
     """
     output = y.copy()
     mask_sum = mask.sum()
@@ -104,38 +113,67 @@ def _averaged_interp(x, y, mask, interp_window=0):
 
     peak_starts, peak_ends = _find_peak_segments(mask)
     num_y = y.shape[0]
-    for i, start_point in enumerate(peak_starts):
-        end_point = peak_ends[i]
-        section = output[start_point:end_point + 1]
-        section[0] = y[max(0, start_point - interp_window):start_point + 1].mean()
-        section[-1] = y[end_point:min(end_point + interp_window, num_y)].mean()
-
-        _interp_inplace(x[start_point:end_point + 1], section)
+    for start, end in zip(peak_starts, peak_ends):
+        left_mean = np.mean(
+            y[max(0, start - interp_half_window):min(start + interp_half_window + 1, num_y)]
+        )
+        right_mean = np.mean(
+            y[max(0, end - interp_half_window):min(end + interp_half_window + 1, num_y)]
+        )
+        _interp_inplace(x[start:end + 1], output[start:end + 1], left_mean, right_mean)
 
     return output
 
 
 def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
-             smooth_half_window=None, interp_window=5, weights=None,
-             window_kwargs=None, **pad_kwargs):
+             smooth_half_window=None, interp_half_window=5, weights=None, **pad_kwargs):
     """
     Golotvin's method for identifying peak regions.
 
+    Divides the data into sections and takes the minimum standard deviation of the
+    sections as the noise standard deviation for the entire data.
+
     Parameters
     ----------
-    data : [type]
-        [description]
-    half_window : [type]
-        [description]
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    half_window : int, optional
+
     num_std : float, optional
-        [description]. Default is 2.
+        The number of standard deviations to include when thresholding. Higher values
+        will assign more points as baseline. Default is 3.0.
+    sections : int, optional
+        The number of sections to divide the input data into for finding the minimum
+        standard deviation.
     smooth_half_window : int, optional
-        [description]. Default is 20.
+        The half window to use for smoothing the input data with a moving average.
+        Default is None, which will use N / 256. Set to 0 to not smooth the data.
+    interp_half_window : int, optional
+        When interpolating between baseline segments, will use the average of
+        ``data[i-interp_half_window:i+interp_half_window+1]``, where `i` is
+        the index of the peak start or end, to fit the linear segment. Default is 5.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from the moving average smoothing.
 
     Returns
     -------
-    [type]
-        [description]
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'mask': numpy.ndarray, shape (N,)
+            The boolean array designating baseline points as True and peak points
+            as False.
 
     References
     ----------
@@ -145,11 +183,9 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
     """
     y, x, weight_array, *_ = _setup_classification(data, x_data, weights)
     if half_window is None:
-        if window_kwargs is None:
-            win_kwargs = {}
-        else:
-            win_kwargs = window_kwargs
-        half_window = _optimize_window(y, **win_kwargs)
+        # _optimize_window(y) / 2 gives an "okay" estimate that at least scales
+        # with data size
+        half_window = ceil(_optimize_window(y) / 2)
     if smooth_half_window is None:
         smooth_half_window = half_window
     num_y = y.shape[0]
@@ -166,7 +202,7 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
     ) < num_std * min_sigma
     mask = _remove_single_points(mask) & weight_array
 
-    rough_baseline = _averaged_interp(x, y, mask, interp_window)
+    rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
     baseline = uniform_filter1d(
         pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
         2 * smooth_half_window + 1
@@ -176,7 +212,7 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
 
 
 def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
-             interp_window=10, poly_order=5, max_iter=50, tol=1e-3, weights=None,
+             interp_half_window=5, poly_order=5, max_iter=50, tol=1e-3, weights=None,
              return_coef=False, **pad_kwargs):
     """
     Dietrich's method for identifying peak regions.
@@ -196,10 +232,10 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
     num_std : float, optional
         The number of standard deviations to include when thresholding. Higher values
         will assign more points as baseline. Default is 3.0.
-    interp_window : int, optional
-        When interpolating between baseline segments, will use `start - interp_window`
-        and `end + interp_window`, where `start` and `end` and the peak start and end
-        positions, respectively to fit the linear segment. Default is 10.
+    interp_half_window : int, optional
+        When interpolating between baseline segments, will use the average of
+        ``data[i-interp_half_window:i+interp_half_window+1]``, where `i` is
+        the index of the peak start or end, to fit the linear segment. Default is 5.
     poly_order : int, optional
         The polynomial order for fitting the identified baseline. Default is 5.
     max_iter : int, optional
@@ -273,7 +309,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
 
     mask = _remove_single_points(mask) & weight_array
-    rough_baseline = _averaged_interp(x, y, mask, interp_window)
+    rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
 
     params = {'mask': mask}
     baseline = rough_baseline
@@ -359,17 +395,54 @@ def _rolling_std(data, half_window, ddof=0):
     return np.sqrt(squared_diff / (window_size - ddof))
 
 
-def noise_distribution(data, x_data=None, half_window=20, interp_window=5,
-                       smooth_half_window=None, weights=None, **pad_kwargs):
+# TODO maybe change name; based on std distribution, not technically noise distribution;
+# maybe also change names of other methods to be more descriptive
+def noise_distribution(data, x_data=None, half_window=None, interp_half_window=5,
+                       fill_half_window=3, num_std=1.1, smooth_half_window=None,
+                       weights=None, **pad_kwargs):
     """
     Identifies baseline segments by analyzing the rolling standard deviation distribution.
 
     Parameters
     ----------
-    data : [type]
-        [description]
-    half_window : [type]
-        [description]
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    half_window : int, optional
+
+    interp_half_window : int, optional
+        When interpolating between baseline segments, will use the average of
+        ``data[i-interp_half_window:i+interp_half_window+1]``, where `i` is
+        the index of the peak start or end, to fit the linear segment. Default is 5.
+    fill_half_window : int, optional
+
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Higher values
+        will assign more points as baseline. Default is 1.1.
+    smooth_half_window : int, optional
+        The half window to use for smoothing the input data with a moving average.
+        Default is None, which will use `half_window`. Set to 0 to not smooth the data.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from the moving average smoothing.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'mask': numpy.ndarray, shape (N,)
+            The boolean array designating baseline points as True and peak points
+            as False.
 
     References
     ----------
@@ -379,6 +452,10 @@ def noise_distribution(data, x_data=None, half_window=20, interp_window=5,
 
     """
     y, x, weight_array, _ = _setup_classification(data, x_data, weights)
+    if half_window is None:
+        # _optimize_window(y) / 2 gives an "okay" estimate that at least scales
+        # with data size
+        half_window = ceil(_optimize_window(y) / 2)
     if smooth_half_window is None:
         smooth_half_window = half_window
 
@@ -392,13 +469,14 @@ def noise_distribution(data, x_data=None, half_window=20, interp_window=5,
         median_2 = np.median(std[std < 2 * median])
     noise_std = median_2
 
-    half_win = 3  # TODO make the half_win an input
     # use ~ to convert from peak==1, baseline==0 to peak==0, baseline==1; if done before,
     # would have to do ~binary_dilation(~mask) or binary_erosion(np.hstack((1, mask, 1))[1:-1]
-    # TODO make the 1.1 an input?
-    mask = ~binary_dilation(std > 1.1 * noise_std, np.ones(2 * half_win + 1)) & weight_array
+    mask = np.logical_and(
+        ~binary_dilation(std > num_std * noise_std, np.ones(2 * fill_half_window + 1)),
+        weight_array
+    )
 
-    rough_baseline = _averaged_interp(x, y, mask, interp_window)
+    rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
 
     baseline = uniform_filter1d(
         pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
