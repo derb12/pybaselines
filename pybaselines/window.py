@@ -12,7 +12,7 @@ import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
 
 from ._algorithm_setup import _get_vander, _setup_window
-from .utils import gaussian, gaussian_kernel, padded_convolve
+from .utils import ParameterWarning, gaussian, gaussian_kernel, padded_convolve
 
 
 def noise_median(data, half_window, smooth_half_window=None, sigma=None, **pad_kwargs):
@@ -168,7 +168,8 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
     for i, half_window in enumerate(half_windows):
         if half_window > (num_y - 1) // 2:
             warnings.warn(
-                'max_half_window values greater than (len(data) - 1) / 2 have no effect.'
+                'max_half_window values greater than (len(data) - 1) / 2 have no effect.',
+                ParameterWarning
             )
             half_windows[i] = (num_y - 1) // 2
 

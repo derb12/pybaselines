@@ -128,10 +128,12 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
 def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
              smooth_half_window=None, interp_half_window=5, weights=None, **pad_kwargs):
     """
-    Golotvin's method for identifying peak regions.
+    Golotvin's method for identifying baseline regions.
 
-    Divides the data into sections and takes the minimum standard deviation of the
-    sections as the noise standard deviation for the entire data.
+    Divides the data into sections and takes the minimum standard deviation of all
+    sections as the noise standard deviation for the entire data. Then classifies any point
+    where the rolling max minus min is less than ``num_std * noise standard deviation``
+    as belonging to the baseline.
 
     Parameters
     ----------
@@ -141,7 +143,11 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
     half_window : int, optional
-
+        The half-window to use for the rolling maximum and rolling minimum calculations.
+        Should be approximately equal to the full-width-at-half-maximum of the peaks or
+        features in the data. Default is None, which will use half of the value from
+        :func:`.optimize_window`, which is not always a good value, but at least scales
+        with the number of data points and gives a starting point for tuning the parameter.
     num_std : float, optional
         The number of standard deviations to include when thresholding. Higher values
         will assign more points as baseline. Default is 3.0.
@@ -149,8 +155,8 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
         The number of sections to divide the input data into for finding the minimum
         standard deviation.
     smooth_half_window : int, optional
-        The half window to use for smoothing the input data with a moving average.
-        Default is None, which will use N / 256. Set to 0 to not smooth the data.
+        The half window to use for smoothing the interpolated baseline with a moving average.
+        Default is None, which will use `half_window`. Set to 0 to not smooth the baseline.
     interp_half_window : int, optional
         When interpolating between baseline segments, will use the average of
         ``data[i-interp_half_window:i+interp_half_window+1]``, where `i` is
@@ -215,9 +221,12 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
              interp_half_window=5, poly_order=5, max_iter=50, tol=1e-3, weights=None,
              return_coef=False, **pad_kwargs):
     """
-    Dietrich's method for identifying peak regions.
+    Dietrich's method for identifying baseline regions.
 
-    Identifies baseline points by
+    Calculates the power spectrum of the data as the squared derivative of the data.
+    Then baseline points are identified by iteratively removing points where the mean
+    of the power spectrum is less than `num_std` times the standard deviation of the
+    power spectrum.
 
     Parameters
     ----------
@@ -270,12 +279,16 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
             of polynomial coefficients for the baseline, in increasing order. Can be
             used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
 
-
     Notes
     -----
     When choosing parameters, first choose a `smooth_half_window` that appropriately
     smooths the data, and then reduce `num_std` until no peak regions are included in
     the baseline. If no value of `num_std` works, change `smooth_half_window` and repeat.
+
+    If `max_iter` is 0, the baseline is simply a linear interpolation of the identified
+    baseline points. Otherwise, a polynomial is iteratively fit through the baseline
+    points, and the interpolated sections are replaced each iteration with the polynomial
+    fit.
 
     References
     ----------
@@ -292,8 +305,6 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         pad_edges(y, smooth_half_window, **pad_kwargs),
         2 * smooth_half_window + 1
     )[smooth_half_window:num_y + smooth_half_window]
-    # TODO should do dy/dx if x is given since it should(?) be more exact
-    # for non-uniform x-values
     power = np.diff(np.concatenate((smooth_y[:1], smooth_y)))**2
     mask = power < np.mean(power) + num_std * np.std(power, ddof=1)
     old_mask = np.ones_like(mask)
@@ -395,13 +406,16 @@ def _rolling_std(data, half_window, ddof=0):
     return np.sqrt(squared_diff / (window_size - ddof))
 
 
-# TODO maybe change name; based on std distribution, not technically noise distribution;
-# maybe also change names of other methods to be more descriptive
-def noise_distribution(data, x_data=None, half_window=None, interp_half_window=5,
-                       fill_half_window=3, num_std=1.1, smooth_half_window=None,
-                       weights=None, **pad_kwargs):
+def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
+                     fill_half_window=3, num_std=1.1, smooth_half_window=None,
+                     weights=None, **pad_kwargs):
     """
     Identifies baseline segments by analyzing the rolling standard deviation distribution.
+
+    The rolling standard deviations are split into two distributions, with the smaller
+    distribution assigned to noise. Baseline points are then identified as any point
+    where the rolled standard deviation is less than a multiple of the median of the
+    noise's standard deviation distribution.
 
     Parameters
     ----------
@@ -411,19 +425,24 @@ def noise_distribution(data, x_data=None, half_window=None, interp_half_window=5
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
     half_window : int, optional
-
+        The half-window to use for the rolling standard deviation calculation. Should
+        be approximately equal to the full-width-at-half-maximum of the peaks or features
+        in the data. Default is None, which will use half of the value from
+        :func:`.optimize_window`, which is not always a good value, but at least scales
+        with the number of data points and gives a starting point for tuning the parameter.
     interp_half_window : int, optional
         When interpolating between baseline segments, will use the average of
         ``data[i-interp_half_window:i+interp_half_window+1]``, where `i` is
         the index of the peak start or end, to fit the linear segment. Default is 5.
     fill_half_window : int, optional
-
+        When a point is identified as a peak point, all points +- `fill_half_window`
+        are likewise set as peak points. Default is 3.
     num_std : float, optional
         The number of standard deviations to include when thresholding. Higher values
         will assign more points as baseline. Default is 1.1.
     smooth_half_window : int, optional
-        The half window to use for smoothing the input data with a moving average.
-        Default is None, which will use `half_window`. Set to 0 to not smooth the data.
+        The half window to use for smoothing the interpolated baseline with a moving average.
+        Default is None, which will use `half_window`. Set to 0 to not smooth the baseline.
     weights : array-like, shape (N,), optional
         The weighting array, used to override the function's baseline identification
         to designate peak points. Only elements with 0 or False values will have

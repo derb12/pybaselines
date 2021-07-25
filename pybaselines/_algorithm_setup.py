@@ -497,7 +497,7 @@ def _optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
             hits = 0
         opening = new_opening
 
-    return half_window
+    return max(half_window, 1)  # ensure half window is at least 1
 
 
 def _setup_morphology(data, half_window=None, **window_kwargs):

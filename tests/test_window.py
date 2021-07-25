@@ -9,6 +9,7 @@ Created on March 20, 2021
 import pytest
 
 from pybaselines import window
+from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data
 
@@ -70,7 +71,7 @@ class TestSNIP(AlgorithmTester):
     @pytest.mark.parametrize('max_half_window', (1000000, [1000000], [1000000, 1000000]))
     def test_too_large_max_half_window(self, max_half_window):
         """Ensures a warning emitted when max_half_window is greater than (len(data) - 1) // 2."""
-        with pytest.warns(UserWarning):
+        with pytest.warns(ParameterWarning):
             self._call_func(self.y, max_half_window)
 
 

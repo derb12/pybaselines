@@ -224,10 +224,10 @@ class TestDietrich(AlgorithmTester):
         assert_allclose(baseline, recreated_poly)
 
 
-class TestNoiseDistribution(AlgorithmTester):
-    """Class for testing noise_distribution baseline."""
+class TestStdDistribution(AlgorithmTester):
+    """Class for testing std_distribution baseline."""
 
-    func = classification.noise_distribution
+    func = classification.std_distribution
 
     def test_unchanged_data(self, data_fixture):
         """Ensures that input data is unchanged by the function."""
