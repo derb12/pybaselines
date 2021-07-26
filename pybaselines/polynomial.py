@@ -1044,7 +1044,7 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def _determine_fits(x, num_x, total_points, skip_dx):
+def _determine_fits(x, num_x, total_points, delta):
     """
     Determines the x-values to fit and the left and right indices for each fit x-value.
 
@@ -1062,9 +1062,9 @@ def _determine_fits(x, num_x, total_points, skip_dx):
         The total number of x-values, N.
     total_points : int
         The number of values to include in each fitting window.
-    skip_dx : float
-        If `skip_dx` is > 0, will skip all x-values less than x_last + `skip_dx`,
-        where x_last is the last x-value to be fit. Fits all x-values if `skip_dx` is <= 0.
+    delta : float
+        If `delta` is > 0, will skip all but the last x-value in the range x_last + `delta`,
+        where x_last is the last x-value to be fit. Fits all x-values if `delta` is <= 0.
 
     Returns
     -------
@@ -1091,7 +1091,7 @@ def _determine_fits(x, num_x, total_points, skip_dx):
     """
     # faster to allocate array and return only filled in sections
     # rather than constanly appending to a list
-    if skip_dx > 0:
+    if delta > 0:
         check_fits = True
         fits = np.empty(num_x, dtype=np.intp)
         fits[0] = 0  # always fit first item
@@ -1105,7 +1105,7 @@ def _determine_fits(x, num_x, total_points, skip_dx):
         # numba cannot compile in nopython mode when directly creating
         # np.array([], dtype=np.intp), so work-around by creating np.array([[0, 0]])
         # and then index with [:total_skips], which becomes np.array([])
-        # since total_skips is 0 when skip_dx is <= 0.
+        # since total_skips is 0 when delta is <= 0.
         skips = np.array([[0, 0]], dtype=np.intp)
 
     windows = np.empty((num_x, 2), dtype=np.intp)
@@ -1113,18 +1113,20 @@ def _determine_fits(x, num_x, total_points, skip_dx):
     total_fits = 1
     total_skips = 0
     skip_start = 0
-    last_fit = x[0]
+    skip_range = x[0] + delta
     left = 0
     right = total_points
     for i in range(1, num_x - 1):
         x_val = x[i]
         if check_fits:
-            if x_val < last_fit + skip_dx:
+            # use x[i+1] rather than x[i] since it ensures that the last value within
+            # the range x_last_fit + delta is used; x[i+1] is also guranteed to be >= x[i]
+            if x[i + 1] < skip_range:
                 if not skip_start:
                     skip_start = i
                 continue
             else:
-                last_fit = x_val
+                skip_range = x_val + delta
                 fits[total_fits] = i
                 if skip_start:
                     skips[total_skips] = (skip_start - 1, i + 1)
@@ -1139,20 +1141,27 @@ def _determine_fits(x, num_x, total_points, skip_dx):
         window[1] = right
         total_fits += 1
 
+    if skip_start:  # fit second to last x-value
+        fits[total_fits] = num_x - 2
+        if x[-1] - x[-2] < x[-2] - x[num_x - total_points]:
+            windows[total_fits] = (num_x - total_points, num_x)
+        else:
+            windows[total_fits] = (num_x - total_points - 1, num_x - 1)
+        total_fits += 1
+        skips[total_skips] = (skip_start - 1, num_x - 1)
+        total_skips += 1
+
     # always fit last item
     fits[total_fits] = num_x - 1
     windows[total_fits] = (num_x - total_points, num_x)
     total_fits += 1
-    if skip_start:
-        skips[total_skips] = (skip_start - 1, num_x)
-        total_skips += 1
 
     return windows[:total_fits], fits[:total_fits], skips[:total_skips]
 
 
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
           tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
-          use_original=False, weights=None, return_coef=False, conserve_memory=True, skip_dx=0.0):
+          use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=0.0):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -1218,13 +1227,15 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         are quite large and the function causes memory issues when cacheing the kernels. If
         numba is installed, there is no significant time difference since the calculations are
         sped up.
-    skip_dx : float, optional
-        If `skip_dx` is > 0, will skip all x-values less than x_last + `skip_dx`,
-        where x_last is the last x-value to be fit. Fits all x-values if `skip_dx` is <= 0.
-        Default is 0.0. Note that `x_data` is scaled to fit in the range (-1, 1), so `skip_dx`
-        should likewise be scaled. For example, if the desired `skip_dx` value was
-        ``0.01 * (max(x_values) - min(x_values))``, then the correctly scaled `skip_dx` would be
-        0.02 (ie. ``0.01 * (1 - (-1))``).
+    delta : float, optional
+        If `delta` is > 0, will skip all but the last x-value in the range x_last + `delta`,
+        where x_last is the last x-value to be fit using weighted least squares, and instead
+        use linear interpolation to calculate the fit for those x-values (same behavior as in
+        statsmodels [14]_ and Cleveland's original Fortran lowess implementation [15]_).
+        Fits all x-values if `delta` is <= 0. Default is 0.0. Note that `x_data` is scaled to
+        fit in the range (-1, 1), so `delta` should likewise be scaled. For example, if the
+        desired `delta` value was ``0.01 * (max(x_values) - min(x_values))``, then the
+        correctly scaled `delta` would be 0.02 (ie. ``0.01 * (1 - (-1))``).
 
     Returns
     -------
@@ -1243,7 +1254,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         * 'coef': numpy.ndarray, shape (N, poly_order + 1)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a polynomial
-            using numpy.polynomial.polynomial.Polynomial(). If `skip_dx` is > 0, the
+            using numpy.polynomial.polynomial.Polynomial(). If `delta` is > 0, the
             coefficients for any skipped x-value will all be 0.
 
     Raises
@@ -1280,6 +1291,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     .. [13] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
+    .. [14] https://github.com/statsmodels/statsmodels.
+    .. [15] https://www.netlib.org/go (lowess.f is the file).
 
     """
     if max_iter < 1:
@@ -1303,13 +1316,14 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     sort_order = np.argsort(x)  # to ensure x is increasing
     x = x[sort_order]
     y = y[sort_order]
+    weight_array = weight_array[sort_order]
     if use_original:
         y0 = y
 
     # find the indices for fitting beforehand so that the fitting can be done
-    # in parallel; cast skip_dx as float so numba does not have to compile for
+    # in parallel; cast delta as float so numba does not have to compile for
     # both int and float
-    windows, fits, skips = _determine_fits(x, num_x, total_points, float(skip_dx))
+    windows, fits, skips = _determine_fits(x, num_x, total_points, float(delta))
 
     # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
     # when matrix multiplied with the C-ordered coefficient array gives a warning
@@ -1349,7 +1363,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         else:
             residual = y - baseline
             # TODO median_absolute_value can be 0 if more than half of residuals are
-            # the same value; can that ever really happen? if so, should prevent dividing by 0
+            # 0 (perfect fit); can that ever really happen? if so, should prevent dividing by 0
             weight_array = _tukey_square(
                 residual / _median_absolute_value(residual), scale, symmetric_weights
             )

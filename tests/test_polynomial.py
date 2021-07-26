@@ -322,12 +322,12 @@ def test_loess_solver():
 
 def test_determine_fits_simple():
     """A simple test to ensure the inner workings of _determine_fits work."""
-    x = np.arange(21, dtype=float)
+    x = np.arange(22, dtype=float)
     num_x = x.shape[0]
     total_points = 5
-    skip_dx = 1.5  # should skip every other x-value, excluding the endpoints
+    delta = 2.1  # should skip every other x-value, excluding the endpoints
 
-    windows, fits, skips = polynomial._determine_fits(x, num_x, total_points, skip_dx)
+    windows, fits, skips = polynomial._determine_fits(x, num_x, total_points, delta)
 
     # always fit first point
     desired_windows = [[0, total_points]]
@@ -354,14 +354,14 @@ def test_determine_fits_simple():
     assert_array_equal(skips, desired_skips)
 
 
-@pytest.mark.parametrize('skip_dx', (0.0, 0.01, 0.5, -1.0, 3.0, np.nan, np.inf, -np.inf))
+@pytest.mark.parametrize('delta', (0.0, 0.01, 0.5, -1.0, 3.0, np.nan, np.inf, -np.inf))
 @pytest.mark.parametrize('total_points', (2, 10, 25, 50))
-def test_determine_fits(skip_dx, total_points):
-    """Tests various inputs for _determine_fits to ensure any float skip_dx works."""
+def test_determine_fits(delta, total_points):
+    """Tests various inputs for _determine_fits to ensure any float delta works."""
     x = np.linspace(-1, 1, 50)
     num_x = x.shape[0]
 
-    windows, fits, skips = polynomial._determine_fits(x, num_x, total_points, skip_dx)
+    windows, fits, skips = polynomial._determine_fits(x, num_x, total_points, delta)
 
     assert windows.shape[0] == fits.shape[0]
     assert windows.shape[1] == 2
@@ -379,7 +379,10 @@ def test_determine_fits(skip_dx, total_points):
         np.full(windows.shape[0], total_points)
     )
 
-    if skip_dx <= 0:  # no points should be skipped
+    # ensure no repeated fit indices
+    assert not (np.diff(fits) == 0).sum()
+
+    if delta <= 0:  # no points should be skipped
         assert skips.shape[0] == 0
         assert windows.shape[0] == num_x
         assert fits.shape[0] == num_x
@@ -430,15 +433,15 @@ class TestLoess(AlgorithmTester):
 
     func = polynomial.loess
 
-    @pytest.mark.parametrize('skip_dx', (0, 0.01))
+    @pytest.mark.parametrize('delta', (0, 0.01))
     @pytest.mark.parametrize('conserve_memory', (True, False))
     @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_unchanged_data(self, data_fixture, use_threshold, conserve_memory, skip_dx):
+    def test_unchanged_data(self, data_fixture, use_threshold, conserve_memory, delta):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
         self._test_unchanged_data(
             data_fixture, y, x, y, x, use_threshold=use_threshold,
-            conserve_memory=conserve_memory, skip_dx=skip_dx
+            conserve_memory=conserve_memory, delta=delta
         )
 
     def test_no_x(self):
@@ -543,11 +546,11 @@ class TestLoess(AlgorithmTester):
         assert_array_equal(one_weights, params_third_iter['weights'])
 
     @pytest.mark.parametrize('poly_order', (1, 2))
-    @pytest.mark.parametrize('skip_dx', (0, 0.01))
-    def test_output_coefs(self, poly_order, skip_dx):
+    @pytest.mark.parametrize('delta', (0, 0.01))
+    def test_output_coefs(self, poly_order, delta):
         """Ensures the output coefficients can correctly reproduce the baseline."""
         baseline, params = self._call_func(
-            self.y, self.x, return_coef=True, poly_order=poly_order, skip_dx=skip_dx
+            self.y, self.x, return_coef=True, poly_order=poly_order, delta=delta
         )
         # have to build the polynomial using the coefficients for each x-value
         recreated_poly = np.empty_like(baseline)
@@ -556,14 +559,14 @@ class TestLoess(AlgorithmTester):
 
         # ignore coefficients that are all 0 since that means no fitting was done for
         # that x-value, so there are no actual coefficients available
-        if skip_dx > 0:
+        if delta > 0:
             mask = np.all(params['coef'] == 0, axis=1)
             baseline[mask] = 0
 
         assert_allclose(baseline, recreated_poly)
 
     @pytest.mark.parametrize('conserve_memory', (True, False))
-    def test_comparison_to_statsmodels(self, conserve_memory):
+    def test_compare_to_statsmodels(self, conserve_memory):
         """
         Compares the output of loess to the output of statsmodels.lowess.
 
@@ -781,3 +784,170 @@ class TestLoess(AlgorithmTester):
                 scale=4.0469385011764905, symmetric_weights=True,
                 assertion_kwargs={'err_msg': f'failed on iteration {iterations}'}
             )
+
+    @pytest.mark.parametrize('delta', (0.01, 0.3))
+    def test_compare_to_statsmodels_delta(self, delta):
+        """
+        Compares the output of loess to the output of statsmodels.lowess when using delta.
+
+        The library statsmodels has a well-tested lowess implementation, so
+        can compare the output of polynomial.loess to statsmodels to ensure
+        that the pybaselines implementation is correct.
+
+        Since pybaselines's loess is for calculating the baseline rather than
+        smoothing, the following changes need to be made to match statsmodels:
+
+        * statsmodels uses int(fraction * num_x) to determine the window size while
+          pybaselines uses ceil(fraction * num_x), so need to specify total points
+          instead of fraction.
+        * statsmodels divides the residuals by 6 * median-absolute-value(residuals)
+          when weighting residuals, while pybaselines divides by
+          m-a-v * scale / 0.6744897501960817, so set scale to 4.0469385011764905 to
+          get 6 and match statsmodels.
+        * set symmetric weights to True.
+        * since x is scaled to (-1, 1) in pybaselines, use delta = delta * 2 rather than
+          delta = delta * (x.max() - x.min()) for statsmodels.
+        * only test the first iteration, since just want to check which points are selected
+          for fitting
+
+        The outputs from statsmodels were created using::
+
+            from statsmodels.nonparametric.smoothers_lowess import lowess
+            output = lowess(y, x, fraction, 0, delta=delta * (x.max() - x.min())).T[1]
+
+        with statsmodels version 0.11.1.
+
+        """
+        num_x = 100
+        fraction = 0.1
+        total_points = int(num_x * fraction)
+        # use set values since minimum numpy version is < 1.17
+        # once min numpy version is >= 1.17, can use the following to create x and y:
+        # random_generator = np.random.default_rng(0)
+        # x = np.sort(random_generator.uniform(0, 10 * np.pi, num_x))
+        # use a simple sine function since only smoothing the data
+        # y = np.sin(x) + random_generator.normal(0, 0.3, num_x)
+        x = np.array([
+            0.08603252016391653, 0.4620121964065525, 0.5192309835763667, 0.8896887082266529,
+            1.055121966462336, 1.2872212178963478, 1.634297372541321, 1.8399690787918987,
+            2.6394198618724256, 2.8510910140793273, 3.3142319528623445, 3.610715163730215,
+            3.9044742841509907, 4.244181877040637, 4.673559279481576, 4.721168691822169,
+            5.518384072467553, 6.236471222720201, 6.267962530482449, 7.13636627051602,
+            7.245838693824786, 7.520012836005392, 8.475599579967072, 9.383815765196083,
+            9.415726735057563, 9.74653597091934, 10.111825144195999, 10.559428881564424,
+            10.615794236187337, 11.2404676147093, 11.470274223088868, 12.053585858164322,
+            12.218326883964336, 12.303073750654486, 12.709370879795477, 13.026797701038113,
+            13.279110688808476, 13.358951239219458, 13.834856340638826, 14.147828458876802,
+            14.452744299731492, 15.262967941601095, 15.626994858727365, 15.704690158414039,
+            16.504492800213836, 16.628831939299175, 17.010505917383114, 17.078482794955864,
+            17.95513917528035, 18.23167960456526, 18.670486089035595, 19.058024965549173,
+            19.33289345358043, 19.484580245090765, 19.578001555572705, 19.76401547190605,
+            20.010741575072398, 20.332058150420306, 20.43478083782305, 21.06828734519464,
+            21.111341718376682, 21.536936621719185, 21.62819191149577, 22.341212411453007,
+            22.666224692044207, 22.902685361628365, 22.917810368063478, 22.92280190156093,
+            23.074481933138635, 23.80475373833605, 24.686185846584056, 24.72742260459408,
+            25.017264774098162, 25.549638088547898, 25.63079532033328, 25.835635751138295,
+            26.158287373224493, 26.93614976483979, 27.11756561187958, 27.132053628611267,
+            27.535564205022077, 27.94408445848314, 27.958150040199374, 27.968793639376692,
+            28.675062160988013, 29.127419326603402, 29.13588200930302, 29.281518641717938,
+            29.343842478613347, 29.376166571460544, 29.597356268178427, 29.811944778549844,
+            29.98934482165474, 30.071644682071696, 30.40829807484428, 30.5560353617595,
+            30.813850946806603, 30.8251512961117, 31.261878704601713, 31.328274083621345
+        ])
+        y = np.array([
+            -0.31643948442795794, 0.025294176131094415, 0.647017478746023, 1.0737896890796879,
+            0.8206720006830988, 0.6377518395963726, 1.259897131794639, 0.5798730362015778,
+            0.26741078101860366, 0.4727382381565013, -0.8468253620243291, -0.33619288971896866,
+            -0.8654995424139683, -0.8595949238604239, -1.0219566797460828, -0.9393271400679253,
+            -0.484142018099982, -0.27420802162579655, 0.4110724179260672, 0.9712041195512975,
+            1.0738302517367937, 1.2942080292091869, 1.049213774810279, 0.29417434561985983,
+            0.03172918534871679, -0.7442669944536149, -0.674770592505406, -1.1372411535695315,
+            -1.3555687271138004, -0.8926273563547041, -1.059994748851263, -0.7995470629457199,
+            -0.6539598102298176, -0.17974008110838563, 0.2501149777114302, 0.8410679994805202,
+            0.6497348888787546, 1.0247191935429998, 1.3753305584133848, 1.3449928574031798,
+            0.2410261733731892, 0.7990587775689757, 0.18276597078472304, 0.13040450954666363,
+            -0.603565652310072, -0.6813004303259478, -0.8684109596218175, -1.0876855412294537,
+            -1.350334701806057, -0.6119798501022928, -0.41923391123976983, 0.5310113576086335,
+            0.37810702031798554, 0.6182397032157187, 0.410828769461069, 0.6390461696807992,
+            0.9138160240699695, 0.5504920525015544, 1.0901014439969032, 0.7655100757551879,
+            0.41489986158068176, -0.2807155537378368, 0.5089554617452788, -0.43223298454102355,
+            -0.7839592638879793, -0.8612923921663656, -0.25467700223013867, -0.8175475502673442,
+            -0.8575382314233819, -1.4167883371270387, 0.062340456353472684,
+            -0.11906519352829137, 0.20486047721541026, 0.4192268707418591, 0.7527133733771633,
+            0.7577128888236917, 1.038954288353462, 0.9274096611755345, 0.47334138166288053,
+            1.2182396587983262, 0.09289095590039953, 0.2522979824352233, 0.24958510013390783,
+            -0.012049601859495218, -0.20615208716141473, -0.8134120774853145,
+            -0.8899122080685423, -0.6893786555970529, -1.019938175719467, -0.4753431711651658,
+            -0.8640242335846221, -1.141749310181384, -1.5728985760169076, -1.3667810598063708,
+            -0.5195189005816284, -0.7729527752716384, -0.6512918332086576, -0.06402954966432,
+            -0.5382340490144448, -0.2632375970675537
+        ])
+
+        # outputs for delta values of 0.01 and 0.3
+        statsmodels_outputs = {
+            0.01: np.array([
+                0.013949173555858115, 0.28450953728555345, 0.3235872359802879, 0.5654824453094635,
+                0.6662153656116145, 0.785530170334511, 0.7506470516691395, 0.7066468110557571,
+                0.22276406508876975, 0.057066368459986624, -0.2757522455273732, -0.4645446340925608,
+                -0.6184296460333416, -0.7530368402016178, -0.7762575079967078, -0.7479540895316928,
+                -0.40197196468678825, 0.15849673370691408, 0.18014175529804785, 0.7786503604739311,
+                0.7896729843541994, 0.9213607881485303, 0.6117221206735213, 0.04238915039014286,
+                0.011867565386790317, -0.3063316051973748, -0.6276671543213955, -0.9108500301537548,
+                -0.9467508014226902, -0.9711786056041706, -0.8803946787628942, -0.5164455033883036,
+                -0.3483178564457109, -0.2618288279042163, 0.1733249979935404, 0.5455634831830709,
+                0.838881074083777, 0.8759154349258786, 0.9140394360646751, 0.8951455195299661,
+                0.7947599612587716, 0.3821827601443787, 0.1512117349631967, 0.09301799334373848,
+                -0.4965343116225852, -0.5767092464770565, -0.8284529823712354, -0.8333897829320087,
+                -0.7961999810752187, -0.6688759468942046, -0.3043400334135521, 0.14139781590335151,
+                0.40684222112537777, 0.488592221772197, 0.5389406543303799, 0.633681218926093,
+                0.7280361065264241, 0.7355179605022224, 0.7522593016658435, 0.4776899262477174,
+                0.4520942101790715, 0.18673709685456896, 0.11439812612816182, -0.3744272253914193,
+                -0.576991450149173, -0.735759456532645, -0.7459149175759684, -0.7492664086445703,
+                -0.8494030222551598, -0.6507205593587618, -0.2138275389166584, -0.1733819619391141,
+                0.10855935515534255, 0.5649038887804986, 0.62059397094563, 0.7611554486022242,
+                0.7886392334805351, 0.7985530647362659, 0.6907960244585422, 0.6821904597960557,
+                0.4422805681131109, 0.14751814767227792, 0.1383523764562392, 0.13141652432138526,
+                -0.34179415758466986, -0.6686132853934371, -0.6739540328352579, -0.7658644233832042,
+                -0.8051966167642209, -0.825596154630696, -1.0103668209266579, -1.1716761119973165,
+                -1.1314366622189056, -1.1127686785924296, -0.8234247338878935, -0.6974499317651827,
+                -0.547653595497032, -0.5410878522967348, -0.29460927434031603, -0.2623235846170958
+            ]),
+            0.3: np.array([
+                0.013949173555858115, 0.013865286308597562, 0.013852519856444532,
+                0.013769864647370771, 0.013732953767566246, 0.013681168608621992,
+                0.013603730212233364, 0.013557841473115433, 0.013379470859620783,
+                0.013332243545472963, 0.013228909187519254, 0.013162758908687096,
+                0.013097216419220518, 0.013021422070106203, 0.012925620912217519,
+                0.01291499846957685, 0.012737126611117783, 0.012576909561808462,
+                0.012569883333297362, 0.012376128181449276, 0.01235170308397037,
+                0.012290530325146268, 0.012077323211743976, 0.01187468524881543,
+                0.011867565386790317, 0.0005647977910163918, -0.011916046705488586,
+                -0.02720933501195239, -0.02913517152040577, -0.05047840277060817,
+                -0.05833021101810402, -0.07826023452543904, -0.08388894535407192,
+                -0.08678449370892206, -0.1006664580789543, -0.1115119883732472, -0.1201327726591955,
+                -0.12286068678064722, -0.1391209485141917, -0.14981427485735035, -0.160232342165757,
+                -0.18791527399442004, -0.20035299095285303, -0.2030076082381135,
+                -0.23033448549170488, -0.23458278402689878, -0.24762344856698976,
+                -0.2499460162761096, -0.2798987571732841, -0.2893473210711461, -0.3043400334135521,
+                -0.2861783834677158, -0.2732969267589717, -0.2661882659876923, -0.26181016293460463,
+                -0.2530927933021881, -0.24153020335374314, -0.22647200012065624,
+                -0.22165799666663405, -0.19196930187348327, -0.18995159861386657,
+                -0.17000648827351655, -0.1657298937714677, -0.13231484947726038,
+                -0.11708345044628218, -0.10600194051989659, -0.10529312112408705,
+                -0.10505919753714474, -0.09795085356383719, -0.0637273428527906,
+                -0.02241984476373135, -0.02048732235303341, -0.006904137952460115,
+                0.018045043571014635, 0.02184840195280935, 0.03144805872145001, 0.04656882768146553,
+                0.08302262707739037, 0.09152451245778169, 0.09220347992204611, 0.11111362876735556,
+                0.13025855148037838, 0.13091772191951714, 0.13141652432138526, 0.040046697842723716,
+                -0.01847466402451703, -0.019569479701766937, -0.03841046358467973,
+                -0.04647328670134099, -0.050655048544259354, -0.07927031821799804,
+                -0.10703159364935735, -0.12998180402942822, -0.1406289215710106,
+                -0.18418170799692413, -0.20329445315945116, -0.23664800715263393,
+                -0.23810993122762905, -0.29460927434031603, -0.2623235846170958
+            ])
+        }
+
+        self._test_accuracy(
+            statsmodels_outputs[delta], y, x, total_points=total_points, max_iter=1,
+            scale=4.0469385011764905, symmetric_weights=True, delta=2 * delta
+        )
