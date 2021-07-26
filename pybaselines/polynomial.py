@@ -80,45 +80,7 @@ import numpy as np
 
 from ._algorithm_setup import _get_vander, _setup_polynomial
 from ._compat import jit, prange
-from .utils import _MIN_FLOAT, ParameterWarning, _interp_inplace, relative_difference
-
-
-def _convert_coef(coef, original_domain):
-    """
-    Scales the polynomial coefficients back to the original domain of the data.
-
-    For fitting, the x-values are scaled from their original domain, [min(x),
-    max(x)], to [-1, 1] in order to improve the numerical stability of fitting.
-    This function rescales the retrieved polynomial coefficients for the fit
-    x-values back to the original domain.
-
-    Parameters
-    ----------
-    coef : array-like
-        The array of coefficients for the polynomial. Should increase in
-        order, for example (c0, c1, c2) from `y = c0 + c1 * x + c2 * x**2`.
-    original_domain : array-like, shape (2,)
-        The domain, [min(x), max(x)], of the original data used for fitting.
-
-    Returns
-    -------
-    output_coefs : numpy.ndarray
-        The array of coefficients scaled for the original domain.
-
-    """
-    zeros_mask = np.equal(coef, 0)
-    if zeros_mask.any():
-        # coefficients with one or several zeros sometimes get compressed
-        # to leave out some of the coefficients, so replace zero with another value
-        # and then fill in later
-        coef = coef.copy()
-        coef[zeros_mask] = _MIN_FLOAT  # could probably fill it with any non-zero value
-
-    fit_polynomial = np.polynomial.Polynomial(coef, domain=original_domain)
-    output_coefs = fit_polynomial.convert().coef
-    output_coefs[zeros_mask] = 0
-
-    return output_coefs
+from .utils import _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
 
 
 def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):

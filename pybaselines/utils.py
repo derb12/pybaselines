@@ -292,7 +292,7 @@ def _safe_std(array, **kwargs):
 
 
 @jit(nopython=True, cache=True)
-def _interp_inplace(x, y):
+def _interp_inplace(x, y, y_start=None, y_end=None):
     """
     Interpolates values inplace between the two ends of an array.
 
@@ -303,10 +303,61 @@ def _interp_inplace(x, y):
     y : numpy.ndarray
         The y-values. The two endpoints, y[0] and y[-1] are assumed to be valid,
         and all values inbetween (ie. y[1:-1]) will be replaced by interpolation.
+    y_start : float, optional
+        The initial y-value for interpolation. Default is None, which will use the
+        first item in `y`.
+    y_end : float, optional
+        The end y-value for interpolation. Default is None, which will use the
+        last item in `y`.
 
-    Notes
-    -----
-    No return since all modifications to `y` are done inplace.
+    Returns
+    -------
+    y : numpy.ndarray
+        The input `y` array, with the interpolation performed inplace.
 
     """
-    y[1:-1] = y[0] + (x[1:-1] - x[0]) * ((y[-1] - y[0]) / (x[-1] - x[0]))
+    if y_start is None:
+        y_start = y[0]
+    if y_end is None:
+        y_end = y[-1]
+    y[1:-1] = y_start + (x[1:-1] - x[0]) * ((y_end - y_start) / (x[-1] - x[0]))
+
+    return y
+
+
+def _convert_coef(coef, original_domain):
+    """
+    Scales the polynomial coefficients back to the original domain of the data.
+
+    For fitting, the x-values are scaled from their original domain, [min(x),
+    max(x)], to [-1, 1] in order to improve the numerical stability of fitting.
+    This function rescales the retrieved polynomial coefficients for the fit
+    x-values back to the original domain.
+
+    Parameters
+    ----------
+    coef : array-like
+        The array of coefficients for the polynomial. Should increase in
+        order, for example (c0, c1, c2) from `y = c0 + c1 * x + c2 * x**2`.
+    original_domain : array-like, shape (2,)
+        The domain, [min(x), max(x)], of the original data used for fitting.
+
+    Returns
+    -------
+    output_coefs : numpy.ndarray
+        The array of coefficients scaled for the original domain.
+
+    """
+    zeros_mask = np.equal(coef, 0)
+    if zeros_mask.any():
+        # coefficients with one or several zeros sometimes get compressed
+        # to leave out some of the coefficients, so replace zero with another value
+        # and then fill in later
+        coef = coef.copy()
+        coef[zeros_mask] = _MIN_FLOAT  # could probably fill it with any non-zero value
+
+    fit_polynomial = np.polynomial.Polynomial(coef, domain=original_domain)
+    output_coefs = fit_polynomial.convert().coef
+    output_coefs[zeros_mask] = 0
+
+    return output_coefs

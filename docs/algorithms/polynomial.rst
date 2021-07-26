@@ -30,6 +30,8 @@ by 1) only fitting the data in regions where there is only baseline (termed
 selective masking), 2) modifying the y-values being fit each iteration, termed
 thresholding, or 3) penalyzing outliers.
 
+.. _selective-masking-explanation:
+
 Selective Masking
 ~~~~~~~~~~~~~~~~~
 
@@ -168,7 +170,7 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
     )
     weights = np.zeros(y.shape[0])
     weights[non_peaks] = 1
-
+    # directly create baseline by inputting weights
     baseline = poly(y, x, poly_order=3, weights=weights)[0]
 
     fig, ax = plt.subplots(tight_layout={'pad': 0.2})

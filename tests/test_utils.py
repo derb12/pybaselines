@@ -7,7 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from numpy.testing import assert_allclose, assert_almost_equal, assert_array_almost_equal
 import pytest
 
 from pybaselines import utils
@@ -149,7 +149,64 @@ def test_interp_inplace():
 
     output = utils._interp_inplace(x, y_calc)
 
-    # should not output anything from the function
-    assert output is None
+    # output should be the same object as the input y array
+    assert output is y_calc
 
     assert_array_almost_equal(y_calc, y_actual)
+
+
+def test_interp_inplace_endpoints():
+    """Tests _interp_inplace when specifying the endpoint y-values."""
+    x = np.arange(10)
+    y_actual = 2 + 5 * x
+
+    # specify both the left and right points
+    y_calc = np.zeros_like(y_actual)
+    output = utils._interp_inplace(x, y_calc, y_actual[0], y_actual[-1])
+
+    # output should be the same object as the input y array
+    assert output is y_calc
+    assert_array_almost_equal(y_calc[1:-1], y_actual[1:-1])
+    # first and last values should still be 0
+    assert y_calc[0] == 0
+    assert y_calc[-1] == 0
+
+    # specify only the right point
+    y_calc = np.zeros_like(y_actual)
+    y_calc[0] = y_actual[0]
+    utils._interp_inplace(x, y_calc, None, y_actual[-1])
+
+    assert_array_almost_equal(y_calc[:-1], y_actual[:-1])
+    assert y_calc[-1] == 0
+
+    # specify only the left point
+    y_calc = np.zeros_like(y_actual)
+    y_calc[-1] = y_actual[-1]
+    utils._interp_inplace(x, y_calc, y_actual[0])
+
+    assert_array_almost_equal(y_calc[1:], y_actual[1:])
+    assert y_calc[0] == 0
+
+
+@pytest.mark.parametrize('x', (np.array([-5, -2, 0, 1, 8]), np.array([1, 2, 3, 4, 5])))
+@pytest.mark.parametrize(
+    'coefs', (
+        np.array([1, 2]), np.array([-1, 10, 0.2]), np.array([0, 1, 0]),
+        np.array([0, 0, 0]), np.array([2, 1e-19])
+    )
+)
+def test_convert_coef(x, coefs):
+    """Checks that polynomial coefficients are correctly converted to the original domain."""
+    original_domain = np.array([x.min(), x.max()])
+    y = np.zeros_like(x)
+    for i, coef in enumerate(coefs):
+        y = y + coef * x**i
+
+    fit_polynomial = np.polynomial.Polynomial.fit(x, y, coefs.size - 1)
+    # fit_coefs correspond to the domain [-1, 1] rather than the original
+    # domain of x
+    fit_coefs = fit_polynomial.coef
+
+    converted_coefs = utils._convert_coef(fit_coefs, original_domain)
+
+    assert_allclose(converted_coefs, coefs, atol=1e-10)
