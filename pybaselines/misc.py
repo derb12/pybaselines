@@ -120,7 +120,7 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear'):
     return baseline, {}
 
 
-def _banded_dot_vector(ab, x, n_lower, n_upper, a_rows, a_columns):
+def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
     """
     Computes the dot product of the matrix `a` in banded format (`ab`) with the vector `x`.
 
@@ -130,14 +130,10 @@ def _banded_dot_vector(ab, x, n_lower, n_upper, a_rows, a_columns):
         The banded matrix.
     x : array-like, shape (N,)
         The vector.
-    n_lower : int
-        The number of lower diagonals in `ab`.
-    n_upper : int
-        The number of upper diagonals in `ab`.
-    a_rows : int
-        The number of rows in the full `a` matrix.
-    a_columns : int
-        The number of columns in the full `a` matrix.
+    ab_lu : Container(int, int)
+        The number of lower (`n_lower`) and upper (`n_upper`) diagonals in `ab`.
+    a_full_shape : Container(int, int)
+        The number of rows and columns in the full `a` matrix.
 
     Returns
     -------
@@ -162,10 +158,10 @@ def _banded_dot_vector(ab, x, n_lower, n_upper, a_rows, a_columns):
     # (in compressed form), x is the input vector, y is the output vector, and alpha
     # and beta are scalar multipliers
     output = gbmv(
-        m=a_rows,  # number of rows of `a` matrix in full form
-        n=a_columns,  # number of columns of `a` matrix in full form
-        kl=n_lower,  # sub-diagonals
-        ku=n_upper,  # super-diagonals
+        m=a_full_shape[0],  # number of rows of `a` matrix in full form
+        n=a_full_shape[1],  # number of columns of `a` matrix in full form
+        kl=ab_lu[0],  # sub-diagonals
+        ku=ab_lu[1],  # super-diagonals
         alpha=1.0,  # alpha, required
         a=matrix,  # `a` matrix in compressed form
         x=vector,  # `x` vector
@@ -176,30 +172,29 @@ def _banded_dot_vector(ab, x, n_lower, n_upper, a_rows, a_columns):
 
 
 @jit(nopython=True, cache=True)
-def _banded_dot_banded(a, b, a_lower, a_upper, b_lower, b_upper, symmetric_output=False):
+def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_output=False):
     """
     Calculates the matrix multiplication of `a` and `b` in banded forms.
 
     `a` and `b` must be square matrices in their full form or else this calculation
     may be incorrect.
 
-    Derived from bandmat: https://github.com/MattShannon/bandmat/blob/master/bandmat/tensor.pyx
-    function `dot_mm`, licensed under the BSD-3-Clause.
-
     Parameters
     ----------
-    a : [type]
-        [description]
-    b : [type]
-        [description]
-    a_lower : [type]
-        [description]
-    a_upper : [type]
-        [description]
-    b_lower : [type]
-        [description]
-    b_upper : [type]
-        [description]
+    a : array-like, shape (`a_lu[0]` + `a_lu[1]` + 1, N)
+        A banded matrix.
+    b : array-like, shape (`b_lu[0]` + `b_lu[1]` + 1, N)
+        The second banded matrix.
+    a_lu : Container(int, int)
+        A container of intergers designating the number lower and upper diagonals of `a`.
+    b_lu : Container(int, int)
+        A container of intergers designating the number lower and upper diagonals of `b`.
+    a_full_shape : Container(int, int)
+        A container of intergers designating the number of rows and columns in the full
+        matrix representation of `a`.
+    b_full_shape : Container(int, int)
+        A container of intergers designating the number of rows and columns in the full
+        matrix representation of `b`.
     symmetric_output : bool, optional
         Whether the output matrix is known to be symmetric. If True, will only calculate
         the matrix multiplication for the upper bands, and the lower bands will be filled
@@ -207,23 +202,46 @@ def _banded_dot_banded(a, b, a_lower, a_upper, b_lower, b_upper, symmetric_outpu
 
     Returns
     -------
-    [type]
-        [description]
+    output : numpy.ndarray
+        The matrix multiplication of `a` and `b`. The number of lower diagonals is the
+        minimum of `a_lu[0]` + `b_lu[0]` and `a_full_shape[0]` - 1, the number of upper
+        diagonals is the minimum of `a_lu[1]` + `b_lu[1]` and `b_full_shape[1]` - 1, and
+        the total shape is (lower diagonals + upper diagonals + 1, N).
 
     Raises
     ------
     ValueError
-        Raised if `a` and `b` do not have the same number of rows.
+        Raised if `a` and `b` do not have the same number of rows or if `a_full_shape[1]`
+        and `b_full_shape[0]` are not equal.
+
+    Notes
+    -----
+    Derived from bandmat (https://github.com/MattShannon/bandmat/blob/master/bandmat/tensor.pyx)
+    function `dot_mm`, licensed under the BSD-3-Clause.
 
     """
+    # TODO need to revisit this later and use a different implementation than bandmat's
+    # so that a and b don't have to be square matrices;
+    # see https://github.com/JuliaMatrices/BandedMatrices.jl and
+    # https://www.netlib.org/utk/lsi/pcwLSI/text/node153.html for other implementations
+    #
+    # also need to check cases where a_lower + b_lower is > a_full_shape[0] - 1
+    # and/or a_upper + b_upper is > b_full_shape[1] - 1 and see if the loops need to change at all
+    if a_full_shape[1] != b_full_shape[0]:
+        raise ValueError('dimension mismatch; a_full_shape[0] and b_full_shape[1] must be equal')
     # a and b must both be square banded matrices
+    a = np.asarray(a)
+    b = np.asarray(b)
     a_rows = a.shape[1]
     b_rows = b.shape[1]
     if a_rows != b_rows:
         raise ValueError('a and b must have the same number of rows')
     diag_length = a_rows  # main diagonal length
-    output = np.zeros((a_lower + b_lower + a_upper + b_upper + 1, diag_length))
-    c_upper = a_upper + b_upper
+    a_lower, a_upper = a_lu
+    b_lower, b_upper = b_lu
+    c_upper = min(a_upper + b_upper, b_full_shape[1] - 1)
+    c_lower = min(a_lower + b_lower, a_full_shape[0] - 1)
+    output = np.zeros((c_lower + c_upper + 1, diag_length))
 
     if symmetric_output:
         lower_bound = 0  # only fills upper bands
@@ -246,7 +264,8 @@ def _banded_dot_banded(a, b, a_lower, a_upper, b_lower, b_upper, symmetric_outpu
         for row in range(1, a_lower + b_lower + 1):
             offset = a_lower + b_lower + 1 - row
             # TODO should not use negative indices since empty 0 rows can sometimes
-            # be added; instead, work down from main diagonal
+            # be added; instead, work down from main diagonal; or should at least use
+            # the output's number of lower diagonals rather than a_l + b_l
             output[-row, :-offset] = output[row - 1, offset:]
 
     return output
@@ -584,11 +603,15 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     d1_diags = np.zeros((5, num_y))
     d2_diags = np.zeros((5, num_y))
     A, B = _high_pass_filter(num_y, freq_cutoff, filter_type, False)
+    # the number of lower and upper diagonals for both A and B
+    ab_lu = (filter_type, filter_type)
+    # the shape of A and B, and D.T*D matrices in their full forms rather than banded forms
+    full_shape = (num_y, num_y)
     # NOTE: just use A rather than A.T since A is symmetric s.t. A == A.T
     A_lower = A[filter_type:]
 
     # B.T == B since it is symmetric
-    BTB = _banded_dot_banded(B, B, filter_type, filter_type, filter_type, filter_type, True)
+    BTB = _banded_dot_banded(B, B, ab_lu, ab_lu, full_shape, full_shape, True)
     # number of lower and upper diagonals of A.T * (D.T * D) * A
     num_diags = (2 * filter_type + 2, 2 * filter_type + 2)
 
@@ -597,11 +620,10 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         _banded_dot_vector(
             np.asfortranarray(BTB),
             solveh_banded(A_lower, y, check_finite=False, lower=True),
-            2 * filter_type, 2 * filter_type, num_y, num_y
+            (2 * filter_type, 2 * filter_type), full_shape
         )
         - _banded_dot_vector(
-            A, np.full(num_y, lam_0 * (1 - asymmetry) / 2), filter_type, filter_type,
-            num_y, num_y
+            A, np.full(num_y, lam_0 * (1 - asymmetry) / 2), ab_lu, full_shape
         )
     )
     gamma = np.empty(num_y)
@@ -631,8 +653,8 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         d_diags[2] += gamma
 
         temp = _banded_dot_banded(
-            _banded_dot_banded(A, d_diags, filter_type, filter_type, 2, 2),
-            A, filter_type + 2, filter_type + 2, filter_type, filter_type, True
+            _banded_dot_banded(A, d_diags, ab_lu, (2, 2), full_shape, full_shape),
+            A, (filter_type + 2, filter_type + 2), ab_lu, full_shape, full_shape, True
         )
         temp[2:-2] += BTB
 
@@ -641,7 +663,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         x = _banded_dot_vector(
             A,
             solve_banded(num_diags, temp, d, overwrite_ab=True, check_finite=False),
-            filter_type, filter_type, num_y, num_y
+            ab_lu, full_shape
         )
 
         abs_x, big_x, theta = _theta(x, asymmetry, eps_0)
@@ -649,7 +671,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         h = _banded_dot_vector(
             B,
             solveh_banded(A_lower, y - x, check_finite=False, overwrite_b=True, lower=True),
-            filter_type, filter_type, num_y, num_y
+            ab_lu, full_shape
         )
         cost = (
             0.5 * h.dot(h)
@@ -668,7 +690,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         - _banded_dot_vector(
             B,
             solveh_banded(A_lower, diff, check_finite=False, overwrite_ab=True, lower=True),
-            filter_type, filter_type, num_y, num_y
+            ab_lu, full_shape
         )
     )
 

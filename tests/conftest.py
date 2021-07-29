@@ -20,13 +20,6 @@ else:
     no_pentapy = pytest.mark.skipif(True, reason='pentapy is installed')
     has_pentapy = pytest.mark.skipif(False, reason='pentapy is installed')
 
-try:
-    import numba  # noqa
-except ImportError:
-    if_has_numba = pytest.mark.skipif(True, reason='numba is not installed')
-else:
-    if_has_numba = pytest.mark.skipif(False, reason='numba is installed')
-
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     """
