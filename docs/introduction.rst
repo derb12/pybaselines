@@ -60,3 +60,4 @@ f) Optimizers (:mod:`pybaselines.optimizers`)
 g) Miscellaneous methods (:mod:`pybaselines.misc`)
 
     1) interp_pts (Interpolation between points)
+    2) beads (Baseline Estimation And Denoising with Sparsity)
