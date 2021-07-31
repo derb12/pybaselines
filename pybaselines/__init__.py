@@ -33,6 +33,7 @@ c) Morphological methods (:mod:`pybaselines.morphological`)
     5) amormol (Averaging Morphological and Mollified Baseline)
     6) rolling_ball (Rolling Ball Baseline)
     7) mwmv (Moving Window Minimum Value)
+    8) tophat (Top-hat Transformation)
 
 d) Window-based methods (:mod:`pybaselines.window`)
 

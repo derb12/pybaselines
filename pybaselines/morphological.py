@@ -769,3 +769,62 @@ def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None, **win
         )[smooth_half_window:-smooth_half_window]
 
     return baseline, {'half_window': half_wind}
+
+
+def tophat(data, half_window=None, **window_kwargs):
+    """
+    Estimates the baseline using a top-hat transformation (morphological opening).
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window used for the morphological opening. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'half_window': int
+            The half window used for the morphological calculations.
+
+    Notes
+    -----
+    The actual top-hat transformation is defined as `data - opening(data)`, where
+    `opening` is the morphological opening operation. This function, however, returns
+    `opening(data)`, since that is technically the baseline defined by the operation.
+
+    References
+    ----------
+    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
+    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
+
+    """
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    baseline = grey_opening(y, [2 * half_wind + 1])
+
+    return baseline, {'half_window': half_wind}

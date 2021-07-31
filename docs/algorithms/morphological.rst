@@ -244,3 +244,26 @@ then smooths the result with a moving average.
         baseline = morphological.mwmv(y, half_window, smooth_half_window=int(4 * half_window))
         ax.plot(baseline[0], 'g--')
 
+
+tophat (Top-hat Transformation)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.tophat` performs a morphological opening on the data.
+
+.. note::
+   The baseline from the tophat method is not smooth. Smoothing is left to the
+   user to perform, if desired.
+
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            half_window = 50
+        else:
+            half_window = 20
+        baseline = morphological.tophat(y, half_window)
+        ax.plot(baseline[0], 'g--')
