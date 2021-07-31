@@ -241,6 +241,8 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
     b_lower, b_upper = b_lu
     c_upper = min(a_upper + b_upper, b_full_shape[1] - 1)
     c_lower = min(a_lower + b_lower, a_full_shape[0] - 1)
+    # TODO create output matrix outside of this function since numba's implementation
+    # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259)
     output = np.zeros((c_lower + c_upper + 1, diag_length))
 
     if symmetric_output:
@@ -333,13 +335,25 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     data_size : int
         The number of data points.
     freq_cutoff : float, optional
-        The normalized cutoff frequency (0 < `freq_cutoff` < 0.5).
+        The cutoff frequency of the high pass filter, normalized such that
+        0 < `freq_cutoff` < 0.5. Default is 0.005.
     filter_type : int, optional
-        [description]. The order of the high pass filter is ``2 * filter_type``.
-        Default is 1.
+        An integer describing the high pass filter type. The order of the high pass
+        filter is ``2 * filter_type``. Default is 1 (second order filter).
     full_matrix : bool, optional
         If True, will return the full sparse diagonal matrices of A and B. If False
-        (default), will return only the bands of A and B.
+        (default), will return the banded matrix versions of A and B.
+
+    Raises
+    ------
+    ValueError
+        Raised if `freq_cutoff` is not between 0 and 0.5 or if `filter_type` is
+        less than 1.
+
+    References
+    ----------
+    Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
 
     """
     if not 0 < freq_cutoff < 0.5:
@@ -382,10 +396,50 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     return A, B
 
 
-def _theta(x, asymmetry=6, eps_0=1e-6):
+def _beads_theta(x, asymmetry=6, eps_0=1e-6):
+    """
+    The cost function for the pure signal `x`.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The array of the signal.
+    asymmetry : int, optional
+        The asymmetrical parameter that determines the weighting of negative values
+        compared to positive values in the cost function. Default is 6.0, which gives
+        negative values six times more impact on the cost function that positive values.
+        Set to 1 for a symmetric cost function, or a value less than 1 to weigh positive
+        values more.
+    eps_0 : float, optional
+        The cutoff threshold between absolute loss and quadratic loss. Values in `x` with
+        absolute value less than `eps_0` will have quadratic loss. Default is 1e-6.
+
+    Returns
+    -------
+    abs_x : numpy.ndarray
+        The absolute value of `x`. Used in other parts of the beads calculation, so
+        return it here to avoid having to calculate again.
+    large_mask : numpy.ndarray
+        The boolean array indicating which values in `abs_x` are greater than `eps_0`.
+        Used in other parts of the beads calculation, so return it here to avoid
+        having to calculate again.
+    theta : float
+        The summation of the cost function of `x`.
+
+    Notes
+    -----
+    The cost function is a modification of a Huber cost function, with the `asymmetry`
+    parameter dictating the cost of negative values compared to positive values.
+
+    References
+    ----------
+    Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+
+    """
     abs_x = np.abs(x)
-    small_mask = abs_x <= eps_0
-    small_x = x[small_mask]
+    large_mask = abs_x > eps_0
+    small_x = x[~large_mask]
 
     theta = (
         x[(x > eps_0)].sum() - asymmetry * x[x < -eps_0].sum()
@@ -394,10 +448,40 @@ def _theta(x, asymmetry=6, eps_0=1e-6):
             + eps_0 * (1 + asymmetry) / 4
         ).sum()
     )
-    return abs_x, ~small_mask, theta
+    return abs_x, large_mask, theta
 
 
 def _beads_loss(x, use_v2=True, eps_1=1e-6):
+    """
+    Approximates the absolute loss cost function.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The array of the absolute value of an n-order derivative of the signal.
+    use_v2 : bool, optional
+        If True (default), approximates the absolute loss using logarithms. If False,
+        uses the square root of the sqaured values.
+    eps_1 : float, optional
+        A small, positive value used to prevent issues when the first or second order
+        derivatives are close to zero. Default is 1e-6.
+
+    Returns
+    -------
+    loss : numpy.ndarray
+        The array of loss values.
+
+    Notes
+    -----
+    The input `x` should be the absolute value of the array.
+
+    References
+    ----------
+    Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+
+
+    """
     if use_v2:
         loss = x - eps_1 * np.log(x + eps_1)
     else:
@@ -407,6 +491,38 @@ def _beads_loss(x, use_v2=True, eps_1=1e-6):
 
 
 def _beads_weighting(x, use_v2=True, eps_1=1e-6):
+    """
+    Approximates the weighting from absolute loss.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The array of the absolute value of an n-order derivative of the signal.
+    use_v2 : bool, optional
+        If True (default), approximates the absolute loss using logarithms. If False,
+        uses the square root of the sqaured values.
+    eps_1 : float, optional
+        A small, positive value used to prevent issues when the first or second order
+        derivatives are close to zero. Default is 1e-6.
+
+    Returns
+    -------
+    weight : numpy.ndarray
+        The weight array.
+
+    Notes
+    -----
+    The input `x` should be the absolute value of the array.
+
+    The calculation is `f'(x)/x`, where `f'(x)` is the derivative of the function
+    `f(x)`, where `f(x)` is the loss function (calculated in _beads_loss).
+
+    References
+    ----------
+    Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+
+    """
     if use_v2:
         weight = 1 / (x + eps_1)
     else:
@@ -422,9 +538,9 @@ def _abs_diff(x, smooth_half_window=0):
     Parameters
     ----------
     x : numpy.ndarray, shape (N,)
-        [description]
+        The array of the signal.
     smooth_half_window : int, optional
-        [description]. Default is 0.
+        The half-window for smoothing. Default is 0, which does no smoothing.
 
     Returns
     -------
@@ -434,11 +550,11 @@ def _abs_diff(x, smooth_half_window=0):
         The absolute value of the second derivative of `x`.
 
     """
-    # NOTE: smoothing gives faster convergence and better repeatability between
-    # sparse and banded beads implementations; similar as stated by the pybeads author
     d1_x = x[1:] - x[:-1]
     if smooth_half_window > 0:
         smooth_window = 2 * smooth_half_window + 1
+        # TODO should mode be constant with cval=0 since derivative should be 0, or
+        # does reflect give better results?
         d2_x = np.abs(uniform_filter1d(d1_x[1:] - d1_x[:-1], smooth_window))
         d1_x = np.abs(uniform_filter1d(d1_x, smooth_window, output=d1_x), out=d1_x)
     else:
@@ -450,41 +566,77 @@ def _abs_diff(x, smooth_half_window=0):
 
 def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
                   filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
-                  eps_1=1e-6):
+                  eps_1=1e-6, smooth_half_window=0):
     """
-    [summary]
+    The beads algorithm using full, sparse matrices.
 
     Parameters
     ----------
-    y : [type]
-        [description]
-    freq_cutoff : [type]
-        [description]
-    lam_0 : [type]
-        [description]
-    lam_1 : [type]
-        [description]
-    lam_2 : [type]
-        [description]
-    asymmetry : int, optional
-        [description]. Default is 6.
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, with N data points.
+    freq_cutoff : float, optional
+        The cutoff frequency of the high pass filter, normalized such that
+        0 < `freq_cutoff` < 0.5. Default is 0.005.
+    lam_0 : float, optional
+        The regularization parameter for the signal values. Default is 1.0. Higher
+        values give a higher penalty.
+    lam_1 : float, optional
+        The regularization parameter for the first derivative of the signal. Default
+        is 1.0. Higher values give a higher penalty.
+    lam_2 : float, optional
+        The regularization parameter for the second derivative of the signal. Default
+        is 1.0. Higher values give a higher penalty.
+    asymmetry : float, optional
+        The asymmetrical parameter that determines the weighting of negative values
+        compared to positive values in the cost function. Default is 6.0, which gives
+        negative values six times more impact on the cost function that positive values.
+        Set to 1 for a symmetric cost function, or a value less than 1 to weigh positive
+        values more.
     filter_type : int, optional
-        [description]. Default is 1.
+        An integer describing the high pass filter type. The order of the high pass
+        filter is ``2 * filter_type``. Default is 1 (second order filter).
     use_v2_loss : bool, optional
-        [description]. Default is True.
+        If True (default), approximates the absolute loss using logarithms. If False,
+        uses the square root of the sqaured values.
     max_iter : int, optional
-        [description]. Default is 50.
-    tol : [type], optional
-        [description]. Default is 1e-2.
-    eps_0 : [type], optional
-        [description]. Default is 1e-6.
-    eps_1 : [type], optional
-        [description]. Default is 1e-6.
+        The maximum number of iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-2.
+    eps_0 : float, optional
+        The cutoff threshold between absolute loss and quadratic loss. Values in the signal
+        with absolute value less than `eps_0` will have quadratic loss. Default is 1e-6.
+    eps_1 : float, optional
+        A small, positive value used to prevent issues when the first or second order
+        derivatives are close to zero. Default is 1e-6.
+    smooth_half_window : int, optional
+        The half-window to use for smoothing the derivatives of the data with a moving
+        average. Default is 0, which provides no smoothing.
 
     Returns
     -------
-    [type]
-        [description]
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'signal': numpy.ndarray, shape (N,)
+            The pure signal portion of the input `data` without noise or the baseline.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
+
+    Notes
+    -----
+    `A` and `B` matrices are symmetric, so their transposes are never used.
+
+    References
+    ----------
+    Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+
+    https://www.mathworks.com/matlabcentral/fileexchange/49974-beads-baseline-estimation-
+    and-denoising-with-sparsity.
 
     """
     num_y = y.shape[0]
@@ -498,7 +650,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     BTB = B * B
 
     x = y
-    d1_x, d2_x = _abs_diff(x)
+    d1_x, d2_x = _abs_diff(x, smooth_half_window)
     # line 2 of Table 3 in beads paper
     d = BTB.dot(A_factor.solve(y)) - A.dot(np.full(num_y, lam_0 * (1 - asymmetry) / 2))
     gamma = np.empty(num_y)
@@ -531,8 +683,8 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
             )
         )
         h = B.dot(A_factor.solve(y - x))
-        d1_x, d2_x = _abs_diff(x)
-        abs_x, big_x, theta = _theta(x, asymmetry, eps_0)
+        d1_x, d2_x = _abs_diff(x, smooth_half_window)
+        abs_x, big_x, theta = _beads_theta(x, asymmetry, eps_0)
         cost = (
             0.5 * h.dot(h)
             + lam_0 * theta
@@ -552,41 +704,65 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
 
 def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
                   filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
-                  eps_1=1e-6):
+                  eps_1=1e-6, smooth_half_window=0):
     """
-    [summary]
+    The beads algorithm using banded matrices rather than full, sparse matrices.
 
     Parameters
     ----------
-    y : [type]
-        [description]
-    freq_cutoff : [type]
-        [description]
-    lam_0 : [type]
-        [description]
-    lam_1 : [type]
-        [description]
-    lam_2 : [type]
-        [description]
-    asymmetry : int, optional
-        [description]. Default is 6.
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, with N data points.
+    freq_cutoff : float, optional
+        The cutoff frequency of the high pass filter, normalized such that
+        0 < `freq_cutoff` < 0.5. Default is 0.005.
+    lam_0 : float, optional
+        The regularization parameter for the signal values. Default is 1.0. Higher
+        values give a higher penalty.
+    lam_1 : float, optional
+        The regularization parameter for the first derivative of the signal. Default
+        is 1.0. Higher values give a higher penalty.
+    lam_2 : float, optional
+        The regularization parameter for the second derivative of the signal. Default
+        is 1.0. Higher values give a higher penalty.
+    asymmetry : float, optional
+        The asymmetrical parameter that determines the weighting of negative values
+        compared to positive values in the cost function. Default is 6.0, which gives
+        negative values six times more impact on the cost function that positive values.
+        Set to 1 for a symmetric cost function, or a value less than 1 to weigh positive
+        values more.
     filter_type : int, optional
-        [description]. Default is 1.
+        An integer describing the high pass filter type. The order of the high pass
+        filter is ``2 * filter_type``. Default is 1 (second order filter).
     use_v2_loss : bool, optional
-        [description]. Default is True.
+        If True (default), approximates the absolute loss using logarithms. If False,
+        uses the square root of the sqaured values.
     max_iter : int, optional
-        [description]. Default is 50.
-    tol : [type], optional
-        [description]. Default is 1e-2.
-    eps_0 : [type], optional
-        [description]. Default is 1e-6.
-    eps_1 : [type], optional
-        [description]. Default is 1e-6.
+        The maximum number of iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-2.
+    eps_0 : float, optional
+        The cutoff threshold between absolute loss and quadratic loss. Values in the signal
+        with absolute value less than `eps_0` will have quadratic loss. Default is 1e-6.
+    eps_1 : float, optional
+        A small, positive value used to prevent issues when the first or second order
+        derivatives are close to zero. Default is 1e-6.
+    smooth_half_window : int, optional
+        The half-window to use for smoothing the derivatives of the data with a moving
+        average. Default is 0, which provides no smoothing.
 
     Returns
     -------
-    [type]
-        [description]
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'signal': numpy.ndarray, shape (N,)
+            The pure signal portion of the input `data` without noise or the baseline.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     Notes
     -----
@@ -598,6 +774,16 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     It is no faster to pre-compute the Cholesky factorization of A_lower and use
     that with scipy.linalg.cho_solve_banded compared to using A_lower in solveh_banded.
 
+    `A` and `B` matrices are symmetric, so their transposes are never used.
+
+    References
+    ----------
+    Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+
+    https://www.mathworks.com/matlabcentral/fileexchange/49974-beads-baseline-estimation-
+    and-denoising-with-sparsity.
+
     """
     num_y = y.shape[0]
     d1_diags = np.zeros((5, num_y))
@@ -607,10 +793,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     ab_lu = (filter_type, filter_type)
     # the shape of A and B, and D.T*D matrices in their full forms rather than banded forms
     full_shape = (num_y, num_y)
-    # NOTE: just use A rather than A.T since A is symmetric s.t. A == A.T
     A_lower = A[filter_type:]
-
-    # B.T == B since it is symmetric
     BTB = _banded_dot_banded(B, B, ab_lu, ab_lu, full_shape, full_shape, True)
     # number of lower and upper diagonals of A.T * (D.T * D) * A
     num_diags = (2 * filter_type + 2, 2 * filter_type + 2)
@@ -629,7 +812,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     gamma = np.empty(num_y)
     gamma_factor = lam_0 * (1 + asymmetry) / 2  # 2 * lam_0 * (1 + asymmetry) / 4
     x = y
-    d1_x, d2_x = _abs_diff(x)
+    d1_x, d2_x = _abs_diff(x, smooth_half_window)
     cost_old = 0
     abs_x = np.abs(x)
     big_x = abs_x > eps_0
@@ -666,8 +849,8 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
             ab_lu, full_shape
         )
 
-        abs_x, big_x, theta = _theta(x, asymmetry, eps_0)
-        d1_x, d2_x = _abs_diff(x)
+        abs_x, big_x, theta = _beads_theta(x, asymmetry, eps_0)
+        d1_x, d2_x = _abs_diff(x, smooth_half_window)
         h = _banded_dot_vector(
             B,
             solveh_banded(A_lower, y - x, check_finite=False, overwrite_b=True, lower=True),
@@ -697,48 +880,81 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     return baseline, {'signal': x, 'iterations': i, 'last_tol': cost_difference}
 
 
-def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
+def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.0,
           filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
-          eps_1=1e-6, fit_parabola=True):
-    """
+          eps_1=1e-6, fit_parabola=True, smooth_half_window=None):
+    r"""
     Baseline estimation and denoising with sparsity (BEADS).
+
+    Decomposes the input data into baseline and pure, noise-free signal by modeling
+    the baseline as a low pass filter and by considering the signal and its derivatives
+    as sparse [1]_.
 
     Parameters
     ----------
-    data : [type]
-        [description]
-    freq_cutoff : [type]
-        [description]
-    lam_0 : [type]
-        [description]
-    lam_1 : [type]
-        [description]
-    lam_2 : [type]
-        [description]
-    asymmetry : int, optional
-        [description]. Default is 6.
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    freq_cutoff : float, optional
+        The cutoff frequency of the high pass filter, normalized such that
+        0 < `freq_cutoff` < 0.5. Default is 0.005.
+    lam_0 : float, optional
+        The regularization parameter for the signal values. Default is 1.0. Higher
+        values give a higher penalty.
+    lam_1 : float, optional
+        The regularization parameter for the first derivative of the signal. Default
+        is 1.0. Higher values give a higher penalty.
+    lam_2 : float, optional
+        The regularization parameter for the second derivative of the signal. Default
+        is 1.0. Higher values give a higher penalty.
+    asymmetry : float, optional
+        A number greater than 0 that determines the weighting of negative values
+        compared to positive values in the cost function. Default is 6.0, which gives
+        negative values six times more impact on the cost function that positive values.
+        Set to 1 for a symmetric cost function, or a value less than 1 to weigh positive
+        values more.
     filter_type : int, optional
-        [description]. Default is 1.
+        An integer describing the high pass filter type. The order of the high pass
+        filter is ``2 * filter_type``. Default is 1 (second order filter).
     cost_function : {2, 1, "l1_v1", "l1_v2"}, optional
-        [description]. Default is 2.
+        An integer or string indicating which approximation of the l1 (absolute value)
+        penalty to use. 1 or "l1_v1" will use :math:`l(x) = \sqrt{x^2 + \text{eps_0}^2}`
+        and 2 (default) or "l1_v2" will use
+        :math:`l(x) = |x| - \text{eps_0}\log{(|x| + \text{eps_0})}`.
     max_iter : int, optional
-        [description]. Default is 50.
-    tol : [type], optional
-        [description]. Default is 1e-2.
-    eps_0 : [type], optional
-        [description]. Default is 1e-6.
-    eps_1 : [type], optional
-        [description]. Default is 1e-6.
+        The maximum number of iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-2.
+    eps_0 : float, optional
+        The cutoff threshold between absolute loss and quadratic loss. Values in the signal
+        with absolute value less than `eps_0` will have quadratic loss. Default is 1e-6.
+    eps_1 : float, optional
+        A small, positive value used to prevent issues when the first or second order
+        derivatives are close to zero. Default is 1e-6.
     fit_parabola : bool, optional
         If True (default), will fit a parabola to the data and subtract it before
-        performing the beads fit as suggested in []_. This ensures the endpoints of
+        performing the beads fit as suggested in [2]_. This ensures the endpoints of
         the fit data are close to 0, which is required by beads. If the data is already
         close to 0 on both endpoints, set `fit_parabola` to False.
+    smooth_half_window : int, optional
+        The half-window to use for smoothing the derivatives of the data with a moving
+        average and full window size of `2 * smooth_half_window + 1`. Smoothing can
+        improve the convergence of the calculation, and make the calculation less sensitive
+        to small changes in `lam_1` and `lam_2`, as noted in the pybeads package [3]_.
+        Default is None, which will not perform any smoothing.
 
     Returns
     -------
-    [type]
-        [description]
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'signal': numpy.ndarray, shape (N,)
+            The pure signal portion of the input `data` without noise or the baseline.
+        * 'iterations': int
+            The number of iterations completed.
+        * 'last_tol': float
+            The calculated tolerance value of the last iteration.
 
     Notes
     -----
@@ -746,32 +962,54 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
     dataset with 1000 points. Typically, smaller values are needed for larger datasets
     and larger values for smaller datasets.
 
+    When finding the best parameters for fitting, it is usually best to find the optimal
+    `freq_cutoff` for the noise in the data before adjusting any other parameters since
+    it has the largest effect [2]_.
+
+    Raises
+    ------
+    ValueError
+        Raised if `asymmetry` is less than 0.
+
     References
     ----------
-    [1]_
-
-    [2]_
+    .. [1] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+           (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    .. [2] Navarro-Huerta, J.A., et al. Assisted baseline subtraction in complex chromatograms
+           using the BEADS algorithm. Journal of Chromatography A, 2017, 1507, 1-10.
+    .. [3] https://github.com/skotaro/pybeads.
 
     """
-    if isinstance(cost_function, str):  # to maintain parity with MATLAB version
+    # TODO maybe add the log-transform from Navarro-Huerta to improve fit for data spanning
+    # multiple scales, or at least mention in Notes section; also should add the function
+    # in Navarro-Huerta that helps choosing the best freq_cutoff for a dataset
+    if isinstance(cost_function, str):  # allow string to maintain parity with MATLAB version
         cost_function = cost_function.lower()
     use_v2_loss = {'l1_v1': False, 'l1_v2': True, 1: False, 2: True}[cost_function]
+    if asymmetry <= 0:
+        raise ValueError('asymmetry must be greater than 0')
+
     y0 = np.asarray_chkfinite(data)
     if fit_parabola:
         parabola = _parabola(y0)
         y = y0 - parabola
     else:
         y = y0
+    # ensure that 0 + eps_0[1] > 0 to prevent numerical issues
+    eps_0 = max(eps_0, _MIN_FLOAT)
+    eps_1 = max(eps_1, _MIN_FLOAT)
+    if smooth_half_window is None:
+        smooth_half_window = 0
 
     if _HAS_NUMBA:
         baseline, params = _banded_beads(
             y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
-            max_iter, tol, eps_0, eps_1
+            max_iter, tol, eps_0, eps_1, smooth_half_window
         )
     else:
         baseline, params = _sparse_beads(
             y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
-            max_iter, tol, eps_0, eps_1
+            max_iter, tol, eps_0, eps_1, smooth_half_window
         )
 
     if fit_parabola:

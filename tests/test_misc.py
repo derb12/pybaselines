@@ -220,6 +220,20 @@ def test_high_pass_filter(filter_type, freq_cutoff):
     assert B_banded.shape == (2 * filter_type + 1, num_points)
 
 
+@pytest.mark.parametrize('freq_cutoff', (0, 0.5, -0.5, 5))
+def test_high_pass_filter_bad_freqcutoff_fails(freq_cutoff):
+    """Ensures a ValueError is raised for incorrect freq_cutoff values."""
+    with pytest.raises(ValueError):
+        misc._high_pass_filter(10, freq_cutoff=freq_cutoff)
+
+
+@pytest.mark.parametrize('filter_type', (0, -1))
+def test_high_pass_filter_bad_filtertype_fails(filter_type):
+    """Ensures a ValueError is raised for incorrect filter_type values."""
+    with pytest.raises(ValueError):
+        misc._high_pass_filter(10, filter_type=filter_type)
+
+
 @pytest.fixture()
 def beads_data():
     """Setup code for testing internal calculations for the beads algorithm."""
@@ -424,10 +438,11 @@ class TestBeads(AlgorithmTester):
 
     func = misc.beads
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('cost_function', (1, 2, 'l1_v1', 'l1_v2', 'L1_V1'))
+    def test_unchanged_data(self, data_fixture, cost_function):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y, cost_function=cost_function)
 
     def test_output(self):
         """Ensures that the output has the desired format."""
@@ -438,11 +453,24 @@ class TestBeads(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
-    def test_beads_algorithms(self):
+    @pytest.mark.parametrize('cost_function', (1, 2))
+    def test_beads_algorithms(self, cost_function):
         """Ensure the sparse and banded forms for beads give similar results."""
         # banded beads function always works, just is slower when numba is not installed
         with mock.patch.object(misc, '_HAS_NUMBA', not misc._HAS_NUMBA):
-            output_1 = self._call_func(self.y)[0]
-        output_2 = self._call_func(self.y)[0]
+            output_1 = self._call_func(self.y, cost_function=cost_function)[0]
+        output_2 = self._call_func(self.y, cost_function=cost_function)[0]
 
         assert_allclose(output_1, output_2, 1e-6)
+
+    @pytest.mark.parametrize('asymmetry', (0, -1))
+    def test_bad_asymmetry_fails(self, asymmetry):
+        """Ensure an asymmetry value < 1 raises a ValueError."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, asymmetry=asymmetry)
+
+    @pytest.mark.parametrize('cost_function', (0, 3, 'l2_v2'))
+    def test_unknown_cost_function_fails(self, cost_function):
+        """Ensure an non-covered cost function raises a KeyError."""
+        with pytest.raises(KeyError):
+            self._call_func(self.y, cost_function=cost_function)
