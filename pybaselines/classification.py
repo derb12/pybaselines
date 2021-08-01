@@ -394,7 +394,7 @@ def _rolling_std(data, half_window, ddof=0):
     # this isn't done, all values within [half_window:-half_window] in the output are
     # off; no idea why... but it works
     squared_diff[half_window] = squared_diff[window_size - 1] / 2
-    for j in range(half_window + 1, num_y):
+    for j in range(half_window + 1, num_y - half_window):
         old_val = data[j - half_window - 1]
         new_val = data[j + half_window]
         val_diff = new_val - old_val  # reference divided by window_size here
@@ -402,6 +402,17 @@ def _rolling_std(data, half_window, ddof=0):
         new_mean = mean + val_diff / window_size
         squared_diff[j] = squared_diff[j - 1] + val_diff * (old_val + new_val - mean - new_mean)
         mean = new_mean
+
+    # empty the last half-window
+    # TODO need to double-check this; not high priority since last half-window
+    # is discarded currently
+    size = window_size
+    for k in range(num_y - half_window + 1, num_y):
+        val = data[k]
+        size_factor = size / (size - 1)
+        squared_diff[k] = squared_diff[k - 1] + 2 * size_factor * (val - mean)**2
+        mean = mean * size_factor + val / (size - 1)
+        size -= 1
 
     return np.sqrt(squared_diff / (window_size - ddof))
 
