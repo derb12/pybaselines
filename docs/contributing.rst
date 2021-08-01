@@ -27,15 +27,18 @@ Pull requests are welcomed for this project, but please note that
 unsolicited pull requests are discouraged. Please file an issue first,
 so that details can be discussed/finalized before a pull request is created.
 
-Any new code or documentation must be unique (not copied from somewhere else)
-and able to be covered by the BSD 3-clause license. Further, any new code should
-follow `PEP 8 <https://www.python.org/dev/peps/pep-0008>`_ standards as closely
-as possible and be fully documented using
-`Numpy style <https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard>`_
-docstrings. If implementing a new feature, please provide documentation discussing its
-implementation, and any necessary tests.
+Any new code or documentation must be able to be covered by the BSD 3-clause license
+used by pybaselines.
 
-To clone the GitHub repository and install the needed libraries for development:
+When submitting a pull request, follow similar procedures for a feature request, namely:
+
+* Explain in detail how it works.
+* Keep the scope as narrow as possible to make it easier to incorporate.
+
+Setup Development Environment
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To clone the GitHub repository and install the necessary libraries for development:
 
 .. code-block:: console
 
@@ -43,8 +46,30 @@ To clone the GitHub repository and install the needed libraries for development:
     pip -r install pybaselines/requirements/requirements-development.txt
 
 
-When submitting a pull request, follow similar procedures for a feature request, namely:
+Style Guidelines
+^^^^^^^^^^^^^^^^
 
-* Explain in detail how it works.
-* Keep the scope as narrow as possible to make it easier to incorporate.
+pybaselines has the following guidelines (note: if you have any questions/concerns about
+these guidelines, please feel free to open an issue or email the author; the guidelines
+are meant to help keep a consistent style, not to discourage contributing :) )
 
+Any new code should follow `PEP 8 <https://www.python.org/dev/peps/pep-0008>`_ standards
+as closely as possible and be fully documented using
+`Numpy style <https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard>`_
+docstrings. To check that new code has the correct formatting, ensure that flake8 and
+flake8-docstrings are installed (they should be if the development environment was setup
+as described in the section above), and run the following command in the terminal while in
+the pybaselines directory:
+
+.. code-block:: console
+
+    flake8 .
+
+If implementing a new feature, please provide documentation discussing its
+implementation, and any necessary tests. To check that tests pass locally, ensure
+that pytest is installed and run the following command in the terminal while in the
+pybaselines directory:
+
+.. code-block:: console
+
+    pytest . --verbose

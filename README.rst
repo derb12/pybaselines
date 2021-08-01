@@ -102,43 +102,21 @@ g) Miscellaneous methods (pybaselines.misc)
 Installation
 ------------
 
-Dependencies
-~~~~~~~~~~~~
-
-pybaselines requires `Python <https://python.org>`_ version 3.6 or later
-and the following libraries:
-
-* `NumPy <https://numpy.org>`_ (>= 1.14)
-* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.11)
-
-
-All of the required libraries should be automatically installed when
-installing pybaselines using either of the two installation methods below.
-
-Additionally, pybaselines has the following optional dependencies:
-
-* `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
-  provides a faster solver for Whittaker-smoothing-based methods
-
-
 Stable Release
 ~~~~~~~~~~~~~~
 
 pybaselines is easily installed from `pypi <https://pypi.org/project/pybaselines>`_
-using `pip <https://pip.pypa.io>`_, by running the following command in your terminal:
+using `pip <https://pip.pypa.io>`_, by running the following command in the terminal:
 
 .. code-block:: console
 
-    pip install --upgrade pybaselines
+    pip install pybaselines
 
-This is the preferred method to install pybaselines, as it will always install the
-most recent stable release.
-
-To also install the optional dependencies when installing pybaselines, do:
+To also install the `optional dependencies`_ when installing pybaselines, run:
 
 .. code-block:: console
 
-    pip install --upgrade pybaselines[full]
+    pip install pybaselines[full]
 
 
 Development Version
@@ -162,6 +140,26 @@ Once the repository is downloaded, it can be installed with:
 
 
 .. _Github repo: https://github.com/derb12/pybaselines
+
+
+Dependencies
+~~~~~~~~~~~~
+
+pybaselines requires `Python <https://python.org>`_ version 3.6 or later
+and the following libraries:
+
+* `NumPy <https://numpy.org>`_ (>= 1.14)
+* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.11)
+
+
+All of the required libraries should be automatically installed when
+installing pybaselines using either of the two installation methods above.
+
+The optional dependencies for pybaselines are listed in the
+`documentation <optional dependencies>`_.
+
+
+.. _optional dependencies: https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies
 
 
 Quick Start
