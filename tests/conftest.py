@@ -69,7 +69,7 @@ def get_data(include_noise=True, num_points=1000):
         The y-values.
 
     """
-    # use np.random.default_rng(0) once minimum numpy version is >= 1.17
+    # TODO use np.random.default_rng(0) once minimum numpy version is >= 1.17
     np.random.seed(0)
     x_data = np.linspace(1, 100, num_points)
     y_data = (

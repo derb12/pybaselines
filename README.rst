@@ -51,6 +51,7 @@ a) Polynomial methods (pybaselines.polynomial)
     3) imodpoly (Improved Modified Polynomial)
     4) penalized_poly (Penalized Polynomial)
     5) loess (Locally Estimated Scatterplot Smoothing)
+    6) quant_reg (Quantile Regression)
 
 b) Whittaker-smoothing-based methods (pybaselines.whittaker)
 

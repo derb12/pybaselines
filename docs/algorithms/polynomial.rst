@@ -619,3 +619,25 @@ is reduced by iterative reweighting.
         )
         ax.plot(baseline[0], 'g--')
 
+
+quant_reg (Quantile Regression)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.quant_reg` fits a polynomial to the baseline using quantile regression.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i < 4:
+            poly_order = i + 1
+        else:
+            poly_order = 1
+        quantile = {0: 0.3, 1: 0.1, 2: 0.2, 3: 0.25, 4: 0.5}[i]
+        baseline = polynomial.quant_reg(
+            y, poly_order=poly_order, quantile=quantile
+        )
+        ax.plot(baseline[0], 'g--')
+
