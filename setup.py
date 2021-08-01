@@ -10,6 +10,8 @@ Notes on minimum required versions for dependencies:
 
 numpy: >= 1.14 in order to use rcond=None with numpy.linalg.lstsq
 scipy: >= 0.11 to use scipy.sparse.diags
+pentapy: >= 1.0 to use solver #2
+numba: >= 0.45 in order to cache jit-ed functions with parallel=True
 
 """
 

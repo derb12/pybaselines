@@ -1,0 +1,4 @@
+# for use with continuous integration only
+# optional dependencies for pybaselines
+pentapy>=1.0
+numba>=0.45

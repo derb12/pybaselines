@@ -1,7 +1,6 @@
-# for use with continual integration only
+# for use with continuous integration only
 numpy>=1.14
 scipy>=0.11
-pentapy>=1.0
 flake8
 flake8-comprehensions
 flake8-docstrings

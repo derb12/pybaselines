@@ -13,7 +13,7 @@ on:
     - 'tests/**'
 
   pull_request:
-    branches: [ main ]
+    # always trigger on a pull request, regardless of the branch
     paths:
     - 'pybaselines/**'
     - 'tests/**'
@@ -29,20 +29,53 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
+
+    # Could alternatively create a virtual environment and cache the environment
+    # to completely skip the installation step, but that seems more complicated
+    # than I'm willing to do right now...
+    # Note that a new cache will not be saved if tests fail, which is okay
+    - name: Cache required dependencies
+      uses: actions/cache@v2
+      with:
+        # path is valid for ubuntu/linux only
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-${{ matrix.python-version }}-pip-${{ hashFiles('**/requirements-ci.txt') }}
+        restore-keys: ${{ runner.os }}-${{ matrix.python-version }}-pip-
+
+    - name: Install required dependencies
+      # if cache was found, will use those cached files instead of downloading
+      # note: a cache not accessed in over 7 days is removed
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements/requirements-ci.txt
+
     - name: Lint
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
-    - name: Test
-      run: |
-        pytest
+
+    - name: Test with required dependencies
+      run: pytest
+
+    # all steps below will not run if tests fail for the required dependencies,
+    # which is the desired behavior
+    - name: Cache optional dependencies
+      uses: actions/cache@v2
+      with:
+        # path is valid for ubuntu/linux only
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-${{ matrix.python-version }}-pip-optional-${{ hashFiles('**/requirements-ci-optional.txt') }}
+        restore-keys: ${{ runner.os }}-${{ matrix.python-version }}-pip-optional-
+
+    - name: Install optional dependencies
+      run: pip install -r requirements/requirements-ci-optional.txt
+
+    - name: Test with optional dependencies
+      run: pytest
