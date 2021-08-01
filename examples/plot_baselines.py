@@ -16,30 +16,30 @@ if __name__ == '__main__':
         print('This file requires matplotlib to run')
         raise
     import numpy as np
+
     from pybaselines.morphological import amormol, imor, mor, mormol, mpls, rolling_ball
     from pybaselines.optimizers import adaptive_minmax, optimize_extended_range
-    from pybaselines.polynomial import (imodpoly, loess, modpoly,
-                                        penalized_poly, poly)
+    from pybaselines.polynomial import imodpoly, loess, modpoly, penalized_poly, poly
     from pybaselines.utils import gaussian
-    from pybaselines.whittaker import (airpls, arpls, asls, aspls, drpls,
-                                       iarpls, iasls, psalsa)
+    from pybaselines.whittaker import airpls, arpls, asls, aspls, drpls, iarpls, iasls, psalsa
     from pybaselines.window import noise_median, snip, swima
 
     x = np.linspace(100, 4200, 1000)
+    np.random.seed(0)  # set random seed
     signal = (
         gaussian(x, 2, 700, 50)
         + gaussian(x, 3, 1200, 150)
         + gaussian(x, 5, 1600, 100)
         + gaussian(x, 4, 2500, 50)
         + gaussian(x, 7, 3300, 100)
-        + np.random.default_rng(1).normal(0, 0.2, x.size)  # noise
     )
     true_baseline = (
         10 + 0.001 * x  # polynomial baseline
         + gaussian(x, 6, 2000, 2000)  # gaussian baseline
     )
+    noise = np.random.normal(0, 0.2, x.size)
 
-    y = signal + true_baseline
+    y = signal + true_baseline + noise
     non_peak_mask = (x < 600) | ((x > 1900) & (x < 2500)) | ((x > 2600) & (x < 3100)) | (x > 3600)
 
     algorithms = {
