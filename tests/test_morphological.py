@@ -84,12 +84,19 @@ class TestIMor(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('half_window', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
 
 
 class TestAMorMol(AlgorithmTester):
@@ -104,12 +111,19 @@ class TestAMorMol(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('half_window', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
 
 
 class TestMorMol(AlgorithmTester):
@@ -124,12 +138,19 @@ class TestMorMol(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('half_window', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('half_window', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
 
 
 class TestRollingBall(AlgorithmTester):

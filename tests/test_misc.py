@@ -444,9 +444,15 @@ class TestBeads(AlgorithmTester):
         x, y = get_data()
         self._test_unchanged_data(data_fixture, y, None, y, cost_function=cost_function)
 
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('signal', 'iterations', 'last_tol'))
+    @pytest.mark.parametrize('use_banded', (True, False))
+    def test_output(self, use_banded):
+        """
+        Ensures that the output has the desired format.
+
+        Tests both beads implementations.
+        """
+        with mock.patch.object(misc, '_HAS_NUMBA', use_banded):
+            self._test_output(self.y, self.y, checked_keys=('signal', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -474,3 +480,16 @@ class TestBeads(AlgorithmTester):
         """Ensure an non-covered cost function raises a KeyError."""
         with pytest.raises(KeyError):
             self._call_func(self.y, cost_function=cost_function)
+
+    @pytest.mark.parametrize('use_banded', (True, False))
+    def test_tol_history(self, use_banded):
+        """
+        Ensures the 'tol_history' item in the parameter output is correct.
+
+        Tests both beads implementations.
+        """
+        max_iter = 5
+        with mock.patch.object(misc, '_HAS_NUMBA', use_banded):
+            _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1

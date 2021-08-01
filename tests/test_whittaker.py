@@ -72,7 +72,7 @@ class TestAsLS(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -100,6 +100,13 @@ class TestAsLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestIAsLS(AlgorithmTester):
     """Class for testing iasls baseline."""
@@ -117,7 +124,7 @@ class TestIAsLS(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -139,6 +146,13 @@ class TestIAsLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestAirPLS(AlgorithmTester):
     """Class for testing airpls baseline."""
@@ -152,7 +166,7 @@ class TestAirPLS(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -198,6 +212,13 @@ class TestAirPLS(AlgorithmTester):
 
         assert np.isfinite(baseline.dot(baseline))
 
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestArPLS(AlgorithmTester):
     """Class for testing arpls baseline."""
@@ -211,7 +232,7 @@ class TestArPLS(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -232,6 +253,13 @@ class TestArPLS(AlgorithmTester):
         pentapy_output = self._call_func(self.y)[0]
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
 
 
 class TestDrPLS(AlgorithmTester):
@@ -246,7 +274,7 @@ class TestDrPLS(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -286,6 +314,13 @@ class TestDrPLS(AlgorithmTester):
 
         assert np.isfinite(baseline.dot(baseline))
 
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestIArPLS(AlgorithmTester):
     """Class for testing iarpls baseline."""
@@ -299,7 +334,7 @@ class TestIArPLS(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -344,6 +379,13 @@ class TestIArPLS(AlgorithmTester):
             baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
 
         assert np.isfinite(baseline.dot(baseline))
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
 
 
 class TestAsPLS(AlgorithmTester):
@@ -359,7 +401,7 @@ class TestAsPLS(AlgorithmTester):
     def test_output(self):
         """Ensures that the output has the desired format."""
         self._test_output(
-            self.y, self.y, checked_keys=('weights', 'alpha', 'iterations', 'last_tol')
+            self.y, self.y, checked_keys=('weights', 'alpha', 'tol_history')
         )
 
     def test_list_input(self):
@@ -388,6 +430,13 @@ class TestAsPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestPsalsa(AlgorithmTester):
     """Class for testing psalsa baseline."""
@@ -401,7 +450,7 @@ class TestPsalsa(AlgorithmTester):
 
     def test_output(self):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'iterations', 'last_tol'))
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -428,3 +477,10 @@ class TestPsalsa(AlgorithmTester):
         pentapy_output = self._call_func(self.y)[0]
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1

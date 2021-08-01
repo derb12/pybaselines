@@ -320,10 +320,11 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
 
         * 'half_window': int
             The half window used for the morphological calculations.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -333,14 +334,16 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
     baseline = y
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         baseline_new = np.minimum(y, _avg_opening(baseline, half_wind))
         calc_difference = relative_difference(baseline, baseline_new)
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
         baseline = baseline_new
 
-    params = {'half_window': half_wind, 'iterations': i + 1, 'last_tol': calc_difference}
+    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
     return baseline, params
 
 
@@ -391,10 +394,11 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
 
         * 'half_window': int
             The half window used for the morphological calculations.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -411,7 +415,8 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
     pad_kws = pad_kwargs if pad_kwargs is not None else {}
     y = pad_edges(y, window_size, **pad_kws)
     baseline = y
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         baseline_old = baseline
         baseline = padded_convolve(
             np.minimum(
@@ -423,10 +428,11 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
             kernel
         )
         calc_difference = relative_difference(baseline_old[data_bounds], baseline[data_bounds])
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
 
-    params = {'half_window': half_wind, 'iterations': i + 1, 'last_tol': calc_difference}
+    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
     return baseline[data_bounds], params
 
 
@@ -482,10 +488,11 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
 
         * 'half_window': int
             The half window used for the morphological calculations.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -504,15 +511,17 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     pad_kws = pad_kwargs if pad_kwargs is not None else {}
     y = pad_edges(y, window_size, **pad_kws)
     baseline = np.zeros(y.shape[0])
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         baseline_old = baseline
         y_smooth = padded_convolve(y - baseline, smooth_kernel)
         baseline = baseline + padded_convolve(grey_erosion(y_smooth, window_size), kernel)
         calc_difference = relative_difference(baseline_old[data_bounds], baseline[data_bounds])
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
 
-    params = {'half_window': half_wind, 'iterations': i + 1, 'last_tol': calc_difference}
+    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
     return baseline[data_bounds], params
 
 

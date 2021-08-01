@@ -59,7 +59,7 @@ class TestCollabPLS(AlgorithmTester):
         # will need to change checked_keys if default method is changed
         self._test_output(
             stacked_y, stacked_y,
-            checked_keys=('average_weights', 'weights', 'iterations', 'last_tol')
+            checked_keys=('average_weights', 'weights', 'tol_history')
         )
 
     def test_list_input(self):
@@ -113,7 +113,7 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         # will need to change checked_keys if default method is changed
         self._test_output(
             self.y, self.y,
-            checked_keys=('weights', 'iterations', 'last_tol', 'optimal_parameter', 'min_rmse')
+            checked_keys=('weights', 'tol_history', 'optimal_parameter', 'min_rmse')
         )
 
     def test_list_input(self):

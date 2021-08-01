@@ -70,7 +70,7 @@ class TestModPoly(AlgorithmTester):
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
         """Ensures that the output has the desired format."""
-        param_keys = ['weights', 'iterations', 'last_tol']
+        param_keys = ['weights', 'tol_history']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
@@ -86,6 +86,13 @@ class TestModPoly(AlgorithmTester):
         recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
 
         assert_allclose(baseline, recreated_poly)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 15
+        _, params = self._call_func(self.y, self.x, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter
 
 
 class TestIModPoly(AlgorithmTester):
@@ -105,7 +112,7 @@ class TestIModPoly(AlgorithmTester):
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
         """Ensures that the output has the desired format."""
-        param_keys = ['weights', 'iterations', 'last_tol']
+        param_keys = ['weights', 'tol_history']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
@@ -121,6 +128,13 @@ class TestIModPoly(AlgorithmTester):
         recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
 
         assert_allclose(baseline, recreated_poly)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 15
+        _, params = self._call_func(self.y, self.x, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter
 
 
 class TestPenalizedPoly(AlgorithmTester):
@@ -164,7 +178,7 @@ class TestPenalizedPoly(AlgorithmTester):
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
         """Ensures that the output has the desired format."""
-        param_keys = ['weights', 'iterations', 'last_tol']
+        param_keys = ['weights', 'tol_history']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
@@ -244,6 +258,13 @@ class TestPenalizedPoly(AlgorithmTester):
         recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
 
         assert_allclose(baseline, recreated_poly)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 15
+        _, params = self._call_func(self.y, self.x, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter
 
 
 @pytest.mark.parametrize(
@@ -427,7 +448,7 @@ class TestLoess(AlgorithmTester):
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
         """Ensures that the output has the desired format."""
-        param_keys = ['weights', 'iterations', 'last_tol']
+        param_keys = ['weights', 'tol_history']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
@@ -556,9 +577,6 @@ class TestLoess(AlgorithmTester):
         * statsmodels uses int(fraction * num_x) to determine the window size while
           pybaselines uses ceil(fraction * num_x), so need to specify total points
           instead of fraction.
-        * statsmodels uses the input iterations as number of robust fittings, while
-          pybaselines uses iterations as total number of fits (intial + robust fittings),
-          so add 1.
         * statsmodels divides the residuals by 6 * median-absolute-value(residuals)
           when weighting residuals, while pybaselines divides by
           m-a-v * scale / 0.6744897501960817, so set scale to 4.0469385011764905 to
@@ -756,7 +774,7 @@ class TestLoess(AlgorithmTester):
         for iterations in range(4):
             self._test_accuracy(
                 statsmodels_outputs[iterations], y, x, conserve_memory=conserve_memory,
-                total_points=total_points, max_iter=iterations + 1, tol=-1,
+                total_points=total_points, max_iter=iterations, tol=-1,
                 scale=4.0469385011764905, symmetric_weights=True,
                 assertion_kwargs={'err_msg': f'failed on iteration {iterations}'}
             )
@@ -924,9 +942,16 @@ class TestLoess(AlgorithmTester):
         }
 
         self._test_accuracy(
-            statsmodels_outputs[delta], y, x, total_points=total_points, max_iter=1,
+            statsmodels_outputs[delta], y, x, total_points=total_points, max_iter=0,
             scale=4.0469385011764905, symmetric_weights=True, delta=2 * delta
         )
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, self.x, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
 
 
 @pytest.mark.parametrize('quantile', np.linspace(0, 1, 21))
@@ -965,7 +990,7 @@ class TestQuantReg(AlgorithmTester):
     @pytest.mark.parametrize('return_coef', (True, False))
     def test_output(self, return_coef):
         """Ensures that the output has the desired format."""
-        param_keys = ['weights', 'iterations', 'last_tol']
+        param_keys = ['weights', 'tol_history']
         if return_coef:
             param_keys.append('coef')
         self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
@@ -1241,3 +1266,10 @@ class TestQuantReg(AlgorithmTester):
             statsmodels_outputs[quantile], y, x, poly_order=1, quantile=quantile,
             tol=1e-9, eps=1e-6, assertion_kwargs={'rtol': 1e-6}
         )
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 15
+        _, params = self._call_func(self.y, self.x, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter

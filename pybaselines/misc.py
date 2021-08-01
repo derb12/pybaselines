@@ -621,10 +621,11 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
 
         * 'signal': numpy.ndarray, shape (N,)
             The pure signal portion of the input `data` without noise or the baseline.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     Notes
     -----
@@ -658,7 +659,8 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     cost_old = 0
     abs_x = np.abs(x)
     big_x = abs_x > eps_0
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         # calculate line 6 of Table 3 in beads paper using banded matrices rather
         # than sparse matrices since it is much faster; Gamma + D.T * Lambda * D
 
@@ -692,6 +694,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
             + lam_2 * _beads_loss(d2_x, use_v2_loss, eps_1).sum()
         )
         cost_difference = relative_difference(cost_old, cost)
+        tol_history[i] = cost_difference
         if cost_difference < tol:
             break
         cost_old = cost
@@ -699,7 +702,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     diff = y - x
     baseline = diff - B.dot(A_factor.solve(diff))
 
-    return baseline, {'signal': x, 'iterations': i, 'last_tol': cost_difference}
+    return baseline, {'signal': x, 'tol_history': tol_history[:i + 1]}
 
 
 def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
@@ -759,10 +762,11 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
 
         * 'signal': numpy.ndarray, shape (N,)
             The pure signal portion of the input `data` without noise or the baseline.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     Notes
     -----
@@ -816,7 +820,8 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     cost_old = 0
     abs_x = np.abs(x)
     big_x = abs_x > eps_0
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         # calculate line 6 of Table 3 in beads paper using banded matrices rather
         # than sparse matrices since it is much faster; Gamma + D.T * Lambda * D
 
@@ -863,6 +868,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
             + lam_2 * _beads_loss(d2_x, use_v2_loss, eps_1).sum()
         )
         cost_difference = relative_difference(cost_old, cost)
+        tol_history[i] = cost_difference
         if cost_difference < tol:
             break
         cost_old = cost
@@ -877,7 +883,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         )
     )
 
-    return baseline, {'signal': x, 'iterations': i, 'last_tol': cost_difference}
+    return baseline, {'signal': x, 'tol_history': tol_history[:i + 1]}
 
 
 def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.0,
@@ -951,10 +957,11 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
 
         * 'signal': numpy.ndarray, shape (N,)
             The pure signal portion of the input `data` without noise or the baseline.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     Notes
     -----

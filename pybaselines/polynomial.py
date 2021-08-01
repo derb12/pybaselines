@@ -176,19 +176,15 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using numpy.polynomial.polynomial.Polynomial().
-
-    Raises
-    ------
-    ValueError
-        Raised if `max_iter` is less than 2.
 
     Notes
     -----
@@ -207,8 +203,6 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
            2007, 61(11), 1225-1232.
 
     """
-    if max_iter < 2:
-        raise ValueError('max_iter must be >= 2')
     y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
@@ -224,16 +218,18 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
         sqrt_w = np.sqrt(weight_array)
         vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
-    for i in range(max_iter - 1):
+    tol_history = np.empty(max_iter)
+    for i in range(max_iter):
         baseline_old = baseline
         y = np.minimum(y0 if use_original else y, baseline)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
         baseline = np.dot(vander, coef)
         calc_difference = relative_difference(baseline_old, baseline)
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
 
-    params = {'weights': weight_array, 'iterations': i + 2, 'last_tol': calc_difference}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
@@ -285,19 +281,15 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using numpy.polynomial.polynomial.Polynomial().
-
-    Raises
-    ------
-    ValueError
-        Raised if `max_iter` is less than 2.
 
     Notes
     -----
@@ -316,8 +308,6 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
            2007, 61(11), 1225-1232.
 
     """
-    if max_iter < 2:
-        raise ValueError('max_iter must be >= 2')
     y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True, return_pinv=True
     )
@@ -333,18 +323,20 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         sqrt_w = np.sqrt(weight_array)
         vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
 
-    for i in range(max_iter - 1):
+    tol_history = np.empty(max_iter)
+    for i in range(max_iter):
         y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
         coef = np.dot(pseudo_inverse, sqrt_w * y)
         baseline = np.dot(vander, coef)
         new_deviation = np.std(y - baseline)
         # use new_deviation as dividing term in relative difference
         calc_difference = relative_difference(new_deviation, deviation)
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
         deviation = new_deviation
 
-    params = {'weights': weight_array, 'iterations': i + 2, 'last_tol': calc_difference}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
@@ -613,10 +605,11 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
@@ -626,8 +619,6 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
     ------
     ValueError
         Raised if `alpha_factor` is not between 0 and 1.
-    ValueError
-        Raised if `max_iter` is less than 2.
 
     Notes
     -----
@@ -642,8 +633,6 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
            Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
     """
-    if max_iter < 2:
-        raise ValueError('max_iter must be >= 2')
     if alpha_factor < 0 or alpha_factor > 1:
         raise ValueError('alpha_factor must be between 0 and 1')
     symmetric_loss, method = _identify_loss_method(cost_function)
@@ -666,15 +655,17 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
 
     coef = np.dot(pseudo_inverse, y)
     baseline = np.dot(vander, coef)
-    for i in range(max_iter - 1):
+    tol_history = np.empty(max_iter)
+    for i in range(max_iter):
         baseline_old = baseline
         coef = np.dot(pseudo_inverse, y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
         baseline = np.dot(vander, coef)
         calc_difference = relative_difference(baseline_old, baseline)
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
 
-    params = {'weights': weight_array, 'iterations': i + 2, 'last_tol': calc_difference}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
@@ -1209,10 +1200,11 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data. Does NOT contain the
             individual distance-weighted kernels for each x-value.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
         * 'coef': numpy.ndarray, shape (N, poly_order + 1)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a polynomial
@@ -1223,8 +1215,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     ------
     ValueError
         Raised if the number of points per window for the fitting is less than
-        `poly_order` + 1 or greater than the total number of points. Also raised
-        if `max_iter` is less than 1.
+        `poly_order` + 1 or greater than the total number of points.
 
     Notes
     -----
@@ -1257,8 +1248,6 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     .. [15] https://www.netlib.org/go (lowess.f is the file).
 
     """
-    if max_iter < 1:
-        raise ValueError('max_iter must be >= 1')
     y, x, weight_array, original_domain = _setup_polynomial(data, x_data, weights, poly_order)
     num_x = x.shape[0]
     if total_points is None:
@@ -1294,7 +1283,9 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
 
     baseline = y
     coefs = np.zeros((num_x, poly_order + 1))
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
+    for i in range(max_iter + 1):
         baseline_old = baseline
         if conserve_memory:
             baseline = _loess_low_memory(
@@ -1312,6 +1303,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         _fill_skips(x, baseline, skips)
 
         calc_difference = relative_difference(baseline_old, baseline)
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
 
@@ -1330,7 +1322,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
                 residual / _median_absolute_value(residual), scale, symmetric_weights
             )
 
-    params = {'weights': weight_array, 'iterations': i + 1, 'last_tol': calc_difference}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         # TODO maybe leave out the coefficients from the rest of the calculations
         # since they are otherwise unused, and just fit x vs baseline here; would
@@ -1421,10 +1413,11 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-4, max_iter
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
-        * 'iterations': int
-            The number of iterations completed.
-        * 'last_tol': float
-            The calculated tolerance value of the last iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
@@ -1468,7 +1461,8 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-4, max_iter
     # estimate first iteration using least squares
     coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
     baseline = np.dot(vander, coef)
-    for i in range(max_iter - 1):
+    tol_history = np.empty(max_iter)
+    for i in range(max_iter):
         baseline_old = baseline
         weight_array = np.sqrt(_quantile_loss(y - baseline, quantile, eps_sq))
         coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
@@ -1476,10 +1470,11 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-4, max_iter
         # relative_difference(baseline_old, baseline, 1) gives nearly same result and
         # the l2 norm is faster to calculate, so use that instead of l1 norm
         calc_difference = relative_difference(baseline_old, baseline)
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
 
-    params = {'weights': weight_array, 'iterations': i + 2, 'last_tol': calc_difference}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
