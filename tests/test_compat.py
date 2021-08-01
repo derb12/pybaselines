@@ -11,22 +11,15 @@ import pytest
 
 from pybaselines import _compat
 
-from .conftest import has_pentapy, no_pentapy
+from .conftest import _HAS_PENTAPY
 
 
-@has_pentapy
-def test_pentapy_installed():
-    """Ensure proper setup when pentapy is installed."""
-    assert _compat._HAS_PENTAPY
-
-
-@no_pentapy
-def test_pentapy_not_installed():
-    """Ensure proper setup when pentapy is not installed."""
-    assert not _compat._HAS_PENTAPY
-
-    with pytest.raises(NotImplementedError):
-        _compat._pentapy_solve()
+def test_pentapy_installation():
+    """Ensure proper setup with pentapy."""
+    assert _compat._HAS_PENTAPY == _HAS_PENTAPY
+    if not _HAS_PENTAPY:
+        with pytest.raises(NotImplementedError):
+            _compat._pentapy_solve()
 
 
 def test_prange():

@@ -14,11 +14,11 @@ import pytest
 try:
     import pentapy  # noqa
 except ImportError:
-    no_pentapy = pytest.mark.skipif(False, reason='pentapy is not installed')
-    has_pentapy = pytest.mark.skipif(True, reason='pentapy is not installed')
+    _HAS_PENTAPY = False
 else:
-    no_pentapy = pytest.mark.skipif(True, reason='pentapy is installed')
-    has_pentapy = pytest.mark.skipif(False, reason='pentapy is installed')
+    _HAS_PENTAPY = True
+
+has_pentapy = pytest.mark.skipif(not _HAS_PENTAPY, reason='pentapy is not installed')
 
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):

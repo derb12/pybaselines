@@ -194,7 +194,7 @@ class TestAirPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline = self._call_func(y, tol=-1, max_iter=2000)[0]
 
         assert np.isfinite(baseline.dot(baseline))
 
