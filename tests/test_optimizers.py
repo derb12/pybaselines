@@ -126,7 +126,7 @@ class TestOptimizeExtendedRange(AlgorithmTester):
     @pytest.mark.parametrize(
         'method',
         ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
-         'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess')
+         'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg')
     )
     def test_all_methods(self, method):
         """Tests all methods that should work with optimize_extended_range."""

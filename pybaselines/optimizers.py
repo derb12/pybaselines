@@ -50,7 +50,7 @@ def _get_function(method, modules):
 
     if func is None:
         raise AttributeError('unknown method')
-
+    # TODO should probably return the selected module as well
     return func
 
 
@@ -264,10 +264,10 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         known_background = np.hstack((known_background, added_left))
         lower_bound += added_window
 
-    if method in ('iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly', 'loess'):
+    if method in ('iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly', 'loess', 'quant_reg'):
         method_kwargs['x_data'] = fit_x_data
 
-    if 'poly' in method or method == 'loess':
+    if 'poly' in method or method in ('loess', 'quant_reg'):
         if any(not isinstance(val, int) for val in (min_value, max_value, step)):
             raise TypeError((
                 'min_value, max_value, and step must all be integers when'
