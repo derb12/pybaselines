@@ -119,6 +119,8 @@ To also install the `optional dependencies`_ when installing pybaselines, run:
     pip install pybaselines[full]
 
 
+.. _optional dependencies: https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies
+
 Development Version
 ~~~~~~~~~~~~~~~~~~~
 
@@ -156,10 +158,7 @@ All of the required libraries should be automatically installed when
 installing pybaselines using either of the two installation methods above.
 
 The optional dependencies for pybaselines are listed in the
-`documentation <optional dependencies>`_.
-
-
-.. _optional dependencies: https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies
+`documentation <https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies>`_.
 
 
 Quick Start
