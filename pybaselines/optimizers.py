@@ -50,7 +50,7 @@ def _get_function(method, modules):
 
     if func is None:
         raise AttributeError('unknown method')
-
+    # TODO should probably return the selected module as well
     return func
 
 
@@ -78,8 +78,17 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
 
     Returns
     -------
-    np.ndarray, shape (M, N)
+    baselines : np.ndarray, shape (M, N)
         An array of all of the baselines.
+    params : dict
+        A dictionary with the following items:
+
+        * 'average_weights': numpy.ndarray, shape (N,)
+            The weight array used to fit all of the baselines.
+
+        Additional items depend on the output of the selected method. Every
+        other key will have a list of values, with each item corresponding to a
+        fit.
 
     References
     ----------
@@ -101,40 +110,17 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
         method_kwargs['weights'] = np.mean(weights.T, 1)
 
     method_kwargs['tol'] = np.inf
-    baselines = []
-    for entry in dataset:
-        baselines.append(fit_func(entry, **method_kwargs)[0])
+    baselines = np.empty(dataset.shape)
+    params = {'average_weights': method_kwargs['weights']}
+    for i, entry in enumerate(dataset):
+        baselines[i], param = fit_func(entry, **method_kwargs)
+        for key, value in param.items():
+            if key in params:
+                params[key].append(value)
+            else:
+                params[key] = [value]
 
-    return np.vstack(baselines), {'weights': method_kwargs['weights']}
-
-
-def _iter_solve(func, fit_data, known_background, lower_bound, upper_bound, variable,
-                min_value, max_value, step=1, allowed_misses=1, **func_kwargs):
-    """Iterates through possible values to find the one with lowest root-mean-square-error."""
-    min_rmse = np.inf
-    misses = 0
-    for var in np.arange(min_value, max_value, step):
-        if variable == 'lam':
-            func_kwargs[variable] = 10**var
-        else:
-            func_kwargs[variable] = var
-        baseline, other_params = func(fit_data, **func_kwargs)
-        #TODO change the known baseline so that np.roll does not have to be
-        # calculated each time, since it requires additional time
-        rmse = np.sqrt(np.mean(
-            (known_background - np.roll(baseline, upper_bound)[:upper_bound + lower_bound])**2
-        ))
-        if rmse < min_rmse:
-            best_baseline = baseline[lower_bound:baseline.shape[0] - upper_bound]
-            min_var = var
-            misses = 0
-            min_rmse = rmse
-        else:
-            misses += 1
-            if misses > allowed_misses:
-                break
-
-    return best_baseline, min_var, other_params
+    return baselines, params
 
 
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
@@ -156,7 +142,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         array from -1 to 1 with N points.
     method : str, optional
         A string indicating the Whittaker-smoothing-based or polynomial method
-        to use for fitting the baseline. Default is 'aspls'.
+        to use for fitting the baseline. Default is 'asls'.
     side : {'both', 'left', 'right'}, optional
         The side of the measured data to extend. Default is 'both'.
     width_scale : float, optional
@@ -278,10 +264,10 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         known_background = np.hstack((known_background, added_left))
         lower_bound += added_window
 
-    if method in ('iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly', 'loess'):
+    if method in ('iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly', 'loess', 'quant_reg'):
         method_kwargs['x_data'] = fit_x_data
 
-    if 'poly' in method or method == 'loess':
+    if 'poly' in method or method in ('loess', 'quant_reg'):
         if any(not isinstance(val, int) for val in (min_value, max_value, step)):
             raise TypeError((
                 'min_value, max_value, and step must all be integers when'
@@ -299,14 +285,14 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
     min_rmse = np.inf
     best_val = None
-    #TODO maybe switch to linspace since arange is inconsistent when using floats
+    # TODO maybe switch to linspace since arange is inconsistent when using floats
     for var in np.arange(min_value, max_value + step, step):
         if param_name == 'lam':
             method_kwargs[param_name] = 10**var
         else:
             method_kwargs[param_name] = var
-        fit_baseline, params = fit_func(fit_data, **method_kwargs)
-        #TODO change the known baseline so that np.roll does not have to be
+        fit_baseline, fit_params = fit_func(fit_data, **method_kwargs)
+        # TODO change the known baseline so that np.roll does not have to be
         # calculated each time, since it requires additional time
         rmse = np.sqrt(np.mean(
             (known_background - np.roll(fit_baseline, upper_bound)[:upper_bound + lower_bound])**2
@@ -314,6 +300,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
         if rmse < min_rmse:
             baseline = fit_baseline[lower_bound:fit_baseline.shape[0] - upper_bound]
+            params = fit_params
             best_val = var
             min_rmse = rmse
 
@@ -460,13 +447,14 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     constrained_weights[:constrained_range] = constrained_weight
     constrained_weights[-constrained_range:] = constrained_weight
 
+    # TODO should make parameters available; a list with an item for each fit like collab_pls
     baselines = np.empty((4, y.shape[0]))
     baselines[0] = fit_func(y, x, poly_orders[0], weights=weight_array, **method_kwargs)[0]
     baselines[1] = fit_func(y, x, poly_orders[0], weights=constrained_weights, **method_kwargs)[0]
     baselines[2] = fit_func(y, x, poly_orders[1], weights=weight_array, **method_kwargs)[0]
     baselines[3] = fit_func(y, x, poly_orders[1], weights=constrained_weights, **method_kwargs)[0]
 
-    #TODO should the coefficients also be made available? Would need to get them from
+    # TODO should the coefficients also be made available? Would need to get them from
     # each of the fits
     params = {
         'weights': weight_array, 'constrained_weights': constrained_weights,

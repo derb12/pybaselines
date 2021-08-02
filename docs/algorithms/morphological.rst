@@ -82,7 +82,8 @@ method.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+        np.random.seed(1)  # set random seed
+        noise = np.random.normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -223,3 +224,46 @@ resembles rolling a ball across the data.
         baseline = morphological.rolling_ball(y, half_window, smooth_half_window=20)
         ax.plot(baseline[0], 'g--')
 
+
+mwmv (Moving Window Minimum Value)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.mwmv` performs a morphological erosion on the data and
+then smooths the result with a moving average.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            half_window = 22
+        else:
+            half_window = 12
+        baseline = morphological.mwmv(y, half_window, smooth_half_window=int(4 * half_window))
+        ax.plot(baseline[0], 'g--')
+
+
+tophat (Top-hat Transformation)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.tophat` performs a morphological opening on the data.
+
+.. note::
+   The baseline from the tophat method is not smooth. Smoothing is left to the
+   user to perform, if desired.
+
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            half_window = 50
+        else:
+            half_window = 20
+        baseline = morphological.tophat(y, half_window)
+        ax.plot(baseline[0], 'g--')

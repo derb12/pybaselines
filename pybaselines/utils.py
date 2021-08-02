@@ -8,16 +8,7 @@ Created on March 5, 2021
 
 import numpy as np
 
-
-try:
-    from pentapy import solve as _pentapy_solve
-    _HAS_PENTAPY = True
-except ImportError:
-    _HAS_PENTAPY = False
-
-    def _pentapy_solve(*args, **kwargs):
-        """Dummy function in case pentapy is not installed."""
-        raise NotImplementedError('must have pentapy installed to use its solver')
+from ._compat import jit
 
 
 # Note: the triple quotes are for including the attributes within the documentation
@@ -32,7 +23,20 @@ PERMC_SPEC = None
 """A deprecated constant used in previous versions. Will be removed in v0.6.0."""
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
+# TODO this is mostly used to prevent dividing by 0; is there a better way to do that?
+# especially since it is usually max(value, _MIN_FLOAT) and in some cases value could be
+# < _MIN_FLOAT but still > 0 and useful; think about it
 _MIN_FLOAT = np.finfo(float).eps
+
+
+class ParameterWarning(UserWarning):
+    """
+    Warning issued when a parameter value is outside of the recommended range.
+
+    For cases where a parameter value is valid and will not cause errors, but is
+    outside of the recommended range of values and as a result may cause issues
+    such as numerical instability that would otherwise be hard to diagnose.
+    """
 
 
 def relative_difference(old, new, norm_order=None):
@@ -241,7 +245,7 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
         The smoothed input array.
 
     """
-    #TODO need to revisit this and ensure everything is correct
+    # TODO need to revisit this and ensure everything is correct
     padding = min(data.shape[0], kernel.shape[0]) // 2
     convolution = np.convolve(
         pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'
@@ -275,11 +279,85 @@ def _safe_std(array, **kwargs):
     array, which should not be protected.
 
     """
-    if array.size < 2:  # std would be 0 for an array with size of 1
+    # std would be 0 for an array with size of 1 and inf if size <= ddof; only
+    # internally use ddof=1, so the second condition is already covered
+    if array.size < 2:
         std = _MIN_FLOAT
     else:
-        std = np.std(array, **kwargs)
+        std = array.std(**kwargs)
         if std == 0:
             std = _MIN_FLOAT
 
     return std
+
+
+@jit(nopython=True, cache=True)
+def _interp_inplace(x, y, y_start=None, y_end=None):
+    """
+    Interpolates values inplace between the two ends of an array.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The x-values for interpolation. All values are assumed to be valid.
+    y : numpy.ndarray
+        The y-values. The two endpoints, y[0] and y[-1] are assumed to be valid,
+        and all values inbetween (ie. y[1:-1]) will be replaced by interpolation.
+    y_start : float, optional
+        The initial y-value for interpolation. Default is None, which will use the
+        first item in `y`.
+    y_end : float, optional
+        The end y-value for interpolation. Default is None, which will use the
+        last item in `y`.
+
+    Returns
+    -------
+    y : numpy.ndarray
+        The input `y` array, with the interpolation performed inplace.
+
+    """
+    if y_start is None:
+        y_start = y[0]
+    if y_end is None:
+        y_end = y[-1]
+    y[1:-1] = y_start + (x[1:-1] - x[0]) * ((y_end - y_start) / (x[-1] - x[0]))
+
+    return y
+
+
+def _convert_coef(coef, original_domain):
+    """
+    Scales the polynomial coefficients back to the original domain of the data.
+
+    For fitting, the x-values are scaled from their original domain, [min(x),
+    max(x)], to [-1, 1] in order to improve the numerical stability of fitting.
+    This function rescales the retrieved polynomial coefficients for the fit
+    x-values back to the original domain.
+
+    Parameters
+    ----------
+    coef : array-like
+        The array of coefficients for the polynomial. Should increase in
+        order, for example (c0, c1, c2) from `y = c0 + c1 * x + c2 * x**2`.
+    original_domain : array-like, shape (2,)
+        The domain, [min(x), max(x)], of the original data used for fitting.
+
+    Returns
+    -------
+    output_coefs : numpy.ndarray
+        The array of coefficients scaled for the original domain.
+
+    """
+    zeros_mask = np.equal(coef, 0)
+    if zeros_mask.any():
+        # coefficients with one or several zeros sometimes get compressed
+        # to leave out some of the coefficients, so replace zero with another value
+        # and then fill in later
+        coef = coef.copy()
+        coef[zeros_mask] = _MIN_FLOAT  # could probably fill it with any non-zero value
+
+    fit_polynomial = np.polynomial.Polynomial(coef, domain=original_domain)
+    output_coefs = fit_polynomial.convert().coef
+    output_coefs[zeros_mask] = 0
+
+    return output_coefs

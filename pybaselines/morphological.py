@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Different techniques for fitting baselines to experimental data.
+"""Morphological techniques for fitting baselines to experimental data.
 
 Created on March 5, 2021
 @author: Donald Erb
@@ -12,7 +12,8 @@ from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_openin
 
 from . import utils
 from ._algorithm_setup import _optimize_window, _setup_morphology, _setup_whittaker
-from .utils import _HAS_PENTAPY, _pentapy_solve, pad_edges, padded_convolve, relative_difference
+from ._compat import _HAS_PENTAPY, _pentapy_solve
+from .utils import pad_edges, padded_convolve, relative_difference
 
 
 # make _optimize_window available to users and document it so that
@@ -314,11 +315,16 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
     -------
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
-    dict
+    params : dict
         A dictionary with the following items:
 
         * 'half_window': int
             The half window used for the morphological calculations.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -327,14 +333,18 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
 
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    baseline = np.minimum(y, _avg_opening(y, half_wind))
-    for _ in range(max_iter - 1):
+    baseline = y
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         baseline_new = np.minimum(y, _avg_opening(baseline, half_wind))
-        if relative_difference(baseline, baseline_new) < tol:
+        calc_difference = relative_difference(baseline, baseline_new)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
             break
         baseline = baseline_new
 
-    return baseline, {'half_window': half_wind}
+    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
+    return baseline, params
 
 
 def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **window_kwargs):
@@ -379,11 +389,16 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
     -------
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
-    dict
+    params : dict
         A dictionary with the following items:
 
         * 'half_window': int
             The half window used for the morphological calculations.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -400,19 +415,25 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, **w
     pad_kws = pad_kwargs if pad_kwargs is not None else {}
     y = pad_edges(y, window_size, **pad_kws)
     baseline = y
-    for _ in range(max_iter):
-        baseline_new = padded_convolve(
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        baseline_old = baseline
+        baseline = padded_convolve(
             np.minimum(
                 y,
-                (grey_closing(baseline, [window_size]) + grey_opening(baseline, [window_size])) / 2
+                0.5 * (
+                    grey_closing(baseline, [window_size]) + grey_opening(baseline, [window_size])
+                )
             ),
             kernel
         )
-        if relative_difference(baseline[data_bounds], baseline_new[data_bounds]) < tol:
+        calc_difference = relative_difference(baseline_old[data_bounds], baseline[data_bounds])
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
             break
-        baseline = baseline_new
 
-    return baseline[data_bounds], {'half_window': half_wind}
+    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
+    return baseline[data_bounds], params
 
 
 def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=None,
@@ -462,11 +483,16 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     -------
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
-    dict
+    params : dict
         A dictionary with the following items:
 
         * 'half_window': int
             The half window used for the morphological calculations.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -485,14 +511,18 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     pad_kws = pad_kwargs if pad_kwargs is not None else {}
     y = pad_edges(y, window_size, **pad_kws)
     baseline = np.zeros(y.shape[0])
-    for _ in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        baseline_old = baseline
         y_smooth = padded_convolve(y - baseline, smooth_kernel)
-        baseline_new = baseline + padded_convolve(grey_erosion(y_smooth, window_size), kernel)
-        if relative_difference(baseline[data_bounds], baseline_new[data_bounds]) < tol:
+        baseline = baseline + padded_convolve(grey_erosion(y_smooth, window_size), kernel)
+        calc_difference = relative_difference(baseline_old[data_bounds], baseline[data_bounds])
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
             break
-        baseline = baseline_new
 
-    return baseline[data_bounds], {'half_window': half_wind}
+    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
+    return baseline[data_bounds], params
 
 
 def _changing_rolling_ball(y, half_window):
@@ -670,5 +700,140 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
             )[smooth_half_window:-smooth_half_window]
     else:
         baseline = _changing_smooth_window(rough_baseline, smooth_half_window)
+
+    return baseline, {'half_window': half_wind}
+
+
+def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None, **window_kwargs):
+    """
+    Moving window minimum value (MWMV) baseline.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window used for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    smooth_half_window : int, optional
+        The half-window to use for smoothing the data after performing the
+        morphological operation. Default is None, which will use the same
+        value as used for the morphological operation.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for
+        padding the edges of the data to prevent edge effects from the moving average.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'half_window': int
+            The half window used for the morphological calculations.
+
+    Notes
+    -----
+    Performs poorly when baseline is rapidly changing.
+
+    References
+    ----------
+    Yaroshchyk, P., et al. Automatic correction of continuum background in Laser-induced
+    Breakdown Spectroscopy using a model-free algorithm. Spectrochimica Acta Part B, 2014,
+    99, 138-149.
+
+    """
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    if smooth_half_window is None:
+        smooth_half_window = half_wind
+
+    rough_baseline = grey_erosion(y, 2 * half_wind + 1)
+    if smooth_half_window < 1:
+        baseline = rough_baseline
+    else:
+        pad_kws = pad_kwargs if pad_kwargs is not None else {}
+        baseline = uniform_filter1d(
+            pad_edges(rough_baseline, smooth_half_window, **pad_kws),
+            2 * smooth_half_window + 1
+        )[smooth_half_window:-smooth_half_window]
+
+    return baseline, {'half_window': half_wind}
+
+
+def tophat(data, half_window=None, **window_kwargs):
+    """
+    Estimates the baseline using a top-hat transformation (morphological opening).
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window used for the morphological opening. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'half_window': int
+            The half window used for the morphological calculations.
+
+    Notes
+    -----
+    The actual top-hat transformation is defined as `data - opening(data)`, where
+    `opening` is the morphological opening operation. This function, however, returns
+    `opening(data)`, since that is technically the baseline defined by the operation.
+
+    References
+    ----------
+    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
+    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
+
+    """
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    baseline = grey_opening(y, [2 * half_wind + 1])
 
     return baseline, {'half_window': half_wind}

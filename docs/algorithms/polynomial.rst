@@ -30,6 +30,8 @@ by 1) only fitting the data in regions where there is only baseline (termed
 selective masking), 2) modifying the y-values being fit each iteration, termed
 thresholding, or 3) penalyzing outliers.
 
+.. _selective-masking-explanation:
+
 Selective Masking
 ~~~~~~~~~~~~~~~~~
 
@@ -57,7 +59,8 @@ a polynomial that spans the entirety of the original dataset.
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     # bitwise "or" (|) and "and" (&) operators for indexing numpy array
@@ -105,7 +108,8 @@ a polynomial that spans the entirety of the original dataset.
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     # bitwise "or" (|) and "and" (&) operators for indexing numpy array
@@ -155,7 +159,8 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     # bitwise "or" (|) and "and" (&) operators for indexing numpy array
@@ -165,7 +170,7 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
     )
     weights = np.zeros(y.shape[0])
     weights[non_peaks] = 1
-
+    # directly create baseline by inputting weights
     baseline = poly(y, x, poly_order=3, weights=weights)[0]
 
     fig, ax = plt.subplots(tight_layout={'pad': 0.2})
@@ -200,7 +205,8 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     # bitwise "or" (|) and "and" (&) operators for indexing numpy array
@@ -269,7 +275,8 @@ The figure below illustrates the iterative thresholding.
         + gaussian(x, 9, 880, 8)
     )
     real_baseline = 5 + 15 * np.exp(-x / 400)
-    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     fig, axes = plt.subplots(
@@ -366,7 +373,8 @@ of the data since masking is time-consuming.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        noise = np.random.default_rng(0).normal(0, 0.2, x.size)
+        np.random.seed(1)  # set random seed
+        noise = np.random.normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -581,7 +589,7 @@ is reduced by iterative reweighting.
 
 .. note::
    Although not its intended use, the loess function can be used for smoothing like
-   "traditional loess", simply by settting ``symmetric_weights`` to True and ``scale`` to 4.05.
+   "traditional loess", simply by settting ``symmetric_weights`` to True and ``scale`` to ~4.05.
 
 
 .. plot::
@@ -595,12 +603,41 @@ is reduced by iterative reweighting.
         else:
             symmetric_weights = False
         if i == 1:
-            fraction = 0.4
+            fraction = 0.55
+            scale = 1.5  # reduce scale to lower the effect of grouped peaks
         else:
-            fraction = 0.2
+            fraction = 0.35
+            scale = 3
+        if i in (0, 4):
+            poly_order = 1
+        else:
+            poly_order = 2
 
         baseline = polynomial.loess(
-            y, fraction=fraction, symmetric_weights=symmetric_weights
+            y, poly_order=poly_order, scale=scale, fraction=fraction,
+            symmetric_weights=symmetric_weights
+        )
+        ax.plot(baseline[0], 'g--')
+
+
+quant_reg (Quantile Regression)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.quant_reg` fits a polynomial to the baseline using quantile regression.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i < 4:
+            poly_order = i + 1
+        else:
+            poly_order = 1
+        quantile = {0: 0.3, 1: 0.1, 2: 0.2, 3: 0.25, 4: 0.5}[i]
+        baseline = polynomial.quant_reg(
+            y, poly_order=poly_order, quantile=quantile
         )
         ax.plot(baseline[0], 'g--')
 

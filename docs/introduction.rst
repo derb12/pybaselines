@@ -6,7 +6,7 @@ to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. T
 the project is to provide a semi-unified API to allow quickly testing and comparing
 multiple baseline correction algorithms to find the best one for a set of data.
 
-pybaselines has 25+ baseline correction algorithms. The algorithms are grouped
+pybaselines has 30+ baseline correction algorithms. The algorithms are grouped
 accordingly (note: when a method is labelled as 'improved', that is the method's
 name, not editorialization):
 
@@ -17,6 +17,7 @@ a) Polynomial methods (:mod:`pybaselines.polynomial`)
     3) imodpoly (Improved Modified Polynomial)
     4) penalized_poly (Penalized Polynomial)
     5) loess (Locally Estimated Scatterplot Smoothing)
+    6) quant_reg (Quantile Regression)
 
 b) Whittaker-smoothing-based methods (:mod:`pybaselines.whittaker`)
 
@@ -37,6 +38,8 @@ c) Morphological methods (:mod:`pybaselines.morphological`)
     4) mormol (Morphological and Mollified Baseline)
     5) amormol (Averaging Morphological and Mollified Baseline)
     6) rolling_ball (Rolling Ball Baseline)
+    7) mwmv (Moving Window Minimum Value)
+    8) tophat (Top-hat Transformation)
 
 d) Window-based methods (:mod:`pybaselines.window`)
 
@@ -44,12 +47,19 @@ d) Window-based methods (:mod:`pybaselines.window`)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
     3) swima (Small-Window Moving Average)
 
-e) Optimizers (:mod:`pybaselines.optimizers`)
+e) Baseline/Peak Classification methods (:mod:`pybaselines.classification`)
+
+    1) dietrich (Dietrich's Classification Method)
+    2) golotvin (Golotvin's Classification Method)
+    3) std_distribution (Standard Deviation Distribution)
+
+f) Optimizers (:mod:`pybaselines.optimizers`)
 
     1) collab_pls (Collaborative Penalized Least Squares)
     2) optimize_extended_range
     3) adaptive_minmax (Adaptive MinMax)
 
-f) Miscellaneous methods (:mod:`pybaselines.misc`)
+g) Miscellaneous methods (:mod:`pybaselines.misc`)
 
     1) interp_pts (Interpolation between points)
+    2) beads (Baseline Estimation And Denoising with Sparsity)

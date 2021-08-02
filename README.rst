@@ -20,7 +20,7 @@ pybaselines
 
 
 pybaselines is a library of baseline correction algorithms to help estimate
-the baseline of experimental data.
+the baselines of experimental data.
 
 * For Python 3.6+
 * Open Source: BSD 3-Clause License
@@ -40,7 +40,7 @@ to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. T
 the project is to provide a semi-unified API to allow quickly testing and comparing
 multiple baseline correction algorithms to find the best one for a set of data.
 
-pybaselines has 25+ baseline correction algorithms. The algorithms are grouped
+pybaselines has 30+ baseline correction algorithms. The algorithms are grouped
 accordingly (note: when a method is labelled as 'improved', that is the method's
 name, not editorialization):
 
@@ -51,6 +51,7 @@ a) Polynomial methods (pybaselines.polynomial)
     3) imodpoly (Improved Modified Polynomial)
     4) penalized_poly (Penalized Polynomial)
     5) loess (Locally Estimated Scatterplot Smoothing)
+    6) quant_reg (Quantile Regression)
 
 b) Whittaker-smoothing-based methods (pybaselines.whittaker)
 
@@ -71,6 +72,8 @@ c) Morphological methods (pybaselines.morphological)
     4) mormol (Morphological and Mollified Baseline)
     5) amormol (Averaging Morphological and Mollified Baseline)
     6) rolling_ball (Rolling Ball Baseline)
+    7) mwmv (Moving Window Minimum Value)
+    8) tophat (Top-hat Transformation)
 
 d) Window-based methods (pybaselines.window)
 
@@ -78,58 +81,45 @@ d) Window-based methods (pybaselines.window)
     2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
     3) swima (Small-Window Moving Average)
 
-e) Optimizers (pybaselines.optimizers)
+e) Baseline/Peak Classification methods (pybaselines.classification)
+
+    1) dietrich (Dietrich's Classification Method)
+    2) golotvin (Golotvin's Classification Method)
+    3) std_distribution (Standard Deviation Distribution)
+
+f) Optimizers (pybaselines.optimizers)
 
     1) collab_pls (Collaborative Penalized Least Squares)
     2) optimize_extended_range
     3) adaptive_minmax (Adaptive MinMax)
 
-f) Miscellaneous methods (pybaselines.misc)
+g) Miscellaneous methods (pybaselines.misc)
 
     1) interp_pts (Interpolation between points)
+    2) beads (Baseline Estimation And Denoising with Sparsity)
 
 
 Installation
 ------------
 
-Dependencies
-~~~~~~~~~~~~
-
-pybaselines requires `Python <https://python.org>`_ version 3.6 or later
-and the following libraries:
-
-* `NumPy <https://numpy.org>`_ (>= 1.14)
-* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.11)
-
-
-All of the required libraries should be automatically installed when
-installing pybaselines using either of the two installation methods below.
-
-Additionally, pybaselines has the following optional dependencies:
-
-* `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
-  provides a faster solver for Whittaker-smoothing-based methods
-
-
 Stable Release
 ~~~~~~~~~~~~~~
 
 pybaselines is easily installed from `pypi <https://pypi.org/project/pybaselines>`_
-using `pip <https://pip.pypa.io>`_, by running the following command in your terminal:
+using `pip <https://pip.pypa.io>`_, by running the following command in the terminal:
 
 .. code-block:: console
 
-    pip install --upgrade pybaselines
+    pip install pybaselines
 
-This is the preferred method to install pybaselines, as it will always install the
-most recent stable release.
-
-To also install the optional dependencies when installing pybaselines, do:
+To also install the `optional dependencies`_ when installing pybaselines, run:
 
 .. code-block:: console
 
-    pip install --upgrade pybaselines[full]
+    pip install pybaselines[full]
 
+
+.. _optional dependencies: https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies
 
 Development Version
 ~~~~~~~~~~~~~~~~~~~
@@ -152,6 +142,23 @@ Once the repository is downloaded, it can be installed with:
 
 
 .. _Github repo: https://github.com/derb12/pybaselines
+
+
+Dependencies
+~~~~~~~~~~~~
+
+pybaselines requires `Python <https://python.org>`_ version 3.6 or later
+and the following libraries:
+
+* `NumPy <https://numpy.org>`_ (>= 1.14)
+* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.11)
+
+
+All of the required libraries should be automatically installed when
+installing pybaselines using either of the two installation methods above.
+
+The optional dependencies for pybaselines are listed in the
+`documentation <https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies>`_.
 
 
 Quick Start
@@ -191,7 +198,8 @@ A simple example is shown below.
     )
     # exponentially decaying baseline
     true_baseline = 2 + 10 * np.exp(-x / 400)
-    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+    np.random.seed(1)  # set random seed
+    noise = np.random.normal(0, 0.2, x.size)
 
     y = signal + true_baseline + noise
 

@@ -12,7 +12,7 @@ import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.sparse import diags, identity
 
-from .utils import pad_edges, relative_difference
+from .utils import ParameterWarning, pad_edges, relative_difference
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
@@ -283,17 +283,18 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
             'the differential order must be > 0 for Whittaker-smoothing-based methods'
         )
     elif diff_order > 3:
-        warnings.warn((
-            'differential orders greater than 3 can have numerical issues;'
-            ' consider using a differential order of 2 or 1 instead'
-        ))
+        warnings.warn(
+            ('differential orders greater than 3 can have numerical issues;'
+             ' consider using a differential order of 2 or 1 instead'),
+            ParameterWarning
+        )
     num_y = y.shape[0]
     # use hard-coded values for diff_order of 1 and 2 since it is much faster
     if diff_order == 1:
         diagonal_data = _diff_1_diags(num_y, upper_only)
     elif diff_order == 2:
         diagonal_data = _diff_2_diags(num_y, upper_only)
-    else:  #TODO figure out the general formula to avoid using the sparse matrices
+    else:  # TODO figure out the general formula to avoid using the sparse matrices
         # csc format is fastest for the D.T * D operation
         diff_matrix = difference_matrix(num_y, diff_order, 'csc')
         diff_matrix = diff_matrix.T * diff_matrix
@@ -496,7 +497,7 @@ def _optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
             hits = 0
         opening = new_opening
 
-    return half_window
+    return max(half_window, 1)  # ensure half window is at least 1
 
 
 def _setup_morphology(data, half_window=None, **window_kwargs):
@@ -578,3 +579,50 @@ def _setup_window(data, half_window, **pad_kwargs):
 
     """
     return pad_edges(data, half_window, **pad_kwargs)
+
+
+def _setup_classification(data, x_data=None, weights=None):
+    """
+    Sets the starting parameters for doing classification algorithms.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
+
+    Returns
+    -------
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, converted to a numpy array.
+    x : numpy.ndarray, shape (N,)
+        The x-values for fitting the polynomial, converted to fit within
+        the domain [-1., 1.].
+    weight_array : numpy.ndarray, shape (N,)
+        The weight array for the data, with boolean dtype.
+    original_domain : numpy.ndarray, shape (2,)
+        The minimum and maximum values of the original x_data values. Can
+        be used to convert the coefficents found during least squares
+        minimization using the normalized x into usable polynomial coefficients
+        for the original x_data.
+
+    """
+    y, x = _yx_arrays(data, x_data)
+    # TODO should remove the x-scaling here since most methods don't need it; can
+    # make a separate function for it, which _setup_polynomial could also use
+    if x_data is None:
+        original_domain = np.array([-1., 1.])
+    else:
+        original_domain = np.polynomial.polyutils.getdomain(x)
+        x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1., 1.]))
+    if weights is not None:
+        weight_array = np.asarray(weights, bool)
+    else:
+        weight_array = np.ones(y.shape[0], bool)
+
+    return y, x, weight_array, original_domain

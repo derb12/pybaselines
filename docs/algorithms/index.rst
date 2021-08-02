@@ -3,8 +3,8 @@ Algorithms
 ==========
 
 The currently available baseline correction algorithms in pybaselines are split into
-polynomial, whittaker, morphological, window, optimizers, and miscellaneous (misc).
-Note that this classification is more for grouping code, and not a hard classification
+polynomial, whittaker, morphological, window, classification, optimizers, and miscellaneous (misc).
+Note that this is more for grouping code and not meant as a hard-classification
 of the algorithms.
 
 This section of the documentation is to help provide some context for each algorithm.
@@ -22,5 +22,6 @@ reference listing for any algorithm.
    whittaker
    morphological
    window
+   classification
    optimizers
    misc

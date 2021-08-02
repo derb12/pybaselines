@@ -7,18 +7,18 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_almost_equal, assert_array_equal
 import pytest
 
 
 try:
     import pentapy  # noqa
 except ImportError:
-    no_pentapy = pytest.mark.skipif(False, reason='pentapy is not installed')
-    has_pentapy = pytest.mark.skipif(True, reason='pentapy is not installed')
+    _HAS_PENTAPY = False
 else:
-    no_pentapy = pytest.mark.skipif(True, reason='pentapy is installed')
-    has_pentapy = pytest.mark.skipif(False, reason='pentapy is installed')
+    _HAS_PENTAPY = True
+
+has_pentapy = pytest.mark.skipif(not _HAS_PENTAPY, reason='pentapy is not installed')
 
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
@@ -51,25 +51,49 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
 
 
-def get_data():
-    """Creates x- and y-data for testing."""
-    noise_generator = np.random.default_rng(0)
-    x_data = np.linspace(1, 100, 1000)
+def get_data(include_noise=True, num_points=1000):
+    """Creates x- and y-data for testing.
+
+    Parameters
+    ----------
+    include_noise : bool, optional
+        If True (default), will include noise with the y-data.
+    num_points : int, optional
+        The number of data points to use. Default is 1000.
+
+    Returns
+    -------
+    x_data : numpy.ndarray
+        The x-values.
+    y_data : numpy.ndarray
+        The y-values.
+
+    """
+    # TODO use np.random.default_rng(0) once minimum numpy version is >= 1.17
+    np.random.seed(0)
+    x_data = np.linspace(1, 100, num_points)
     y_data = (
         500  # constant baseline
         + gaussian(x_data, 10, 25)
         + gaussian(x_data, 20, 50)
         + gaussian(x_data, 10, 75)
-        + noise_generator.normal(0, 0.5, x_data.size)
     )
+    if include_noise:
+        y_data += np.random.normal(0, 0.5, x_data.size)
 
     return x_data, y_data
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def data_fixture():
     """Test fixture for creating x- and y-data for testing."""
     return get_data()
+
+
+@pytest.fixture()
+def no_noise_data_fixture():
+    """Test fixture that creates x- and y-data without noise for testing."""
+    return get_data(include_noise=False)
 
 
 def _raise_error(*args, **kwargs):
@@ -91,15 +115,28 @@ class AlgorithmTester:
     """
 
     func = _raise_error
-    x, y = get_data()
+    x, y = get_data()  # TODO remove this and make it a per-function call
 
     @classmethod
-    def _test_output(cls, y, *args, **kwargs):
+    def _test_output(cls, y, *args, checked_keys=None, **kwargs):
         """
-        Ensures that the output is correct/consistent.
+        Ensures that the output has the desired format.
 
         Ensures that output has two elements, a numpy array and a param dictionary,
         and that the output baseline is the same shape as the input y-data.
+
+        Parameters
+        ----------
+        y : array-like
+            The data to pass to the fitting function.
+        *args : tuple
+            Any arguments to pass to the fitting function.
+        checked_keys : Iterable, optional
+            The keys to ensure are present in the parameter dictionary output of the
+            fitting function. If None (default), will not check the param dictionary.
+            Used to track changes to the output params.
+        **kwargs : dict
+            Any keyword arguments to pass to the fitting function.
 
         """
         output = cls.func(*args, **kwargs)
@@ -108,6 +145,15 @@ class AlgorithmTester:
         assert isinstance(output[0], np.ndarray), 'output[0] should be a numpy ndarray'
         assert isinstance(output[1], dict), 'output[1] should be a dictionary'
         assert y.shape == output[0].shape, 'output[0] must have same shape as y-data'
+
+        # check all entries in output param dictionary
+        if checked_keys is not None:
+            for key in checked_keys:
+                if key not in output[1]:
+                    assert False, f'key "{key}" missing from param dictionary'
+                output[1].pop(key)
+            if output[1]:
+                assert False, f'unchecked keys in param dictionary: {output[1]}'
 
     @classmethod
     def _test_unchanged_data(cls, static_data, y=None, x=None, *args, **kwargs):
@@ -124,7 +170,7 @@ class AlgorithmTester:
         --------
         >>> def test_unchanged_data(self, data_fixture):
         >>>     x, y = get_data()
-        >>>     super()._test_unchanged_data(data_fixture, y, x, y, x, lam=100)
+        >>>     self._test_unchanged_data(data_fixture, y, x, y, x, lam=100)
 
         """
         cls.func(*args, **kwargs)
@@ -142,7 +188,7 @@ class AlgorithmTester:
     def _test_algorithm_no_x(cls, with_args=(), with_kwargs=None,
                              without_args=(), without_kwargs=None):
         """
-        Ensures that function output is same when no x is input.
+        Ensures that function output is the same when no x is input.
 
         Maybe only valid for evenly spaced data, such as used for testing.
         """
@@ -174,3 +220,27 @@ class AlgorithmTester:
     def _call_func(cls, *args, **kwargs):
         """Class method to allow calling the class's function."""
         return cls.func(*args, **kwargs)
+
+    @classmethod
+    def _test_accuracy(cls, known_output, *args, assertion_kwargs=None, **kwargs):
+        """
+        Compares the output of the baseline function to a known output.
+
+        Useful for ensuring results are consistent across versions, or for
+        comparing to the output of a method from another library.
+
+        Parameters
+        ----------
+        known_output : numpy.ndarray
+            The output to compare against. Should be from an earlier version if testing
+            for changes, or against the output of an established method.
+        assertion_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to
+            :func:`numpy.testing.assert_allclose`. Default is None.
+
+        """
+        if assertion_kwargs is None:
+            assertion_kwargs = {}
+        output = cls.func(*args, **kwargs)[0]
+
+        assert_allclose(output, known_output, **assertion_kwargs)

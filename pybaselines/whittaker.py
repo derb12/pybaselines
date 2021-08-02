@@ -6,12 +6,15 @@ Created on Sept. 13, 2019
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
 
 from . import utils
 from ._algorithm_setup import _diff_1_diags, _setup_whittaker, _yx_arrays
-from .utils import _HAS_PENTAPY, _pentapy_solve, _safe_std, relative_difference
+from ._compat import _HAS_PENTAPY, _pentapy_solve
+from .utils import ParameterWarning, _safe_std, relative_difference
 
 
 def _shift_rows(matrix, diagonals=2):
@@ -97,6 +100,11 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     Raises
     ------
@@ -119,7 +127,8 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     )
     main_diag_idx = diff_order if using_pentapy else -1
     main_diagonal = diagonals[main_diag_idx].copy()
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER)
@@ -129,11 +138,13 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
             )
         mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
     return baseline, params
 
@@ -178,6 +189,11 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     Raises
     ------
@@ -219,7 +235,8 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     d1_y[-1] = y[-1] - y[-2]
     d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
     d1_y = lam_1 * d1_y
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         weight_squared = weight_array * weight_array
         diagonals[main_diag_idx] = main_diagonal + weight_squared
         if _HAS_PENTAPY:
@@ -232,12 +249,13 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
             )
         mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
-        calc_diff = relative_difference(weight_array, new_weights)
-        if calc_diff < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
     return baseline, params
 
@@ -274,6 +292,11 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -288,7 +311,8 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     y_l1_norm = np.abs(y).sum()
     main_diag_idx = diff_order if using_pentapy else -1
     main_diagonal = diagonals[main_diag_idx].copy()
-    for i in range(1, max_iter + 1):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(1, max_iter + 2):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
@@ -301,17 +325,27 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         residual = y - baseline
         neg_mask = residual < 0
         neg_residual = residual[neg_mask]
+        if neg_residual.size < 2:
+            # exit if there are < 2 negative residuals since all points or all but one
+            # point would get a weight of 0, which fails the solver
+            warnings.warn(
+                ('almost all baseline points are below the data, indicating that "tol"'
+                 ' is too low and/or "max_iter" is too high'), ParameterWarning
+            )
+            break
+
         # same as abs(neg_residual).sum() since neg_residual are all negative
         residual_l1_norm = -1 * neg_residual.sum()
-        calc_diff = residual_l1_norm / y_l1_norm
-        if calc_diff < tol:
+        calc_difference = residual_l1_norm / y_l1_norm
+        tol_history[i - 1] = calc_difference
+        if calc_difference < tol:
             break
         # only use negative residual in exp to avoid exponential overflow warnings
         # and accidently creating a weight of nan (inf * 0 = nan)
         weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
         weight_array[~neg_mask] = 0
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i]}
 
     return baseline, params
 
@@ -348,6 +382,11 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -361,7 +400,8 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     )
     main_diag_idx = diff_order if using_pentapy else -1
     main_diagonal = diagonals[main_diag_idx].copy()
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
@@ -373,13 +413,15 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
             )
         residual = y - baseline
         neg_residual = residual[residual < 0]
-        std = _safe_std(neg_residual)
-        new_weights = 1 / (1 + np.exp(2 * (residual - (2 * std - np.mean(neg_residual))) / std))
-        if relative_difference(weight_array, new_weights) < tol:
+        std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+        new_weights = 1 / (1 + np.exp((2 / std) * (residual - (2 * std - np.mean(neg_residual)))))
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
     return baseline, params
 
@@ -417,6 +459,11 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -432,7 +479,8 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     # reversed to match the original diagonal structure of the D_2.T * D_2 sparse matrix
     d2_diagonals = -eta * d2_diagonals[::-1]
     d2_diagonals[2] += 1.
-    for i in range(1, max_iter + 1):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(1, max_iter + 2):
         d2_w_diagonals = d2_diagonals * weight_array
         if _HAS_PENTAPY:
             baseline = _pentapy_solve(
@@ -445,14 +493,27 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
             )
         residual = y - baseline
         neg_residual = residual[residual < 0]
-        std = _safe_std(neg_residual)
-        inner = np.exp(i) * (residual - (2 * std - np.mean(neg_residual))) / std
+        std = _safe_std(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
+        inner = (np.exp(i) / std) * (residual - (2 * std - np.mean(neg_residual)))
         new_weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i - 1] = calc_difference
+        if not np.isfinite(calc_difference):
+            # catches nan, inf and -inf due to exp(i) being too high or if there
+            # are too few negative residuals; no way to catch both conditions before
+            # new_weights calculation since it is hard to estimate if
+            # (exp(i) / std) * residual will overflow; check calc_difference rather
+            # than checking new_weights since non-finite values rarely occur
+            warnings.warn(
+                ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
+                 '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+            )
+            break
+        elif calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i]}
 
     return baseline, params
 
@@ -489,6 +550,11 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -503,7 +569,8 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     )
     main_diag_idx = diff_order if using_pentapy else -1
     main_diagonal = diagonals[main_diag_idx].copy()
-    for i in range(1, max_iter + 1):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(1, max_iter + 2):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
@@ -514,14 +581,27 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False
             )
         residual = y - baseline
-        std = _safe_std(residual[residual < 0])
-        inner = np.exp(i) * (residual - 2 * std) / std
-        new_weights = 0.5 * (1 - (inner / np.sqrt(1 + (inner)**2)))
-        if relative_difference(weight_array, new_weights) < tol:
+        std = _safe_std(residual[residual < 0], ddof=1)  # dof=1 since sampling a subset
+        inner = (np.exp(i) / std) * (residual - 2 * std)
+        new_weights = 0.5 * (1 - (inner / np.sqrt(1 + inner**2)))
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i - 1] = calc_difference
+        if not np.isfinite(calc_difference):
+            # catches nan, inf and -inf due to exp(i) being too high or if there
+            # are too few negative residuals; no way to catch both conditions before
+            # new_weights calculation since it is hard to estimate if
+            # (exp(i) / std) * residual will overflow; check calc_difference rather
+            # than checking new_weights since non-finite values rarely occur
+            warnings.warn(
+                ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
+                 '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+            )
+            break
+        elif calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i]}
 
     return baseline, params
 
@@ -564,6 +644,11 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
             The weight array used for fitting the data.
         * 'alpha': numpy.ndarray, shape (N,)
             The array of alpha values used for fitting the data in the final iteration.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     Raises
     ------
@@ -589,7 +674,8 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
             raise ValueError('alpha must have the same shape as the input data')
 
     lower_upper = (diff_order, diff_order)
-    for i in range(1, max_iter + 1):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(1, max_iter + 2):
         alpha_diagonals = diagonals * alpha_array
         alpha_diagonals[diff_order] = alpha_diagonals[diff_order] + weight_array
         if using_pentapy:
@@ -602,16 +688,19 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
                 overwrite_ab=True, overwrite_b=True, check_finite=False
             )
         residual = y - baseline
-        std = _safe_std(residual[residual < 0])
-        new_weights = 1 / (1 + np.exp(2 * (residual - std) / std))
-        calc_diff = relative_difference(weight_array, new_weights)
-        if calc_diff < tol:
+        std = _safe_std(residual[residual < 0], ddof=1)  # use dof=1 since sampling a subset
+        new_weights = 1 / (1 + np.exp((2 / std) * (residual - std)))
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i - 1] = calc_difference
+        if calc_difference < tol:
             break
         weight_array = new_weights
         abs_d = np.abs(residual)
         alpha_array = abs_d / abs_d.max()
 
-    params = {'weights': weight_array, 'alpha': alpha_array}
+    params = {
+        'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i]
+    }
 
     return baseline, params
 
@@ -662,6 +751,11 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     Raises
     ------
@@ -694,7 +788,8 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     num_y = y.shape[0]
     main_diag_idx = diff_order if using_pentapy else -1
     main_diagonal = diagonals[main_diag_idx].copy()
-    for i in range(max_iter):
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
@@ -710,10 +805,12 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
         new_weights = np.full(num_y, 1 - p, dtype=float)
         mask = residual > 0
         new_weights[mask] = p * np.exp(-residual[mask] / k)
-        if relative_difference(weight_array, new_weights) < tol:
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
             break
         weight_array = new_weights
 
-    params = {'weights': weight_array}
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
     return baseline, params

@@ -13,6 +13,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import whittaker
+from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data, has_pentapy
 
@@ -65,15 +66,18 @@ class TestAsLS(AlgorithmTester):
     func = whittaker.asls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -96,6 +100,13 @@ class TestAsLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestIAsLS(AlgorithmTester):
     """Class for testing iasls baseline."""
@@ -103,18 +114,22 @@ class TestIAsLS(AlgorithmTester):
     func = whittaker.iasls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(data_fixture, y, x, y, x)
 
     def test_no_x(self):
-        super()._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -131,6 +146,13 @@ class TestIAsLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestAirPLS(AlgorithmTester):
     """Class for testing airpls baseline."""
@@ -138,15 +160,18 @@ class TestAirPLS(AlgorithmTester):
     func = whittaker.airpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -163,6 +188,38 @@ class TestAirPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    @pytest.mark.skip('test is a bit random; sometimes get a linalg error instead')
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures the that function gracefully exits when non-finite weights are created.
+
+        When there are no negative residuals, which occurs when a low tol value is used with
+        a high max_iter value, the weighting function would produce non-finite values.
+        The returned baseline should be the last iteration that was successful, and thus
+        should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(ParameterWarning):
+            baseline = self._call_func(y, tol=-1, max_iter=3000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestArPLS(AlgorithmTester):
     """Class for testing arpls baseline."""
@@ -170,15 +227,18 @@ class TestArPLS(AlgorithmTester):
     func = whittaker.arpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -194,6 +254,13 @@ class TestArPLS(AlgorithmTester):
         pentapy_output = self._call_func(self.y)[0]
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
 
 
 class TestDrPLS(AlgorithmTester):
@@ -202,15 +269,18 @@ class TestDrPLS(AlgorithmTester):
     func = whittaker.drpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @has_pentapy
     def test_pentapy_solver(self):
@@ -221,6 +291,37 @@ class TestDrPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures the that function gracefully exits when non-finite weights are created.
+
+        When there are no negative residuals or exp(iterations) / std is very high, both
+        of which occur when a low tol value is used with a high max_iter value, the
+        weighting function would produce non-finite values. The returned baseline should
+        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(ParameterWarning):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestIArPLS(AlgorithmTester):
     """Class for testing iarpls baseline."""
@@ -228,15 +329,18 @@ class TestIArPLS(AlgorithmTester):
     func = whittaker.iarpls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -253,6 +357,37 @@ class TestIArPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures the that function gracefully exits when non-finite weights are created.
+
+        When there are no negative residuals or exp(iterations) / std is very high, both
+        of which occur when a low tol value is used with a high max_iter value, the
+        weighting function would produce non-finite values. The returned baseline should
+        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(ParameterWarning):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestAsPLS(AlgorithmTester):
     """Class for testing aspls baseline."""
@@ -260,15 +395,20 @@ class TestAsPLS(AlgorithmTester):
     func = whittaker.aspls
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        """Ensures that the output has the desired format."""
+        self._test_output(
+            self.y, self.y, checked_keys=('weights', 'alpha', 'tol_history')
+        )
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     def test_wrong_alpha_shape(self):
         """Ensures that an exception is raised if input alpha and data are different shapes."""
@@ -291,6 +431,13 @@ class TestAsPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
 
 class TestPsalsa(AlgorithmTester):
     """Class for testing psalsa baseline."""
@@ -298,15 +445,18 @@ class TestPsalsa(AlgorithmTester):
     func = whittaker.psalsa
 
     def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        super()._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
-        super()._test_output(self.y, self.y)
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        super()._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -328,3 +478,10 @@ class TestPsalsa(AlgorithmTester):
         pentapy_output = self._call_func(self.y)[0]
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
