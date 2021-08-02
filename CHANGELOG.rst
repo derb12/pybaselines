@@ -2,6 +2,82 @@
 Changelog
 =========
 
+Version 0.5.0 (2021-08-02)
+--------------------------
+
+This is a minor version with new features, bug fixes, and deprecations.
+
+New Features
+~~~~~~~~~~~~
+
+* Added quantile regression (quant_reg) to pybaselines.polynomial, which uses quantile
+  regression to fit a polynomial to the baseline.
+* Added the top-hat transformation (tophat) to pybaselines.morphological, which estimates
+  the baseline using the morphological opening.
+* Added the moving-window minimum value (mwmv) pybaseline.morphological, which estimates the
+  baseline using the rolling minimum values.
+* Added the baseline estimation and denoising with sparsity (beads) method to pybaselines.misc,
+  which decomposes the input data into baseline and pure, noise-free signal by modeling the
+  baseline as a low pass filter and by considering the signal and its derivatives as sparse.
+* Added the module pybaselines.classification, which contains algorithms that
+  classify baseline and/or peak segments to create the baseline.
+* Added Dietrich's classification method (dietrich) to pybaselines.classification,
+  which classifies baseline points by analyzing the power spectrum of the data's
+  derivative and then iteratively fits the points with a polynomial.
+* Added Golotvin's classification method (golotvin) to pybaselines.classification,
+  which breaks the data into segments, uses the minimum standard deviation of all
+  the segments to define the standard deviation of the entire data, and then
+  classifies baseline points using that value.
+* Added the standard deviation distribution method (std_distribution) to
+  pybaselines.classification, which classifies baseline segments by grouping the
+  rolling standard deviation values into a distribution for the baseline and a
+  distribution for the signal.
+* Added Numba as an optional dependency. Currently, the functions pybaselines.polynomial.loess,
+  pybaselines.classification.std_distribution, and pybaselines.misc.beads are faster when Numba
+  is installed.
+* When Numba is installed, the pybaselines.polynomial.loess calculation is done
+  in parallel, which greatly improves the speed of the calculation.
+* The pybaselines.polynomial.loess function now takes a `delta` parameter, which will
+  use linear interpolation rather than weighted least squares fitting for all but the
+  last x-values that are less than `delta` from the last-fit x-value. Can significantly
+  reduce calculation time.
+* All iterative methods now return an array of the calculated tolerance value for each iteration
+  in the dictionary output, which should help to pick appropriate `tol` and `max_iter` values.
+
+Bug Fixes
+~~~~~~~~~
+
+* Added checks for airpls, drpls, and iarpls functions in pybaselines.whittaker to
+  prevent nan or infinite weights in edge cases where too many iterations were done.
+* The baseline returned from polynomial algorithms was the second-to-last iteration's baseline,
+  rather than the last iteration's. Now the returned baseline is the last iteration's.
+* Sort input weights and y0 (if `use_original` is True) for pybaselines.polynomial.loess
+  after sorting the x-values, rather than leaving them unsorted.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Added a custom ParameterWarning for when a user-input parameter is valid but
+  outside the recommended range and could cause issues with a calculation.
+* Changed the default `conserve_memory` value in polynomial.loess to True, since
+  it is just as fast as False when Numba is installed and is safer.
+* pybaselines.optimizers.collab_pls now includes the parameters from each function
+  call in the dictionary output as items in lists.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* The key for the averaged weights for pybaselines.optimizers.collab_pls is now
+  'average_weights' to avoid clashing with the 'weights' key from the called function.
+
+Documentation/Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Most algorithms in the documentation now include several plots showing how
+  the algorithm fits different types of baselines.
+* Added more in-depth explanations for all baseline correction algorithms.
+
+
 Version 0.4.1 (2021-06-10)
 --------------------------
 
