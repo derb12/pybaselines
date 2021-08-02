@@ -467,7 +467,7 @@ class TestBeads(AlgorithmTester):
             output_1 = self._call_func(self.y, cost_function=cost_function)[0]
         output_2 = self._call_func(self.y, cost_function=cost_function)[0]
 
-        assert_allclose(output_1, output_2, 1e-6)
+        assert_allclose(output_1, output_2, 5e-6)
 
     @pytest.mark.parametrize('asymmetry', (0, -1))
     def test_bad_asymmetry_fails(self, asymmetry):
