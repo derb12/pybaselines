@@ -954,21 +954,6 @@ class TestLoess(AlgorithmTester):
         assert params['tol_history'].size == max_iter + 1
 
 
-@pytest.mark.parametrize('quantile', np.linspace(0, 1, 21))
-def test_quantile_loss(quantile):
-    """Ensures the quantile loss calculation is correct."""
-    residual = np.linspace(-1, 1)
-    eps = 1e-10
-    calc_loss = polynomial._quantile_loss(residual, quantile, eps)
-
-    numerator = np.where(residual > 0, quantile, 1 - quantile)
-    denominator = np.sqrt(residual**2 + eps)
-
-    expected_loss = numerator / denominator
-
-    assert_allclose(calc_loss, expected_loss)
-
-
 class TestQuantReg(AlgorithmTester):
     """Class for testing quant_reg baseline."""
 
@@ -1264,7 +1249,7 @@ class TestQuantReg(AlgorithmTester):
 
         self._test_accuracy(
             statsmodels_outputs[quantile], y, x, poly_order=1, quantile=quantile,
-            tol=1e-9, eps=1e-6, assertion_kwargs={'rtol': 1e-6}
+            tol=1e-9, eps=1e-12, assertion_kwargs={'rtol': 1e-6}
         )
 
     def test_tol_history(self):

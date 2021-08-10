@@ -200,7 +200,7 @@ class AlgorithmTester:
         output_with = cls.func(*with_args, **with_kwargs)
         output_without = cls.func(*without_args, **without_kwargs)
 
-        assert_array_almost_equal(
+        assert_allclose(
             output_with[0], output_without[0],
             err_msg='algorithm output is different with no x-values'
         )
