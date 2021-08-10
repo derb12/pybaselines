@@ -70,4 +70,6 @@ __version__ = '0.5.0'
 
 # import utils first since it is imported by other modules; likewise, import
 # optimizers last since it imports the other modules
-from . import utils, misc, morphological, polynomial, whittaker, window, optimizers
+from . import (
+    utils, classification, misc, morphological, polynomial, whittaker, window, optimizers
+)

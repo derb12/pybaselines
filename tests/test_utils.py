@@ -210,3 +210,20 @@ def test_convert_coef(x, coefs):
     converted_coefs = utils._convert_coef(fit_coefs, original_domain)
 
     assert_allclose(converted_coefs, coefs, atol=1e-10)
+
+
+@pytest.mark.parametrize('quantile', np.linspace(0, 1, 21))
+def test_quantile_loss(quantile):
+    """Ensures the quantile loss calculation is correct."""
+    y = np.linspace(-1, 1)
+    fit = np.zeros(y.shape[0])
+    residual = y - fit
+    eps = 1e-10
+    calc_loss = utils._quantile_loss(y, fit, quantile, eps)
+
+    numerator = np.where(residual > 0, quantile, 1 - quantile)
+    denominator = np.sqrt(residual**2 + eps)
+
+    expected_loss = numerator / denominator
+
+    assert_allclose(calc_loss, expected_loss)

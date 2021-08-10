@@ -2,6 +2,26 @@
 Changelog
 =========
 
+Version 0.5.1 (2021-08-10)
+--------------------------
+
+This is a minor patch with bug fixes and minor changes.
+
+Bug Fixes
+~~~~~~~~~
+
+* Added classification to the main pybaselines namespace so that calling
+  pybaselines.classification works correctly.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Changed the default `tol` for pybaselines.polynomial.quant_reg to 1e-6
+  to get better results.
+* Directly use the input `eps` value for pybaselines.polynomial.quant_reg
+  rather than its square.
+
+
 Version 0.5.0 (2021-08-02)
 --------------------------
 

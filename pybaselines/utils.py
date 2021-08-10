@@ -361,3 +361,115 @@ def _convert_coef(coef, original_domain):
     output_coefs[zeros_mask] = 0
 
     return output_coefs
+
+
+def _quantile_loss(y, fit, quantile, eps=None):
+    r"""
+    An approximation of quantile loss.
+
+    The loss is defined as :math:`\rho(r) / |r|`, where r is the residual, `y - fit`,
+    and the function :math:`\rho(r)` is `quantile` for `r` > 0 and 1 - `quantile`
+    for `r` < 0. Rather than using `|r|` as the denominator, which is non-differentiable
+    and causes issues when `r` = 0, the denominator is approximated as
+    :math:`\sqrt{r^2 + eps}` where `eps` is a small number.
+
+    Parameters
+    ----------
+    y : numpy.ndarray
+        The values of the raw data.
+    fit : numpy.ndarray
+        The fit values.
+    quantile : float
+        The quantile value.
+    eps : float, optional
+        A small value added to the square of `residual` to prevent dividing by 0.
+        Default is None, which uses `(1e-6 * max(abs(fit)))**2`.
+
+    Returns
+    -------
+    numpy.ndarray
+        The calculated loss, which can be used as weighting when performing iteratively
+        reweighted least squares (IRLS)
+
+    References
+    ----------
+    Schnabel, S., et al. Simultaneous estimation of quantile curves using quantile
+    sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
+
+    """
+    if eps is None:
+        # 1e-6 seems to work better than the 1e-4 in Schnabel, et al
+        eps = (np.abs(fit).max() * 1e-6)**2
+    residual = y - fit
+    numerator = np.where(residual > 0, quantile, 1 - quantile)
+    # use max(eps, _MIN_FLOAT) to ensure that eps + 0 > 0
+    denominator = np.sqrt(residual**2 + max(eps, _MIN_FLOAT))  # approximates abs(residual)
+
+    return numerator / denominator
+
+
+def _quantile_irls(y, basis, weights, quantile=0.05, max_iter=250, tol=1e-6, eps=None):
+    """
+    An iteratively reweighted least squares (irls) version of quantile regression.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The array of data values.
+    basis : numpy.ndarray, shape (N, M)
+        The basis matrix for the calculation. For example, if fitting a polynomial,
+        `basis` would be the Vandermonde matrix.
+    weights : numpy.ndarray, shape (N,)
+        The array of initial weights.
+    quantile : float, optional
+        The quantile at which to fit the baseline. Default is 0.05.
+    max_iter : int, optional
+        The maximum number of iterations. Default is 250.
+    tol : float, optional
+        The exit criteria. Default is 1e-6.
+    eps : float, optional
+        A small value added to the square of the residual to prevent dividing by 0.
+        Default is None, which uses the square of the maximum-absolute-value of the
+        fit each iteration multiplied by 1e-6.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    weights : numpy.ndarray, shape (N,)
+        The weight array used for fitting the data.
+    tol_history : numpy.ndarray
+        An array containing the calculated tolerance values for
+        each iteration. The length of the array is the number of iterations
+        completed. If the last value in the array is greater than the input
+        `tol` value, then the function did not converge.
+    coef : numpy.ndarray, shape (M,)
+        The array of coefficients used to create the best fit using `basis.dot(coef)`.
+
+    Notes
+    -----
+    This should not be called directly since it does no input validation.
+
+    References
+    ----------
+    Schnabel, S., et al. Simultaneous estimation of quantile curves using
+    quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
+
+    """
+    # estimate first iteration using least squares
+    coef = np.linalg.lstsq(basis * weights[:, None], y * weights, None)[0]
+    baseline = basis.dot(coef)
+    tol_history = np.empty(max_iter)
+    for i in range(max_iter):
+        baseline_old = baseline
+        weights = np.sqrt(_quantile_loss(y, baseline, quantile, eps))
+        coef = np.linalg.lstsq(basis * weights[:, None], y * weights, None)[0]
+        baseline = basis.dot(coef)
+        # relative_difference(baseline_old, baseline, 1) gives nearly same result and
+        # the l2 norm is faster to calculate, so use that instead of l1 norm
+        calc_difference = relative_difference(baseline_old, baseline)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
+
+    return baseline, weights, tol_history[:i + 1], coef

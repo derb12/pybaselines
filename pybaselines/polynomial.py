@@ -80,7 +80,10 @@ import numpy as np
 
 from ._algorithm_setup import _get_vander, _setup_polynomial
 from ._compat import jit, prange
-from .utils import _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
+from .utils import (
+    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference,
+    _quantile_irls
+)
 
 
 def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
@@ -1332,44 +1335,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     return baseline[np.argsort(sort_order)], params
 
 
-def _quantile_loss(residual, quantile, eps=1e-10):
-    r"""
-    An approximation of quantile loss.
-
-    The loss is defined as :math:`\rho(r) / |r|`, where r is the residual,
-    and the function :math:`\rho(r)` is `quantile` for `r` > 0 and 1 - `quantile`
-    for `r` < 0. Rather than using `|r|` as the denominator, which is non-differentiable
-    and causes issues when `r` = 0, the denominator is approximated as
-    :math:`\sqrt{r^2 + eps}` where `eps` is a small number.
-
-    Parameters
-    ----------
-    residual : numpy.ndarray
-        The array of the residual values.
-    quantile : float
-        The quantile value.
-    eps : float, optional
-        A small value added to the square of `residual` to prevent dividing by 0.
-
-    Returns
-    -------
-    numpy.ndarray
-        The calculated loss, which can be used as weighting when performing iteratively
-        reweighted least squares (IRLS)
-
-    References
-    ----------
-    Schnabel, S., et al. Simultaneous estimation of quantile curves using quantile
-    sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
-
-    """
-    numerator = np.where(residual > 0, quantile, 1 - quantile)
-    denominator = np.sqrt(residual**2 + eps)  # approximates abs(residual)
-
-    return numerator / denominator
-
-
-def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-4, max_iter=250,
+def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
               weights=None, eps=None, return_coef=False):
     """
     Approximates the baseline of the data using quantile regression.
@@ -1386,7 +1352,7 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-4, max_iter
     quantile : float, optional
         The quantile at which to fit the baseline. Default is 0.05.
     tol : float, optional
-        The exit criteria. Default is 1e-4. For extreme quantiles (`quantile` < 0.01
+        The exit criteria. Default is 1e-6. For extreme quantiles (`quantile` < 0.01
         or `quantile` > 0.99), may need to use a lower value to get a good fit.
     max_iter : int, optional
         The maximum number of iterations. Default is 250. For extreme quantiles
@@ -1396,9 +1362,9 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-4, max_iter
         The weighting array. If None (default), then will be an array with
         size equal to N and all values set to 1.
     eps : float, optional
-        A small value whose square is added to the square of the residual each iteration
-        to prevent dividing by 0 when calculating the weighting. Default is None, which uses
-        `max(abs(data)) * 1e-6`.
+        A small value added to the square of the residual to prevent dividing by 0.
+        Default is None, which uses the square of the maximum-absolute-value of the
+        fit each iteration multiplied by 1e-6.
     return_coef : bool, optional
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input `x_data` and return them in the params dictionary.
@@ -1446,35 +1412,16 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-4, max_iter
     """
     # TODO provide a way to estimate best poly_order based on AIC like in Komsta? could be
     # useful for all polynomial methods; maybe could be an optimizer function
-    if not 0 < quantile < 1:  # TODO allow quantile = 0, 1? numerically unstable, so probably not
+    if not 0 < quantile < 1:
         raise ValueError('quantile must be between 0 and 1.')
     y, x, weight_array, original_domain, vander = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True
     )
-    if eps is None:
-        eps = np.abs(y).max() * 1e-6  # 1e-6 seems to work better than the 1e-4 in Schnabel, et al
-    eps_sq = max(eps**2, _MIN_FLOAT)  # ensure that eps**2 + 0 > 0
 
-    # TODO make the code below into a separate function later so that a spline basis
-    # matrix could be used instead of the Vandermonde matrix
-
-    # estimate first iteration using least squares
-    coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
-    baseline = np.dot(vander, coef)
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        baseline_old = baseline
-        weight_array = np.sqrt(_quantile_loss(y - baseline, quantile, eps_sq))
-        coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
-        baseline = np.dot(vander, coef)
-        # relative_difference(baseline_old, baseline, 1) gives nearly same result and
-        # the l2 norm is faster to calculate, so use that instead of l1 norm
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+    baseline, weight_array, tol_history, coef = _quantile_irls(
+        y, vander, weight_array, quantile, max_iter, tol, eps
+    )
+    params = {'weights': weight_array, 'tol_history': tol_history}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
