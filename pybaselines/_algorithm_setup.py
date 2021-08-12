@@ -9,8 +9,9 @@ Created on March 31, 2021
 import warnings
 
 import numpy as np
+from scipy.interpolate import splev
 from scipy.ndimage import grey_opening
-from scipy.sparse import diags, identity
+from scipy.sparse import csr_matrix, diags, identity
 
 from .utils import ParameterWarning, pad_edges, relative_difference
 
@@ -626,3 +627,169 @@ def _setup_classification(data, x_data=None, weights=None):
         weight_array = np.ones(y.shape[0], bool)
 
     return y, x, weight_array, original_domain
+
+
+def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
+    """
+    Creates the basis matrix for B-splines and P-splines.
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (N,)
+        The array of x-values
+    num_knots : int, optional
+        The number of interior knots for the spline. Default is 10.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    penalized : bool, optional
+        Whether the basis matrix should be for a penalized spline or a regular
+        B-spline. Default is False, which creates the basis for a B-spline.
+
+    Returns
+    -------
+    basis : numpy.ndarray
+        The basis matrix representing the spline, similar to the Vandermonde matrix
+        for polynomials.
+
+    Notes
+    -----
+    If `penalized` is True, makes the knots uniformly spaced to create p-splines. That
+    way, can use a finite difference matrix to impose penalties on the spline.
+
+    References
+    ----------
+    Eilers, P., et al. Twenty years of P-splines. SORT: Statistics and Operations Research
+    Transactions, 2015, 39(2), 149-186.
+
+    Hastie, T., et al. The Elements of Statistical Learning. Springer, 2017. Chapter 5.
+
+    """
+    if penalized:
+        x_min = x.min()
+        x_max = x.max()
+        dx = (x_max - x_min) / num_knots
+        # NOTE the number and placement of extended knots outside of the x-range is maybe not
+        # 100% correct; figured it out by trial and error to produce a plot similar to
+        # Figure 3a in Eilers's Twenty years of P-splines paper when plotting::
+        #   coef = np.linalg.lstsq(basis, y, None)[0]
+        #   plt.plot(basis * coef)
+        knots = np.linspace(
+            x_min - spline_degree * dx, x_max + spline_degree * dx,
+            num_knots + 2 * spline_degree
+        )
+    else:
+        # TODO maybe provide a better way to select knot positions for regular B-splines
+        # TODO not 100% sure this is right
+        # use 0 and 100 percentile for the outer knots
+        # TODO add 2 to num_knots to account for 2 outer knots?
+        inner_knots = np.percentile(x, np.linspace(0, 100, num_knots))
+        knots = np.concatenate((
+            np.repeat(inner_knots[0], spline_degree), inner_knots,
+            np.repeat(inner_knots[-1], spline_degree)
+        ))
+
+    num_bases = knots.shape[0] - (spline_degree + 1)
+    basis = np.empty((num_bases, x.shape[0]))
+    coefs = np.zeros(num_bases)
+    # TODO would be faster to simply calculate the spline coefficients using de Boor's recursive
+    # algorithm; does it also give just the coefficients without all the extra zeros? would be
+    # nice if so, since it would use less space; also could then probably make a sparse or banded
+    # matrix rather than the full, dense array
+
+    # adapted from Scipy forums at: http://scipy-user.10969.n7.nabble.com/B-spline-basis-functions
+    for i in range(num_bases):
+        coefs[i] = 1  # evaluate the i-th basis within splev
+        basis[i] = splev(x, (knots, coefs, spline_degree))
+        coefs[i] = 0  # reset back to zero
+
+    # transpose to get a shape similar to the Vandermonde matrix
+    # TODO maybe it's preferable to not transpose, since typically basis.T is used in
+    # calculations more than basis; maybe make it a boolean input
+    return basis.T
+
+
+def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=10,
+                   penalized=True, diff_order=3, lam=1, sparse_basis=True):
+    """
+    Sets the starting parameters for doing spline fitting.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then will be an array with
+        size equal to N and all values set to 1.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    num_knots : int, optional
+        The number of knots for the splines. Default is 10.
+    penalized : bool, optional
+        Whether the basis matrix should be for a penalized spline or a regular
+        B-spline. Default is True, which creates the basis for a penalized spline.
+    diff_order : int, optional
+        The integer differential order for the spline penalty; must be greater than 0.
+        Default is 3. Only used if `penalized` is True.
+    lam : float, optional
+        The smoothing parameter, lambda. Typical values are between 10 and
+        1e8, but it strongly depends on the number of knots and the difference order.
+        Default is 1.
+    sparse_basis : bool, optional
+        If True (default), will convert the spline basis to a sparse matrix with CSR
+        format.
+
+    Returns
+    -------
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, converted to a numpy array.
+    x : numpy.ndarray, shape (N,)
+        The x-values for fitting the spline.
+    basis : numpy.ndarray or scipy.sparse.csr.csr_matrix
+        The spline basis matrix. Is sparse with CSR format if `sparse_basis` is True.
+    weight_array : numpy.ndarray, shape (N,)
+        The weight array for fitting a polynomial to the data.
+    penalty_matrix : scipy.sparse.csr.csr_matrix
+        The penalty matrix for the spline. Only returned if `penalized` is True.
+
+    Raises
+    ------
+    ValueError
+        Raised is `diff_order` is less than 1 or if `weights` and `data` do not have
+        the same shape.
+
+    Warns
+    -----
+    UserWarning
+        Raised if `diff_order` is greater than 4.
+
+    """
+    y, x = _yx_arrays(data, x_data)
+    if weights is not None:
+        weight_array = np.asarray(weights)
+        if weight_array.shape != y.shape:
+            raise ValueError('weights must have the same shape as the input data')
+    else:
+        weight_array = np.ones(y.shape[0])
+    basis = spline_basis(x, num_knots, spline_degree, penalized)
+    if sparse_basis:
+        basis = csr_matrix(basis)
+    if not penalized:
+        return y, x, basis, weight_array
+
+    if diff_order < 1:
+        raise ValueError(
+            'the differential order must be > 0 for spline methods'
+        )
+    elif diff_order > 4:
+        warnings.warn(
+            ('differential orders greater than 4 can have numerical issues;'
+             ' consider using a differential order of 2 or 3 instead'),
+            ParameterWarning
+        )
+    diff_matrix = difference_matrix(basis.shape[1], diff_order, 'csc')
+    penalty_matrix = lam * diff_matrix.T * diff_matrix
+
+    return y, x, basis, weight_array, penalty_matrix

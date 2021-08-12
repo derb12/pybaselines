@@ -425,3 +425,38 @@ def test_setup_classification_domain(small_data):
     *_, original_domain = _algorithm_setup._setup_classification(small_data, x)
 
     assert_array_equal(original_domain, np.array([-5, 20]))
+
+
+@pytest.mark.parametrize('num_knots', (5, 15, 100))
+@pytest.mark.parametrize('degree', (1, 2, 3, 4))
+@pytest.mark.parametrize('penalized', (True, False))
+def test_spline_basis(num_knots, degree, penalized):
+    """Ensures the spline basis function is correctly created."""
+    x = np.linspace(-1, 1, 500)
+    basis = _algorithm_setup.spline_basis(x, num_knots, degree, penalized)
+
+    assert basis.shape[0] == x.shape[0]
+    # TODO not sure what shape[1] should actually be; maybe change
+    # in the future
+    assert basis.shape[1] == num_knots + degree - 1
+
+
+def test_setup_splines_wrong_weight_shape(small_data):
+    """Ensures that an exception is raised if input weights and data are different shapes."""
+    weights = np.ones(small_data.shape[0] + 1)
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(small_data, weights=weights)
+
+
+@pytest.mark.parametrize('diff_order', (0, -1))
+def test_setup_splines_diff_matrix_fails(small_data, diff_order):
+    """Ensures using a diff_order < 1 with _setup_splines raises an exception."""
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(small_data, diff_order=diff_order)
+
+
+@pytest.mark.parametrize('diff_order', (5, 6))
+def test_setup_splines_diff_matrix_warns(small_data, diff_order):
+    """Ensures using a diff_order > 4 with _setup_splines raises a warning."""
+    with pytest.warns(ParameterWarning):
+        _algorithm_setup._setup_splines(small_data, diff_order=diff_order)

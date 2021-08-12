@@ -81,8 +81,8 @@ import numpy as np
 from ._algorithm_setup import _get_vander, _setup_polynomial
 from ._compat import jit, prange
 from .utils import (
-    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference,
-    _quantile_irls
+    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, _quantile_irls,
+    relative_difference
 )
 
 
