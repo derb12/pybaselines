@@ -42,6 +42,11 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
     * swima (Small-Window Moving Average)
 
+* Spline methods (:mod:`pybaselines.splines`)
+
+    * mixture_model (Mixture Model)
+    * irsqr (Iterative Reweighted Spline Quantile Regression)
+
 * Baseline/Peak Classification methods (:mod:`pybaselines.classification`)
 
     * dietrich (Dietrich's Classification Method)

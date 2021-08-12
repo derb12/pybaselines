@@ -40,7 +40,7 @@ to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. T
 the project is to provide a semi-unified API to allow quickly testing and comparing
 multiple baseline correction algorithms to find the best one for a set of data.
 
-pybaselines has 30+ baseline correction algorithms. The algorithms are grouped
+pybaselines has 35+ baseline correction algorithms. The algorithms are grouped
 accordingly (note: when a method is labelled as 'improved', that is the method's
 name, not editorialization):
 
@@ -80,6 +80,11 @@ name, not editorialization):
   * noise_median (Noise Median method)
   * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
   * swima (Small-Window Moving Average)
+
+* Spline methods (pybaselines.splines)
+
+  * mixture_model (Mixture Model)
+  * irsqr (Iterative Reweighted Spline Quantile Regression)
 
 * Baseline/Peak Classification methods (pybaselines.classification)
 
