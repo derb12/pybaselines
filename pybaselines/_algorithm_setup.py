@@ -10,70 +10,9 @@ import warnings
 
 import numpy as np
 from scipy.interpolate import splev
-from scipy.ndimage import grey_opening
-from scipy.sparse import csr_matrix, diags, identity
+from scipy.sparse import csr_matrix
 
-from .utils import ParameterWarning, pad_edges, relative_difference
-
-
-def difference_matrix(data_size, diff_order=2, diff_format=None):
-    """
-    Creates an n-order finite-difference matrix.
-
-    Parameters
-    ----------
-    data_size : int
-        The number of data points.
-    diff_order : int, optional
-        The integer differential order; must be >= 0. Default is 2.
-    diff_format : str or None, optional
-        The sparse format to use for the difference matrix. Default is None,
-        which will use the default specified in :func:`scipy.sparse.diags`.
-
-    Returns
-    -------
-    diff_matrix : scipy.sparse.base.spmatrix
-        The sparse difference matrix.
-
-    Raises
-    ------
-    ValueError
-        Raised if `diff_order` or `data_size` is negative.
-
-    Notes
-    -----
-    Most baseline algorithms use 2nd order differential matrices when
-    doing penalized least squared fitting or Whittaker-smoothing-based fitting.
-
-    The resulting matrices are transposes of the result of
-    np.diff(np.eye(data_size), diff_order). This implementation allows using
-    the differential matrices are they are written in various publications,
-    ie. D.T * D.
-
-    """
-    if diff_order < 0:
-        raise ValueError('the differential order must be >= 0')
-    elif data_size < 0:
-        raise ValueError('data size must be >= 0')
-    elif diff_order > data_size:
-        # do not issue warning or exception to maintain parity with np.diff
-        diff_order = data_size
-
-    if diff_order == 0:
-        # faster to directly create identity matrix
-        diff_matrix = identity(data_size, format=diff_format)
-    else:
-        diagonals = np.zeros(2 * diff_order + 1)
-        diagonals[diff_order] = 1
-        for _ in range(diff_order):
-            diagonals = diagonals[:-1] - diagonals[1:]
-
-        diff_matrix = diags(
-            diagonals, np.arange(diff_order + 1),
-            shape=(data_size - diff_order, data_size), format=diff_format
-        )
-
-    return diff_matrix
+from .utils import ParameterWarning, difference_matrix, optimize_window, pad_edges
 
 
 def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
@@ -435,72 +374,6 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     return output
 
 
-def _optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
-                     max_half_window=None, min_half_window=None):
-    """
-    Optimizes the morphological half-window size.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The measured data values.
-    increment : int, optional
-        The step size for iterating half windows. Default is 1.
-    max_hits : int, optional
-        The number of consecutive half windows that must produce the same
-        morphological opening before accepting the half window as the optimum
-        value. Default is 3.
-    window_tol : float, optional
-        The tolerance value for considering two morphological openings as
-        equivalent. Default is 1e-6.
-    max_half_window : int, optional
-        The maximum allowable half-window size. If None (default), will be set
-        to (len(data) - 1) / 2.
-    min_half_window : int, optional
-        The minimum half-window size. If None (default), will be set to 1.
-
-    Returns
-    -------
-    half_window : int
-        The optimized half window size.
-
-    Notes
-    -----
-    May only provide good results for some morphological algorithms, so use with
-    caution.
-
-    References
-    ----------
-    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
-    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
-
-    """
-    y = np.asarray(data)
-    if max_half_window is None:
-        max_half_window = (y.shape[0] - 1) // 2
-    if min_half_window is None:
-        min_half_window = 1
-
-    opening = grey_opening(y, [2 * min_half_window + 1])
-    hits = 0
-    best_half_window = min_half_window
-    for half_window in range(min_half_window + increment, max_half_window, increment):
-        new_opening = grey_opening(y, [half_window * 2 + 1])
-        if relative_difference(opening, new_opening) < window_tol:
-            if hits == 0:
-                # keep just the first window that fits tolerance
-                best_half_window = half_window - increment
-            hits += 1
-            if hits >= max_hits:
-                half_window = best_half_window
-                break
-        elif hits:
-            hits = 0
-        opening = new_opening
-
-    return max(half_window, 1)  # ensure half window is at least 1
-
-
 def _setup_morphology(data, half_window=None, **window_kwargs):
     """
     Sets the starting parameters for morphology-based methods.
@@ -552,7 +425,7 @@ def _setup_morphology(data, half_window=None, **window_kwargs):
     if half_window is not None:
         output_half_window = half_window
     else:
-        output_half_window = _optimize_window(y, **window_kwargs)
+        output_half_window = optimize_window(y, **window_kwargs)
 
     return y, output_half_window
 

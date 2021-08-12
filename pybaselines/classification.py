@@ -14,9 +14,12 @@ from scipy.ndimage import (
     binary_dilation, binary_erosion, grey_dilation, grey_erosion, uniform_filter1d
 )
 
-from ._algorithm_setup import _get_vander, _optimize_window, _setup_classification
+from ._algorithm_setup import _get_vander, _setup_classification
 from ._compat import jit
-from .utils import ParameterWarning, _convert_coef, _interp_inplace, pad_edges, relative_difference
+from .utils import (
+    ParameterWarning, _convert_coef, _interp_inplace, optimize_window, pad_edges,
+    relative_difference
+)
 
 
 def _remove_single_points(mask):
@@ -189,9 +192,9 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
     """
     y, x, weight_array, *_ = _setup_classification(data, x_data, weights)
     if half_window is None:
-        # _optimize_window(y) / 2 gives an "okay" estimate that at least scales
+        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
         # with data size
-        half_window = ceil(_optimize_window(y) / 2)
+        half_window = ceil(optimize_window(y) / 2)
     if smooth_half_window is None:
         smooth_half_window = half_window
     num_y = y.shape[0]
@@ -483,9 +486,9 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
     """
     y, x, weight_array, _ = _setup_classification(data, x_data, weights)
     if half_window is None:
-        # _optimize_window(y) / 2 gives an "okay" estimate that at least scales
+        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
         # with data size
-        half_window = ceil(_optimize_window(y) / 2)
+        half_window = ceil(optimize_window(y) / 2)
     if smooth_half_window is None:
         smooth_half_window = half_window
 

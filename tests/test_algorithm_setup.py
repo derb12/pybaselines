@@ -9,90 +9,10 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
-from scipy.sparse import dia_matrix, identity
+from scipy.sparse import dia_matrix
 
 from pybaselines import _algorithm_setup
 from pybaselines.utils import ParameterWarning
-
-
-@pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))
-def test_difference_matrix(diff_order):
-    """Tests common differential matrices."""
-    diff_matrix = _algorithm_setup.difference_matrix(10, diff_order).toarray()
-    numpy_diff = np.diff(np.eye(10), diff_order).T
-
-    assert_array_equal(diff_matrix, numpy_diff)
-
-
-def test_difference_matrix_order_2():
-    """
-    Tests the 2nd order differential matrix against the actual representation.
-
-    The 2nd order differential matrix is most commonly used,
-    so double-check that it is correct.
-    """
-    diff_matrix = _algorithm_setup.difference_matrix(8, 2).toarray()
-    actual_matrix = np.array([
-        [1, -2, 1, 0, 0, 0, 0, 0],
-        [0, 1, -2, 1, 0, 0, 0, 0],
-        [0, 0, 1, -2, 1, 0, 0, 0],
-        [0, 0, 0, 1, -2, 1, 0, 0],
-        [0, 0, 0, 0, 1, -2, 1, 0],
-        [0, 0, 0, 0, 0, 1, -2, 1]
-    ])
-
-    assert_array_equal(diff_matrix, actual_matrix)
-
-
-def test_difference_matrix_order_0():
-    """
-    Tests the 0th order differential matrix against the actual representation.
-
-    The 0th order differential matrix should be the same as the identity matrix,
-    so double-check that it is correct.
-    """
-    diff_matrix = _algorithm_setup.difference_matrix(10, 0).toarray()
-    actual_matrix = identity(10).toarray()
-
-    assert_array_equal(diff_matrix, actual_matrix)
-
-
-def test_difference_matrix_order_neg():
-    """Ensures differential matrix fails for negative order."""
-    with pytest.raises(ValueError):
-        _algorithm_setup.difference_matrix(10, diff_order=-2)
-
-
-def test_difference_matrix_order_over():
-    """
-    Tests the (n + 1)th order differential matrix against the actual representation.
-
-    If n is the number of data points and the difference order is greater than n,
-    then differential matrix should have a shape of (0, n) with 0 stored elements,
-    following a similar logic as np.diff.
-
-    """
-    diff_matrix = _algorithm_setup.difference_matrix(10, 11).toarray()
-    actual_matrix = np.empty(shape=(0, 10))
-
-    assert_array_equal(diff_matrix, actual_matrix)
-
-
-def test_difference_matrix_size_neg():
-    """Ensures differential matrix fails for negative data size."""
-    with pytest.raises(ValueError):
-        _algorithm_setup.difference_matrix(-1)
-
-
-@pytest.mark.parametrize('form', ('dia', 'csc', 'csr'))
-def test_difference_matrix_formats(form):
-    """
-    Ensures that the sparse format is correctly passed to the constructor.
-
-    Tests both 0-order and 2-order, since 0-order uses a different constructor.
-    """
-    assert _algorithm_setup.difference_matrix(10, 2, form).format == form
-    assert _algorithm_setup.difference_matrix(10, 0, form).format == form
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))

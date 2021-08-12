@@ -6,57 +6,28 @@ Created on March 5, 2021
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
 from . import utils
-from ._algorithm_setup import _optimize_window, _setup_morphology, _setup_whittaker
+from ._algorithm_setup import _setup_morphology, _setup_whittaker
 from ._compat import _HAS_PENTAPY, _pentapy_solve
-from .utils import pad_edges, padded_convolve, relative_difference
+from .utils import (
+    optimize_window as _optimize_window, pad_edges, padded_convolve, relative_difference
+)
 
 
-# make _optimize_window available to users and document it so that
-# it is included in the api documentation
-def optimize_window(*args, **kwargs):
-    """
-    Optimizes the morphological half-window size.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The measured data values.
-    increment : int, optional
-        The step size for iterating half windows. Default is 1.
-    max_hits : int, optional
-        The number of consecutive half windows that must produce the same
-        morphological opening before accepting the half window as the optimum
-        value. Default is 3.
-    window_tol : float, optional
-        The tolerance value for considering two morphological openings as
-        equivalent. Default is 1e-6.
-    max_half_window : int, optional
-        The maximum allowable half-window size. If None (default), will be set
-        to (len(data) - 1) / 2.
-    min_half_window : int, optional
-        The minimum half-window size. If None (default), will be set to 1.
-
-    Returns
-    -------
-    half_window : int
-        The optimized half window size.
-
-    Notes
-    -----
-    May only provide good results for some morphological algorithms, so use with
-    caution.
-
-    References
-    ----------
-    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
-    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
-
-    """
+# TODO remove in version 0.8.0
+def optimize_window(*args, **kwargs):  # noqa
+    warnings.warn(
+        (
+            'morphological.optimize_window is deprecated and will be removed in '
+            'version 0.8.0; use pybaselines.utils.optimize_window instead'
+        ), DeprecationWarning, stacklevel=2
+    )
     return _optimize_window(*args, **kwargs)
 
 
