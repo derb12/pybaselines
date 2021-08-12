@@ -21,9 +21,6 @@ as those used for the Whittaker-smoothing-based algorithms. Should be 2 (default
 or 1. See :func:`pentapy.core.solve` for more details.
 """
 
-PERMC_SPEC = None
-"""A deprecated constant used in previous versions. Will be removed in v0.6.0."""
-
 # the minimum positive float values such that a + _MIN_FLOAT != a
 # TODO this is mostly used to prevent dividing by 0; is there a better way to do that?
 # especially since it is usually max(value, _MIN_FLOAT) and in some cases value could be
