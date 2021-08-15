@@ -220,3 +220,29 @@ of the median of the noise's standard deviation distribution.
             num_std = 1.1
         baseline = classification.std_distribution(y, None, half_window=half_window, num_std=num_std)
         ax.plot(baseline[0], 'g--')
+
+
+std_threshold (Standard Deviation Threshold)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.std_threshold` (sometimes referred to as "FastChrom" in literature) identifies
+baseline segments by analyzing the rolling standard deviation distribution, similar
+to :func:`std_distribution`. Baseline points are identified as any point where the
+rolling standard deviation is less than the specified threshold, and peak regions are
+iteratively interpolated until the baseline is below the data.
+
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 4:
+            min_fwhm = y.shape[0]  # ensure it doesn't try to fill in negative peaks
+        else:
+            min_fwhm = None
+        baseline = classification.std_threshold(
+            y, None, half_window=12, threshold=1, min_fwhm=min_fwhm
+        )
+        ax.plot(baseline[0], 'g--')
