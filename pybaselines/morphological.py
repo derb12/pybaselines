@@ -16,7 +16,8 @@ from . import utils
 from ._algorithm_setup import _setup_morphology, _setup_whittaker
 from ._compat import _HAS_PENTAPY, _pentapy_solve
 from .utils import (
-    optimize_window as _optimize_window, pad_edges, padded_convolve, relative_difference
+    _mollifier_kernel, optimize_window as _optimize_window, pad_edges, padded_convolve,
+    relative_difference
 )
 
 
@@ -29,34 +30,6 @@ def optimize_window(*args, **kwargs):  # noqa
         ), DeprecationWarning, stacklevel=2
     )
     return _optimize_window(*args, **kwargs)
-
-
-def _mollifier_kernel(window_size):
-    """
-    A kernel for smoothing/mollification.
-
-    Parameters
-    ----------
-    window_size : int
-        The number of points for the entire kernel.
-
-    Returns
-    -------
-    numpy.ndarray, shape (2 * window_size + 1,)
-        The area normalized kernel.
-
-    References
-    ----------
-    Chen, H., et al. An Adaptive and Fully Automated Baseline Correction
-    Method for Raman Spectroscopy Based on Morphological Operations and
-    Mollifications. Applied Spectroscopy, 2019, 73(3), 284-293.
-
-    """
-    x = (np.arange(0, 2 * window_size + 1) - window_size) / window_size
-    kernel = np.zeros_like(x)
-    # x[1:-1] is same as x[abs(x) < 1]
-    kernel[1:-1] = np.exp(-1 / (1 - (x[1:-1])**2))
-    return kernel / kernel.sum()
 
 
 def _avg_opening(y, half_window, opening=None):

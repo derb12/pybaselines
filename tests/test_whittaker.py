@@ -485,3 +485,51 @@ class TestPsalsa(AlgorithmTester):
         _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
+
+
+class TestDerpsalsa(AlgorithmTester):
+    """Class for testing derpsalsa baseline."""
+
+    func = whittaker.derpsalsa
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    @has_pentapy
+    def test_pentapy_solver(self):
+        """Ensure pentapy solver gives similar result to SciPy's solver."""
+        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
+            scipy_output = self._call_func(self.y)[0]
+        pentapy_output = self._call_func(self.y)[0]
+
+        assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1

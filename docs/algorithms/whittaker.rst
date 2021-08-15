@@ -437,3 +437,61 @@ be considered a peak.
             k = 0.5
         baseline = whittaker.psalsa(y, 1e5, k=k)
         ax.plot(baseline[0], 'g--')
+
+
+derpsalsa (Derivative Peak-Screening Asymmetric Least Squares Algorithm)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.derpsalsa` is an attempt at improving the asls method to better fit noisy data
+by using an exponential decaying weighting for positive residuals. Further, it calculates
+additional weights based on the first and second derivatives of the data.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i = 1}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i = 1}^{N - d} (\Delta^d z_i)^2
+
+Weighting:
+
+The total weighting is given by:
+
+.. math::
+
+    w_i = w_{0i} * w_{1i} * w_{2i}
+
+where:
+
+.. math::
+
+    w_0 = \left\{\begin{array}{cr}
+        p \cdot exp{\left(\frac{-[(y_i - z_i)/k]^2}{2}\right)} & y_i > z_i \\
+        1 - p & y_i \le z_i
+    \end{array}\right.
+
+.. math::
+
+    w_1 = exp{\left(\frac{-[y_{sm}' / rms(y_{sm}')]^2}{2}\right)}
+
+.. math::
+
+    w_2 = exp{\left(\frac{-[y_{sm}'' / rms(y_{sm}'')]^2}{2}\right)}
+
+:math:`k` is a factor that controls the exponential decay of the weights for baseline
+values greater than the data and should be approximately the height at which a value could
+be considered a peak, :math:`y_{sm}'` and :math:`y_{sm}''` are the first and second derivatives,
+respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the root-mean-square operator.
+:math:`w_1` and :math:`w_2` are precomputed, while :math:`w_0` is updated each iteration.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 0:
+            k = 2
+        else:
+            k = 0.5
+        baseline = whittaker.psalsa(y, 1e5, k=k)
+        ax.plot(baseline[0], 'g--')

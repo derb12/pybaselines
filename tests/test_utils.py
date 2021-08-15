@@ -10,8 +10,8 @@ import numpy as np
 from numpy.testing import (
     assert_allclose, assert_almost_equal, assert_array_almost_equal, assert_array_equal
 )
-from scipy.sparse import identity
 import pytest
+from scipy.sparse import identity
 
 from pybaselines import utils
 
