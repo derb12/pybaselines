@@ -529,6 +529,9 @@ def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
     If `penalized` is True, makes the knots uniformly spaced to create p-splines. That
     way, can use a finite difference matrix to impose penalties on the spline.
 
+    `degree` is used instead of `order` like for polynomials since the order of a spline
+    is defined by convention as `degree` + 1.
+
     References
     ----------
     Eilers, P., et al. Twenty years of P-splines. SORT: Statistics and Operations Research
@@ -537,31 +540,25 @@ def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
     Hastie, T., et al. The Elements of Statistical Learning. Springer, 2017. Chapter 5.
 
     """
+    spline_order = spline_degree + 1
     if penalized:
         x_min = x.min()
         x_max = x.max()
-        dx = (x_max - x_min) / num_knots
-        # NOTE the number and placement of extended knots outside of the x-range is maybe not
-        # 100% correct; figured it out by trial and error to produce a plot similar to
-        # Figure 3a in Eilers's Twenty years of P-splines paper when plotting::
-        #   coef = np.linalg.lstsq(basis, y, None)[0]
-        #   plt.plot(basis * coef)
+        dx = (x_max - x_min) / (num_knots + 1)  # +1 since number of sections is num_knots + 1
         knots = np.linspace(
             x_min - spline_degree * dx, x_max + spline_degree * dx,
-            num_knots + 2 * spline_degree
+            num_knots + 2 * spline_order
         )
     else:
         # TODO maybe provide a better way to select knot positions for regular B-splines
-        # TODO not 100% sure this is right
         # use 0 and 100 percentile for the outer knots
-        # TODO add 2 to num_knots to account for 2 outer knots?
-        inner_knots = np.percentile(x, np.linspace(0, 100, num_knots))
+        inner_knots = np.percentile(x, np.linspace(0, 100, num_knots + 2))
         knots = np.concatenate((
             np.repeat(inner_knots[0], spline_degree), inner_knots,
             np.repeat(inner_knots[-1], spline_degree)
         ))
 
-    num_bases = knots.shape[0] - (spline_degree + 1)
+    num_bases = knots.shape[0] - spline_order
     basis = np.empty((num_bases, x.shape[0]))
     coefs = np.zeros(num_bases)
     # TODO would be faster to simply calculate the spline coefficients using de Boor's recursive
@@ -599,7 +596,7 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     spline_degree : int, optional
         The degree of the spline. Default is 3, which is a cubic spline.
     num_knots : int, optional
-        The number of knots for the splines. Default is 10.
+        The number of interior knots for the splines. Default is 10.
     penalized : bool, optional
         Whether the basis matrix should be for a penalized spline or a regular
         B-spline. Default is True, which creates the basis for a penalized spline.

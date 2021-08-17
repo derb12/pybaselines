@@ -356,9 +356,13 @@ def test_spline_basis(num_knots, degree, penalized):
     basis = _algorithm_setup.spline_basis(x, num_knots, degree, penalized)
 
     assert basis.shape[0] == x.shape[0]
-    # TODO not sure what shape[1] should actually be; maybe change
-    # in the future
-    assert basis.shape[1] == num_knots + degree - 1
+    # num_knots == number of inner knots; total knots = inner knots + 2
+    # to account for min and max points, and then add `degree` extra knots
+    # on each end to accomodate the final polynomial on each end; therefore,
+    # grand total number of knots = num_knots + 2 * (degree + 1);
+    # the number of basis functions is knots - (degree + 1), so the ultimate
+    # shape of the basis matrix should be num_knots + (degree + 1)
+    assert basis.shape[1] == num_knots + degree + 1
 
 
 def test_setup_splines_wrong_weight_shape(small_data):
