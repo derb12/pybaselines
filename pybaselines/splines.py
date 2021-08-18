@@ -37,7 +37,7 @@ def mixture_model(data, lam=100, p=1e-2, num_knots=100, spline_degree=3, diff_or
         The degree of the spline. Default is 3, which is a cubic spline.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 3
-        (third order differential matrix). Typical values are 3, 2, or 1.
+        (third order differential matrix). Typical values are 2 or 3.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional
@@ -87,7 +87,7 @@ def mixture_model(data, lam=100, p=1e-2, num_knots=100, spline_degree=3, diff_or
     for i in range(max_iter + 1):
         coef = spsolve(
             spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
-            (spl_basis.T).dot(weight_array * y),
+            spl_basis.T * (weight_array * y),
             permc_spec='NATURAL'
         )
         baseline = spl_basis.dot(coef)
@@ -184,7 +184,7 @@ def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_ord
     for i in range(max_iter + 1):
         coef = spsolve(
             spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
-            (spl_basis.T).dot(weight_array * y),
+            spl_basis.T * (weight_array * y),
             permc_spec='NATURAL'
         )
         baseline = spl_basis.dot(coef)

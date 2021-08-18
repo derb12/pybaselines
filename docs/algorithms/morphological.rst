@@ -267,3 +267,31 @@ tophat (Top-hat Transformation)
             half_window = 20
         baseline = morphological.tophat(y, half_window)
         ax.plot(baseline[0], 'g--')
+
+
+mpspline (Morphology-Based Penalized Spline)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.mpspline` uses both morphological operations and penalized splines
+to create the baseline. First, the data is smoothed by fitting a penalized
+spline to the closing of the data with a window of 3. Then baseline points are
+identified where the element-wise minimum between the opening of the smoothed data
+and the average of a morphological erosion and dilation of the opening. The baseline
+ points are given a weighting of :math:`1 - p`, while all other points are given
+a weight of :math:`p`, similar to the :func:`.mpls` method. Finally, a penalized spline
+is fit to the smoothed data with the assigned weighting.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            lam = 1e4
+        elif i == 3:
+            lam = 5e2
+        else:
+            lam = 1e3
+        baseline = morphological.mpspline(y, lam=lam)
+        ax.plot(baseline[0], 'g--')

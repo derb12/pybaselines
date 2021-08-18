@@ -11,9 +11,11 @@ import warnings
 import numpy as np
 from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
+from scipy.sparse import diags
+from scipy.sparse.linalg import spsolve
 
 from . import utils
-from ._algorithm_setup import _setup_morphology, _setup_whittaker
+from ._algorithm_setup import _setup_morphology, _setup_splines, _setup_whittaker
 from ._compat import _HAS_PENTAPY, _pentapy_solve
 from .utils import (
     _mollifier_kernel, optimize_window as _optimize_window, pad_edges, padded_convolve,
@@ -80,9 +82,9 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
     p : float, optional
-        The penalizing weighting factor. Must be between 0 and 1. Residuals
-        above the data will be given p weight, and residuals below the data
-        will be given p-1 weight. Default is 0.0.
+        The penalizing weighting factor. Must be between 0 and 1. Anchor points
+        identified by the procedure in [1]_ are given a weight of `1 - p`, and all
+        other points have a weight of `p`. Default is 0.0.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
@@ -124,12 +126,20 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
         * 'half_window': int
             The half window used for the morphological calculations.
 
+    Raises
+    ------
+    ValueError
+        Raised if p is not between 0 and 1.
+
     References
     ----------
     .. [1] Li, Zhong, et al. Morphological weighted penalized least squares for
            background correction. Analyst, 2013, 138, 4483-4492.
 
     """
+    if not 0 <= p <= 1:
+        raise ValueError('p must be between 0 and 1')
+
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
     if weights is not None:
         w = weights
@@ -781,3 +791,149 @@ def tophat(data, half_window=None, **window_kwargs):
     baseline = grey_opening(y, [2 * half_wind + 1])
 
     return baseline, {'half_window': half_wind}
+
+
+def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=100,
+             spline_degree=3, diff_order=2, weights=None, pad_kwargs=None, **window_kwargs):
+    """
+    Morphology-based penalized spline baseline.
+
+    Identifies baseline points using morphological operations, and then uses weighted
+    least-squares to fit a penalized spline to the baseline.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window used for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    lam : float, optional
+        The smoothing parameter for the penalized spline when fitting the baseline.
+        Larger values will create smoother baselines. Default is 1e4. Larger values
+        are needed for larger `num_knots`.
+    lam_smooth : float, optional
+        The smoothing parameter for the penalized spline when smoothing the input
+        data. Default is 1e-2. Larger values are needed for noisy data or for larger
+        `num_knots`.
+    p : float, optional
+        The penalizing weighting factor. Must be between 0 and 1. Anchor points
+        identified by the procedure in the reference are given a weight of `1 - p`,
+        and all other points have a weight of `p`. Default is 0.0.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the weights will be
+        calculated following the procedure in the reference.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'half_window': int
+            The half window used for the morphological calculations.
+
+    Raises
+    ------
+    ValueError
+        Raised if `half_window` is < 1, if `lam` or `lam_smooth` is <= 0, or if
+        `p` is not between 0 and 1.
+
+    Notes
+    -----
+    The optimal opening is calculated as the element-wise minimum of the opening and
+    the average of the erosion and dilation of the opening. The reference used the
+    erosion and dilation of the smoothed data, rather than the opening, which tends to
+    overestimate the baseline.
+
+    Rather than setting knots at the intersection points of the optimal opening and the
+    smoothed data as described in the reference, weights are assigned to `1 - p` at the
+    intersection points and `p` elsewhere. This simplifies the penalized spline
+    calculation by allowing the use of equally spaced knots, but should otherwise give
+    similar results as the reference algorithm.
+
+    References
+    ----------
+    Gonzalez-Vidal, J., et al. Automatic morphology-based cubic p-spline fitting
+    methodology for smoothing and baseline-removal of Raman spectra. Journal of
+    Raman Spectroscopy. 2017, 48(6), 878-883.
+
+    """
+    if half_window is not None and half_window < 1:
+        raise ValueError('half-window must be greater than 0')
+    elif lam <= 0:
+        raise ValueError('lam must be greater than 0')
+    elif not 0 <= p <= 1:
+        raise ValueError('p must be between 0 and 1')
+
+    y, _, spl_basis, weight_array, penalty_matrix = _setup_splines(
+        data, None, weights, spline_degree, num_knots, True, diff_order, lam_smooth
+    )
+    # TODO should this use np.isclose instead?
+    # TODO this overestimates the data when there is a lot of noise, leading to an
+    # overestimated baseline; could alternatively just fit a p-spline to
+    # 0.5 * (grey_closing(y, 3) + grey_opening(y, 3)), which averages noisy data better;
+    # could add it as a boolean parameter
+    interp_weights = (y == grey_closing(y, 3)) * 1
+    weight_matrix = diags(interp_weights)
+    initial_coef = spsolve(
+        spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
+        spl_basis.T * (interp_weights * y), permc_spec='NATURAL'
+    )
+    spline_fit = spl_basis * initial_coef
+    if weights is None:
+        if half_window is None:
+            half_window = _optimize_window(spline_fit, **window_kwargs)
+        full_window = 2 * half_window + 1
+
+        pad_kws = pad_kwargs if pad_kwargs is not None else {}
+        padded_spline = pad_edges(spline_fit, full_window, **pad_kws)
+        opening = grey_opening(padded_spline, full_window)
+        # using the opening rather than padded_spline is more conservative when identifying
+        # baseline points and results in much better results
+        optimal_opening = np.minimum(
+            opening, _avg_opening(y, half_window, opening)
+        )[full_window:-full_window]
+
+        # TODO should this use np.isclose instead?
+        mask = spline_fit == optimal_opening
+        weight_array[mask] = 1 - p
+        weight_array[~mask] = p
+
+    weight_matrix.setdiag(weight_array)
+    optimal_coef = spsolve(
+        spl_basis.T * weight_matrix * spl_basis + (lam / lam_smooth) * penalty_matrix,
+        spl_basis.T * (weight_array * spline_fit), permc_spec='NATURAL'
+    )
+    baseline = spl_basis * optimal_coef
+
+    return baseline, {'half_window': half_window, 'weights': weight_array}
