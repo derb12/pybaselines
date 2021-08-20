@@ -248,7 +248,7 @@ Weighting:
 
     w_i = \frac
         {1}
-        {exp{\left(\frac
+        {1 + exp{\left(\frac
             {2(d_i - (-\mu^- + 2 \sigma^-))}
             {\sigma^-}
         \right)}}
