@@ -6,18 +6,123 @@ Created on August 4, 2021
 
 """
 
+from functools import partial
+
 import numpy as np
+from scipy.optimize import curve_fit
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import _setup_splines
-from .utils import _quantile_loss, relative_difference
+from ._compat import jit, prange
+from .utils import _MIN_FLOAT, _quantile_loss, gaussian, relative_difference
 
 
-def mixture_model(data, lam=100, p=1e-2, num_knots=100, spline_degree=3, diff_order=3,
-                  max_iter=50, tol=1e-3, weights=None):
+@jit(nopython=True, cache=True, parallel=True)
+def _assign_weights(bins, posterior_prob, residual):
     """
-    Fits the baseline using a mixture of penalized splines and asymmetric least squares.
+    Creates weights based on residual values within a posterior probabilty.
+
+    Parameters
+    ----------
+    bins : numpy.ndarray, shape (M,)
+        The array of bin edges for `residual` output by :func:`numpy.histogram`.
+    posterior_prob : numpy.ndarray, shape (M,)
+        The array of the posterior probability that each value belongs to the
+        gaussian distribution of the noise.
+    residual : numpy.ndarray, shape (N,)
+        The array of residuals.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The weighting based on the residuals and their position in the posterior
+        probability.
+
+    Notes
+    -----
+    The parallel calculation is slightly slower when there are less than ~1000 bins,
+    but is much faster for more bins.
+
+    The code is not given by the reference; however, the reference describes the posterior
+    probability and helps to understand how this weighting scheme is derived.
+
+    References
+    ----------
+    de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
+    Intelligent Laboratory Systems. 2012, 117, 56-60.
+
+    """
+    weights = np.empty(residual.shape[0])
+    num_regions = bins.shape[0] - 1
+    for i in prange(num_regions):
+        weights[(residual >= bins[i]) & (residual < bins[i + 1])] = posterior_prob[i]
+    weights[residual >= bins[-1]] = posterior_prob[-1]
+
+    return weights
+
+
+def _mixture_pdf(x, n, sigma, n_2=0, pos_uniform=None, neg_uniform=None):
+    """
+    The probability density function of a Gaussian and one or two uniform distributions.
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (N,)
+        The x-values of the distribution.
+    n : float
+        The fraction of the distribution belonging to the Gaussian.
+    sigma : float
+        The standard deviation of the Gaussian distribution.
+    n_2 : float, optional
+        If `neg_uniform` or `pos_uniform` is None, then `n_2` is just an unused input.
+        Otherwise, it is the fraction of the distribution belonging to the positive
+        uniform distribution. Default is 0.
+    pos_uniform : numpy.ndarray, shape (N,), optional
+        The array of the positive uniform distributtion. Default is None.
+    neg_uniform : numpy.ndarray, shape (N,), optional
+        The array of the negative uniform distribution. Default is None.
+
+    Returns
+    -------
+    numpy.ndarray
+        The total probability density function for the mixture model.
+
+    References
+    ----------
+    de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
+    Intelligent Laboratory Systems. 2012, 117, 56-60.
+
+    """
+    # no error handling for if both pos_uniform and neg_uniform are None since this
+    # is an internal function
+    if neg_uniform is None:
+        n1 = n
+        n2 = 1 - n
+        n3 = 0
+        neg_uniform = 0
+    elif pos_uniform is None:  # never actually used, but nice to have for the future
+        n1 = n
+        n2 = 0
+        n3 = 1 - n
+        pos_uniform = 0
+    else:
+        n1 = n
+        n2 = n_2
+        n3 = 1 - n - n_2
+    # the gaussian should be area-normalized, so set height accordingly
+    height = 1 / (max(sigma, _MIN_FLOAT) * np.sqrt(2 * np.pi))
+
+    return n1 * gaussian(x, height, 0, sigma) + n2 * pos_uniform + n3 * neg_uniform
+
+
+def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_order=3,
+                  max_iter=50, tol=1e-3, weights=None, symmetric=False, num_bins=None):
+    """
+    Considers the data as a mixture model composed of noise and peaks.
+
+    Weights are iteratively assigned by calculating the probability each value in
+    the residual belongs to a normal distribution representing the noise.
 
     Parameters
     ----------
@@ -26,11 +131,12 @@ def mixture_model(data, lam=100, p=1e-2, num_knots=100, spline_degree=3, diff_or
         contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
-        Default is 1e6.
+        Default is 1e5.
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given p weight, and values less than the baseline
-        will be given p-1 weight. Default is 1e-2.
+        will be given p-1 weight. Used to set the initial weights before performing
+        expectation-maximization. Default is 1e-2.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional
@@ -44,7 +150,18 @@ def mixture_model(data, lam=100, p=1e-2, num_knots=100, spline_degree=3, diff_or
         The exit criteria. Default is 1e-3.
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
-        will be an array with size equal to N and all values set to 1.
+        will be an array with size equal to N and all values set to 1, and then
+        two iterations of reweighted least-squares are performed to provide starting
+        weights for the expectation-maximization of the mixture model.
+    symmetric : bool, optional
+        If False (default), the total mixture model will be composed of one normal
+        distribution for the noise and one uniform distribution for positive non-noise
+        residuals. If True, an additional uniform distribution will be added to the
+        mixture model for negative non-noise residuals. Only need to set `symmetric`
+        to True when peaks are both positive and negative.
+    num_bins : int, optional
+        The number of bins to use when transforming the residuals into a probability
+        density distribution. Default is None, which uses ``len(data) / 10``.
 
     Returns
     -------
@@ -83,22 +200,91 @@ def mixture_model(data, lam=100, p=1e-2, num_knots=100, spline_degree=3, diff_or
         data, None, weights, spline_degree, num_knots, True, diff_order, lam
     )
     weight_matrix = diags(weight_array)
+    if weights is None:
+        # perform 2 iterations: first is a least-squares fit and second is initial
+        # reweighted fit; 2 fits are needed to get weights to have a decent starting
+        # distribution for the expectation-maximization
+        for _ in range(2):
+            coef = spsolve(
+                spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
+                spl_basis.T * (weight_array * y),
+                permc_spec='NATURAL'
+            )
+            baseline = spl_basis * coef
+            mask = y > baseline
+            weight_array = mask * p + (~mask) * (1 - p)
+            weight_matrix.setdiag(weight_array)
+
+    # now perform the expectation-maximization
+    # TODO not sure if there is a better way to do this than transforming
+    # the residual into a histogram, fitting the histogram, and then assigning
+    # weights based on the bins; the weight assignment is quite slow when
+    # len(data) or num_bins is >~ 1000
+    if num_bins is None:
+        num_bins = y.shape[0] // 10
+
+    # uniform probability density distribution for positive residuals, constant
+    # from 0 to max(residual), and 0 for residuals < 0
+    pos_uniform_pdf = np.empty(num_bins)
     tol_history = np.empty(max_iter + 1)
+    residual = y - baseline
+    if symmetric:
+        # the 0.2 * std(residual) is an "okay" estimate that at least
+        # scales with the range of y
+        fit_params = (0.5, 0.2 * np.std(residual), 0.25)
+        bounds = ((0, 0, 0), (1, np.inf, 1))
+        # create a second uniform pdf for negative residual values
+        neg_uniform_pdf = np.empty(num_bins)
+    else:
+        fit_params = (0.5, 0.2 * np.std(residual))
+        bounds = ((0, 0), (1, np.inf))
+        neg_uniform_pdf = None
     for i in range(max_iter + 1):
+        residual_hist, bin_edges = np.histogram(residual, num_bins, density=True)
+        # average bin edges to get better x-values for fitting
+        bins = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        pos_uniform_mask = bins < 0
+        pos_uniform_pdf[~pos_uniform_mask] = 1 / max(abs(residual.max()), 1e-6)
+        pos_uniform_pdf[pos_uniform_mask] = 0
+        if symmetric:
+            neg_uniform_mask = bins > 0
+            neg_uniform_pdf[~neg_uniform_mask] = 1 / max(abs(residual.min()), 1e-6)
+            neg_uniform_pdf[neg_uniform_mask] = 0
+
+        # method is dogbox since trf gives a RuntimeWarning due to nan somewhere
+        # occuring in the bounds
+        fit_params = curve_fit(
+            partial(_mixture_pdf, pos_uniform=pos_uniform_pdf, neg_uniform=neg_uniform_pdf),
+            bins, residual_hist, p0=fit_params, bounds=bounds, check_finite=False,
+            method='dogbox'
+        )[0]
+        if symmetric:
+            uniform_pdf = (
+                fit_params[2] * pos_uniform_pdf
+                + (1 - fit_params[0] - fit_params[2]) * neg_uniform_pdf
+            )
+        else:
+            uniform_pdf = (1 - fit_params[0]) * pos_uniform_pdf
+        gaus_pdf = fit_params[0] * gaussian(
+            bins, 1 / (fit_params[1] * np.sqrt(2 * np.pi)), 0, fit_params[1]
+        )
+        posterior_prob = gaus_pdf / (gaus_pdf + uniform_pdf)
+        new_weights = _assign_weights(bin_edges, posterior_prob, residual)
+
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
+
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
         coef = spsolve(
             spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
             spl_basis.T * (weight_array * y),
             permc_spec='NATURAL'
         )
-        baseline = spl_basis.dot(coef)
-        mask = y > baseline
-        new_weights = mask * p + (~mask) * (1 - p)
-        calc_difference = relative_difference(weight_array, new_weights)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
+        baseline = spl_basis * coef
+        residual = y - baseline
 
     # TODO return spline coefficients? would be useless without the basis matrix or
     # the knot locations; probably don't want to return basis since it's not useful;
@@ -187,7 +373,7 @@ def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_ord
             spl_basis.T * (weight_array * y),
             permc_spec='NATURAL'
         )
-        baseline = spl_basis.dot(coef)
+        baseline = spl_basis * coef
         calc_difference = relative_difference(old_coef, coef)
         tol_history[i] = calc_difference
         if calc_difference < tol:

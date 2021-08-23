@@ -17,9 +17,14 @@ Algorithms
 mixture_model (Mixture Model)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.mixture_model` fits the baseline using a mixture of penalized splines and
-asymmetric least squares.
-
+:func:`.mixture_model` considers the data as a mixture model composed of
+a baseline with noise and peaks. The weighting for the penalized spline fitting
+the baseline is iteratively determined by fitting the residual with a normal
+distribution centered at 0 (representing the noise), and a uniform distribution
+for residuals >= 0 (and a third uniform distribution for residuals <= 0 if `symmetric`
+is set to True) representing peaks. After fitting the total model to the residuals,
+the weighting is calculated from the posterior probability for each value in the
+residual belonging to the noise's normal distribution.
 
 .. plot::
    :align: center
@@ -109,13 +114,13 @@ asymmetric least squares.
             lam = 5e6
         else:
             lam = 1e5
-        if i == 0:
-            p = 0.1
-        elif i == 4:
+        if i == 4:
+            symmetric = True
             p = 0.5
         else:
+            symmetric = False
             p = 0.01
-        baseline = splines.mixture_model(y, lam=lam, p=p)
+        baseline = splines.mixture_model(y, lam=lam, p=p, symmetric=symmetric)
         ax.plot(baseline[0], 'g--')
 
 

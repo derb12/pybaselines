@@ -277,7 +277,7 @@ to create the baseline. First, the data is smoothed by fitting a penalized
 spline to the closing of the data with a window of 3. Then baseline points are
 identified where the element-wise minimum between the opening of the smoothed data
 and the average of a morphological erosion and dilation of the opening. The baseline
- points are given a weighting of :math:`1 - p`, while all other points are given
+points are given a weighting of :math:`1 - p`, while all other points are given
 a weight of :math:`p`, similar to the :func:`.mpls` method. Finally, a penalized spline
 is fit to the smoothed data with the assigned weighting.
 

@@ -86,7 +86,7 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
         The gaussian distribution evaluated with x.
 
     """
-    return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
+    return height * np.exp(-0.5 * ((x - center)**2) / max(sigma, _MIN_FLOAT)**2)
 
 
 def gaussian_kernel(window_size, sigma=1.0):
