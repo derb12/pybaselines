@@ -32,6 +32,7 @@ pybaselines has the following optional dependencies:
     * :func:`.loess`
     * :func:`.std_distribution`
     * :func:`.beads`
+    * :func:`.mixture_model`
 
 Stable Release
 ~~~~~~~~~~~~~~

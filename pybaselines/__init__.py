@@ -42,7 +42,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
     * swima (Small-Window Moving Average)
 
-* Spline methods (:mod:`pybaselines.splines`)
+* Spline methods (:mod:`pybaselines.spline`)
 
     * mixture_model (Mixture Model)
     * irsqr (Iterative Reweighted Spline Quantile Regression)
@@ -76,5 +76,5 @@ __version__ = '0.5.1'
 # import utils first since it is imported by other modules; likewise, import
 # optimizers last since it imports the other modules
 from . import (
-    utils, classification, misc, morphological, polynomial, splines, whittaker, window, optimizers
+    utils, classification, misc, morphological, polynomial, spline, whittaker, window, optimizers
 )

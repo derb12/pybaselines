@@ -47,7 +47,7 @@ name, not editorialization):
     * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
     * swima (Small-Window Moving Average)
 
-* Spline methods (:mod:`pybaselines.splines`)
+* Spline methods (:mod:`pybaselines.spline`)
 
     * mixture_model (Mixture Model)
     * irsqr (Iterative Reweighted Spline Quantile Regression)

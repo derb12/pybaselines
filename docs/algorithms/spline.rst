@@ -2,7 +2,7 @@
 Spline Baselines
 ================
 
-The contents of :mod:`pybaselines.splines` contain algorithms for fitting
+The contents of :mod:`pybaselines.spline` contain algorithms for fitting
 splines to the baseline.
 
 Introduction
@@ -33,7 +33,7 @@ residual belonging to the noise's normal distribution.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines import splines
+    from pybaselines import spline
 
     def create_plots():
         fig, axes = plt.subplots(
@@ -120,7 +120,7 @@ residual belonging to the noise's normal distribution.
         else:
             symmetric = False
             p = 0.01
-        baseline = splines.mixture_model(y, lam=lam, p=p, symmetric=symmetric)
+        baseline = spline.mixture_model(y, lam=lam, p=p, symmetric=symmetric)
         ax.plot(baseline[0], 'g--')
 
 
@@ -143,6 +143,6 @@ to perform quantile regression on the data.
             lam = 1e6
         else:
             lam = 1e5
-        baseline = splines.irsqr(y, lam=lam, quantile=quantiles[i])
+        baseline = spline.irsqr(y, lam=lam, quantile=quantiles[i])
         ax.plot(baseline[0], 'g--')
 

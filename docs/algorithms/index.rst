@@ -22,7 +22,7 @@ reference listing for any algorithm.
    whittaker
    morphological
    window
-   splines
+   spline
    classification
    optimizers
    misc

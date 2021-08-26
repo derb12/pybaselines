@@ -8,7 +8,7 @@ Created on March 20, 2021
 
 import pytest
 
-from pybaselines import splines
+from pybaselines import spline
 
 from .conftest import AlgorithmTester, get_data
 
@@ -16,7 +16,7 @@ from .conftest import AlgorithmTester, get_data
 class TestMixtureModel(AlgorithmTester):
     """Class for testing mixture_model baseline."""
 
-    func = splines.mixture_model
+    func = spline.mixture_model
 
     def test_unchanged_data(self, data_fixture):
         """Ensures that input data is unchanged by the function."""
@@ -55,7 +55,7 @@ class TestMixtureModel(AlgorithmTester):
 class TestIRSQR(AlgorithmTester):
     """Class for testing irsqr baseline."""
 
-    func = splines.irsqr
+    func = spline.irsqr
 
     def test_unchanged_data(self, data_fixture):
         """Ensures that input data is unchanged by the function."""
