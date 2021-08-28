@@ -1258,3 +1258,177 @@ class TestQuantReg(AlgorithmTester):
         _, params = self._call_func(self.y, self.x, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter
+
+
+class TestGoldindec(AlgorithmTester):
+    """Class for testing goldindec baseline."""
+
+    func = polynomial.goldindec
+
+    @pytest.mark.parametrize(
+        'cost_function',
+        (
+            'asymmetric_truncated_quadratic',
+            'a_truncated_quadratic',
+            'asymmetric_huber',
+            'asymmetric_indec',
+            'indec',
+            'huber',
+            'truncated_quadratic'
+        )
+    )
+    def test_unchanged_data(self, data_fixture, cost_function):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, x, y, x, cost_function=cost_function)
+
+    @pytest.mark.parametrize('cost_function', ('p_huber', ''))
+    def test_unknown_cost_function_prefix_fails(self, cost_function):
+        """Ensures cost function with no prefix or a wrong prefix fails."""
+        with pytest.raises(KeyError):
+            self._call_func(self.y, self.x, cost_function=cost_function)
+
+    @pytest.mark.parametrize('cost_function', ('s_huber', 's_indec', 'symmetric_indec'))
+    def test_symmetric_cost_function_fails(self, cost_function):
+        """Ensures a symmetric cost function fails."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, cost_function=cost_function)
+
+    def test_unknown_cost_function_fails(self):
+        """Ensures than an unknown cost function fails."""
+        with pytest.raises(KeyError):
+            self._call_func(self.y, self.x, cost_function='a_hub')
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        """Ensures that the output has the desired format."""
+        param_keys = ['weights', 'tol_history', 'threshold']
+        if return_coef:
+            param_keys.append('coef')
+        self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
+
+    def test_list_output(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+    def test_weighting(self, weight_enum):
+        """
+        Tests that weighting is correctly applied by comparing to other algorithms.
+
+        Weights were not included in the original goldindec method, so need to ensure
+        that their usage in pybaselines is correct.
+
+        For uniform weights, the reference baseline is simply the unweighted calculation,
+        since they should be equal. For non-uniform weights, compare to the output of
+        penalized_poly, whose weighting is correctly tested, using the output optimal
+        threshold.
+
+        """
+        if weight_enum == 0:
+            # all weights = 1
+            weights = None
+            uniform_weights = True
+        elif weight_enum == 1:
+            # same as all weights = 1, but would cause issues if weights were
+            # incorrectly multiplied
+            weights = np.full_like(self.y, 2)
+            uniform_weights = True
+        elif weight_enum == 2:
+            # binary mask, only fitting the first half of the data
+            weights = np.ones_like(self.y)
+            weights[self.x < 0.5 * (np.max(self.x) + np.min(self.x))] = 0
+            uniform_weights = False
+        else:
+            # weight array where the two endpoints have weighting >> 1
+            weights = np.ones_like(self.y)
+            fraction = max(1, ceil(self.y.shape[0] * 0.1))
+            weights[:fraction] = 100
+            weights[-fraction:] = 100
+            uniform_weights = False
+
+        poly_order = 2
+        fit_baseline, params = self._call_func(self.y, self.x, poly_order, weights=weights)
+        if uniform_weights:
+            reference_baseline = self._call_func(self.y, self.x, poly_order)[0]
+        else:
+            reference_baseline = polynomial.penalized_poly(
+                self.y, self.x, poly_order, weights=weights,
+                threshold=params['threshold'], cost_function='a_indec'
+            )[0]
+
+        assert_allclose(fit_baseline, reference_baseline)
+
+    def test_output_coefs(self):
+        """Ensures the output coefficients can correctly reproduce the baseline."""
+        baseline, params = self._call_func(self.y, self.x, return_coef=True)
+        recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
+
+        assert_allclose(baseline, recreated_poly)
+
+    @pytest.mark.parametrize('exit_enum', (0, 1, 2, 3))
+    def test_tol_history(self, exit_enum):
+        """
+        Ensures the 'tol_history' item in the parameter output is correct.
+
+        Since the shape of 'tol_history' is dictated by the number of iterations
+        completed for fitting each threshold value and for iterating between
+        threshold values, need to ensure each exit criteria works independently.
+
+        """
+        if exit_enum == 0:
+            # inner fitting does more iterations
+            max_iter = 15
+            tol = -1
+            max_iter_2 = 10
+            tol_2 = 0
+            tol_3 = -1
+
+            expected_shape_0 = max_iter_2 + 2
+            expected_shape_1 = max_iter
+
+        if exit_enum == 1:
+            # outer fitting does more iterations
+            max_iter = 15
+            tol = 1e6
+            max_iter_2 = 10
+            tol_2 = 0
+            tol_3 = -1
+
+            expected_shape_0 = max_iter_2 + 2
+            expected_shape_1 = max_iter_2
+
+        if exit_enum == 2:
+            # only one iteration completed; exits due to tol_2
+            max_iter = 15
+            tol = 1e6
+            max_iter_2 = 10
+            tol_2 = 1e6
+            tol_3 = -1
+
+            expected_shape_0 = 3
+            expected_shape_1 = 1
+
+        if exit_enum == 3:
+            # only one iteration completed; exits due to tol_3
+            max_iter = 15
+            tol = 1e6
+            max_iter_2 = 10
+            tol_2 = 0
+            tol_3 = 1e6
+
+            expected_shape_0 = 3
+            expected_shape_1 = 1
+
+        _, params = self._call_func(
+            self.y, self.x, max_iter=max_iter, tol=tol, max_iter_2=max_iter_2,
+            tol_2=tol_2, tol_3=tol_3
+        )
+
+        assert params['tol_history'].shape[0] == expected_shape_0
+        assert params['tol_history'].shape[1] == expected_shape_1
