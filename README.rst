@@ -156,7 +156,7 @@ pybaselines requires `Python <https://python.org>`_ version 3.6 or later
 and the following libraries:
 
 * `NumPy <https://numpy.org>`_ (>= 1.14)
-* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.11)
+* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.17)
 
 
 All of the required libraries should be automatically installed when
