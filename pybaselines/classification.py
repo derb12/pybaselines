@@ -519,8 +519,8 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
     return baseline, {'mask': mask}
 
 
-def std_threshold(data, x_data=None, half_window=None, threshold=None, min_fwhm=None,
-                  interp_half_window=5, smooth_half_window=None, weights=None, **pad_kwargs):
+def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None,
+              interp_half_window=5, smooth_half_window=None, weights=None, **pad_kwargs):
     """
     Identifies baseline segments by thresholding the rolling standard deviation distribution.
 
@@ -581,9 +581,8 @@ def std_threshold(data, x_data=None, half_window=None, threshold=None, min_fwhm=
 
     Notes
     -----
-    In literature, this algorithm is sometimes referred to as "FastChrom", but that
-    name was not used here since the FastChrom software covers baseline correction,
-    peak finding, and peak grouping, while only the baseline correction is used here.
+    Only covers the baseline correction from FastChrom, not its peak finding and peak
+    grouping capabilities.
 
     References
     ----------

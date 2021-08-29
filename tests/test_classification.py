@@ -244,10 +244,10 @@ class TestStdDistribution(AlgorithmTester):
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
-class TestStdThreshold(AlgorithmTester):
-    """Class for testing std_threshold baseline."""
+class TestFastChrom(AlgorithmTester):
+    """Class for testing fastchrom baseline."""
 
-    func = classification.std_threshold
+    func = classification.fastchrom
 
     def test_unchanged_data(self, data_fixture):
         """Ensures that input data is unchanged by the function."""

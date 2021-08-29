@@ -222,14 +222,13 @@ of the median of the noise's standard deviation distribution.
         ax.plot(baseline[0], 'g--')
 
 
-std_threshold (Standard Deviation Threshold)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+fastchrom (FastChrom's Baseline Method)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.std_threshold` (sometimes referred to as "FastChrom" in literature) identifies
-baseline segments by analyzing the rolling standard deviation distribution, similar
-to :func:`std_distribution`. Baseline points are identified as any point where the
-rolling standard deviation is less than the specified threshold, and peak regions are
-iteratively interpolated until the baseline is below the data.
+:func:`.fastchrom` identifies baseline segments by analyzing the rolling standard
+deviation distribution, similar to :func:`std_distribution`. Baseline points are
+identified as any point where the rolling standard deviation is less than the specified
+threshold, and peak regions are iteratively interpolated until the baseline is below the data.
 
 
 .. plot::
@@ -242,7 +241,7 @@ iteratively interpolated until the baseline is below the data.
             min_fwhm = y.shape[0]  # ensure it doesn't try to fill in negative peaks
         else:
             min_fwhm = None
-        baseline = classification.std_threshold(
+        baseline = classification.fastchrom(
             y, None, half_window=12, threshold=1, min_fwhm=min_fwhm
         )
         ax.plot(baseline[0], 'g--')
