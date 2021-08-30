@@ -6,6 +6,7 @@ Created on August 4, 2021
 
 """
 
+from math import ceil
 from functools import partial
 
 import numpy as np
@@ -14,19 +15,20 @@ from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import _setup_splines
-from ._compat import jit, prange
+from ._compat import jit
 from .utils import _MIN_FLOAT, _quantile_loss, gaussian, relative_difference
 
 
-@jit(nopython=True, cache=True, parallel=True)
-def _assign_weights(bins, posterior_prob, residual):
+@jit(nopython=True, cache=True)
+def _assign_weights(bin_mapping, posterior_prob, residual):
     """
     Creates weights based on residual values within a posterior probabilty.
 
     Parameters
     ----------
-    bins : numpy.ndarray, shape (M,)
-        The array of bin edges for `residual` output by :func:`numpy.histogram`.
+    bin_mapping : numpy.ndarray, shape (N,)
+        An array of integers that maps each item in `residual` to the corresponding
+        bin index in `posterior_prob`.
     posterior_prob : numpy.ndarray, shape (M,)
         The array of the posterior probability that each value belongs to the
         gaussian distribution of the noise.
@@ -41,9 +43,6 @@ def _assign_weights(bins, posterior_prob, residual):
 
     Notes
     -----
-    The parallel calculation is slightly slower when there are less than ~1000 bins,
-    but is much faster for more bins.
-
     The code is not given by the reference; however, the reference describes the posterior
     probability and helps to understand how this weighting scheme is derived.
 
@@ -53,13 +52,96 @@ def _assign_weights(bins, posterior_prob, residual):
     Intelligent Laboratory Systems. 2012, 117, 56-60.
 
     """
-    weights = np.empty(residual.shape[0])
-    num_regions = bins.shape[0] - 1
-    for i in prange(num_regions):
-        weights[(residual >= bins[i]) & (residual < bins[i + 1])] = posterior_prob[i]
-    weights[residual >= bins[-1]] = posterior_prob[-1]
+    num_data = residual.shape[0]
+    weights = np.empty(num_data)
+    # TODO this seems like it would work in parallel, but it instead slows down
+    for i in range(num_data):
+        weights[i] = posterior_prob[bin_mapping[i]]
 
     return weights
+
+
+@jit(nopython=True, cache=True)
+def __mapped_histogram(data, num_bins, histogram):
+    """
+    Creates a normalized histogram of the data and a mapping of the indices.
+
+    Parameters
+    ----------
+    data : numpy.ndarray, shape (N,)
+        The data to be made into a histogram.
+    num_bins : int
+        The number of bins for the histogram.
+    histogram : numpy.ndarray
+        An array of zeros that will be modified inplace into the histogram.
+
+    Returns
+    -------
+    bins : numpy.ndarray, shape (`num_bins` + 1)
+        The bin edges for the histogram. Follows numpy's implementation such that
+        each bin is inclusive on the left edge and exclusive on the right edge, except
+        for the last bin which is inclusive on both edges.
+    bin_mapping : numpy.ndarray, shape (N,)
+        An array of integers that maps each item in `data` to its index within `histogram`.
+
+    Notes
+    -----
+    `histogram` is modified inplace and converted to a probability density function
+    (total area = 1) after the counting.
+
+    """
+    num_data = data.shape[0]
+    bins = np.linspace(data.min(), data.max(), num_bins + 1)
+    bin_mapping = np.empty(num_data, dtype=np.intp)
+    bin_frequency = num_bins / (bins[-1] - bins[0])
+    bin_0 = bins[0]
+    last_index = num_bins - 1
+    # TODO this seems like it would work in parallel, but it instead slows down
+    for i in range(num_data):
+        index = int((data[i] - bin_0) * bin_frequency)
+        if index == num_bins:
+            histogram[last_index] += 1
+            bin_mapping[i] = last_index
+        else:
+            histogram[index] += 1
+            bin_mapping[i] = index
+
+    # normalize histogram such that area=1 so that it is a probability density function
+    histogram /= (num_data * (bins[1] - bins[0]))
+
+    return bins, bin_mapping
+
+
+def _mapped_histogram(data, num_bins):
+    """
+    Creates a histogram of the data and a mapping of the indices.
+
+    Parameters
+    ----------
+    data : numpy.ndarray, shape (N,)
+        The data to be made into a histogram.
+    num_bins : int
+        The number of bins for the histogram.
+
+    Returns
+    -------
+    histogram : numpy.ndarray, shape (`num_bins`)
+        The histogram of the data, normalized so that its area is 1.
+    bins : numpy.ndarray, shape (`num_bins` + 1)
+        The bin edges for the histogram. Follows numpy's implementation such that
+        each bin is inclusive on the left edge and exclusive on the right edge, except
+        for the last bin which is inclusive on both edges.
+    bin_mapping : numpy.ndarray, shape (N,)
+        An array of integers that maps each item in `data` to its index within `histogram`.
+
+    """
+    # create zeros array outside of numba function since numba's implementation
+    # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259);
+    # TODO once that numba issue is fixed, merge this with __mapped_histogram
+    histogram = np.zeros(num_bins)
+    bins, bin_mapping = __mapped_histogram(data, num_bins, histogram)
+
+    return histogram, bins, bin_mapping
 
 
 def _mixture_pdf(x, n, sigma, n_2=0, pos_uniform=None, neg_uniform=None):
@@ -161,7 +243,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         to True when peaks are both positive and negative.
     num_bins : int, optional
         The number of bins to use when transforming the residuals into a probability
-        density distribution. Default is None, which uses ``len(data) / 10``.
+        density distribution. Default is None, which uses ``ceil(sqrt(N))``.
 
     Returns
     -------
@@ -218,10 +300,11 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     # now perform the expectation-maximization
     # TODO not sure if there is a better way to do this than transforming
     # the residual into a histogram, fitting the histogram, and then assigning
-    # weights based on the bins; the weight assignment is quite slow when
-    # len(data) or num_bins is >~ 1000
+    # weights based on the bins; actual expectation-maximization uses log(probability)
+    # directly estimates sigma from that, and then calculates the percentages, maybe
+    # that would be faster/more stable?
     if num_bins is None:
-        num_bins = y.shape[0] // 10
+        num_bins = ceil(np.sqrt(y.shape[0]))
 
     # uniform probability density distribution for positive residuals, constant
     # from 0 to max(residual), and 0 for residuals < 0
@@ -240,7 +323,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         bounds = ((0, 0), (1, np.inf))
         neg_uniform_pdf = None
     for i in range(max_iter + 1):
-        residual_hist, bin_edges = np.histogram(residual, num_bins, density=True)
+        residual_hist, bin_edges, bin_mapping = _mapped_histogram(residual, num_bins)
         # average bin edges to get better x-values for fitting
         bins = 0.5 * (bin_edges[:-1] + bin_edges[1:])
         pos_uniform_mask = bins < 0
@@ -269,7 +352,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
             bins, 1 / (fit_params[1] * np.sqrt(2 * np.pi)), 0, fit_params[1]
         )
         posterior_prob = gaus_pdf / (gaus_pdf + uniform_pdf)
-        new_weights = _assign_weights(bin_edges, posterior_prob, residual)
+        new_weights = _assign_weights(bin_mapping, posterior_prob, residual)
 
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i] = calc_difference
