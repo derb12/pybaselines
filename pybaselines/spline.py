@@ -351,7 +351,9 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         gaus_pdf = fit_params[0] * gaussian(
             bins, 1 / (fit_params[1] * np.sqrt(2 * np.pi)), 0, fit_params[1]
         )
-        posterior_prob = gaus_pdf / (gaus_pdf + uniform_pdf)
+        # no need to clip between 0 and 1 if dividing by _MIN_FLOAT since that
+        # means the numerator is also 0
+        posterior_prob = gaus_pdf / np.maximum(gaus_pdf + uniform_pdf, _MIN_FLOAT)
         new_weights = _assign_weights(bin_mapping, posterior_prob, residual)
 
         calc_difference = relative_difference(weight_array, new_weights)
