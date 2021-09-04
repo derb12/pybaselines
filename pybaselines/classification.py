@@ -520,7 +520,8 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
 
 
 def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None,
-              interp_half_window=5, smooth_half_window=None, weights=None, **pad_kwargs):
+              interp_half_window=5, smooth_half_window=None, weights=None,
+              max_iter=100, **pad_kwargs):
     """
     Identifies baseline segments by thresholding the rolling standard deviation distribution.
 
@@ -564,6 +565,9 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
         to designate peak points. Only elements with 0 or False values will have
         an effect; all non-zero values are considered baseline points. If None
         (default), then will be an array with size equal to N and all values set to 1.
+    max_iter : int, optional
+        The maximum number of iterations to attempt to fill in regions where the baseline
+        is greater than the input data. Default is 100.
     **pad_kwargs
         Additional keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data to prevent edge effects from the moving average smoothing.
@@ -617,7 +621,7 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
     # only try to fix peak regions if there actually are peak and baseline regions
     if mask_sum and mask_sum != mask.shape[0]:
         peak_starts, peak_ends = _find_peak_segments(mask)
-        while True:
+        for _ in range(max_iter):
             modified_baseline = False
             for start, end in zip(peak_starts, peak_ends):
                 baseline_section = rough_baseline[start:end + 1]
