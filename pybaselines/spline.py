@@ -155,7 +155,7 @@ def _mixture_pdf(x, n, sigma, n_2=0, pos_uniform=None, neg_uniform=None):
     n : float
         The fraction of the distribution belonging to the Gaussian.
     sigma : float
-        The standard deviation of the Gaussian distribution.
+        Log10 of the standard deviation of the Gaussian distribution.
     n_2 : float, optional
         If `neg_uniform` or `pos_uniform` is None, then `n_2` is just an unused input.
         Otherwise, it is the fraction of the distribution belonging to the positive
@@ -169,6 +169,11 @@ def _mixture_pdf(x, n, sigma, n_2=0, pos_uniform=None, neg_uniform=None):
     -------
     numpy.ndarray
         The total probability density function for the mixture model.
+
+    Notes
+    -----
+    Defining `sigma` as ``log10(actual sigma)`` allows not bounding `sigma` during
+    optimization and allows it to more easily fit different scales.
 
     References
     ----------
@@ -192,10 +197,12 @@ def _mixture_pdf(x, n, sigma, n_2=0, pos_uniform=None, neg_uniform=None):
         n1 = n
         n2 = n_2
         n3 = 1 - n - n_2
-    # the gaussian should be area-normalized, so set height accordingly
-    height = 1 / (max(sigma, _MIN_FLOAT) * np.sqrt(2 * np.pi))
 
-    return n1 * gaussian(x, height, 0, sigma) + n2 * pos_uniform + n3 * neg_uniform
+    actual_sigma = 10**sigma
+    # the gaussian should be area-normalized, so set height accordingly
+    height = 1 / max(actual_sigma * np.sqrt(2 * np.pi), _MIN_FLOAT)
+
+    return n1 * gaussian(x, height, 0, actual_sigma) + n2 * pos_uniform + n3 * neg_uniform
 
 
 def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_order=3,
@@ -281,6 +288,10 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     y, _, spl_basis, weight_array, penalty_matrix = _setup_splines(
         data, None, weights, spline_degree, num_knots, True, diff_order, lam
     )
+    # scale y between -1 and 1 so that the residual fit is more numerically stable
+    y_domain = np.polynomial.polyutils.getdomain(y)
+    y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
+
     weight_matrix = diags(weight_array)
     if weights is None:
         # perform 2 iterations: first is a least-squares fit and second is initial
@@ -311,17 +322,21 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     pos_uniform_pdf = np.empty(num_bins)
     tol_history = np.empty(max_iter + 1)
     residual = y - baseline
+
+    # the 0.2 * std(residual) is an "okay" starting sigma estimate
+    fit_params = [0.5, np.log10(0.2 * np.std(residual))]
+    bounds = [[0, -np.inf], [1, np.inf]]
     if symmetric:
-        # the 0.2 * std(residual) is an "okay" estimate that at least
-        # scales with the range of y
-        fit_params = (0.5, 0.2 * np.std(residual), 0.25)
-        bounds = ((0, 0, 0), (1, np.inf, 1))
+        fit_params.append(0.25)
+        bounds[0].append(0)
+        bounds[1].append(1)
         # create a second uniform pdf for negative residual values
         neg_uniform_pdf = np.empty(num_bins)
     else:
-        fit_params = (0.5, 0.2 * np.std(residual))
-        bounds = ((0, 0), (1, np.inf))
         neg_uniform_pdf = None
+
+    # convert bounds to numpy array since curve_fit will use np.asarray each iteration
+    bounds = np.array(bounds)
     for i in range(max_iter + 1):
         residual_hist, bin_edges, bin_mapping = _mapped_histogram(residual, num_bins)
         # average bin edges to get better x-values for fitting
@@ -334,26 +349,18 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
             neg_uniform_pdf[~neg_uniform_mask] = 1 / max(abs(residual.min()), 1e-6)
             neg_uniform_pdf[neg_uniform_mask] = 0
 
-        # method is dogbox since trf gives a RuntimeWarning due to nan somewhere
-        # occuring in the bounds
+        fit_func = partial(_mixture_pdf, pos_uniform=pos_uniform_pdf, neg_uniform=neg_uniform_pdf)
+        # use dogbox method since trf gives RuntimeWarnings from nans appearing
+        # somehow during optimization; trf is also prone to failure when symmetric=True
         fit_params = curve_fit(
-            partial(_mixture_pdf, pos_uniform=pos_uniform_pdf, neg_uniform=neg_uniform_pdf),
-            bins, residual_hist, p0=fit_params, bounds=bounds, check_finite=False,
-            method='dogbox'
+            fit_func, bins, residual_hist, p0=fit_params, bounds=bounds,
+            check_finite=False, method='dogbox'
         )[0]
-        if symmetric:
-            uniform_pdf = (
-                fit_params[2] * pos_uniform_pdf
-                + (1 - fit_params[0] - fit_params[2]) * neg_uniform_pdf
-            )
-        else:
-            uniform_pdf = (1 - fit_params[0]) * pos_uniform_pdf
-        gaus_pdf = fit_params[0] * gaussian(
-            bins, 1 / (fit_params[1] * np.sqrt(2 * np.pi)), 0, fit_params[1]
-        )
+        sigma = 10**fit_params[1]
+        gaus_pdf = fit_params[0] * gaussian(bins, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
         # no need to clip between 0 and 1 if dividing by _MIN_FLOAT since that
         # means the numerator is also 0
-        posterior_prob = gaus_pdf / np.maximum(gaus_pdf + uniform_pdf, _MIN_FLOAT)
+        posterior_prob = gaus_pdf / np.maximum(fit_func(bins, *fit_params), _MIN_FLOAT)
         new_weights = _assign_weights(bin_mapping, posterior_prob, residual)
 
         calc_difference = relative_difference(weight_array, new_weights)
@@ -376,6 +383,8 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     # best thing would be return the inner knots and coefficients so that an equivalent
     # spline could be recreated with scipy, and let scipy handle extrapolation, etc.
     params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+
+    baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
 
     return baseline, params
 
