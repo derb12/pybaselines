@@ -117,8 +117,15 @@ method.
         return axes, data
 
 
-    for ax, y in zip(*create_data()):
-        baseline = morphological.mpls(y, lam=1e5)
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 4:
+            # few baseline points are identified, so use a higher p value so
+            # that other points contribute to fitting; mpls isn't good for
+            # signals with positive and negative peaks
+            p = 0.1
+        else:
+            p = 0.001
+        baseline = morphological.mpls(y, lam=1e5, p=p)
         ax.plot(baseline[0], 'g--')
 
 
@@ -275,11 +282,11 @@ mpspline (Morphology-Based Penalized Spline)
 :func:`.mpspline` uses both morphological operations and penalized splines
 to create the baseline. First, the data is smoothed by fitting a penalized
 spline to the closing of the data with a window of 3. Then baseline points are
-identified where the element-wise minimum between the opening of the smoothed data
-and the average of a morphological erosion and dilation of the opening. The baseline
-points are given a weighting of :math:`1 - p`, while all other points are given
-a weight of :math:`p`, similar to the :func:`.mpls` method. Finally, a penalized spline
-is fit to the smoothed data with the assigned weighting.
+identified where the smoothed data is equal to the element-wise minimum between the
+opening of the smoothed data and the average of a morphological erosion and dilation
+of the opening. The baseline points are given a weighting of :math:`1 - p`, while all
+other points are given a weight of :math:`p`, similar to the :func:`.mpls` method.
+Finally, a penalized spline is fit to the smoothed data with the assigned weighting.
 
 .. plot::
    :align: center
@@ -293,5 +300,12 @@ is fit to the smoothed data with the assigned weighting.
             lam = 5e2
         else:
             lam = 1e3
-        baseline = morphological.mpspline(y, lam=lam)
+        if i == 4:
+            # few baseline points are identified, so use a higher p value so
+            # that other points contribute to fitting, same as mpls; done so
+            # that no errors occur in case no baseline points are identified
+            p = 0.1
+        else:
+            p = 0
+        baseline = morphological.mpspline(y, lam=lam, p=p)
         ax.plot(baseline[0], 'g--')
