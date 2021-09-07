@@ -345,7 +345,7 @@ def _determine_polyorders(y, x, poly_order, weights, fit_function, **fit_kwargs)
     """
     baseline = fit_function(y, x, poly_order, weights=weights, **fit_kwargs)[0]
     signal = y - baseline
-    basline_to_signal = (max(baseline) - min(baseline)) / (max(signal) - min(signal))
+    basline_to_signal = (baseline.max() - baseline.min()) / (signal.max() - signal.min())
     # Table 2 in reference
     if basline_to_signal < 0.2:
         orders = (1, 2)
