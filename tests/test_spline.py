@@ -132,3 +132,29 @@ class TestIRSQR(AlgorithmTester):
         _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
+
+
+class TestCornerCutting(AlgorithmTester):
+    """Class for testing corner_cutting baseline."""
+
+    func = spline.corner_cutting
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=())
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y, self.x), without_args=(self.y,), rtol=5e-6
+        )
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))

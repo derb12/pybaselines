@@ -14,7 +14,7 @@ from scipy.optimize import curve_fit
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
-from ._algorithm_setup import _setup_splines
+from ._algorithm_setup import _setup_splines, _yx_arrays
 from ._compat import jit
 from .utils import _MIN_FLOAT, _quantile_loss, gaussian, relative_difference
 
@@ -49,7 +49,7 @@ def _assign_weights(bin_mapping, posterior_prob, residual):
     References
     ----------
     de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
-    Intelligent Laboratory Systems. 2012, 117, 56-60.
+    Intelligent Laboratory Systems, 2012, 117, 56-60.
 
     """
     num_data = residual.shape[0]
@@ -178,7 +178,7 @@ def _mixture_pdf(x, n, sigma, n_2=0, pos_uniform=None, neg_uniform=None):
     References
     ----------
     de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
-    Intelligent Laboratory Systems. 2012, 117, 56-60.
+    Intelligent Laboratory Systems, 2012, 117, 56-60.
 
     """
     # no error handling for if both pos_uniform and neg_uniform are None since this
@@ -275,7 +275,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     References
     ----------
     de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
-    Intelligent Laboratory Systems. 2012, 117, 56-60.
+    Intelligent Laboratory Systems, 2012, 117, 56-60.
 
     """
     if not 0 < p < 1:
@@ -479,3 +479,232 @@ def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_ord
     params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
     return baseline, params
+
+
+@jit(nopython=True, cache=True)
+def _quadratic_bezier(y_points, t):
+    """
+    Makes a single quadratic Bezier curve weighted by y-values.
+
+    Parameters
+    ----------
+    y_points : Container
+        A container of the three y-values that define the y-values of the
+        Bezier curve.
+    t : numpy.ndarray, shape (N,)
+        The array of values between 0 and 1 defining the Bezier curve.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The Bezier curve for `t`, using the three points in `y_points` as weights
+        in order to shift the curve to match the desired y-values.
+
+    References
+    ----------
+    https://pomax.github.io/bezierinfo (if the link is dead, the GitHub repo for the
+    website is https://github.com/Pomax/BezierInfo-2).
+
+    """
+    one_minus_t = 1 - t
+    output = (
+        y_points[0] * one_minus_t**2 + y_points[1] * 2 * one_minus_t * t + y_points[2] * t**2
+    )
+    return output
+
+
+@jit(nopython=True, cache=True)
+def _quadratic_bezier_spline(x, y, indices):
+    """
+    Creates a spline from multiple quadratic Bezier curves.
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (N,)
+        The x-values for the spline.
+    y : numpy.ndarray, shape (N,)
+        The y-values for the spline.
+    indices : numpy.ndarray, shape (M,)
+        An array of the indices of the control points for the Bezier
+        spline within `x` and `y`.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The curve constructed from the control points.
+
+    Raises
+    ------
+    ValueError
+        Raised if the number of indices, `M`, is less than 2, or if `x` and `y` do not
+        have the same number of points.
+
+    Notes
+    -----
+    If `M` is 2, then the output is a linear interpolation. If `M` is 3, the output is
+    a single Bezier curve using the three control points. Otherwise, a Bezier spline
+    is constructed by inserting additional control points between each index in
+    `indices[2:-2]` to join the individual Bezier curves, following the reference.
+
+    The resulting spline is only guaranteed to be C0 continuous (ie. no discontinuities).
+    Any derivatives are not guaranteed to be continuous.
+
+    References
+    ----------
+    Liu, Y.J., et al. A Concise Iterative Method with Bezier Technique for Baseline
+    Construction. Analyst, 2015, 140(23), 7984-7996.
+
+    """
+    num_indices = indices.shape[0]
+    num_x = x.shape[0]
+    if num_x != y.shape[0]:
+        raise ValueError('x and y must have the same number of points')
+    if num_indices < 2:
+        raise ValueError('indices must have at least two points for a Bezier curve')
+    elif num_indices < 4:
+        left_idx = indices[0]
+        right_idx = indices[-1]
+        left_x = x[left_idx]
+        right_x = x[right_idx]
+        left_y = y[left_idx]
+        right_y = y[right_idx]
+        if num_indices == 2:  # perform linear interpolation
+            output = left_y + (x - left_x) * (right_y - left_y) / (right_x - left_x)
+        else:  # create a single Bezier curve from the three points
+            center_y = y[indices[1]]
+            y_points = [left_y, center_y, right_y]
+            t = (x - left_x) / (right_x - left_x)
+            output = _quadratic_bezier(y_points, t)
+
+        return output
+
+    output = np.empty(num_x)
+
+    # first segment uses first two indices and an added halfway-point
+    center_idx = indices[1]
+    next_idx = indices[2]
+    left_x = x[indices[0]]
+    center_x = x[center_idx]
+    right_idx = (
+        center_idx + np.argmin(np.abs(x[center_idx:next_idx + 1] - 0.5 * (center_x + x[next_idx])))
+    )
+    right_x = x[right_idx]
+
+    left_y = y[indices[0]]
+    center_y = y[center_idx]
+    right_y = center_y + (right_x - center_x) * (y[next_idx] - center_y) / (x[next_idx] - center_x)
+    y_points = [left_y, center_y, right_y]
+    t = (x[:next_idx + 1] - left_x) / (right_x - left_x)
+    output[:next_idx + 1] = _quadratic_bezier(y_points, t)
+
+    for i, center_idx in enumerate(indices[2:-2], 2):
+        left_idx = right_idx
+        left_x = right_x
+        next_idx = indices[i + 1]
+        center_x = x[center_idx]
+        right_idx = (
+            center_idx
+            + np.argmin(np.abs(x[center_idx:next_idx + 1] - 0.5 * (center_x + x[next_idx])))
+        )
+        right_x = x[right_idx]
+        if right_x - left_x == 0:
+            continue
+
+        left_y = right_y
+        center_y = y[center_idx]
+        right_y = (
+            center_y + (right_x - center_x) * (y[next_idx] - center_y) / (x[next_idx] - center_x)
+        )
+        y_points = [left_y, center_y, right_y]
+
+        t = (x[left_idx:right_idx + 1] - left_x) / (right_x - left_x)
+        output[left_idx:right_idx + 1] = _quadratic_bezier(y_points, t)
+
+    # last segment uses last two indices and the last added halfway-point
+    y_points = [right_y, y[indices[-2]], y[indices[-1]]]
+    t = (x[right_idx:] - right_x) / (x[indices[-1]] - right_x)
+    output[right_idx:] = _quadratic_bezier(y_points, t)
+
+    return output
+
+
+def corner_cutting(data, x_data=None, max_iter=100):
+    """
+    Iteratively removes corner points and creates a Bezier spline from the remaining points.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    max_iter : int, optional
+        The maximum number of iterations to try to remove corner points. Default is
+        100. Typically all corner points are removed in 10 to 20 iterations.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        An empty dictionary, just to match the output of all other algorithms.
+
+    References
+    ----------
+    Liu, Y.J., et al. A Concise Iterative Method with Bezier Technique for Baseline
+    Construction. Analyst, 2015, 140(23), 7984-7996.
+
+    """
+    y, x = _yx_arrays(data, x_data)
+    num_y = y.shape[0]
+    mask = np.ones(num_y, bool)
+
+    areas = np.empty(max_iter)
+    kept_points = np.zeros(num_y, int)
+    old_area = np.trapz(y, x)
+    old_sum = num_y
+    ym = y
+    xm = x
+    for i in range(max_iter):
+        new_mask = mask[mask]
+        new_mask[1:-1] = (
+            ym[1:-1] < ym[:-2] + (xm[1:-1] - xm[:-2]) * (ym[2:] - ym[:-2]) / (xm[2:] - xm[:-2])
+        )
+        mask[mask] = new_mask
+
+        new_sum = mask.sum()
+        num_corners = old_sum - new_sum
+        if num_corners == 0:
+            break
+        old_sum = new_sum
+
+        kept_points[mask] += 1
+
+        xm = x[mask]
+        ym = y[mask]
+
+        # TODO area calculation does not match reference values; need to recheck
+        # and figure out the correct criteria; sometimes get extremely large (~1e80)
+        # area values when the removed region is small (~ 1 point removed)
+        # area = (
+        #     (xm[1:-1] - xm[:-2]) * (ym[1:-1] + ym[:-2])
+        #     + (xm[2:] - xm[1:-1]) * (ym[2:] + ym[1:-1])
+        #     - (xm[2:] - xm[:-2]) * (ym[2:] + ym[:-2])
+        # ).sum()
+        area = np.trapz(ym, xm)
+        areas[i] = (old_area - area) / num_corners
+        old_area = area
+
+    areas = areas[:i + 1]
+
+    max_area = np.argmax(areas) - 1  # include points before largest area loss
+    mask = kept_points >= max_area
+
+    baseline = _quadratic_bezier_spline(x, y, np.flatnonzero(mask))
+
+    # TODO maybe return areas and kept_points so that users can decide to use a
+    # different iteration to build the spline; need to figure out area calculation
+    # first, and then decide what to return; if so, need to make the bezier spline
+    # function public and do input validation
+    return baseline, {}

@@ -146,3 +146,21 @@ to perform quantile regression on the data.
         baseline = spline.irsqr(y, lam=lam, quantile=quantiles[i])
         ax.plot(baseline[0], 'g--')
 
+
+corner_cutting (Corner-Cutting Method)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.corner_cutting` iteratively removes corner points and then creates
+a quadratic Bezier spline from the remaining points. Continuity between
+the individual Bezier curves is maintained by adding control points halfway
+between all but the first and last non-corner points.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    quantiles = {0: 0.3, 1: 0.1, 2: 0.2, 3: 0.25, 4: 0.5}
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        baseline = spline.corner_cutting(y)
+        ax.plot(baseline[0], 'g--')
