@@ -923,9 +923,9 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
         filter is ``2 * filter_type``. Default is 1 (second order filter).
     cost_function : {2, 1, "l1_v1", "l1_v2"}, optional
         An integer or string indicating which approximation of the l1 (absolute value)
-        penalty to use. 1 or "l1_v1" will use :math:`l(x) = \sqrt{x^2 + \text{eps_0}^2}`
+        penalty to use. 1 or "l1_v1" will use :math:`l(x) = \sqrt{x^2 + \text{eps_1}}`
         and 2 (default) or "l1_v2" will use
-        :math:`l(x) = |x| - \text{eps_0}\log{(|x| + \text{eps_0})}`.
+        :math:`l(x) = |x| - \text{eps_1}\log{(|x| + \text{eps_1})}`.
     max_iter : int, optional
         The maximum number of iterations. Default is 50.
     tol : float, optional
