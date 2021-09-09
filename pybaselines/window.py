@@ -7,14 +7,36 @@ Created on March 7, 2021
 """
 
 # import warnings
+from functools import wraps
 
 from . import smooth
 
 
-def __getattr__(func):
-    # TODO: in a later version, begin emitting the warning
-    # warnings.warn(
-    #    'pybaselines.window is deprecated and will be removed in version 1.0; '
-    #    'use pybaselines.smooth instead', DeprecationWarning, stacklevel=2
-    # )
-    return getattr(smooth, func)
+def _wrap_and_warn(func):
+    """A temporary wrapper to emit warnings when using functions from pybaselines.windows."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # TODO: in a later version, begin emitting the warning
+        # warnings.warn(
+        #    'pybaselines.window is deprecated and will be removed in version 1.0; '
+        #    'use pybaselines.smooth instead', DeprecationWarning, stacklevel=2
+        # )
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@_wrap_and_warn
+def noise_median(*args, **kwargs):  # noqa
+    return smooth.noise_median(*args, **kwargs)
+
+
+@_wrap_and_warn
+def snip(*args, **kwargs):  # noqa
+    return smooth.snip(*args, **kwargs)
+
+
+@_wrap_and_warn
+def swima(*args, **kwargs):  # noqa
+    return smooth.swima(*args, **kwargs)
