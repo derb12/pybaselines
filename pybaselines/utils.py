@@ -187,7 +187,7 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     mode = mode.lower()
     if mode == 'extrapolate':
         if extrapolate_window is None:
-            extrapolate_window = 2 * pad_length + 1
+            extrapolate_window = pad_length
         x = np.arange(-pad_length, y.shape[0] + pad_length)
         left_poly = np.polynomial.Polynomial.fit(
             x[pad_length:-pad_length][:extrapolate_window],
