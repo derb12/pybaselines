@@ -9,9 +9,8 @@ Introduction
 ------------
 
 `Morphological operations <https://en.wikipedia.org/wiki/Mathematical_morphology>`_
-include dilation, erosion, opening, and closing. Similar to the algorithms in
-:mod:`pybaselines.window`, morphological operators use moving windows and compute
-the maximum, minimum, or a combination of the two within each window.
+include dilation, erosion, opening, and closing. Morphological operators use moving
+windows and compute the maximum, minimum, or a combination of the two within each window.
 
 .. note::
    All morphological algorithms use a ``half_window`` parameter to define the size
@@ -117,8 +116,15 @@ method.
         return axes, data
 
 
-    for ax, y in zip(*create_data()):
-        baseline = morphological.mpls(y, lam=1e5)
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 4:
+            # few baseline points are identified, so use a higher p value so
+            # that other points contribute to fitting; mpls isn't good for
+            # signals with positive and negative peaks
+            p = 0.1
+        else:
+            p = 0.001
+        baseline = morphological.mpls(y, lam=1e5, p=p)
         ax.plot(baseline[0], 'g--')
 
 
@@ -183,7 +189,9 @@ kernel, to produce a smooth baseline.
             half_window = 60
         else:
             half_window = 30
-        baseline = morphological.mormol(y, half_window, smooth_half_window=10)
+        baseline = morphological.mormol(
+            y, half_window, smooth_half_window=10, pad_kwargs={'extrapolate_window': 20}
+        )
         ax.plot(baseline[0], 'g--')
 
 
@@ -266,4 +274,41 @@ tophat (Top-hat Transformation)
         else:
             half_window = 20
         baseline = morphological.tophat(y, half_window)
+        ax.plot(baseline[0], 'g--')
+
+
+mpspline (Morphology-Based Penalized Spline)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.mpspline` uses both morphological operations and penalized splines
+to create the baseline. First, the data is smoothed by fitting a penalized
+spline to the closing of the data with a window of 3. Then baseline points are
+identified where the smoothed data is equal to the element-wise minimum between the
+opening of the smoothed data and the average of a morphological erosion and dilation
+of the opening. The baseline points are given a weighting of :math:`1 - p`, while all
+other points are given a weight of :math:`p`, similar to the :func:`.mpls` method.
+Finally, a penalized spline is fit to the smoothed data with the assigned weighting.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            lam = 1e4
+        elif i == 3:
+            lam = 5e2
+        else:
+            lam = 1e3
+        if i == 4:
+            # few baseline points are identified, so use a higher p value so
+            # that other points contribute to fitting, same as mpls; done so
+            # that no errors occur in case no baseline points are identified
+            p = 0.1
+        else:
+            p = 0
+        baseline = morphological.mpspline(
+            y, lam=lam, p=p, pad_kwargs={'extrapolate_window': 30}
+        )
         ax.plot(baseline[0], 'g--')

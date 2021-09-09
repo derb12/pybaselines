@@ -5,59 +5,69 @@ pybaselines - A library of baseline correction algorithms.
 
 pybaselines provides different techniques for fitting baselines to experimental data.
 
-a) Polynomial methods (:mod:`pybaselines.polynomial`)
+* Polynomial methods (:mod:`pybaselines.polynomial`)
 
-    1) poly (Regular Polynomial)
-    2) modpoly (Modified Polynomial)
-    3) imodpoly (Improved Modified Polynomial)
-    4) penalized_poly (Penalized Polynomial)
-    5) loess (Locally Estimated Scatterplot Smoothing)
-    6) quant_reg (Quantile Regression)
+    * poly (Regular Polynomial)
+    * modpoly (Modified Polynomial)
+    * imodpoly (Improved Modified Polynomial)
+    * penalized_poly (Penalized Polynomial)
+    * loess (Locally Estimated Scatterplot Smoothing)
+    * quant_reg (Quantile Regression)
+    * goldindec (Goldindec Method)
 
-b) Whittaker-smoothing-based methods (:mod:`pybaselines.whittaker`)
+* Whittaker-smoothing-based methods (:mod:`pybaselines.whittaker`)
 
-    1) asls (Asymmetric Least Squares)
-    2) iasls (Improved Asymmetric Least Squares)
-    3) airpls (Adaptive Iteratively Reweighted Penalized Least Squares)
-    4) arpls (Asymmetrically Reweighted Penalized Least Squares)
-    5) drpls (Doubly Reweighted Penalized Least Squares)
-    6) iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
-    7) aspls (Adaptive Smoothness Penalized Least Squares)
-    8) psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
+    * asls (Asymmetric Least Squares)
+    * iasls (Improved Asymmetric Least Squares)
+    * airpls (Adaptive Iteratively Reweighted Penalized Least Squares)
+    * arpls (Asymmetrically Reweighted Penalized Least Squares)
+    * drpls (Doubly Reweighted Penalized Least Squares)
+    * iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
+    * aspls (Adaptive Smoothness Penalized Least Squares)
+    * psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
+    * derpsalsa (Derivative Peak-Screening Asymmetric Least Squares Algorithm)
 
-c) Morphological methods (:mod:`pybaselines.morphological`)
+* Morphological methods (:mod:`pybaselines.morphological`)
 
-    1) mpls (Morphological Penalized Least Squares)
-    2) mor (Morphological)
-    3) imor (Improved Morphological)
-    4) mormol (Morphological and Mollified Baseline)
-    5) amormol (Averaging Morphological and Mollified Baseline)
-    6) rolling_ball (Rolling Ball Baseline)
-    7) mwmv (Moving Window Minimum Value)
-    8) tophat (Top-hat Transformation)
+    * mpls (Morphological Penalized Least Squares)
+    * mor (Morphological)
+    * imor (Improved Morphological)
+    * mormol (Morphological and Mollified Baseline)
+    * amormol (Averaging Morphological and Mollified Baseline)
+    * rolling_ball (Rolling Ball Baseline)
+    * mwmv (Moving Window Minimum Value)
+    * tophat (Top-hat Transformation)
+    * mpspline (Morphology-Based Penalized Spline)
 
-d) Window-based methods (:mod:`pybaselines.window`)
+* Smoothing-based methods (:mod:`pybaselines.smooth`)
 
-    1) noise_median (Noise Median method)
-    2) snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
-    3) swima (Small-Window Moving Average)
+    * noise_median (Noise Median method)
+    * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
+    * swima (Small-Window Moving Average)
 
-e) Baseline/Peak Classification methods (:mod:`pybaselines.classification`)
+* Spline methods (:mod:`pybaselines.spline`)
 
-    1) dietrich (Dietrich's Classification Method)
-    2) golotvin (Golotvin's Classification Method)
-    3) std_distribution (Standard Deviation Distribution)
+    * mixture_model (Mixture Model)
+    * irsqr (Iterative Reweighted Spline Quantile Regression)
+    * corner_cutting (Corner-Cutting Method)
 
-f) Optimizers (:mod:`pybaselines.optimizers`)
+* Baseline/Peak Classification methods (:mod:`pybaselines.classification`)
 
-    1) collab_pls (Collaborative Penalized Least Squares)
-    2) optimize_extended_range
-    3) adaptive_minmax (Adaptive MinMax)
+    * dietrich (Dietrich's Classification Method)
+    * golotvin (Golotvin's Classification Method)
+    * std_distribution (Standard Deviation Distribution)
+    * fastchrom (FastChrom's Baseline Method)
 
-g) Miscellaneous methods (:mod:`pybaselines.misc`)
+* Optimizers (:mod:`pybaselines.optimizers`)
 
-    1) interp_pts (Interpolation between points)
-    2) beads (Baseline Estimation And Denoising with Sparsity)
+    * collab_pls (Collaborative Penalized Least Squares)
+    * optimize_extended_range
+    * adaptive_minmax (Adaptive MinMax)
+
+* Miscellaneous methods (:mod:`pybaselines.misc`)
+
+    * interp_pts (Interpolation between points)
+    * beads (Baseline Estimation And Denoising with Sparsity)
 
 
 @author: Donald Erb
@@ -65,11 +75,12 @@ Created on March 5, 2021
 
 """
 
-__version__ = '0.5.1'
+__version__ = '0.6.0'
 
 
 # import utils first since it is imported by other modules; likewise, import
 # optimizers last since it imports the other modules
 from . import (
-    utils, classification, misc, morphological, polynomial, whittaker, window, optimizers
+    utils, classification, misc, morphological, polynomial, spline, whittaker, smooth,
+    window, optimizers
 )

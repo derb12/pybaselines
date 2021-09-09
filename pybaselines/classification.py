@@ -14,9 +14,12 @@ from scipy.ndimage import (
     binary_dilation, binary_erosion, grey_dilation, grey_erosion, uniform_filter1d
 )
 
-from ._algorithm_setup import _get_vander, _optimize_window, _setup_classification
+from ._algorithm_setup import _get_vander, _setup_classification
 from ._compat import jit
-from .utils import ParameterWarning, _convert_coef, _interp_inplace, pad_edges, relative_difference
+from .utils import (
+    ParameterWarning, _convert_coef, _interp_inplace, optimize_window, pad_edges,
+    relative_difference
+)
 
 
 def _remove_single_points(mask):
@@ -189,9 +192,9 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
     """
     y, x, weight_array, *_ = _setup_classification(data, x_data, weights)
     if half_window is None:
-        # _optimize_window(y) / 2 gives an "okay" estimate that at least scales
+        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
         # with data size
-        half_window = ceil(_optimize_window(y) / 2)
+        half_window = ceil(optimize_window(y) / 2)
     if smooth_half_window is None:
         smooth_half_window = half_window
     num_y = y.shape[0]
@@ -425,7 +428,7 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
 
     The rolling standard deviations are split into two distributions, with the smaller
     distribution assigned to noise. Baseline points are then identified as any point
-    where the rolled standard deviation is less than a multiple of the median of the
+    where the rolling standard deviation is less than a multiple of the median of the
     noise's standard deviation distribution.
 
     Parameters
@@ -483,9 +486,9 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
     """
     y, x, weight_array, _ = _setup_classification(data, x_data, weights)
     if half_window is None:
-        # _optimize_window(y) / 2 gives an "okay" estimate that at least scales
+        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
         # with data size
-        half_window = ceil(_optimize_window(y) / 2)
+        half_window = ceil(optimize_window(y) / 2)
     if smooth_half_window is None:
         smooth_half_window = half_window
 
@@ -508,6 +511,139 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
 
     rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
 
+    baseline = uniform_filter1d(
+        pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
+        2 * smooth_half_window + 1
+    )[smooth_half_window:y.shape[0] + smooth_half_window]
+
+    return baseline, {'mask': mask}
+
+
+def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None,
+              interp_half_window=5, smooth_half_window=None, weights=None,
+              max_iter=100, **pad_kwargs):
+    """
+    Identifies baseline segments by thresholding the rolling standard deviation distribution.
+
+    Baseline points are identified as any point where the rolling standard deviation
+    is less than the specified threshold. Peak regions are iteratively interpolated
+    until the baseline is below the data.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    half_window : int, optional
+        The half-window to use for the rolling standard deviation calculation. Should
+        be approximately equal to the full-width-at-half-maximum of the peaks or features
+        in the data. Default is None, which will use half of the value from
+        :func:`.optimize_window`, which is not always a good value, but at least scales
+        with the number of data points and gives a starting point for tuning the parameter.
+    threshold : float, optional
+        All points in the rolling standard deviation below `threshold` will be considered
+        as baseline. Higher values will assign more points as baseline. Default is None,
+        which will set the threshold as the 15th percentile of the rolling standard
+        deviation.
+    min_fwhm : int, optional
+        After creating the interpolated baseline, any region where the baseline
+        is greater than the data for `min_fwhm` consecutive points will have an additional
+        baseline point added and reinterpolated. Should be set to approximately the
+        index-based full-width-at-half-maximum of the smallest peak. Default is None,
+        which uses 2 * `half_window`.
+    interp_half_window : int, optional
+        When interpolating between baseline segments, will use the average of
+        ``data[i-interp_half_window:i+interp_half_window+1]``, where `i` is
+        the index of the peak start or end, to fit the linear segment. Default is 5.
+    smooth_half_window : int, optional
+        The half window to use for smoothing the interpolated baseline with a moving average.
+        Default is None, which will use `half_window`. Set to 0 to not smooth the baseline.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    max_iter : int, optional
+        The maximum number of iterations to attempt to fill in regions where the baseline
+        is greater than the input data. Default is 100.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from the moving average smoothing.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'mask': numpy.ndarray, shape (N,)
+            The boolean array designating baseline points as True and peak points
+            as False.
+
+    Notes
+    -----
+    Only covers the baseline correction from FastChrom, not its peak finding and peak
+    grouping capabilities.
+
+    References
+    ----------
+    Johnsen, L., et al. An automated method for baseline correction, peak finding
+    and peak grouping in chromatographic data. Analyst. 2013, 138, 3502-3511.
+
+    """
+    y, x, weight_array, _ = _setup_classification(data, x_data, weights)
+    if half_window is None:
+        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
+        # with data size
+        half_window = ceil(optimize_window(y) / 2)
+    if smooth_half_window is None:
+        smooth_half_window = half_window
+    if min_fwhm is None:
+        min_fwhm = 2 * half_window
+
+    # use dof=1 since sampling a subset of the data; reflect the data since the
+    # standard deviation calculation requires noisy data to work
+    std = _rolling_std(np.pad(y, half_window, 'reflect'), half_window, 1)[half_window:-half_window]
+    if threshold is None:
+        # scales fairly well with y and gaurantees baseline segments are created;
+        # picked 15% since it seems to work better than 10%
+        threshold = np.percentile(std, 15)
+
+    # reference did not mention removing single points, but do so anyway to
+    # be more thorough
+    mask = _remove_single_points(std < threshold) & weight_array
+    rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
+
+    mask_sum = mask.sum()
+    # only try to fix peak regions if there actually are peak and baseline regions
+    if mask_sum and mask_sum != mask.shape[0]:
+        peak_starts, peak_ends = _find_peak_segments(mask)
+        for _ in range(max_iter):
+            modified_baseline = False
+            for start, end in zip(peak_starts, peak_ends):
+                baseline_section = rough_baseline[start:end + 1]
+                data_section = y[start:end + 1]
+                # mask should be baseline_section > data_section, but use the
+                # inverse since _find_peak_segments looks for 0s, not 1s
+                section_mask = baseline_section < data_section
+                seg_starts, seg_ends = _find_peak_segments(section_mask)
+                if np.any(seg_ends - seg_starts > min_fwhm):
+                    modified_baseline = True
+                    # designate lowest point as baseline
+                    # TODO should surrounding points also be classified as baseline?
+                    mask[np.argmin(data_section - baseline_section) + start] = 1
+
+            if modified_baseline:
+                # TODO probably faster to just re-interpolate changed sections
+                rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
+            else:
+                break
+
+    # reference did not discuss smoothing, but include to be consistent with
+    # other classification functions
     baseline = uniform_filter1d(
         pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
         2 * smooth_half_window + 1

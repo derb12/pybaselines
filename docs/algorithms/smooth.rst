@@ -1,14 +1,18 @@
-================
-Window Baselines
-================
+===================
+Smoothing Baselines
+===================
 
-The contents of :mod:`pybaselines.window` contain algorithms that use
-moving windows to estimate the baseline.
+The contents of :mod:`pybaselines.smooth` contain algorithms that use smoothing
+to eliminate peaks and leave only the baseline.
 
 .. note::
-   The window size used for window-based algorithms is index-based, rather
+   The window size used for smoothing-based algorithms is index-based, rather
    than based on the units of the data, so proper conversions must be done
    by the user to get the desired window size.
+
+
+.. note::
+   The module pybaselines.smooth was named pybaselines.window until version 0.6.0.
 
 
 Algorithms
@@ -28,7 +32,7 @@ kernel. Note that this method does not perform well for tightly-grouped peaks.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines import window
+    from pybaselines import smooth
 
     def create_plots():
         fig, axes = plt.subplots(
@@ -111,7 +115,7 @@ kernel. Note that this method does not perform well for tightly-grouped peaks.
         else:
             half_window = 60
             smooth_half_window = 20
-        baseline = window.noise_median(
+        baseline = smooth.noise_median(
             y, half_window, smooth_half_window=smooth_half_window, extrapolate_window=20
         )
         ax.plot(baseline[0], 'g--')
@@ -136,7 +140,7 @@ index-based width of the largest peak or feature.
             half_window = 28
         else:
             half_window = 17
-        baseline = window.snip(y, half_window, extrapolate_window=20)
+        baseline = smooth.snip(y, half_window, extrapolate_window=20)
         ax.plot(baseline[0], 'g--')
 
 
@@ -155,7 +159,7 @@ data. The baselines when using decreasing window size and smoothing is shown bel
             half_window = 29
         else:
             half_window = 17
-        baseline = window.snip(
+        baseline = smooth.snip(
             y, half_window, decreasing=True, smooth_half_window=3, extrapolate_window=20
         )
         ax.plot(baseline[0], 'g--')
@@ -179,6 +183,6 @@ incrementally increased to smooth peaks until convergence is reached.
             smooth_half_window = 11
         else:
             smooth_half_window = 5
-        baseline = window.swima(y, smooth_half_window=smooth_half_window, extrapolate_window=20
+        baseline = smooth.swima(y, smooth_half_window=smooth_half_window, extrapolate_window=20
         )
         ax.plot(baseline[0], 'g--')

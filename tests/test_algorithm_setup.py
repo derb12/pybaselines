@@ -9,90 +9,10 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
-from scipy.sparse import dia_matrix, identity
+from scipy.sparse import dia_matrix
 
 from pybaselines import _algorithm_setup
 from pybaselines.utils import ParameterWarning
-
-
-@pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))
-def test_difference_matrix(diff_order):
-    """Tests common differential matrices."""
-    diff_matrix = _algorithm_setup.difference_matrix(10, diff_order).toarray()
-    numpy_diff = np.diff(np.eye(10), diff_order).T
-
-    assert_array_equal(diff_matrix, numpy_diff)
-
-
-def test_difference_matrix_order_2():
-    """
-    Tests the 2nd order differential matrix against the actual representation.
-
-    The 2nd order differential matrix is most commonly used,
-    so double-check that it is correct.
-    """
-    diff_matrix = _algorithm_setup.difference_matrix(8, 2).toarray()
-    actual_matrix = np.array([
-        [1, -2, 1, 0, 0, 0, 0, 0],
-        [0, 1, -2, 1, 0, 0, 0, 0],
-        [0, 0, 1, -2, 1, 0, 0, 0],
-        [0, 0, 0, 1, -2, 1, 0, 0],
-        [0, 0, 0, 0, 1, -2, 1, 0],
-        [0, 0, 0, 0, 0, 1, -2, 1]
-    ])
-
-    assert_array_equal(diff_matrix, actual_matrix)
-
-
-def test_difference_matrix_order_0():
-    """
-    Tests the 0th order differential matrix against the actual representation.
-
-    The 0th order differential matrix should be the same as the identity matrix,
-    so double-check that it is correct.
-    """
-    diff_matrix = _algorithm_setup.difference_matrix(10, 0).toarray()
-    actual_matrix = identity(10).toarray()
-
-    assert_array_equal(diff_matrix, actual_matrix)
-
-
-def test_difference_matrix_order_neg():
-    """Ensures differential matrix fails for negative order."""
-    with pytest.raises(ValueError):
-        _algorithm_setup.difference_matrix(10, diff_order=-2)
-
-
-def test_difference_matrix_order_over():
-    """
-    Tests the (n + 1)th order differential matrix against the actual representation.
-
-    If n is the number of data points and the difference order is greater than n,
-    then differential matrix should have a shape of (0, n) with 0 stored elements,
-    following a similar logic as np.diff.
-
-    """
-    diff_matrix = _algorithm_setup.difference_matrix(10, 11).toarray()
-    actual_matrix = np.empty(shape=(0, 10))
-
-    assert_array_equal(diff_matrix, actual_matrix)
-
-
-def test_difference_matrix_size_neg():
-    """Ensures differential matrix fails for negative data size."""
-    with pytest.raises(ValueError):
-        _algorithm_setup.difference_matrix(-1)
-
-
-@pytest.mark.parametrize('form', ('dia', 'csc', 'csr'))
-def test_difference_matrix_formats(form):
-    """
-    Ensures that the sparse format is correctly passed to the constructor.
-
-    Tests both 0-order and 2-order, since 0-order uses a different constructor.
-    """
-    assert _algorithm_setup.difference_matrix(10, 2, form).format == form
-    assert _algorithm_setup.difference_matrix(10, 0, form).format == form
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))
@@ -349,19 +269,19 @@ def test_setup_polynomial_vandermonde(small_data, vander_enum, include_pinv):
 
 
 @pytest.mark.parametrize('array_enum', (0, 1))
-def test_setup_window_y_array(small_data, array_enum):
+def test_setup_smooth_y_array(small_data, array_enum):
     """Ensures output y is always a numpy array."""
     if array_enum == 1:
         small_data = small_data.tolist()
-    y = _algorithm_setup._setup_window(small_data, 1)
+    y = _algorithm_setup._setup_smooth(small_data, 1)
 
     assert isinstance(y, np.ndarray)
 
 
-def test_setup_window_shape(small_data):
+def test_setup_smooth_shape(small_data):
     """Ensures output y is correctly padded."""
     pad_length = 4
-    y = _algorithm_setup._setup_window(small_data, pad_length, mode='edge')
+    y = _algorithm_setup._setup_smooth(small_data, pad_length, mode='edge')
     assert y.shape[0] == small_data.shape[0] + 2 * pad_length
 
 
@@ -425,3 +345,42 @@ def test_setup_classification_domain(small_data):
     *_, original_domain = _algorithm_setup._setup_classification(small_data, x)
 
     assert_array_equal(original_domain, np.array([-5, 20]))
+
+
+@pytest.mark.parametrize('num_knots', (5, 15, 100))
+@pytest.mark.parametrize('degree', (1, 2, 3, 4))
+@pytest.mark.parametrize('penalized', (True, False))
+def test_spline_basis(num_knots, degree, penalized):
+    """Ensures the spline basis function is correctly created."""
+    x = np.linspace(-1, 1, 500)
+    basis = _algorithm_setup.spline_basis(x, num_knots, degree, penalized)
+
+    assert basis.shape[0] == x.shape[0]
+    # num_knots == number of inner knots; total knots = inner knots + 2
+    # to account for min and max points, and then add `degree` extra knots
+    # on each end to accomodate the final polynomial on each end; therefore,
+    # grand total number of knots = num_knots + 2 * (degree + 1);
+    # the number of basis functions is knots - (degree + 1), so the ultimate
+    # shape of the basis matrix should be num_knots + (degree + 1)
+    assert basis.shape[1] == num_knots + degree + 1
+
+
+def test_setup_splines_wrong_weight_shape(small_data):
+    """Ensures that an exception is raised if input weights and data are different shapes."""
+    weights = np.ones(small_data.shape[0] + 1)
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(small_data, weights=weights)
+
+
+@pytest.mark.parametrize('diff_order', (0, -1))
+def test_setup_splines_diff_matrix_fails(small_data, diff_order):
+    """Ensures using a diff_order < 1 with _setup_splines raises an exception."""
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(small_data, diff_order=diff_order)
+
+
+@pytest.mark.parametrize('diff_order', (5, 6))
+def test_setup_splines_diff_matrix_warns(small_data, diff_order):
+    """Ensures using a diff_order > 4 with _setup_splines raises a warning."""
+    with pytest.warns(ParameterWarning):
+        _algorithm_setup._setup_splines(small_data, diff_order=diff_order)

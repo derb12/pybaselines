@@ -186,7 +186,8 @@ class AlgorithmTester:
 
     @classmethod
     def _test_algorithm_no_x(cls, with_args=(), with_kwargs=None,
-                             without_args=(), without_kwargs=None):
+                             without_args=(), without_kwargs=None,
+                             **assertion_kwargs):
         """
         Ensures that function output is the same when no x is input.
 
@@ -202,7 +203,8 @@ class AlgorithmTester:
 
         assert_allclose(
             output_with[0], output_without[0],
-            err_msg='algorithm output is different with no x-values'
+            err_msg='algorithm output is different with no x-values',
+            **assertion_kwargs
         )
 
     @classmethod

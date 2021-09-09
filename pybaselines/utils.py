@@ -7,6 +7,8 @@ Created on March 5, 2021
 """
 
 import numpy as np
+from scipy.ndimage import grey_opening
+from scipy.sparse import diags, identity
 
 from ._compat import jit
 
@@ -18,9 +20,6 @@ pentapy's solver can be used for solving pentadiagonal linear systems, such
 as those used for the Whittaker-smoothing-based algorithms. Should be 2 (default)
 or 1. See :func:`pentapy.core.solve` for more details.
 """
-
-PERMC_SPEC = None
-"""A deprecated constant used in previous versions. Will be removed in v0.6.0."""
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
 # TODO this is mostly used to prevent dividing by 0; is there a better way to do that?
@@ -87,7 +86,7 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
         The gaussian distribution evaluated with x.
 
     """
-    return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
+    return height * np.exp(-0.5 * ((x - center)**2) / max(sigma, _MIN_FLOAT)**2)
 
 
 def gaussian_kernel(window_size, sigma=1.0):
@@ -119,6 +118,34 @@ def gaussian_kernel(window_size, sigma=1.0):
     return gaus / np.sum(gaus)
 
 
+def _mollifier_kernel(window_size):
+    """
+    A kernel for smoothing/mollification.
+
+    Parameters
+    ----------
+    window_size : int
+        The number of points for the entire kernel.
+
+    Returns
+    -------
+    numpy.ndarray, shape (2 * window_size + 1,)
+        The area normalized kernel.
+
+    References
+    ----------
+    Chen, H., et al. An Adaptive and Fully Automated Baseline Correction
+    Method for Raman Spectroscopy Based on Morphological Operations and
+    Mollifications. Applied Spectroscopy, 2019, 73(3), 284-293.
+
+    """
+    x = (np.arange(0, 2 * window_size + 1) - window_size) / window_size
+    kernel = np.zeros_like(x)
+    # x[1:-1] is same as x[abs(x) < 1]
+    kernel[1:-1] = np.exp(-1 / (1 - (x[1:-1])**2))
+    return kernel / kernel.sum()
+
+
 def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **pad_kwargs):
     """
     Provides the left and right edges for padding data.
@@ -135,7 +162,7 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     extrapolate_window : int, optional
         The number of values to use for linear fitting on the left and right
         edges. Default is None, which will set the extrapolate window size equal
-        to the `half_window` size.
+        to `pad_length`.
     **pad_kwargs
         Any keyword arguments to pass to numpy.pad, which will be used if `mode`
         is not 'extrapolate'.
@@ -147,32 +174,50 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     right_edge : numpy.ndarray, shape(pad_length,)
         The array of data for the right padding.
 
+    Raises
+    ------
+    ValueError
+        Raised if `pad_length` is < 0, or if `extrapolate_window` is <= 0 and
+        `mode` is `extrapolate`.
+
     Notes
     -----
     If mode is 'extrapolate', then the left and right edges will be fit with
-    a first order polynomial and then extrapolated. Otherwise, uses numpy.pad.
+    a first order polynomial and then extrapolated. Otherwise, uses :func:`numpy.pad`.
 
     """
     y = np.asarray(data)
     if pad_length == 0:
         return y
+    elif pad_length < 0:
+        raise ValueError('pad length must be greater or equal to 0')
 
     mode = mode.lower()
     if mode == 'extrapolate':
         if extrapolate_window is None:
-            extrapolate_window = 2 * pad_length + 1
-        x = np.arange(-pad_length, y.shape[0] + pad_length)
-        left_poly = np.polynomial.Polynomial.fit(
-            x[pad_length:-pad_length][:extrapolate_window],
-            y[:extrapolate_window], 1
-        )
-        right_poly = np.polynomial.Polynomial.fit(
-            x[pad_length:-pad_length][-extrapolate_window:],
-            y[-extrapolate_window:], 1
-        )
+            extrapolate_window = pad_length
 
-        left_edge = left_poly(x[:pad_length])
-        right_edge = right_poly(x[-pad_length:])
+        if extrapolate_window <= 0:
+            raise ValueError('extrapolate_window must be greater than 0')
+        elif extrapolate_window == 1:
+            # just use the edges rather than trying to fit a line
+            left_edge = np.array([y[0]])
+            right_edge = np.array([y[-1]])
+        else:
+            # TODO could probably reduce x to only pad_length and
+            # just add/subtract something
+            x = np.arange(-pad_length, y.shape[0] + pad_length)
+            left_poly = np.polynomial.Polynomial.fit(
+                x[pad_length:-pad_length][:extrapolate_window],
+                y[:extrapolate_window], 1
+            )
+            right_poly = np.polynomial.Polynomial.fit(
+                x[pad_length:-pad_length][-extrapolate_window:],
+                y[-extrapolate_window:], 1
+            )
+
+            left_edge = left_poly(x[:pad_length])
+            right_edge = right_poly(x[-pad_length:])
     else:
         padded_data = np.pad(y, pad_length, mode, **pad_kwargs)
         left_edge = padded_data[:pad_length]
@@ -194,13 +239,13 @@ def pad_edges(data, pad_length, mode='extrapolate',
         The number of points to add to the left and right edges.
     mode : str, optional
         The method for padding. Default is 'extrapolate'. Any method other than
-        'extrapolate' will use numpy.pad.
+        'extrapolate' will use :func:`numpy.pad`.
     extrapolate_window : int, optional
         The number of values to use for linear fitting on the left and right
         edges. Default is None, which will set the extrapolate window size equal
-        to the `half_window` size.
+        to `pad_length`.
     **pad_kwargs
-        Any keyword arguments to pass to numpy.pad, which will be used if `mode`
+        Any keyword arguments to pass to :func:`numpy.pad`, which will be used if `mode`
         is not 'extrapolate'.
 
     Returns
@@ -211,7 +256,7 @@ def pad_edges(data, pad_length, mode='extrapolate',
     Notes
     -----
     If mode is 'extrapolate', then the left and right edges will be fit with
-    a first order polynomial and then extrapolated. Otherwise, uses numpy.pad.
+    a first order polynomial and then extrapolated. Otherwise, uses :func:`numpy.pad`.
 
     """
     y = np.asarray(data)
@@ -238,6 +283,10 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
     kernel : numpy.ndarray, shape (M,)
         A pre-computed, normalized kernel for the convolution. Indices should
         span from -half_window to half_window.
+    mode : str, optional
+        The method for padding to pass to :func:`.pad_edges`. Default is 'reflect'.
+    **pad_kwargs
+        Any additional keyword arguments to pass to :func:`.pad_edges`.
 
     Returns
     -------
@@ -246,6 +295,8 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
 
     """
     # TODO need to revisit this and ensure everything is correct
+    # TODO look at using scipy.ndimage.convolve1d instead, or at least
+    # comparing the output in tests; that function should have a similar usage
     padding = min(data.shape[0], kernel.shape[0]) // 2
     convolution = np.convolve(
         pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'
@@ -473,3 +524,129 @@ def _quantile_irls(y, basis, weights, quantile=0.05, max_iter=250, tol=1e-6, eps
             break
 
     return baseline, weights, tol_history[:i + 1], coef
+
+
+def difference_matrix(data_size, diff_order=2, diff_format=None):
+    """
+    Creates an n-order finite-difference matrix.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
+    diff_format : str or None, optional
+        The sparse format to use for the difference matrix. Default is None,
+        which will use the default specified in :func:`scipy.sparse.diags`.
+
+    Returns
+    -------
+    diff_matrix : scipy.sparse.base.spmatrix
+        The sparse difference matrix.
+
+    Raises
+    ------
+    ValueError
+        Raised if `diff_order` or `data_size` is negative.
+
+    Notes
+    -----
+    Most baseline algorithms use 2nd order differential matrices when
+    doing penalized least squared fitting or Whittaker-smoothing-based fitting.
+
+    The resulting matrices are transposes of the result of
+    np.diff(np.eye(data_size), diff_order). This implementation allows using
+    the differential matrices are they are written in various publications,
+    ie. D.T * D.
+
+    """
+    if diff_order < 0:
+        raise ValueError('the differential order must be >= 0')
+    elif data_size < 0:
+        raise ValueError('data size must be >= 0')
+    elif diff_order > data_size:
+        # do not issue warning or exception to maintain parity with np.diff
+        diff_order = data_size
+
+    if diff_order == 0:
+        # faster to directly create identity matrix
+        diff_matrix = identity(data_size, format=diff_format)
+    else:
+        diagonals = np.zeros(2 * diff_order + 1)
+        diagonals[diff_order] = 1
+        for _ in range(diff_order):
+            diagonals = diagonals[:-1] - diagonals[1:]
+
+        diff_matrix = diags(
+            diagonals, np.arange(diff_order + 1),
+            shape=(data_size - diff_order, data_size), format=diff_format
+        )
+
+    return diff_matrix
+
+
+def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
+                    max_half_window=None, min_half_window=None):
+    """
+    Optimizes the morphological half-window size.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The measured data values.
+    increment : int, optional
+        The step size for iterating half windows. Default is 1.
+    max_hits : int, optional
+        The number of consecutive half windows that must produce the same
+        morphological opening before accepting the half window as the optimum
+        value. Default is 3.
+    window_tol : float, optional
+        The tolerance value for considering two morphological openings as
+        equivalent. Default is 1e-6.
+    max_half_window : int, optional
+        The maximum allowable half-window size. If None (default), will be set
+        to (len(data) - 1) / 2.
+    min_half_window : int, optional
+        The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    half_window : int
+        The optimized half window size.
+
+    Notes
+    -----
+    May only provide good results for some morphological algorithms, so use with
+    caution.
+
+    References
+    ----------
+    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
+    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
+
+    """
+    y = np.asarray(data)
+    if max_half_window is None:
+        max_half_window = (y.shape[0] - 1) // 2
+    if min_half_window is None:
+        min_half_window = 1
+
+    opening = grey_opening(y, [2 * min_half_window + 1])
+    hits = 0
+    best_half_window = min_half_window
+    for half_window in range(min_half_window + increment, max_half_window, increment):
+        new_opening = grey_opening(y, [half_window * 2 + 1])
+        if relative_difference(opening, new_opening) < window_tol:
+            if hits == 0:
+                # keep just the first window that fits tolerance
+                best_half_window = half_window - increment
+            hits += 1
+            if hits >= max_hits:
+                half_window = best_half_window
+                break
+        elif hits:
+            hits = 0
+        opening = new_opening
+
+    return max(half_window, 1)  # ensure half window is at least 1

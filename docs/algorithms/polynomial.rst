@@ -641,3 +641,27 @@ quant_reg (Quantile Regression)
         )
         ax.plot(baseline[0], 'g--')
 
+
+goldindec (Goldindec Method)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.goldindec` fits a polynomial baseline to data using non-quadratic cost functions,
+similar to :func:`.penalized_poly`, except that it only allows asymmetric cost functions.
+The optimal threshold value between quadratic and non-quadratic loss is iteratively optimized
+based on the input `peak_ratio` value.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    peak_ratios = [0.2, 0.6, 0.2, 0.2, 0.3]
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 4:
+            poly_order = 1
+        else:
+            poly_order = i + 1
+        baseline = polynomial.goldindec(
+            y, poly_order=poly_order, peak_ratio=peak_ratios[i]
+        )
+        ax.plot(baseline[0], 'g--')
