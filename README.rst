@@ -40,7 +40,7 @@ to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. T
 the project is to provide a semi-unified API to allow quickly testing and comparing
 multiple baseline correction algorithms to find the best one for a set of data.
 
-pybaselines has 35+ baseline correction algorithms. The algorithms are grouped
+pybaselines has 40+ baseline correction algorithms. The algorithms are grouped
 accordingly (note: when a method is labelled as 'improved', that is the method's
 name, not editorialization):
 
@@ -52,6 +52,7 @@ name, not editorialization):
   * penalized_poly (Penalized Polynomial)
   * loess (Locally Estimated Scatterplot Smoothing)
   * quant_reg (Quantile Regression)
+  * goldindec (Goldindec Method)
 
 * Whittaker-smoothing-based methods (pybaselines.whittaker)
 
@@ -63,6 +64,7 @@ name, not editorialization):
   * iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
   * aspls (Adaptive Smoothness Penalized Least Squares)
   * psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
+  * derpsalsa (Derivative Peak-Screening Asymmetric Least Squares Algorithm)
 
 * Morphological methods (pybaselines.morphological)
 
@@ -74,6 +76,7 @@ name, not editorialization):
   * rolling_ball (Rolling Ball Baseline)
   * mwmv (Moving Window Minimum Value)
   * tophat (Top-hat Transformation)
+  * mpspline (Morphology-Based Penalized Spline)
 
 * Smoothing-based methods (pybaselines.smooth)
 
@@ -85,12 +88,14 @@ name, not editorialization):
 
   * mixture_model (Mixture Model)
   * irsqr (Iterative Reweighted Spline Quantile Regression)
+  * corner_cutting (Corner-Cutting Method)
 
 * Baseline/Peak Classification methods (pybaselines.classification)
 
   * dietrich (Dietrich's Classification Method)
   * golotvin (Golotvin's Classification Method)
   * std_distribution (Standard Deviation Distribution)
+  * fastchrom (FastChrom's Baseline Method)
 
 * Optimizers (pybaselines.optimizers)
 

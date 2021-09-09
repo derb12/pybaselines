@@ -13,6 +13,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * penalized_poly (Penalized Polynomial)
     * loess (Locally Estimated Scatterplot Smoothing)
     * quant_reg (Quantile Regression)
+    * goldindec (Goldindec Method)
 
 * Whittaker-smoothing-based methods (:mod:`pybaselines.whittaker`)
 
@@ -24,6 +25,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
     * aspls (Adaptive Smoothness Penalized Least Squares)
     * psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
+    * derpsalsa (Derivative Peak-Screening Asymmetric Least Squares Algorithm)
 
 * Morphological methods (:mod:`pybaselines.morphological`)
 
@@ -35,6 +37,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * rolling_ball (Rolling Ball Baseline)
     * mwmv (Moving Window Minimum Value)
     * tophat (Top-hat Transformation)
+    * mpspline (Morphology-Based Penalized Spline)
 
 * Smoothing-based methods (:mod:`pybaselines.smooth`)
 
@@ -46,12 +49,14 @@ pybaselines provides different techniques for fitting baselines to experimental 
 
     * mixture_model (Mixture Model)
     * irsqr (Iterative Reweighted Spline Quantile Regression)
+    * corner_cutting (Corner-Cutting Method)
 
 * Baseline/Peak Classification methods (:mod:`pybaselines.classification`)
 
     * dietrich (Dietrich's Classification Method)
     * golotvin (Golotvin's Classification Method)
     * std_distribution (Standard Deviation Distribution)
+    * fastchrom (FastChrom's Baseline Method)
 
 * Optimizers (:mod:`pybaselines.optimizers`)
 
