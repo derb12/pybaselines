@@ -41,7 +41,7 @@ name, not editorialization):
     * mwmv (Moving Window Minimum Value)
     * tophat (Top-hat Transformation)
 
-* Window-based methods (:mod:`pybaselines.window`)
+* Smoothing-based methods (:mod:`pybaselines.smooth`)
 
     * noise_median (Noise Median method)
     * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)

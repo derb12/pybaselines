@@ -430,16 +430,16 @@ def _setup_morphology(data, half_window=None, **window_kwargs):
     return y, output_half_window
 
 
-def _setup_window(data, half_window, **pad_kwargs):
+def _setup_smooth(data, half_window, **pad_kwargs):
     """
-    Sets the starting parameters for doing window-based algorithms.
+    Sets the starting parameters for doing smoothing-based algorithms.
 
     Parameters
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
     half_window : int, optional
-        The half-window used for the moving window functions. Used
+        The half-window used for the smoothing functions. Used
         to pad the left and right edges of the data to reduce edge
         effects.
     **pad_kwargs

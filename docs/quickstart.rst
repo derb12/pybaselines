@@ -38,9 +38,15 @@ A simple example is shown below.
     bkg_1 = pybaselines.polynomial.modpoly(y, x, poly_order=3)[0]
     bkg_2 = pybaselines.whittaker.asls(y, lam=1e7, p=0.02)[0]
     bkg_3 = pybaselines.morphological.mor(y, half_window=30)[0]
-    bkg_4 = pybaselines.window.snip(
-        y, max_half_window=40, decreasing=True, smooth_half_window=3
-    )[0]
+    try:
+        bkg_4 = pybaselines.smooth.snip(
+            y, max_half_window=40, decreasing=True, smooth_half_window=3
+        )[0]
+    except AttributeError:
+        # pybaselines.window was renamed to pybaselines.smooth in version 0.6
+        bkg_4 = pybaselines.window.snip(
+            y, max_half_window=40, decreasing=True, smooth_half_window=3
+        )[0]
 
     plt.plot(x, y, label='raw data', lw=1.5)
     plt.plot(x, true_baseline, lw=3, label='true baseline')

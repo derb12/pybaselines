@@ -36,7 +36,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * mwmv (Moving Window Minimum Value)
     * tophat (Top-hat Transformation)
 
-* Window-based methods (:mod:`pybaselines.window`)
+* Smoothing-based methods (:mod:`pybaselines.smooth`)
 
     * noise_median (Noise Median method)
     * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
@@ -76,5 +76,6 @@ __version__ = '0.5.1'
 # import utils first since it is imported by other modules; likewise, import
 # optimizers last since it imports the other modules
 from . import (
-    utils, classification, misc, morphological, polynomial, spline, whittaker, window, optimizers
+    utils, classification, misc, morphological, polynomial, spline, whittaker, smooth,
+    window, optimizers
 )

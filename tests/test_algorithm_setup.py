@@ -269,19 +269,19 @@ def test_setup_polynomial_vandermonde(small_data, vander_enum, include_pinv):
 
 
 @pytest.mark.parametrize('array_enum', (0, 1))
-def test_setup_window_y_array(small_data, array_enum):
+def test_setup_smooth_y_array(small_data, array_enum):
     """Ensures output y is always a numpy array."""
     if array_enum == 1:
         small_data = small_data.tolist()
-    y = _algorithm_setup._setup_window(small_data, 1)
+    y = _algorithm_setup._setup_smooth(small_data, 1)
 
     assert isinstance(y, np.ndarray)
 
 
-def test_setup_window_shape(small_data):
+def test_setup_smooth_shape(small_data):
     """Ensures output y is correctly padded."""
     pad_length = 4
-    y = _algorithm_setup._setup_window(small_data, pad_length, mode='edge')
+    y = _algorithm_setup._setup_smooth(small_data, pad_length, mode='edge')
     assert y.shape[0] == small_data.shape[0] + 2 * pad_length
 
 

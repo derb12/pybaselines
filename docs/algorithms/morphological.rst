@@ -9,9 +9,8 @@ Introduction
 ------------
 
 `Morphological operations <https://en.wikipedia.org/wiki/Mathematical_morphology>`_
-include dilation, erosion, opening, and closing. Similar to the algorithms in
-:mod:`pybaselines.window`, morphological operators use moving windows and compute
-the maximum, minimum, or a combination of the two within each window.
+include dilation, erosion, opening, and closing. Morphological operators use moving
+windows and compute the maximum, minimum, or a combination of the two within each window.
 
 .. note::
    All morphological algorithms use a ``half_window`` parameter to define the size

@@ -1,18 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Tests for pybaselines.window.
+"""Tests for pybaselines.smooth.
 
 @author: Donald Erb
 Created on March 20, 2021
 
 """
 
-# TODO for now, just test that pybaselines.window still works; in a later version
-# also test that each function emits a DeprecationWarning to use pybaselines.smooth
-# instead
-
 import pytest
 
-from pybaselines import window
+from pybaselines import smooth
 from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data
@@ -21,7 +17,7 @@ from .conftest import AlgorithmTester, get_data
 class TestNoiseMedian(AlgorithmTester):
     """Class for testing noise median baseline."""
 
-    func = window.noise_median
+    func = smooth.noise_median
 
     def test_unchanged_data(self, data_fixture):
         """Ensures that input data is unchanged by the function."""
@@ -41,7 +37,7 @@ class TestNoiseMedian(AlgorithmTester):
 class TestSNIP(AlgorithmTester):
     """Class for testing snip baseline."""
 
-    func = window.snip
+    func = smooth.snip
 
     def test_unchanged_data(self, data_fixture):
         """Ensures that input data is unchanged by the function."""
@@ -82,7 +78,7 @@ class TestSNIP(AlgorithmTester):
 class TestSwima(AlgorithmTester):
     """Class for testing swima baseline."""
 
-    func = window.swima
+    func = smooth.swima
 
     def test_unchanged_data(self, data_fixture):
         """Ensures that input data is unchanged by the function."""

@@ -22,7 +22,11 @@ if __name__ == '__main__':
     from pybaselines.polynomial import imodpoly, loess, modpoly, penalized_poly, poly
     from pybaselines.utils import gaussian
     from pybaselines.whittaker import airpls, arpls, asls, aspls, drpls, iarpls, iasls, psalsa
-    from pybaselines.window import noise_median, snip, swima
+    try:
+        from pybaselines.smooth import noise_median, snip, swima
+    except AttributeError:
+        # pybaselines.window was renamed in pybaselines.smooth in version 0.6.0
+        from pybaselines.window import noise_median, snip, swima
 
     x = np.linspace(100, 4200, 1000)
     np.random.seed(0)  # set random seed
@@ -69,7 +73,7 @@ if __name__ == '__main__':
             (amormol, (y, 45), {'pad_kwargs': {'extrapolate_window': 50}}),
             (rolling_ball, (y, 125, 100), {'pad_kwargs': {'extrapolate_window': 50}})
         ),
-        'window': (
+        'smooth': (
             (noise_median, (y, 250, 150, 50), {'extrapolate_window': 50}),
             (snip, (y, 40), {'extrapolate_window': 50}),
             (snip, (y, 40, True, 1), {'extrapolate_window': 50}, ', decreasing & smooth'),
