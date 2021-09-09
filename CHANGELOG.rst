@@ -2,6 +2,67 @@
 Changelog
 =========
 
+Version 0.6.0 (2021-09-09)
+--------------------------
+
+This is a minor version with new features, deprecations, and documentation improvements.
+
+New Features
+~~~~~~~~~~~~
+
+* Added goldindec to pybaselines.polynomial, which uses a non-quadratic cost
+  function with a shrinking threshold to fit the baseline.
+* Added the morphological penalized spline (mpspline) algorithm to
+  pybaselines.morphological, which uses morphology to identify baseline points
+  and then fits the points using a penalized spline.
+* Added the derivative peak-screening asymmetric least squares algorithm (derpsalsa)
+  to pybaselines.whittaker, which includes additional weights based on the first and
+  second derivatives of the data.
+* Added the fastchrom algorithm to pybaselines.classification, which identifies baseline
+  points as where the rolling standard deviation is less than the specified threshold.
+* Added the module pybaselines.spline, which contains algorithms that use splines
+  to create the baseline.
+* Added the mixture model algorithm (mixture_model) to pybaselines.spline, which uses
+  a weighted penalized spline to fit the baseline, where weights are calculated based
+  on the probability each point belongs to the noise.
+* Added iterative reweighted spline quantile regression (irsqr) to pybaselines.spline,
+  which uses penalized splines and iterative reweighted least squares to perform
+  quantile regression on the data.
+* Added the corner-cutting algorithm (corner_cutting) to pybaselines.spline, which
+  iteratively removes corner points and then fits a quadratic Bezier spline with the
+  remaining points.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Increased the minimum SciPy version to 0.17 in order to use bounds with
+  scipy.optimize.curve_fit.
+* Changed the default `extrapolate_window` value in pybaselines.utils.pad_edges to
+  the input window length, rather than ``2 * window length + 1``.
+* Slightly sped up pybaselines.optimizers.adaptive_minmax when `poly_order` is
+  None by using the numpy array's min and max methods rather than the built-in
+  functions.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Renamed pybaselines.window to pybaselines.smooth to make its usage more
+  clear. Using pybaselines.window will still work for now, but will begin emitting
+  a DeprecationWarning in a later version (maybe version 0.8 or 0.9) and will
+  be removed shortly thereafter.
+* Removed the constant utils.PERMC_SPEC that was deprecated in version 0.4.1.
+* Deprecated the function pybaselines.morphological.optimize_window, which will
+  be removed in version 0.8.0. Use pybaselines.utils.optimize_window instead.
+
+Documentation/Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Fixed the plot for morphological.mpls in the documentation.
+* Fixed the weighting formula for whittaker.arpls in the documentation.
+* Fixed a typo for the cost function in the docstring of misc.beads.
+* Updated the example program for all of the newly added algorithms.
+
+
 Version 0.5.1 (2021-08-10)
 --------------------------
 

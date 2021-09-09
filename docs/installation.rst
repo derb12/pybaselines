@@ -30,9 +30,13 @@ pybaselines has the following optional dependencies:
   speeds up calculations used by the following functions:
 
     * :func:`.loess`
+    * :func:`.dietrich`
+    * :func:`.golotvin`
     * :func:`.std_distribution`
+    * :func:`.fastchrom`
     * :func:`.beads`
     * :func:`.mixture_model`
+    * :func:`.corner_cutting`
 
 Stable Release
 ~~~~~~~~~~~~~~
