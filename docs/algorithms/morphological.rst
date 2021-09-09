@@ -189,7 +189,9 @@ kernel, to produce a smooth baseline.
             half_window = 60
         else:
             half_window = 30
-        baseline = morphological.mormol(y, half_window, smooth_half_window=10)
+        baseline = morphological.mormol(
+            y, half_window, smooth_half_window=10, pad_kwargs={'extrapolate_window': 20}
+        )
         ax.plot(baseline[0], 'g--')
 
 
@@ -306,5 +308,7 @@ Finally, a penalized spline is fit to the smoothed data with the assigned weight
             p = 0.1
         else:
             p = 0
-        baseline = morphological.mpspline(y, lam=lam, p=p)
+        baseline = morphological.mpspline(
+            y, lam=lam, p=p, pad_kwargs={'extrapolate_window': 30}
+        )
         ax.plot(baseline[0], 'g--')

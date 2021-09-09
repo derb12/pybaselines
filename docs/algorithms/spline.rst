@@ -159,8 +159,12 @@ between all but the first and last non-corner points.
    :align: center
    :context: close-figs
 
-    quantiles = {0: 0.3, 1: 0.1, 2: 0.2, 3: 0.25, 4: 0.5}
     # to see contents of create_data function, look at the top-most algorithm's code
     for i, (ax, y) in enumerate(zip(*create_data())):
-        baseline = spline.corner_cutting(y)
+        if i in (1, 3):
+            max_iter = 11
+        else:
+            max_iter = 100
+
+        baseline = spline.corner_cutting(y, max_iter=max_iter)
         ax.plot(baseline[0], 'g--')
