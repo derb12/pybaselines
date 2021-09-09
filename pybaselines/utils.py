@@ -162,7 +162,7 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     extrapolate_window : int, optional
         The number of values to use for linear fitting on the left and right
         edges. Default is None, which will set the extrapolate window size equal
-        to the `half_window` size.
+        to `pad_length`.
     **pad_kwargs
         Any keyword arguments to pass to numpy.pad, which will be used if `mode`
         is not 'extrapolate'.
@@ -177,7 +177,7 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     Notes
     -----
     If mode is 'extrapolate', then the left and right edges will be fit with
-    a first order polynomial and then extrapolated. Otherwise, uses numpy.pad.
+    a first order polynomial and then extrapolated. Otherwise, uses :func:`numpy.pad`.
 
     """
     y = np.asarray(data)
@@ -221,13 +221,13 @@ def pad_edges(data, pad_length, mode='extrapolate',
         The number of points to add to the left and right edges.
     mode : str, optional
         The method for padding. Default is 'extrapolate'. Any method other than
-        'extrapolate' will use numpy.pad.
+        'extrapolate' will use :func:`numpy.pad`.
     extrapolate_window : int, optional
         The number of values to use for linear fitting on the left and right
         edges. Default is None, which will set the extrapolate window size equal
-        to the `half_window` size.
+        to `pad_length`.
     **pad_kwargs
-        Any keyword arguments to pass to numpy.pad, which will be used if `mode`
+        Any keyword arguments to pass to :func:`numpy.pad`, which will be used if `mode`
         is not 'extrapolate'.
 
     Returns
@@ -238,7 +238,7 @@ def pad_edges(data, pad_length, mode='extrapolate',
     Notes
     -----
     If mode is 'extrapolate', then the left and right edges will be fit with
-    a first order polynomial and then extrapolated. Otherwise, uses numpy.pad.
+    a first order polynomial and then extrapolated. Otherwise, uses :func:`numpy.pad`.
 
     """
     y = np.asarray(data)
@@ -265,6 +265,10 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
     kernel : numpy.ndarray, shape (M,)
         A pre-computed, normalized kernel for the convolution. Indices should
         span from -half_window to half_window.
+    mode : str, optional
+        The method for padding to pass to :func:`.pad_edges`. Default is 'reflect'.
+    **pad_kwargs
+        Any additional keyword arguments to pass to :func:`.pad_edges`.
 
     Returns
     -------
@@ -273,6 +277,8 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
 
     """
     # TODO need to revisit this and ensure everything is correct
+    # TODO look at using scipy.ndimage.convolve1d instead, or at least
+    # comparing the output in tests; that function should have a similar usage
     padding = min(data.shape[0], kernel.shape[0]) // 2
     convolution = np.convolve(
         pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'
