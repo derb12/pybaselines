@@ -15,8 +15,7 @@ from . import utils
 from ._algorithm_setup import _diff_1_diags, _setup_whittaker, _yx_arrays
 from ._compat import _HAS_PENTAPY, _pentapy_solve
 from .utils import (
-    ParameterWarning, _mollifier_kernel, _safe_std, pad_edges, padded_convolve,
-    relative_difference
+    ParameterWarning, _mollifier_kernel, _safe_std, pad_edges, padded_convolve, relative_difference
 )
 
 

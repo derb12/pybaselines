@@ -17,11 +17,20 @@ if __name__ == '__main__':
         raise
     import numpy as np
 
-    from pybaselines.morphological import amormol, imor, mor, mormol, mpls, rolling_ball
+    from pybaselines.classification import dietrich, fastchrom, golotvin, std_distribution
+    from pybaselines.misc import beads
+    from pybaselines.morphological import (
+        amormol, imor, mor, mormol, mpls, mpspline, mwmv, rolling_ball, tophat
+    )
     from pybaselines.optimizers import adaptive_minmax, optimize_extended_range
-    from pybaselines.polynomial import imodpoly, loess, modpoly, penalized_poly, poly
+    from pybaselines.polynomial import (
+        goldindec, imodpoly, loess, modpoly, penalized_poly, poly, quant_reg
+    )
+    from pybaselines.spline import corner_cutting, irsqr, mixture_model
     from pybaselines.utils import gaussian
-    from pybaselines.whittaker import airpls, arpls, asls, aspls, drpls, iarpls, iasls, psalsa
+    from pybaselines.whittaker import (
+        airpls, arpls, asls, aspls, derpsalsa, drpls, iarpls, iasls, psalsa
+    )
     try:
         from pybaselines.smooth import noise_median, snip, swima
     except AttributeError:
@@ -55,7 +64,8 @@ if __name__ == '__main__':
             (arpls, (y, 1e7)),
             (iarpls, (y, 1e6)),
             (aspls, (y, 1e8)),
-            (psalsa, (y, 1e7))
+            (psalsa, (y, 1e7)),
+            (derpsalsa, (y, 1e6, 0.1))
         ),
         'polynomial': (
             (poly, (y, x, 3)),
@@ -63,7 +73,9 @@ if __name__ == '__main__':
             (modpoly, (y, x, 3)),
             (imodpoly, (y, x, 3)),
             (penalized_poly, (y, x, 3), {'threshold': 0.02 * (max(y) - min(y))}),
-            (loess, (y, x, 0.6))
+            (loess, (y, x, 0.6)),
+            (quant_reg, (y, x, 3, 0.2)),
+            (goldindec, (y, x, 3), {'peak_ratio': 0.3})
         ),
         'morphological': (
             (mpls, (y, 100, 1e7, 0.002)),
@@ -71,7 +83,10 @@ if __name__ == '__main__':
             (imor, (y, 25)),
             (mormol, (y, 100), {'pad_kwargs': {'extrapolate_window': 50}, 'smooth_half_window': 3}),
             (amormol, (y, 45), {'pad_kwargs': {'extrapolate_window': 50}}),
-            (rolling_ball, (y, 125, 100), {'pad_kwargs': {'extrapolate_window': 50}})
+            (rolling_ball, (y, 125, 100), {'pad_kwargs': {'extrapolate_window': 50}}),
+            (mwmv, (y, 80)),
+            (tophat, (y, 125)),
+            (mpspline, (y, 100), {'pad_kwargs': {'extrapolate_window': 50}})
         ),
         'smooth': (
             (noise_median, (y, 250, 150, 50), {'extrapolate_window': 50}),
@@ -83,6 +98,20 @@ if __name__ == '__main__':
             (optimize_extended_range, (y, x, 'aspls', 'both', 0.25),
              {'pad_kwargs': {'extrapolate_window': 50}}),
             (adaptive_minmax, (y, x), {'constrained_fraction': 0.05}),
+        ),
+        'misc': (
+            (beads, (y, 0.005, 0.01, 0.01, 0.01)),
+        ),
+        'spline': (
+            (mixture_model, (y, 1e8)),
+            (irsqr, (y, 1e8, 0.15)),
+            (corner_cutting, (y, x, 9)),
+        ),
+        'classification': (
+            (dietrich, (y, x, 11, 1.9)),
+            (golotvin, (y, x, 45, 8)),
+            (std_distribution, (y, x, 45)),
+            (fastchrom, (y, x, 45))
         )
     }
 

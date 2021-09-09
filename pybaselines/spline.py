@@ -6,8 +6,8 @@ Created on August 4, 2021
 
 """
 
-from math import ceil
 from functools import partial
+from math import ceil
 
 import numpy as np
 from scipy.optimize import curve_fit
