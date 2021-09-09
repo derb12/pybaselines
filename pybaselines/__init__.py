@@ -75,7 +75,7 @@ Created on March 5, 2021
 
 """
 
-__version__ = '0.5.1'
+__version__ = '0.6.0'
 
 
 # import utils first since it is imported by other modules; likewise, import
