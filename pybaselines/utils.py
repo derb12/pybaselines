@@ -174,6 +174,12 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     right_edge : numpy.ndarray, shape(pad_length,)
         The array of data for the right padding.
 
+    Raises
+    ------
+    ValueError
+        Raised if `pad_length` is < 0, or if `extrapolate_window` is <= 0 and
+        `mode` is `extrapolate`.
+
     Notes
     -----
     If mode is 'extrapolate', then the left and right edges will be fit with
@@ -183,23 +189,35 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     y = np.asarray(data)
     if pad_length == 0:
         return y
+    elif pad_length < 0:
+        raise ValueError('pad length must be greater or equal to 0')
 
     mode = mode.lower()
     if mode == 'extrapolate':
         if extrapolate_window is None:
             extrapolate_window = pad_length
-        x = np.arange(-pad_length, y.shape[0] + pad_length)
-        left_poly = np.polynomial.Polynomial.fit(
-            x[pad_length:-pad_length][:extrapolate_window],
-            y[:extrapolate_window], 1
-        )
-        right_poly = np.polynomial.Polynomial.fit(
-            x[pad_length:-pad_length][-extrapolate_window:],
-            y[-extrapolate_window:], 1
-        )
 
-        left_edge = left_poly(x[:pad_length])
-        right_edge = right_poly(x[-pad_length:])
+        if extrapolate_window <= 0:
+            raise ValueError('extrapolate_window must be greater than 0')
+        elif extrapolate_window == 1:
+            # just use the edges rather than trying to fit a line
+            left_edge = np.array([y[0]])
+            right_edge = np.array([y[-1]])
+        else:
+            # TODO could probably reduce x to only pad_length and
+            # just add/subtract something
+            x = np.arange(-pad_length, y.shape[0] + pad_length)
+            left_poly = np.polynomial.Polynomial.fit(
+                x[pad_length:-pad_length][:extrapolate_window],
+                y[:extrapolate_window], 1
+            )
+            right_poly = np.polynomial.Polynomial.fit(
+                x[pad_length:-pad_length][-extrapolate_window:],
+                y[-extrapolate_window:], 1
+            )
+
+            left_edge = left_poly(x[:pad_length])
+            right_edge = right_poly(x[-pad_length:])
     else:
         padded_data = np.pad(y, pad_length, mode, **pad_kwargs)
         left_edge = padded_data[:pad_length]

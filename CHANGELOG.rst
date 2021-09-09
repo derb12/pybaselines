@@ -5,7 +5,8 @@ Changelog
 Version 0.6.0 (2021-09-09)
 --------------------------
 
-This is a minor version with new features, deprecations, and documentation improvements.
+This is a minor version with new features, bug fixes, deprecations,
+and documentation improvements.
 
 New Features
 ~~~~~~~~~~~~
@@ -31,6 +32,12 @@ New Features
 * Added the corner-cutting algorithm (corner_cutting) to pybaselines.spline, which
   iteratively removes corner points and then fits a quadratic Bezier spline with the
   remaining points.
+
+Bug Fixes
+~~~~~~~~~
+
+* Fixed an issue with utils.pad_edges when `mode` was "extrapolate" and `extrapolate_window`
+  was 1.
 
 Other Changes
 ~~~~~~~~~~~~~

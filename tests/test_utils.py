@@ -4,6 +4,8 @@
 @author: Donald Erb
 Created on March 20, 2021
 
+# TODO need to add tests for pad_edges, _extend_edges, and padded_convolve
+
 """
 
 import numpy as np
