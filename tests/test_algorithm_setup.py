@@ -11,7 +11,7 @@ from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
 from scipy.sparse import dia_matrix
 
-from pybaselines import _algorithm_setup
+from pybaselines import _algorithm_setup, utils
 from pybaselines.utils import ParameterWarning
 
 
@@ -384,3 +384,14 @@ def test_setup_splines_diff_matrix_warns(small_data, diff_order):
     """Ensures using a diff_order > 4 with _setup_splines raises a warning."""
     with pytest.warns(ParameterWarning):
         _algorithm_setup._setup_splines(small_data, diff_order=diff_order)
+
+
+def test_changing_pentapy_solver():
+    """Ensure a change to utils.PENTAPY_SOLVER is communicated to pybaselines._algorithms_setup."""
+    original_solver = utils.PENTAPY_SOLVER
+    try:
+        for solver in range(5):
+            utils.PENTAPY_SOLVER = solver
+            assert _algorithm_setup._pentapy_solver() == solver
+    finally:
+        utils.PENTAPY_SOLVER = original_solver

@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import whittaker
+from pybaselines import whittaker, utils
 from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data, has_pentapy
@@ -58,6 +58,17 @@ def test_shift_rows_1_diag():
     assert_array_equal(expected, output)
     # matrix should also be shifted since the changes are done in-place
     assert_array_equal(expected, matrix)
+
+
+def test_changing_pentapy_solver():
+    """Ensures a change to utils.PENTAPY_SOLVER is communicated to pybaselines.whittaker."""
+    original_solver = utils.PENTAPY_SOLVER
+    try:
+        for solver in range(5):
+            utils.PENTAPY_SOLVER = solver
+            assert whittaker._pentapy_solver() == solver
+    finally:
+        utils.PENTAPY_SOLVER = original_solver
 
 
 class TestAsLS(AlgorithmTester):

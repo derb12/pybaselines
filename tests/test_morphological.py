@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_almost_equal
 import pytest
 
-from pybaselines import morphological
+from pybaselines import _algorithm_setup, morphological
 
 from .conftest import AlgorithmTester, get_data, has_pentapy
 
@@ -52,7 +52,7 @@ class TestMPLS(AlgorithmTester):
     @has_pentapy
     def test_pentapy_solver(self):
         """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(morphological, '_HAS_PENTAPY', False):
+        with mock.patch.object(_algorithm_setup, '_HAS_PENTAPY', False):
             scipy_output = self._call_func(self.y)[0]
         pentapy_output = self._call_func(self.y)[0]
 

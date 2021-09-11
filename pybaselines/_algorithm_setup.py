@@ -4,15 +4,23 @@
 Created on March 31, 2021
 @author: Donald Erb
 
+TODO: non-finite values (nan or inf) could be replaced for algorithms that use weighting
+by setting their values to arbitrary value (eg. 0) within the output y, set their weights
+to 0, and then back-fill after the calculation; something to consider, rather than just
+raising an exception when encountering a non-finite value; could also interpolate rather
+than just filling back in the nan or inf value.
+
 """
 
 import warnings
 
 import numpy as np
 from scipy.interpolate import splev
+from scipy.linalg import solveh_banded
 from scipy.sparse import csr_matrix
 
-from .utils import ParameterWarning, difference_matrix, optimize_window, pad_edges
+from ._compat import _HAS_PENTAPY, _pentapy_solve
+from .utils import _pentapy_solver, ParameterWarning, difference_matrix, optimize_window, pad_edges
 
 
 def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
@@ -663,3 +671,50 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     penalty_matrix = lam * diff_matrix.T * diff_matrix
 
     return y, x, basis, weight_array, penalty_matrix
+
+
+def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):
+    """
+    Performs Whittaker smoothing on the input data.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother fits.
+        Default is 1e6.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the weights will be an array
+        with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    smooth_y : numpy.ndarray, shape (N,)
+        The smoothed data.
+    weight_array : numpy.ndarray, shape (N,)
+        The weights used for fitting the data.
+
+    References
+    ----------
+    Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+    """
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    y, diagonals, weight_array = _setup_whittaker(
+        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
+    )
+    main_diag_idx = diff_order if using_pentapy else -1
+    diagonals[main_diag_idx] = diagonals[main_diag_idx] + weight_array
+    if using_pentapy:
+        smooth_y = _pentapy_solve(diagonals, weight_array * y, True, True, _pentapy_solver())
+    else:
+        smooth_y = solveh_banded(
+            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False
+        )
+
+    return smooth_y, weight_array

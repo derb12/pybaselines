@@ -312,3 +312,14 @@ def test_difference_matrix_formats(form):
     """
     assert utils.difference_matrix(10, 2, form).format == form
     assert utils.difference_matrix(10, 0, form).format == form
+
+
+def test_changing_pentapy_solver():
+    """Ensures a change to utils.PENTAPY_SOLVER is communicated by _pentapy_solver."""
+    original_solver = utils.PENTAPY_SOLVER
+    try:
+        for solver in range(5):
+            utils.PENTAPY_SOLVER = solver
+            assert utils._pentapy_solver() == solver
+    finally:
+        utils.PENTAPY_SOLVER = original_solver

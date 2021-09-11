@@ -9,14 +9,11 @@ Created on March 5, 2021
 import warnings
 
 import numpy as np
-from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
-from . import utils
-from ._algorithm_setup import _setup_morphology, _setup_splines, _setup_whittaker
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._algorithm_setup import _setup_morphology, _setup_splines, _whittaker_smooth
 from .utils import (
     _mollifier_kernel, optimize_window as _optimize_window, pad_edges, padded_convolve,
     relative_difference
@@ -159,18 +156,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
             w[index] = 1 - p
 
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    _, diagonals, weight_array = _setup_whittaker(
-        y, lam, diff_order, w, False, not using_pentapy, using_pentapy
-    )
-    main_diag_idx = diff_order if using_pentapy else -1
-    diagonals[main_diag_idx] = diagonals[main_diag_idx] + weight_array
-    if using_pentapy:
-        baseline = _pentapy_solve(diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER)
-    else:
-        baseline = solveh_banded(
-            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False
-        )
+    baseline, weight_array = _whittaker_smooth(y, lam, diff_order, w)
 
     params = {'weights': weight_array, 'half_window': half_wind}
     return baseline, params
