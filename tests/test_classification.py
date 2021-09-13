@@ -204,12 +204,17 @@ class TestDietrich(AlgorithmTester):
         self._test_unchanged_data(data_fixture, y, x, y, x)
 
     @pytest.mark.parametrize('return_coef', (True, False))
-    def test_output(self, return_coef):
+    @pytest.mark.parametrize('max_iter', (0, 1, 2))
+    def test_output(self, return_coef, max_iter):
         """Ensures that the output has the desired format."""
         param_keys = ['mask']
-        if return_coef:
+        if return_coef and max_iter > 0:
             param_keys.append('coef')
-        self._test_output(self.y, self.y, checked_keys=param_keys, return_coef=return_coef)
+        if max_iter > 1:
+            param_keys.append('tol_history')
+        self._test_output(
+            self.y, self.y, checked_keys=param_keys, return_coef=return_coef, max_iter=max_iter
+        )
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -222,6 +227,13 @@ class TestDietrich(AlgorithmTester):
         recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
 
         assert_allclose(baseline, recreated_poly)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter - 1
 
 
 class TestStdDistribution(AlgorithmTester):

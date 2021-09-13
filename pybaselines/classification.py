@@ -266,6 +266,9 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input `x_data` and return them in the params dictionary.
         Default is False, since the conversion takes time.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing.
 
     Returns
     -------
@@ -281,6 +284,11 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
             Only if `return_coef` is True and `max_iter` is greater than 0. The array
             of polynomial coefficients for the baseline, in increasing order. Can be
             used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
+        * 'tol_history': numpy.ndarray
+            Only if `max_iter` is greater than 1. An array containing the calculated
+            tolerance values for each iteration. The length of the array is the number
+            of iterations completed. If the last value in the array is greater than
+            the input `tol` value, then the function did not converge.
 
     Notes
     -----
@@ -331,13 +339,18 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         vander, pseudo_inverse = _get_vander(x, poly_order)
         old_coef = coef = np.dot(pseudo_inverse, rough_baseline)
         baseline = np.dot(vander, coef)
-        for i in range(max_iter - 1):
-            rough_baseline[mask] = baseline[mask]
-            coef = np.dot(pseudo_inverse, rough_baseline)
-            baseline = np.dot(vander, coef)
-            if relative_difference(old_coef, coef) < tol:
-                break
-            old_coef = coef
+        if max_iter > 1:
+            tol_history = np.empty(max_iter - 1)
+            for i in range(max_iter - 1):
+                rough_baseline[mask] = baseline[mask]
+                coef = np.dot(pseudo_inverse, rough_baseline)
+                baseline = np.dot(vander, coef)
+                calc_difference = relative_difference(old_coef, coef)
+                tol_history[i] = calc_difference
+                if calc_difference < tol:
+                    break
+                old_coef = coef
+            params['tol_history'] = tol_history[:i + 1]
 
         if return_coef:
             params['coef'] = _convert_coef(coef, original_domain)
