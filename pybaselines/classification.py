@@ -13,12 +13,14 @@ import numpy as np
 from scipy.ndimage import (
     binary_dilation, binary_erosion, grey_dilation, grey_erosion, uniform_filter1d
 )
+from scipy.optimize import curve_fit
+from scipy.signal import cwt, ricker
 
-from ._algorithm_setup import _get_vander, _setup_classification
+from ._algorithm_setup import _get_vander, _setup_classification, _whittaker_smooth
 from ._compat import jit
 from .utils import (
-    ParameterWarning, _convert_coef, _interp_inplace, optimize_window, pad_edges,
-    relative_difference
+    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
+    pad_edges, relative_difference
 )
 
 
@@ -220,6 +222,49 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
     return baseline, {'mask': mask}
 
 
+def _iter_threshold(power, num_std=3.0):
+    """
+    Iteratively thresholds a power spectrum based on the mean and standard deviation.
+
+    Any values greater than the mean of the power spectrum plus a multiple of the
+    standard deviation are masked out to create a new power spectrum. The process
+    is performed iteratively until no further points are masked out.
+
+    Parameters
+    ----------
+    power : numpy.ndarray, shape (N,)
+        The power spectrum to threshold.
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Default is 3.0.
+
+    Returns
+    -------
+    mask : numpy.ndarray, shape (N,)
+        The boolean mask with True values where any point in the input power spectrum
+        was less than
+
+    References
+    ----------
+    Dietrich, W., et al. Fast and Precise Automatic Baseline Correction of One- and
+    Two-Dimensional NMR Spectra. Journal of Magnetic Resonance. 1991, 91, 1-11.
+
+    """
+    mask = power < np.mean(power) + num_std * np.std(power, ddof=1)
+    old_mask = np.ones_like(mask)
+    while not np.array_equal(mask, old_mask):
+        old_mask = mask
+        masked_power = power[mask]
+        if masked_power.size < 2:  # need at least 2 points for std calculation
+            warnings.warn(
+                'not enough baseline points found; "num_std" is likely too low',
+                ParameterWarning
+            )
+            break
+        mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
+
+    return mask
+
+
 def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
              interp_half_window=5, poly_order=5, max_iter=50, tol=1e-3, weights=None,
              return_coef=False, **pad_kwargs):
@@ -317,19 +362,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         2 * smooth_half_window + 1
     )[smooth_half_window:num_y + smooth_half_window]
     power = np.diff(np.concatenate((smooth_y[:1], smooth_y)))**2
-    mask = power < np.mean(power) + num_std * np.std(power, ddof=1)
-    old_mask = np.ones_like(mask)
-    while not np.array_equal(mask, old_mask):
-        old_mask = mask
-        masked_power = power[mask]
-        if masked_power.size < 2:  # need at least 2 points for std calculation
-            warnings.warn(
-                'not enough baseline points found; "num_std" is likely too low',
-                ParameterWarning
-            )
-            break
-        mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
-
+    mask = _iter_threshold(power, num_std)
     mask = _remove_single_points(mask) & weight_array
     rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
 
@@ -663,3 +696,286 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
     )[smooth_half_window:y.shape[0] + smooth_half_window]
 
     return baseline, {'mask': mask}
+
+
+def cwt_br(data, x_data=None, poly_order=5, num_std=1.5, max_scale=50, mask_half_window=2,
+           max_iter=50, tol=1e-3, weights=None, **pad_kwargs):
+    """
+    Continuous wavelet transform baseline recognition (CWT-BR) algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    poly_order : int, optional
+        The polynomial order for fitting the baseline. Default is 5.
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Default
+        is 1.5.
+    max_scale : int, optional
+        [description]. Default is 50.
+    mask_half_window : int, optional
+        [description]. Default is 2.
+    max_iter : int, optional
+        The maximum number of iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from convolution for the
+        continuous wavelet transform.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'mask': numpy.ndarray, shape (N,)
+            The boolean array designating baseline points as True and peak points
+            as False.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+        * 'best_scale' : scalar
+            The scale at which the Shannon entropy of the continuous wavelet transform
+            of the data is at a minimum.
+
+    Notes
+    -----
+    Uses the standard deviation for determining outliers during polynomial fitting rather
+    than the standard error as used in the reference since the number of standard errors
+    to include when thresholding varies with data size while the number of standard
+    deviations is independent of data size.
+
+    References
+    ----------
+    Bertinetto, C., et al. Automatic Baseline Recognition for the Correction of Large
+    Sets of Spectra Using Continuous Wavelet Transform and Iterative Fitting. Applied
+    Spectroscopy, 2014, 68(2), 155-164.
+
+    """
+    y, x, weight_array, original_domain = _setup_classification(data, x_data, weights)
+    vander = _get_vander(x, poly_order, None, False)
+    # scale y between -1 and 1 so that the residual fit is more numerically stable
+    y_domain = np.polynomial.polyutils.getdomain(y)
+    y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
+
+    num_y = y.shape[0]
+    shannon_old = -np.inf
+    shannon_current = -np.inf
+    half_window = max_scale * 2  # is x2 enough padding to prevent edge effects from cwt?
+    padded_y = pad_edges(y, half_window, **pad_kwargs)
+    # TODO should just allow inputting an array of scales; does not need
+    # to be integers since ricker is valid for floats as well
+
+    # set a min scale since there is a bit of noise at low scales
+    min_scale = max(2, y.shape[0] // 500)
+    for scale in range(min_scale, max_scale + 1):
+        wavelet_cwt = cwt(padded_y, ricker, [scale])[0, half_window:-half_window]
+        abs_wavelet = np.abs(wavelet_cwt)
+        inner = abs_wavelet / abs_wavelet.sum(axis=0)
+        # was not stated in the reference to use abs(wavelet) for the Shannon entropy,
+        # but otherwise the Shannon entropy vs wavelet scale curve does not look like
+        # Figure 2 in the reference; masking out non-positive values also gives an
+        # incorrect entropy curve
+        shannon_entropy = -np.sum(inner * np.log(inner + _MIN_FLOAT), 0)
+        if shannon_current < shannon_old and shannon_entropy > shannon_current:
+            break
+        shannon_old = shannon_current
+        shannon_current = shannon_entropy
+
+    best_scale_ptp_multiple = 8 * (wavelet_cwt.max() - wavelet_cwt.min())
+    num_bins = 200
+    histogram, bin_edges = np.histogram(wavelet_cwt, num_bins)
+    bins = 0.5 * (bin_edges[1:] + bin_edges[:-1])
+    fit_params = [histogram.max(), np.log10(0.2 * np.std(wavelet_cwt))]
+    # use 10**sigma so that sigma is not actually bounded
+    gaussian_fit = lambda x, height, sigma: gaussian(x, height, 0, 10**sigma)
+    # TODO should the number of iterations, the height cutoff for the histogram,
+    # and the exit tol be parameters? The number of iterations is never greater than
+    # 2 or 3, matching the reference. The height is
+    for _ in range(10):
+        fit_mask = histogram > histogram.max() / 5
+        # histogram[~fit_mask] = 0  TODO use this instead? does it help fitting?
+        fit_params = curve_fit(
+            gaussian_fit, bins[fit_mask], histogram[fit_mask], fit_params,
+            check_finite=False,
+        )[0]
+        sigma_opt = fit_params[1]
+
+        new_num_bins = ceil(best_scale_ptp_multiple / sigma_opt)
+        if relative_difference(num_bins, new_num_bins) < 0.05:
+            break
+        num_bins = new_num_bins
+        histogram, bin_edges = np.histogram(wavelet_cwt, num_bins)
+        bins = 0.5 * (bin_edges[1:] + bin_edges[:-1])
+
+    gaussian_mask = np.abs(bins) < 3 * sigma_opt
+    gaus_area = np.trapz(histogram[gaussian_mask], bins[gaussian_mask])
+    num_sigma = 0.6 + 10 * ((np.trapz(histogram, bins) - gaus_area) / gaus_area)
+
+    # pad since erosion considers borders as 0
+    # TODO this operation should replace the current _remove_single_points function
+    # since it is much more useful and gives significantly better results
+    wavelet_mask = binary_erosion(
+        np.pad(abs_wavelet < num_sigma * sigma_opt, mask_half_window, 'reflect'),
+        np.ones(2 * mask_half_window + 1, bool)
+    )[mask_half_window:-mask_half_window] & weight_array
+
+    check_win = np.ones(2 * (num_y // 200) + 1, bool)  # TODO make window size a param
+    baseline_old = y
+    mask = wavelet_mask.copy()
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        coef = np.linalg.lstsq(vander[mask], y[mask], None)[0]
+        baseline = vander.dot(coef)
+        residual = y - baseline
+        mask[residual > num_std * np.std(residual)] = False
+
+        # TODO is this necessary? It improves fits where the initial fit didn't
+        # include enough points, but ensures that negative peaks are not allowed;
+        # maybe make it a param called symmetric, like for mixture_model, and only
+        # do if not symmetric; also probably only need to do it the first iteration
+        # since after that the masking above will not remove negative residuals
+        coef = np.linalg.lstsq(vander[mask], y[mask], None)[0]
+        baseline = vander.dot(coef)
+
+        calc_difference = relative_difference(baseline_old, baseline)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
+        baseline_old = baseline
+        added_points = binary_erosion(y < baseline, check_win)
+        mask |= added_points
+
+    # TODO should include wavelet_mask in params; maybe called 'initial_mask'?
+    params = {
+        'mask': mask, 'tol_history': tol_history[:i + 1], 'best_scale': scale
+    }
+
+    return baseline, params
+
+
+def _haar(num_points, scale=2):
+    # center at 0 rather than 1/2 to make calculation easier
+    x_vals = np.arange(num_points) - (num_points - 1) / 2
+    wavelet = np.zeros(num_points)
+    # should be [-scale/2, 0) = 1, [0, scale/2) = -1, but that gives bad
+    # results for odd scales since it is no longer symmetric; haar isn't meant to be
+    # used for odd scales, but also don't want to ruin results; this weighting
+    # scheme gives the desired output for even scales and a slightly different,
+    # but at least symmetric output for odd scales; TODO could instead average
+    # for odd scales... would that be valid? compare to pywavelets
+    wavelet[(x_vals > -scale / 2) & (x_vals < 0)] = 1
+    wavelet[(x_vals < scale / 2) & (x_vals > 0)] = -1
+
+    # TODO not 100% sure about the 1/sqrt(scale) factor; using that
+    # factor seems to closely match the output pywavelets's cwt with their Haar
+    # implementation, but not perfectly so need to investigate further; may just
+    # be due to different cwt implementations between scipy and pywavelets?
+    # pywavelet's Haar implementation may also be defined in frequency space,
+    # which could also cause slight deviations from this approach; besides, the
+    # pywavelets cwt code had to be modified to even work with Haar, so maybe comparing
+    # to their implementation is not the best idea...? Comparing scipy's ricker
+    # with pywavelets's ricker shows the two are nearly identical, so should probably
+    # include this 1/sqrt scaling
+    # NOTE: the 1/sqrt(scale) is a normalization, so could make it a boolean input
+    return wavelet / (np.sqrt(scale))
+
+
+def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, weights=None, **pad_kwargs):
+    """
+    Fully automatic baseline correction (fabc).
+
+    Similar to Dietrich's method, except that the derivative is estimated using a
+    continuous wavelet transform and the baseline is calculated using Whittaker
+    smoothing through the identified baseline points.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e6.
+    scale : int, optional
+        The scale at which to calculate the continuous wavelet transform. Should be
+        approximately equal to the index-based full-width-at-half-maximum of the peaks
+        or features in the data. Default is None, which will use half of the value from
+        :func:`.optimize_window`, which is not always a good value, but at least scales
+        with the number of data points and gives a starting point for tuning the parameter.
+    num_std : float, optional
+        The number of standard deviations to include when thresholding. Higher values
+        will assign more points as baseline. Default is 3.0.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from convolution for the
+        continuous wavelet transform.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'mask': numpy.ndarray, shape (N,)
+            The boolean array designating baseline points as True and peak points
+            as False.
+
+    Notes
+    -----
+    The classification of baseline points is similar to :func:`dietrich`, except that
+    this method approximates the first derivative using a continous wavelet transform
+    with the Haar wavelet, which is more robust than the numerical derivative in
+    Dietrich's method.
+
+    References
+    ----------
+    Cobas, J., et al. A new general-purpose fully automatic baseline-correction
+    procedure for 1D and 2D NMR data. Journal of Magnetic Resonance, 2006, 183(1),
+    145-151.
+
+    """
+    y, _, weight_array, _ = _setup_classification(data, None, weights)
+    if scale is None:
+        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
+        # with data size
+        scale = ceil(optimize_window(y) / 2)
+
+    half_window = scale * 2  # TODO is 2*scale enough padding to prevent edge effects from cwt?
+    wavelet_cwt = cwt(pad_edges(y, half_window, **pad_kwargs), _haar, [scale])
+    power = wavelet_cwt[0, half_window:-half_window]**2
+
+    mask = _iter_threshold(power, num_std)
+    mask = _remove_single_points(mask) & weight_array
+
+    # TODO should allow a p value so that weights are mask * (1-p) + (~mask) * p
+    # similar to mpls and mpspline?
+    baseline, weight_array = _whittaker_smooth(y, lam, diff_order, mask.astype(float))
+
+    # TODO should try to make this similar to mpls, where if weights are input, it does
+    # nothing else and just calculates the baseline; that way, would be able to use with
+    # optimizer functions; however, it would be different than all other classification
+    # methods then...
+    return baseline, {'mask': mask, 'weights': weight_array}
