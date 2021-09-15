@@ -10,9 +10,10 @@ import warnings
 
 import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
+from scipy.signal import savgol_filter
 
 from ._algorithm_setup import _get_vander, _setup_smooth
-from .utils import ParameterWarning, gaussian, gaussian_kernel, padded_convolve
+from .utils import ParameterWarning, gaussian, gaussian_kernel, optimize_window, padded_convolve
 
 
 def noise_median(data, half_window, smooth_half_window=None, sigma=None, **pad_kwargs):
@@ -426,3 +427,69 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
         half_windows.append(half_window)
 
     return baseline[data_slice], {'half_window': half_windows, 'converged': converges}
+
+
+def ipsa(data, half_window=None, max_iter=500, tol=1e-3, mask=None, **pad_kwargs):
+    """
+    Iterative Polynomial Smoothing Algorithm (IPSA).
+
+    Parameters
+    ----------
+    data : [type]
+        [description]
+    half_window : [type]
+        [description]
+    max_iter : int, optional
+        [description], by default 500.
+    tol : float, optional
+
+    References
+    ----------
+    Wang, T., et al. Background Subtraction of Raman Spectra Based on Iterative
+    Polynomial Smoothing. Applied Spectroscopy. 71(6) (2017) 1169-1179.
+
+    """
+    # TODO should just move optimize window into _setup_smooth since all smooth functions
+    # could use it; maybe just add a multiplier constant; that way, snip and noise_median
+    # no longer require a half window parameter to at least get a guess
+    if half_window is None:
+        half_window = 4 * optimize_window(data)
+    window_size = 2 * half_window + 1
+    y = _setup_smooth(data, window_size, **pad_kwargs)
+    y0 = y
+    num_y = y.shape[0]
+    # TODO this masking seems unnecessarily complex; should just use a different tolerance
+    # calculation altogether since this one completely changes depending on the height
+    # of the input data; could make it a boolean option to use norm(old, new)/norm(old)
+    # as an alternate tolerance, or just always use that instead of the tolerance calc
+    # used in the reference
+    if mask is None:
+        residual_region = np.zeros(num_y, dtype=bool)
+        residual_region[window_size:-window_size] = True
+    else:
+        mask = np.asarray(mask, dtype=bool)
+        mask_shape = mask.shape[0]
+        if mask_shape == num_y:
+            residual_region = mask
+        elif mask_shape == num_y - 2 * window_size:
+            filler = np.zeros(window_size, dtype=bool)
+            residual_region = np.concatenate((
+                filler, mask, filler
+            ))
+        else:
+            raise ValueError('mask and y need to have the same shape')
+
+    # TODO since the window size doesn't change, could get the coefficients using
+    # savgol_coeffs and convolve it myself; that way, don't have to do the least
+    # squares fit to get the coefficients each iteration; should be faster
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        baseline = savgol_filter(y, window_size, 2, mode='nearest')
+        residual = (y0 - baseline)[residual_region]
+        calc_tol = abs(residual.min() / residual.max())
+        tol_history[i] = calc_tol
+        if calc_tol < tol:
+            break
+        y = np.minimum(y0, baseline)
+
+    return baseline[window_size:-window_size], {'tol_history': tol_history[:i + 1]}
