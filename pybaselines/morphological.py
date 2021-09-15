@@ -11,12 +11,12 @@ import warnings
 import numpy as np
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 from scipy.sparse import diags
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import cg, spsolve
 
 from ._algorithm_setup import _setup_morphology, _setup_splines, _whittaker_smooth
 from .utils import (
-    _mollifier_kernel, optimize_window as _optimize_window, pad_edges, padded_convolve,
-    relative_difference
+    _mollifier_kernel, difference_matrix, optimize_window as _optimize_window, pad_edges,
+    padded_convolve, relative_difference
 )
 
 
@@ -923,3 +923,82 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     baseline = spl_basis * optimal_coef
 
     return baseline, {'half_window': half_window, 'weights': weight_array}
+
+
+def jbcd(data, half_window=None, alpha=0.1, beta=1e0, gamma=1e1, diff_order=1,
+         max_iter=50, tol=1e-2, tol_2=1e-3, **window_kwargs):
+    """
+    [summary]
+
+    Parameters
+    ----------
+    data : [type]
+        [description]
+    half_window : [type], optional
+        [description]. Default is None.
+    alpha : float, optional
+        [description]. Default is 0.1.
+    beta : [type], optional
+        [description]. Default is 1e0.
+    gamma : [type], optional
+        [description]. Default is 1e0.
+    diff_order : int, optional
+        [description]. Default is 1.
+    max_iter : int, optional
+        [description]. Default is 50.
+    tol : [type], optional
+        [description]. Default is 1e-2.
+    tol_2 : [type], optional
+        [description]. Default is 1e-3.
+
+    Returns
+    -------
+    [type]
+        [description]
+
+    References
+    ----------
+    Liu, H., et al. Joint Baseline-Correction and Denoising for Raman Spectra.
+    Applied Spectroscopy, 2015, 69(9), 1013-1022.
+
+    """
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+
+    # TODO could probably use spsolve or banded solvers instead of conjugate-gradient
+    # since it is just a linear system; banded should always be faster than cg;
+    # if switching to banded, need to replace all other matrices
+    num_y = y.shape[0]
+    identity = difference_matrix(num_y, 0, 'csr')
+    D1 = difference_matrix(num_y, diff_order, 'csr')
+    D = D1.T @ D1
+    window_size = 2 * half_wind + 1
+
+    # TODO could use the average opening similar to mor, since it should be closer to the
+    # actual baseline; could make it a boolean option; also should pad y to remove edge
+    # effects; should pad for all morphological functions
+    opening = grey_opening(y, window_size)
+    baseline_old = opening
+    signal_old = y
+    partial_lhs = (1 + 2 * alpha) * identity
+    tol_history = np.empty((max_iter, 2))
+    for i in range(max_iter):
+        signal = cg(identity + gamma * D, y - baseline_old, baseline_old, tol=1e-4)[0]
+        baseline = cg(
+            partial_lhs + 2 * beta * D, y - signal + 2 * alpha * opening, baseline_old, tol=1e-4
+        )[0]
+
+        calc_tol_1 = relative_difference(signal_old, signal)
+        calc_tol_2 = relative_difference(baseline_old, baseline)
+        tol_history[i] = (calc_tol_1, calc_tol_2)
+        if calc_tol_1 < tol and calc_tol_2 < tol_2:
+            break
+        signal_old = signal
+        baseline_old = baseline
+        # TODO should the increments be parameters? otherwise, beta usually becomes
+        # too large too fast; difficult to get both tols plus beta and gamma correct
+        gamma /= 1.1
+        beta *= 1.2
+
+    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1], 'signal': signal}
+
+    return baseline, params
