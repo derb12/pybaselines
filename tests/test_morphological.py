@@ -326,3 +326,39 @@ class TestMpsline(AlgorithmTester):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
             self._call_func(self.y, p=p)
+
+
+class TestJBCD(AlgorithmTester):
+    """Class for testing jbcd baseline."""
+
+    func = morphological.jbcd
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('half_window', 'tol_history', 'signal'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        factor = {2: 1e4, 3: 1e10}[diff_order]
+
+        self._call_func(self.y, beta=factor, gamma=factor, diff_order=diff_order)
+
+    @has_pentapy
+    def test_pentapy_solver(self):
+        """Ensure pentapy solver gives similar result to SciPy's solver."""
+        with mock.patch.object(morphological, '_HAS_PENTAPY', False):
+            scipy_output = self._call_func(self.y, diff_order=2)[0]
+        pentapy_output = self._call_func(self.y, diff_order=2)[0]
+
+        assert_allclose(pentapy_output, scipy_output, 1e-4)

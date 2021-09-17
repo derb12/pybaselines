@@ -9,13 +9,17 @@ Created on March 5, 2021
 import warnings
 
 import numpy as np
+from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 from scipy.sparse import diags
-from scipy.sparse.linalg import cg, spsolve
+from scipy.sparse.linalg import spsolve
 
-from ._algorithm_setup import _setup_morphology, _setup_splines, _whittaker_smooth
+from ._algorithm_setup import (
+    _setup_morphology, _setup_splines, _setup_whittaker, _whittaker_smooth
+)
+from ._compat import _HAS_PENTAPY, _pentapy_solve
 from .utils import (
-    _mollifier_kernel, difference_matrix, optimize_window as _optimize_window, pad_edges,
+    _mollifier_kernel, _pentapy_solver, optimize_window as _optimize_window, pad_edges,
     padded_convolve, relative_difference
 )
 
@@ -925,36 +929,75 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     return baseline, {'half_window': half_window, 'weights': weight_array}
 
 
-def jbcd(data, half_window=None, alpha=0.1, beta=1e0, gamma=1e1, diff_order=1,
-         max_iter=50, tol=1e-2, tol_2=1e-3, **window_kwargs):
+def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, diff_order=1,
+         max_iter=20, tol=1e-2, tol_2=1e-3, **window_kwargs):
     """
-    [summary]
+    Joint Baseline Correction and Denoising (jbcd) Algorithm.
 
     Parameters
     ----------
-    data : [type]
-        [description]
-    half_window : [type], optional
-        [description]. Default is None.
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window used for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
     alpha : float, optional
-        [description]. Default is 0.1.
-    beta : [type], optional
-        [description]. Default is 1e0.
-    gamma : [type], optional
-        [description]. Default is 1e0.
+        The regularization parameter that controls how close the baseline must fit the
+        calculated morphological opening. Larger values make the fit more constrained to
+        the opening and can make the baseline less smooth. Default is 0.1.
+    beta : float, optional
+        The regularization parameter that controls how smooth the baseline is. Larger
+        values produce smoother baselines. Default is 1e1.
+    gamma : float, optional
+        The regularization parameter that controls how smooth the signal is. Larger
+        values produce smoother baselines. Default is 1e1.
     diff_order : int, optional
-        [description]. Default is 1.
+        The order of the differential matrix. Must be greater than 0. Default is 1
+        (first order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
-        [description]. Default is 50.
-    tol : [type], optional
-        [description]. Default is 1e-2.
-    tol_2 : [type], optional
-        [description]. Default is 1e-3.
+        The maximum number of iterations. Default is 20.
+    tol : float, optional
+        The exit criteria for the change in the calculated signal. Default is 1e-2.
+    tol_2 : float, optional
+        The exit criteria for the change in the calculated baseline. Default is 1e-2.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
 
     Returns
     -------
-    [type]
-        [description]
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'half_window': int
+            The half window used for the morphological calculations.
+        * 'tol_history': numpy.ndarray, shape (K, 2)
+            An array containing the calculated tolerance values for each
+            iteration. Index 0 are the tolerence values for the relative change in
+            the signal, and index 1 are the tolerance values for the relative change
+            in the baseline. The length of the array is the number of iterations
+            completed, K. If the last values in the array are greater than the input
+            `tol` or `tol_2` values, then the function did not converge.
+        * 'signal': numpy.ndarray, shape (N,)
+            The pure signal portion of the input `data` without noise or the baseline.
 
     References
     ----------
@@ -963,29 +1006,41 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e0, gamma=1e1, diff_order=1,
 
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-
-    # TODO could probably use spsolve or banded solvers instead of conjugate-gradient
-    # since it is just a linear system; banded should always be faster than cg;
-    # if switching to banded, need to replace all other matrices
-    num_y = y.shape[0]
-    identity = difference_matrix(num_y, 0, 'csr')
-    D1 = difference_matrix(num_y, diff_order, 'csr')
-    D = D1.T @ D1
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    _, penalty_diagonals, _ = _setup_whittaker(
+        data, 1, diff_order, None, False, not using_pentapy, using_pentapy
+    )
     window_size = 2 * half_wind + 1
 
     # TODO could use the average opening similar to mor, since it should be closer to the
     # actual baseline; could make it a boolean option; also should pad y to remove edge
     # effects; should pad for all morphological functions
     opening = grey_opening(y, window_size)
+
     baseline_old = opening
     signal_old = y
-    partial_lhs = (1 + 2 * alpha) * identity
-    tol_history = np.empty((max_iter, 2))
-    for i in range(max_iter):
-        signal = cg(identity + gamma * D, y - baseline_old, baseline_old, tol=1e-4)[0]
-        baseline = cg(
-            partial_lhs + 2 * beta * D, y - signal + 2 * alpha * opening, baseline_old, tol=1e-4
-        )[0]
+    main_diag_idx = diff_order if using_pentapy else -1
+    pentapy_solver = _pentapy_solver()
+    partial_rhs_2 = (2 * alpha) * opening
+    tol_history = np.empty((max_iter + 1, 2))
+    for i in range(max_iter + 1):
+        lhs_1 = gamma * penalty_diagonals
+        lhs_1[main_diag_idx] += 1.
+        lhs_2 = (2 * beta) * penalty_diagonals
+        lhs_2[main_diag_idx] += 1. + 2. * alpha
+        if using_pentapy:
+            signal = _pentapy_solve(lhs_1, y - baseline_old, True, True, pentapy_solver)
+            baseline = _pentapy_solve(
+                lhs_2, y - signal + partial_rhs_2, True, True, pentapy_solver
+            )
+        else:
+            signal = solveh_banded(
+                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True, check_finite=False
+            )
+            baseline = solveh_banded(
+                lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True,
+                check_finite=False
+            )
 
         calc_tol_1 = relative_difference(signal_old, signal)
         calc_tol_2 = relative_difference(baseline_old, baseline)
