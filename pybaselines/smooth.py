@@ -10,7 +10,7 @@ import warnings
 
 import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
-from scipy.signal import savgol_filter
+from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _get_vander, _setup_smooth
 from .utils import ParameterWarning, gaussian, gaussian_kernel, optimize_window, padded_convolve
@@ -479,12 +479,10 @@ def ipsa(data, half_window=None, max_iter=500, tol=1e-3, mask=None, **pad_kwargs
         else:
             raise ValueError('mask and y need to have the same shape')
 
-    # TODO since the window size doesn't change, could get the coefficients using
-    # savgol_coeffs and convolve it myself; that way, don't have to do the least
-    # squares fit to get the coefficients each iteration; should be faster
+    savgol_coef = savgol_coeffs(window_size, 2)
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
-        baseline = savgol_filter(y, window_size, 2, mode='nearest')
+        baseline = padded_convolve(y, savgol_coef, 'edge')
         residual = (y0 - baseline)[residual_region]
         calc_tol = abs(residual.min() / residual.max())
         tol_history[i] = calc_tol
