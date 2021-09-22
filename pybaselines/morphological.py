@@ -146,7 +146,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
         w = weights
     else:
         rough_baseline = grey_opening(y, [2 * half_wind + 1])
-        diff = np.diff(np.hstack([rough_baseline[0], rough_baseline, rough_baseline[-1]]))
+        diff = np.diff(np.concatenate([rough_baseline[:1], rough_baseline, rough_baseline[-1:]]))
         # diff == 0 means the point is on a flat segment, and diff != 0 means the
         # adjacent point is not the same flat segment. The union of the two finds
         # the endpoints of each segment, and np.flatnonzero converts the mask to

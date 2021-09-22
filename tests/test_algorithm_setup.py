@@ -21,28 +21,35 @@ def test_diff_2_diags(data_size, upper_only):
     """Ensures the output of _diff_2_diags is the correct shape and values."""
     diagonal_data = _algorithm_setup._diff_2_diags(data_size, upper_only)
 
-    diff_matrix = _algorithm_setup.difference_matrix(data_size, 2)
+    diff_matrix = utils.difference_matrix(data_size, 2)
     diag_matrix = (diff_matrix.T * diff_matrix).todia()
-    actual_diagonal_data = diag_matrix.data
+    actual_diagonal_data = diag_matrix.data[::-1]
     if upper_only:
-        actual_diagonal_data = diag_matrix.data[2:]
+        actual_diagonal_data = actual_diagonal_data[:3]
 
-    assert_array_equal(diagonal_data, actual_diagonal_data[::-1])
+    assert_array_equal(diagonal_data, actual_diagonal_data)
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))
+@pytest.mark.parametrize('add_zeros', (True, False))
 @pytest.mark.parametrize('upper_only', (True, False))
-def test_diff_1_diags(data_size, upper_only):
+def test_diff_1_diags(data_size, upper_only, add_zeros):
     """Ensures the output of _diff_1_diags is the correct shape and values."""
-    diagonal_data = _algorithm_setup._diff_1_diags(data_size, upper_only)
+    diagonal_data = _algorithm_setup._diff_1_diags(data_size, upper_only, add_zeros)
 
-    diff_matrix = _algorithm_setup.difference_matrix(data_size, 1)
+    diff_matrix = utils.difference_matrix(data_size, 1)
     diag_matrix = (diff_matrix.T * diff_matrix).todia()
-    actual_diagonal_data = diag_matrix.data
+    actual_diagonal_data = diag_matrix.data[::-1]
     if upper_only:
-        actual_diagonal_data = diag_matrix.data[1:]
+        actual_diagonal_data = actual_diagonal_data[:2]
+    if add_zeros:
+        filler = np.zeros(data_size)
+        if upper_only:
+            actual_diagonal_data = np.vstack((filler, actual_diagonal_data))
+        else:
+            actual_diagonal_data = np.vstack((filler, actual_diagonal_data, filler))
 
-    assert_array_equal(diagonal_data, actual_diagonal_data[::-1])
+    assert_array_equal(diagonal_data, actual_diagonal_data)
 
 
 @pytest.fixture

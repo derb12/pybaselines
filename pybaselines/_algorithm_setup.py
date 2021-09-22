@@ -131,8 +131,8 @@ def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
     Returns
     -------
     output : numpy.ndarray
-        The array containing the diagonal data. Has a shape of (2, `data_size`)
-        if `upper_only` is True, otherwise (3, `data_size`).
+        The array containing the diagonal data. The number of rows depends on
+        `upper_only` and `add_zeros`.
 
     Notes
     -----
@@ -156,16 +156,16 @@ def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
     output[1, 1:-1] = 2
 
     if add_zeros:
-        zeros = np.zeros(data_size)
+        zeros = np.zeros((1, data_size))
 
     if upper_only:
         if add_zeros:
-            output = np.vstack((zeros, output))
+            output = np.concatenate((zeros, output))
         return output
 
     output[-1, -1] = 0
     if add_zeros:
-        output = np.vstack((zeros, output, zeros))
+        output = np.concatenate((zeros, output, zeros))
 
     return output
 

@@ -253,15 +253,15 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     )
     if side in ('right', 'both'):
         added_x = np.linspace(max_x, max_x + x_range * (width_scale / 2), added_window)
-        fit_x_data = np.hstack((fit_x_data, added_x))
-        fit_data = np.hstack((fit_data, added_gaussian + added_right))
+        fit_x_data = np.concatenate((fit_x_data, added_x))
+        fit_data = np.concatenate((fit_data, added_gaussian + added_right))
         known_background = added_right
         upper_bound += added_window
     if side in ('left', 'both'):
         added_x = np.linspace(min_x - x_range * (width_scale / 2), min_x, added_window)
-        fit_x_data = np.hstack((added_x, fit_x_data))
-        fit_data = np.hstack((added_gaussian + added_left, fit_data))
-        known_background = np.hstack((known_background, added_left))
+        fit_x_data = np.concatenate((added_x, fit_x_data))
+        fit_data = np.concatenate((added_gaussian + added_left, fit_data))
+        known_background = np.concatenate((known_background, added_left))
         lower_bound += added_window
 
     if method in (
