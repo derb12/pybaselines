@@ -6,6 +6,8 @@ Created on March 5, 2021
 
 """
 
+from math import ceil
+
 import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.sparse import diags, identity
@@ -202,7 +204,7 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     """
     y = np.asarray(data)
     if pad_length == 0:
-        return y
+        return np.array([]), np.array([])
     elif pad_length < 0:
         raise ValueError('pad length must be greater or equal to 0')
 
@@ -215,8 +217,8 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
             raise ValueError('extrapolate_window must be greater than 0')
         elif extrapolate_window == 1:
             # just use the edges rather than trying to fit a line
-            left_edge = np.array([y[0]])
-            right_edge = np.array([y[-1]])
+            left_edge = np.full(pad_length, y[0])
+            right_edge = np.full(pad_length, y[-1])
         else:
             # TODO could probably reduce x to only pad_length and
             # just add/subtract something
@@ -277,11 +279,12 @@ def pad_edges(data, pad_length, mode='extrapolate',
     if pad_length == 0:
         return y
 
-    if mode.lower() == 'extrapolate':
+    mode = mode.lower()
+    if mode == 'extrapolate':
         left_edge, right_edge = _get_edges(y, pad_length, mode, extrapolate_window)
         padded_data = np.concatenate((left_edge, y, right_edge))
     else:
-        padded_data = np.pad(y, pad_length, mode.lower(), **pad_kwargs)
+        padded_data = np.pad(y, pad_length, mode, **pad_kwargs)
 
     return padded_data
 

@@ -4,8 +4,6 @@
 @author: Donald Erb
 Created on March 20, 2021
 
-# TODO need to add tests for pad_edges, _extend_edges, and padded_convolve
-
 """
 
 import numpy as np
@@ -323,3 +321,95 @@ def test_changing_pentapy_solver():
             assert utils._pentapy_solver() == solver
     finally:
         utils.PENTAPY_SOLVER = original_solver
+
+
+@pytest.mark.parametrize(
+    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant')
+)
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_pad_edges(pad_mode, pad_length, list_input, data_fixture):
+    """Tests various inputs for utils.pad_edges."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    if pad_mode.lower() != 'extrapolate':
+        expected_output = np.pad(data, pad_length, pad_mode.lower())
+    else:
+        expected_output = None
+
+    output = utils.pad_edges(data, pad_length, pad_mode)
+    assert isinstance(output, np.ndarray)
+    assert len(output) == len(data) + 2 * pad_length
+
+    if expected_output is not None:
+        assert_allclose(output, expected_output)
+
+
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('extrapolate_window', (None, 1, 2, 10, 1001))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_pad_edges_extrapolate(pad_length, list_input, extrapolate_window, data_fixture):
+    """Ensures extrapolation works for utils.pad_edges."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    output = utils.pad_edges(data, pad_length, 'extrapolate', extrapolate_window)
+    assert isinstance(output, np.ndarray)
+    assert len(output) == len(data) + 2 * pad_length
+
+
+def test_pad_edges_extrapolate_zero_window():
+    """Ensures an extrapolate_window of 0 raises an exception."""
+    with pytest.raises(ValueError):
+        utils.pad_edges(np.arange(10), 10, extrapolate_window=0)
+
+
+@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
+def test_pad_edges_negative_pad_length(pad_mode, data_fixture):
+    """Ensures a negative pad length raises an exception."""
+    with pytest.raises(ValueError):
+        utils.pad_edges(data_fixture[1], -5, pad_mode)
+
+
+@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
+def test_get_edges_negative_pad_length(pad_mode, data_fixture):
+    """Ensures a negative pad length raises an exception."""
+    with pytest.raises(ValueError):
+        utils._get_edges(data_fixture[1], -5, pad_mode)
+
+
+@pytest.mark.parametrize(
+    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant')
+)
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_get_edges(pad_mode, pad_length, list_input, data_fixture):
+    """Tests various inputs for utils._get_edges."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    if pad_length == 0:
+        check_output = True
+        expected_left = np.array([])
+        expected_right = np.array([])
+    elif pad_mode.lower() != 'extrapolate':
+        check_output = True
+        expected_left, _, expected_right = np.array_split(
+            np.pad(data, pad_length, pad_mode.lower()), [pad_length, -pad_length]
+        )
+    else:
+        check_output = False
+
+    left, right = utils._get_edges(data, pad_length, pad_mode)
+    assert isinstance(left, np.ndarray)
+    assert len(left) == pad_length
+    assert isinstance(right, np.ndarray)
+    assert len(right) == pad_length
+
+    if check_output:
+        assert_allclose(left, expected_left)
+        assert_allclose(right, expected_right)
