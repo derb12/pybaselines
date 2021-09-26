@@ -323,6 +323,38 @@ def test_changing_pentapy_solver():
         utils.PENTAPY_SOLVER = original_solver
 
 
+@pytest.mark.parametrize('kernel_size', (1, 10, 31, 1000, 2000, 4000))
+@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_padded_convolve(kernel_size, pad_mode, list_input, data_fixture):
+    """
+    Ensures the output of the padded convolution is the same size as the input data.
+
+    Notes
+    -----
+    `data_fixture` has 1000 data points, so test kernels with size less than, equal to,
+    and greater than that size.
+
+    """
+    # make a simple uniform window kernel
+    kernel = np.ones(kernel_size) / kernel_size
+    _, data = data_fixture
+    if list_input:
+        input_data = data.tolist()
+    else:
+        input_data = data
+    conv_output = utils.padded_convolve(input_data, kernel, pad_mode)
+
+    assert isinstance(conv_output, np.ndarray)
+    assert data.shape == conv_output.shape
+
+
+def test_padded_convolve_empty_kernel():
+    """Ensures convolving with an empty kernel fails."""
+    with pytest.raises(ValueError):
+        utils.padded_convolve(np.arange(10), np.array([]))
+
+
 @pytest.mark.parametrize(
     'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant')
 )

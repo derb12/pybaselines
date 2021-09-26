@@ -10,6 +10,7 @@ from math import ceil
 
 import numpy as np
 from scipy.ndimage import grey_opening
+from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
 from ._compat import jit
@@ -295,11 +296,10 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
 
     Parameters
     ----------
-    data : numpy.ndarray, shape (N,)
-        The data to smooth.
-    kernel : numpy.ndarray, shape (M,)
-        A pre-computed, normalized kernel for the convolution. Indices should
-        span from -half_window to half_window.
+    data : array-like, shape (N,)
+        The data to convolve.
+    kernel : array-like, shape (M,)
+        The convolution kernel.
     mode : str, optional
         The method for padding to pass to :func:`.pad_edges`. Default is 'reflect'.
     **pad_kwargs
@@ -307,18 +307,18 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
 
     Returns
     -------
-    numpy.ndarray, shape (N,)
-        The smoothed input array.
+    convolution : numpy.ndarray, shape (N,)
+        The convolution output.
 
     """
     # TODO need to revisit this and ensure everything is correct
     # TODO look at using scipy.ndimage.convolve1d instead, or at least
     # comparing the output in tests; that function should have a similar usage
-    padding = min(data.shape[0], kernel.shape[0]) // 2
-    convolution = np.convolve(
-        pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'
+    padding = ceil(min(len(data), len(kernel)) / 2)
+    convolution = convolve(
+        pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='same'
     )
-    return convolution
+    return convolution[padding:-padding]
 
 
 def _safe_std(array, **kwargs):
