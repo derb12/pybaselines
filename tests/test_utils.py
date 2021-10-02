@@ -11,6 +11,7 @@ from numpy.testing import (
     assert_allclose, assert_almost_equal, assert_array_almost_equal, assert_array_equal
 )
 import pytest
+from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening
 from scipy.sparse import identity
 
 from pybaselines import utils
@@ -512,3 +513,84 @@ def test_check_scalar_asarray_kwargs():
 
         output, _ = utils._check_scalar(np.array([1, 2, 3]), 3, dtype=dtype)
         assert output.dtype == dtype
+
+
+def morphology_tester(data, half_window, operation):
+    """Convenience function for testing all morphology types."""
+    operations = {
+        'erosion': (utils._grey_erosion_1d, grey_erosion),
+        'dilation': (utils._grey_dilation_1d, grey_dilation),
+        'opening': (utils._grey_opening_1d, grey_opening),
+        'closing': (utils._grey_closing_1d, grey_closing)
+    }
+    pybaselines_func, scipy_func = operations[operation]
+
+    # ensure scalar half_window and array half_window give same result if array is
+    # all the same value
+    scalar_output = pybaselines_func(data, half_window)
+    array_output = pybaselines_func(data, np.full_like(data, half_window, type(half_window)))
+
+    assert_allclose(
+        array_output, scalar_output,
+        err_msg='array and scalar half-windows produce different results'
+    )
+
+    # also ensure both outputs are the same as output by scipy
+    if isinstance(half_window, (int, float)):
+        window = 2 * int(half_window) + 1
+    else:
+        window = 2 * int(half_window[0]) + 1
+    scipy_output = scipy_func(data, window)
+
+    assert_allclose(
+        array_output, scipy_output,
+        err_msg='scipy and array half-window produce different results'
+    )
+    assert_allclose(
+        scalar_output, scipy_output,
+        err_msg='scipy and scalar half-window produce different results'
+    )
+
+
+@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_grey_erosion_1d(half_window, list_input, data_fixture):
+    """Tests grey-erosion."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    morphology_tester(data, half_window, 'erosion')
+
+
+@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_grey_dilation_1d(half_window, list_input, data_fixture):
+    """Tests grey-dilation."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    morphology_tester(data, half_window, 'dilation')
+
+
+@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_grey_opening_1d(half_window, list_input, data_fixture):
+    """Tests grey-opening."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    morphology_tester(data, half_window, 'opening')
+
+
+@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_grey_closing_1d(half_window, list_input, data_fixture):
+    """Tests grey-closing."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    morphology_tester(data, half_window, 'closing')
