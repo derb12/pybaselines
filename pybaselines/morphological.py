@@ -929,8 +929,8 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     return baseline, {'half_window': half_window, 'weights': weight_array}
 
 
-def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, diff_order=1,
-         max_iter=20, tol=1e-2, tol_2=1e-3, **window_kwargs):
+def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, beta_mult=1.1, gamma_mult=0.909,
+         diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3, **window_kwargs):
     """
     Joint Baseline Correction and Denoising (jbcd) Algorithm.
 
@@ -952,6 +952,10 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, diff_order=1,
     gamma : float, optional
         The regularization parameter that controls how smooth the signal is. Larger
         values produce smoother baselines. Default is 1e1.
+    beta_mult : float, optional
+        The value that `beta` is multiplied by each iteration. Default is 1.1.
+    gamma_mult : float, optional
+        The value that `gamma` is multiplied by each iteration. Default is 0.909.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 1
         (first order differential matrix). Typical values are 2 or 1.
@@ -1049,10 +1053,8 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, diff_order=1,
             break
         signal_old = signal
         baseline_old = baseline
-        # TODO should the increments be parameters? otherwise, beta usually becomes
-        # too large too fast; difficult to get both tols plus beta and gamma correct
-        gamma /= 1.1
-        beta *= 1.2
+        gamma *= gamma_mult
+        beta *= beta_mult
 
     params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1], 'signal': signal}
 
