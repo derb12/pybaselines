@@ -13,7 +13,9 @@ from scipy.ndimage import median_filter, uniform_filter1d
 from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _get_vander, _setup_smooth
-from .utils import ParameterWarning, gaussian, gaussian_kernel, optimize_window, padded_convolve
+from .utils import (
+    _check_scalar, ParameterWarning, gaussian, gaussian_kernel, optimize_window, padded_convolve
+)
 
 
 def noise_median(data, half_window, smooth_half_window=None, sigma=None, **pad_kwargs):
@@ -158,13 +160,7 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
     if filter_order not in {2, 4, 6, 8}:
         raise ValueError('filter_order must be 2, 4, 6, or 8')
 
-    if isinstance(max_half_window, int):
-        half_windows = [max_half_window, max_half_window]
-    elif len(max_half_window) == 1:
-        half_windows = [max_half_window[0], max_half_window[0]]
-    else:
-        half_windows = [max_half_window[0], max_half_window[1]]
-
+    half_windows = _check_scalar(max_half_window, 2, True, dtype=int)[0]
     num_y = len(data)
     for i, half_window in enumerate(half_windows):
         if half_window > (num_y - 1) // 2:
@@ -174,7 +170,7 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
             )
             half_windows[i] = (num_y - 1) // 2
 
-    max_of_half_windows = max(half_windows)
+    max_of_half_windows = np.max(half_windows)
     if decreasing:
         range_args = (max_of_half_windows, 0, -1)
     else:
@@ -473,9 +469,7 @@ def ipsa(data, half_window=None, max_iter=500, tol=1e-3, mask=None, **pad_kwargs
             residual_region = mask
         elif mask_shape == num_y - 2 * window_size:
             filler = np.zeros(window_size, dtype=bool)
-            residual_region = np.concatenate((
-                filler, mask, filler
-            ))
+            residual_region = np.concatenate((filler, mask, filler))
         else:
             raise ValueError('mask and y need to have the same shape')
 

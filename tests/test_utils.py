@@ -445,3 +445,70 @@ def test_get_edges(pad_mode, pad_length, list_input, data_fixture):
     if check_output:
         assert_allclose(left, expected_left)
         assert_allclose(right, expected_right)
+
+
+@pytest.mark.parametrize('fill_scalar', (True, False))
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('nested_input', (True, False))
+def test_check_scalar_scalar_input(fill_scalar, list_input, nested_input):
+    """Ensures _check_scalar works with scalar values."""
+    input_data = 5
+    desired_length = 10
+    if fill_scalar:
+        desired_output = np.full(desired_length, input_data)
+    else:
+        desired_output = np.asarray(input_data)
+    if nested_input:
+        input_data = [input_data]
+    if list_input:
+        input_data = [input_data]
+
+    output, was_scalar = utils._check_scalar(input_data, desired_length)
+
+    assert was_scalar
+    assert isinstance(output, np.ndarray)
+    assert_array_equal(output, desired_output)
+
+
+@pytest.mark.parametrize('fit_desired_length', (True, False))
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('nested_input', (True, False))
+def test_check_scalar_array_input(fit_desired_length, list_input, nested_input):
+    """Ensures _check_scalar works with array-like inputs."""
+    desired_length = 20
+    fill_value = 5
+    if fit_desired_length:
+        input_data = np.full(desired_length, fill_value)
+    else:
+        input_data = np.full(desired_length - 1, fill_value)
+
+    if nested_input:
+        input_data = input_data.reshape(-1, 1)
+    if list_input:
+        input_data = input_data.tolist()
+
+    if fit_desired_length:
+        output, was_scalar = utils._check_scalar(input_data, desired_length)
+
+        assert not was_scalar
+        assert isinstance(output, np.ndarray)
+        assert_array_equal(output, np.asarray(input_data).reshape(-1))
+    else:
+        with pytest.raises(ValueError):
+            utils._check_scalar(input_data, desired_length)
+
+
+def test_check_scalar_asarray_kwargs():
+    """Ensures kwargs are passed to np.asarray by _check_scalar."""
+    for dtype in (int, float, np.float64, np.int64):
+        output, _ = utils._check_scalar(20, 1, dtype=dtype)
+        assert output.dtype == dtype
+
+        output, _ = utils._check_scalar(20, 10, True, dtype=dtype)
+        assert output.dtype == dtype
+
+        output, _ = utils._check_scalar([20], 1, dtype=dtype)
+        assert output.dtype == dtype
+
+        output, _ = utils._check_scalar(np.array([1, 2, 3]), 3, dtype=dtype)
+        assert output.dtype == dtype

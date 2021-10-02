@@ -15,7 +15,7 @@ import numpy as np
 
 from . import morphological, polynomial, whittaker
 from ._algorithm_setup import _setup_polynomial, _yx_arrays
-from .utils import _get_edges, gaussian
+from .utils import _check_scalar, _get_edges, gaussian
 
 
 def _get_function(method, modules):
@@ -418,8 +418,8 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
             The weight array used for fitting the data.
         * 'constrained_weights': numpy.ndarray, shape (N,)
             The weight array used for the endpoint-constrained fits.
-        * 'poly_order': tuple(int, int)
-            A tuple of the two polynomial orders used for the fitting.
+        * 'poly_order': numpy.ndarray, shape (2,)
+            An array of the two polynomial orders used for the fitting.
 
     References
     ----------
@@ -432,17 +432,14 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     y, x, weight_array, _ = _setup_polynomial(data, x_data, weights)
     constrained_range = max(1, ceil(y.shape[0] * constrained_fraction))
 
-    if isinstance(poly_order, int):
-        poly_orders = (poly_order, poly_order + 1)
-    elif poly_order is not None:
-        if len(poly_order) == 1:
-            poly_orders = (poly_order[0], poly_order[0] + 1)
-        else:
-            poly_orders = (poly_order[0], poly_order[1])
-    else:
+    if poly_order is None:
         poly_orders = _determine_polyorders(
             y, x, estimation_poly_order, weight_array, fit_func, **method_kwargs
         )
+    else:
+        poly_orders, scalar_poly_order = _check_scalar(poly_order, 2, True, dtype=int)
+        if scalar_poly_order:
+            poly_orders[1] += 1  # add 1 since they are initially equal if scalar input
 
     # use high weighting rather than Lagrange multipliers to constrain the points
     # to better work with noisy data

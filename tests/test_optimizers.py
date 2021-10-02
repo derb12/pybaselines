@@ -7,7 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal
+from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
 
 from pybaselines import optimizers
@@ -215,4 +215,10 @@ class TestAdaptiveMinMax(AlgorithmTester):
     def test_polyorder_outputs(self, poly_order):
         """Ensures that the correct polynomial orders were used."""
         _, params = self._call_func(self.y, self.x, poly_order)
-        assert params['poly_order'] == (0, 1)
+        assert_array_equal(params['poly_order'], np.array([0, 1]))
+
+    @pytest.mark.parametrize('poly_order', ([0, 1, 2], (0, 1, 2, 3)))
+    def test_too_many_polyorders_fails(self, poly_order):
+        """Ensures an error is raised if poly_order has more than two items."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, poly_order)

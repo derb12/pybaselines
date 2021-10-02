@@ -53,7 +53,7 @@ class TestSNIP(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y, 15), list_args=(y_list, 15))
 
-    @pytest.mark.parametrize('max_half_window', (15, [15], [12, 20], (12, 15, 20)))
+    @pytest.mark.parametrize('max_half_window', (15, [15], [12, 20], (12, 15)))
     def test_max_half_window_inputs(self, max_half_window):
         """Tests valid inputs for `max_half_window`."""
         self._test_output(self.y, self.y, max_half_window)
@@ -72,6 +72,12 @@ class TestSNIP(AlgorithmTester):
     def test_too_large_max_half_window(self, max_half_window):
         """Ensures a warning emitted when max_half_window is greater than (len(data) - 1) // 2."""
         with pytest.warns(ParameterWarning):
+            self._call_func(self.y, max_half_window)
+
+    @pytest.mark.parametrize('max_half_window', ([10, 20, 30], (5, 10, 15, 20)))
+    def test_too_many_max_half_windows_fails(self, max_half_window):
+        """Ensures an error is raised if max-half-windows has more than two items."""
+        with pytest.raises(ValueError):
             self._call_func(self.y, max_half_window)
 
 
