@@ -324,8 +324,16 @@ def test_changing_pentapy_solver():
         utils.PENTAPY_SOLVER = original_solver
 
 
+def pad_func(array, pad_width, axis, kwargs):
+    """A custom padding function for use with numpy.pad."""
+    pad_val = kwargs.get('pad_val', 0)
+    array[:pad_width[0]] = pad_val
+    if pad_width[1] != 0:
+        array[-pad_width[1]:] = pad_val
+
+
 @pytest.mark.parametrize('kernel_size', (1, 10, 31, 1000, 2000, 4000))
-@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
+@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate', pad_func))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_padded_convolve(kernel_size, pad_mode, list_input, data_fixture):
     """
@@ -357,7 +365,7 @@ def test_padded_convolve_empty_kernel():
 
 
 @pytest.mark.parametrize(
-    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant')
+    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
 )
 @pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
 @pytest.mark.parametrize('list_input', (False, True))
@@ -367,8 +375,12 @@ def test_pad_edges(pad_mode, pad_length, list_input, data_fixture):
     if list_input:
         data = data.tolist()
 
-    if pad_mode.lower() != 'extrapolate':
-        expected_output = np.pad(data, pad_length, pad_mode.lower())
+    if not callable(pad_mode):
+        np_pad_mode = pad_mode.lower()
+    else:
+        np_pad_mode = pad_mode
+    if np_pad_mode != 'extrapolate':
+        expected_output = np.pad(data, pad_length, np_pad_mode)
     else:
         expected_output = None
 
@@ -414,8 +426,36 @@ def test_get_edges_negative_pad_length(pad_mode, data_fixture):
         utils._get_edges(data_fixture[1], -5, pad_mode)
 
 
+def test_pad_edges_custom_pad_func():
+    """Ensures pad_edges works with a callable padding function, same as numpy.pad."""
+    input_array = np.arange(20)
+    pad_val = 20
+    pad_length = 10
+
+    edge_array = np.full(pad_length, pad_val)
+    expected_output = np.concatenate((edge_array, input_array, edge_array))
+
+    actual_output = utils.pad_edges(input_array, pad_length, pad_func, pad_val=pad_val)
+
+    assert_array_equal(actual_output, expected_output)
+
+
+def test_get_edges_custom_pad_func():
+    """Ensures _get_edges works with a callable padding function, same as numpy.pad."""
+    input_array = np.arange(20)
+    pad_val = 20
+    pad_length = 10
+
+    expected_output = np.full(pad_length, pad_val)
+
+    left, right = utils._get_edges(input_array, pad_length, pad_func, pad_val=pad_val)
+
+    assert_array_equal(left, expected_output)
+    assert_array_equal(right, expected_output)
+
+
 @pytest.mark.parametrize(
-    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant')
+    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
 )
 @pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
 @pytest.mark.parametrize('list_input', (False, True))
@@ -425,14 +465,19 @@ def test_get_edges(pad_mode, pad_length, list_input, data_fixture):
     if list_input:
         data = data.tolist()
 
+    if not callable(pad_mode):
+        np_pad_mode = pad_mode.lower()
+    else:
+        np_pad_mode = pad_mode
+
     if pad_length == 0:
         check_output = True
         expected_left = np.array([])
         expected_right = np.array([])
-    elif pad_mode.lower() != 'extrapolate':
+    elif np_pad_mode != 'extrapolate':
         check_output = True
         expected_left, _, expected_right = np.array_split(
-            np.pad(data, pad_length, pad_mode.lower()), [pad_length, -pad_length]
+            np.pad(data, pad_length, np_pad_mode), [pad_length, -pad_length]
         )
     else:
         check_output = False

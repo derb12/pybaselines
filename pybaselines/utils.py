@@ -173,7 +173,7 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
         The array of the data.
     pad_length : int
         The number of points to add to the left and right edges.
-    mode : str, optional
+    mode : str or Callable, optional
         The method for padding. Default is 'extrapolate'. Any method other than
         'extrapolate' will use numpy.pad.
     extrapolate_window : int, optional
@@ -209,7 +209,8 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     elif pad_length < 0:
         raise ValueError('pad length must be greater or equal to 0')
 
-    mode = mode.lower()
+    if isinstance(mode, str):
+        mode = mode.lower()
     if mode == 'extrapolate':
         if extrapolate_window is None:
             extrapolate_window = pad_length
@@ -254,7 +255,7 @@ def pad_edges(data, pad_length, mode='extrapolate',
         The array of the data.
     pad_length : int
         The number of points to add to the left and right edges.
-    mode : str, optional
+    mode : str or Callable, optional
         The method for padding. Default is 'extrapolate'. Any method other than
         'extrapolate' will use :func:`numpy.pad`.
     extrapolate_window : int, optional
@@ -280,7 +281,8 @@ def pad_edges(data, pad_length, mode='extrapolate',
     if pad_length == 0:
         return y
 
-    mode = mode.lower()
+    if isinstance(mode, str):
+        mode = mode.lower()
     if mode == 'extrapolate':
         left_edge, right_edge = _get_edges(y, pad_length, mode, extrapolate_window)
         padded_data = np.concatenate((left_edge, y, right_edge))
@@ -300,7 +302,7 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
         The data to convolve.
     kernel : array-like, shape (M,)
         The convolution kernel.
-    mode : str, optional
+    mode : str or Callable, optional
         The method for padding to pass to :func:`.pad_edges`. Default is 'reflect'.
     **pad_kwargs
         Any additional keyword arguments to pass to :func:`.pad_edges`.
