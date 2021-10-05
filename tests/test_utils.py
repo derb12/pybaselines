@@ -393,7 +393,7 @@ def test_pad_edges(pad_mode, pad_length, list_input, data_fixture):
 
 
 @pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
-@pytest.mark.parametrize('extrapolate_window', (None, 1, 2, 10, 1001))
+@pytest.mark.parametrize('extrapolate_window', (None, 1, 2, 10, 1001, (10, 20), (1, 1)))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_pad_edges_extrapolate(pad_length, list_input, extrapolate_window, data_fixture):
     """Ensures extrapolation works for utils.pad_edges."""
@@ -406,10 +406,23 @@ def test_pad_edges_extrapolate(pad_length, list_input, extrapolate_window, data_
     assert len(output) == len(data) + 2 * pad_length
 
 
-def test_pad_edges_extrapolate_zero_window():
-    """Ensures an extrapolate_window of 0 raises an exception."""
+def test_pad_edges_extrapolate_windows():
+    """Ensures the separate extrapolate windows are correctly interpreted."""
+    input_array = np.zeros(50)
+    input_array[-10:] = 1.
+    extrapolate_windows = [40, 10]
+    pad_len = 20
+    output = utils.pad_edges(input_array, pad_len, extrapolate_window=extrapolate_windows)
+
+    assert_allclose(output[:pad_len], np.full(pad_len, 0.), 1e-14)
+    assert_allclose(output[-pad_len:], np.full(pad_len, 1.), 1e-14)
+
+
+@pytest.mark.parametrize('extrapolate_window', (0, (0, 0), (5, 0), (5, -1)))
+def test_pad_edges_extrapolate_zero_window(extrapolate_window):
+    """Ensures an extrapolate_window <= 0 raises an exception."""
     with pytest.raises(ValueError):
-        utils.pad_edges(np.arange(10), 10, extrapolate_window=0)
+        utils.pad_edges(np.arange(10), 10, extrapolate_window=extrapolate_window)
 
 
 @pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
