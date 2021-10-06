@@ -869,29 +869,55 @@ def cwt_br(data, x_data=None, poly_order=5, num_std=1.5, max_scale=50, mask_half
 
 
 def _haar(num_points, scale=2):
+    """
+    Creates a Haar wavelet.
+
+    Parameters
+    ----------
+    num_points : int
+        The number of points for the wavelet. Note that if `num_points` is odd
+        and `scale` is even, or if `num_points` is even and `scale` is odd, then
+        the length of the output wavelet will be `num_points` + 1 to ensure the
+        symmetry of the wavelet.
+    scale : int, optional
+        The scale at which the wavelet is evaluated. Default is 2.
+
+    Returns
+    -------
+    wavelet : numpy.ndarray
+        The Haar wavelet.
+
+    Notes
+    -----
+    This implementation is only designed to work for integer scales.
+
+    Matches pywavelets's Haar implementation after applying patches from pywavelets
+    issue #365 and pywavelets pull request #580.
+
+    References
+    ----------
+    https://wikipedia.org/wiki/Haar_wavelet
+
+    """
+    # to maintain symmetry, even scales should have even windows and odd
+    # scales have odd windows
+    odd_scale = scale % 2
+    odd_window = num_points % 2
+    if (odd_scale and not odd_window) or (not odd_scale and odd_window):
+        num_points += 1
     # center at 0 rather than 1/2 to make calculation easier
+    # from [-scale/2 to 0), wavelet = 1; [0, scale/2), wavelet = -1
     x_vals = np.arange(num_points) - (num_points - 1) / 2
     wavelet = np.zeros(num_points)
-    # should be [-scale/2, 0) = 1, [0, scale/2) = -1, but that gives bad
-    # results for odd scales since it is no longer symmetric; haar isn't meant to be
-    # used for odd scales, but also don't want to ruin results; this weighting
-    # scheme gives the desired output for even scales and a slightly different,
-    # but at least symmetric output for odd scales; TODO could instead average
-    # for odd scales... would that be valid? compare to pywavelets
-    wavelet[(x_vals > -scale / 2) & (x_vals < 0)] = 1
-    wavelet[(x_vals < scale / 2) & (x_vals > 0)] = -1
+    if not odd_scale:
+        wavelet[(x_vals >= -scale / 2) & (x_vals < 0)] = 1
+        wavelet[(x_vals < scale / 2) & (x_vals >= 0)] = -1
+    else:
+        # set such that wavelet[x_vals == 0] = 0
+        wavelet[(x_vals > -scale / 2) & (x_vals < 0)] = 1
+        wavelet[(x_vals < scale / 2) & (x_vals > 0)] = -1
 
-    # TODO not 100% sure about the 1/sqrt(scale) factor; using that
-    # factor seems to closely match the output pywavelets's cwt with their Haar
-    # implementation, but not perfectly so need to investigate further; may just
-    # be due to different cwt implementations between scipy and pywavelets?
-    # pywavelet's Haar implementation may also be defined in frequency space,
-    # which could also cause slight deviations from this approach; besides, the
-    # pywavelets cwt code had to be modified to even work with Haar, so maybe comparing
-    # to their implementation is not the best idea...? Comparing scipy's ricker
-    # with pywavelets's ricker shows the two are nearly identical, so should probably
-    # include this 1/sqrt scaling
-    # NOTE: the 1/sqrt(scale) is a normalization, so could make it a boolean input
+    # the 1/sqrt(scale) is a normalization
     return wavelet / (np.sqrt(scale))
 
 

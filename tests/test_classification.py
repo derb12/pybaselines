@@ -9,11 +9,13 @@ Created on July 3, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy.signal import cwt
 
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data
+from .data import PYWAVELETS_HAAR
 
 
 def _nieve_rolling_std(data, half_window, ddof=0):
@@ -168,6 +170,70 @@ def test_averaged_interp_warns():
     with pytest.warns(ParameterWarning):
         output = classification._averaged_interp(x, y, mask)
     assert_allclose(output, expected_output)
+
+
+@pytest.mark.parametrize('window_size', [20, 21])
+@pytest.mark.parametrize('scale', [2, 3, 4, 5, 6, 7, 8, 9, 10])
+def test_haar(scale, window_size):
+    """Ensures the Haar wavelet implementation is correct."""
+    haar_wavelet = classification._haar(window_size, scale)
+    actual_window_size = len(haar_wavelet)
+
+    assert isinstance(haar_wavelet, np.ndarray)
+
+    # odd scales should produce odd-length wavelets; even scale produces even-length
+    assert scale % 2 == actual_window_size % 2
+
+    half_window = actual_window_size // 2
+    if scale % 2:
+        # wavelet for odd scales should be 0 at mid-point
+        assert_allclose(haar_wavelet[half_window], 0., 0, 1e-14)
+
+    # the wavelet should be reflected around the mid-point; total area should
+    # be 0, and the area for [:mid_point] and [-mid_moint:] should be equivalent
+    # and equal to (scale // 2) / sqrt(scale), where sqrt(scale) is due to
+    # normalization.
+    assert_allclose(haar_wavelet.sum(), 0., 0, 1e-14)
+    # re-normalize the wavelet to make further calculations easier; all values
+    # should be -1, 0, or 1 after re-normilazation
+    haar_wavelet *= np.sqrt(scale)
+
+    left_side = haar_wavelet[:half_window]
+    right_side = haar_wavelet[-half_window:]
+
+    assert_allclose(left_side, -right_side[::-1], 1e-14)
+    assert_allclose(left_side.sum(), scale // 2, 1e-14)
+    assert_allclose(-right_side.sum(), scale // 2, 1e-14)
+
+
+@pytest.mark.parametrize('scale', [2, 3, 4, 5, 6, 7, 8, 9, 10])
+def test_haar_cwt_comparison_to_pywavelets(scale):
+    """
+    Compares the Haar wavelet cwt with pywavelet's implementation.
+
+    pywavelets's cwt does not naturally work with their Haar wavelet, so had to apply
+    a patch mentioned in pywavelets issue #365 to make their cwt work with their Haar.
+    Additionally, had to apply the patches in pywavelets pull request #580 to correct an
+    issue with pywavelets's cwt interpolation so that the output looks correct.
+
+    The outputs from pywavelets were created using::
+
+        import pywt
+        output = pywt.cwt(y, [scale], 'haar')[0][0]
+
+    with pywavelets version 1.1.1.
+
+    The idea for the input array was adapted from a MATLAB example at
+    https://www.mathworks.com/help/wavelet/gs/interpreting-continuous-wavelet-coefficients.html.
+
+    """
+    y = np.zeros(100)
+    y[50] = 1
+
+    haar_cwt = cwt(y, classification._haar, [scale])[0]
+    # test absolute tolerance rather than relative tolerance since
+    # some values are very close to 0
+    assert_allclose(haar_cwt, PYWAVELETS_HAAR[scale], 0, 1e-14)
 
 
 class TestGolotvin(AlgorithmTester):
