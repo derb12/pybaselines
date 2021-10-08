@@ -9,6 +9,7 @@ Created on July 3, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+import scipy
 from scipy.signal import cwt
 
 from pybaselines import classification
@@ -226,6 +227,12 @@ def test_haar_cwt_comparison_to_pywavelets(scale):
     The idea for the input array was adapted from a MATLAB example at
     https://www.mathworks.com/help/wavelet/gs/interpreting-continuous-wavelet-coefficients.html.
 
+    The squares of the two cwt arrays are compared since until scipy version 1.4, the
+    convolution was incorrectly done on the wavelet rather than the reversed wavelet,
+    and since the Haar wavelet is not symmetric, the output will be reversed of what
+    it should be and creates negative values instead of positive and vice versa. That
+    does not affect any calculations within pybaselines, so it is not a concern.
+
     """
     y = np.zeros(100)
     y[50] = 1
@@ -233,7 +240,20 @@ def test_haar_cwt_comparison_to_pywavelets(scale):
     haar_cwt = cwt(y, classification._haar, [scale])[0]
     # test absolute tolerance rather than relative tolerance since
     # some values are very close to 0
-    assert_allclose(haar_cwt, PYWAVELETS_HAAR[scale], 0, 1e-14)
+    assert_allclose(haar_cwt**2, PYWAVELETS_HAAR[scale]**2, 0, 1e-14)
+    try:
+        scipy_version = scipy.__version__.split('.')[:2]
+        major = int(scipy_version[0])
+        minor = int(scipy_version[1])
+        if major > 1 or (major == 1 and minor >= 4):
+            test_values = True
+        else:
+            test_values = False
+    except Exception:  # in case the version checking is wrong, then just ignore
+        test_values = False
+
+    if test_values:
+        assert_allclose(haar_cwt, PYWAVELETS_HAAR[scale], 0, 1e-14)
 
 
 class TestGolotvin(AlgorithmTester):

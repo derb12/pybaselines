@@ -1057,7 +1057,8 @@ def _determine_fits(x, num_x, total_points, delta):
         # to skip the if check_fits check for every x-value; does it affect
         # calculation time that much?
         check_fits = False
-        fits = np.arange(num_x, dtype=np.intp)
+        # TODO once numba minimum version is >= 0.47, can use dtype kwarg in np.arange
+        fits = np.arange(num_x).astype(np.intp)
         # numba cannot compile in nopython mode when directly creating
         # np.array([], dtype=np.intp), so work-around by creating np.array([[0, 0]])
         # and then index with [:total_skips], which becomes np.array([])

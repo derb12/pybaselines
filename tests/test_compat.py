@@ -66,8 +66,7 @@ def test_jit_kwargs():
     input_1 = 5
     input_2 = 6
     expected = input_1 + input_2
-    # boundscheck is used since it has no effect on the result
-    output = _compat.jit(_add, boundscheck=True)(input_1, b=input_2)
+    output = _compat.jit(_add, cache=True)(input_1, b=input_2)
 
     assert_array_equal(expected, output)
 
