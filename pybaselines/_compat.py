@@ -6,10 +6,7 @@ Created on June 24, 2021
 
 """
 
-from functools import partial, wraps
-
-import numpy as np
-from scipy.linalg import norm as scipy_norm
+from functools import wraps
 
 
 try:
@@ -48,14 +45,3 @@ except ImportError:
             return func(*args, **kwargs)
 
         return wrapper
-
-
-# scipy's l-2 norm is faster than numpy's, but only if check_finite is False,
-# which was introduced in scipy version 1.4.0; thus, use scipy's version
-# if available, otherwise use numpy's.
-try:
-    scipy_norm(1, check_finite=False)
-except TypeError:
-    norm = np.linalg.norm
-else:
-    norm = partial(scipy_norm, check_finite=False)
