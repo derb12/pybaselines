@@ -10,6 +10,7 @@ import warnings
 
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
+from scipy.special import expit
 
 from ._algorithm_setup import _diff_1_diags, _setup_whittaker, _yx_arrays
 from ._compat import _HAS_PENTAPY, _pentapy_solve
@@ -416,7 +417,8 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         residual = y - baseline
         neg_residual = residual[residual < 0]
         std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
-        new_weights = 1 / (1 + np.exp((2 / std) * (residual - (2 * std - np.mean(neg_residual)))))
+        # add a negative sign since expit performs 1/(1+exp(-input))
+        new_weights = expit(-(2 / std) * (residual - (2 * std - np.mean(neg_residual))))
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i] = calc_difference
         if calc_difference < tol:
@@ -505,7 +507,8 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
             # are too few negative residuals; no way to catch both conditions before
             # new_weights calculation since it is hard to estimate if
             # (exp(i) / std) * residual will overflow; check calc_difference rather
-            # than checking new_weights since non-finite values rarely occur
+            # than checking new_weights since non-finite values rarely occur and
+            # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
             warnings.warn(
                 ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
                  '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
@@ -593,7 +596,8 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
             # are too few negative residuals; no way to catch both conditions before
             # new_weights calculation since it is hard to estimate if
             # (exp(i) / std) * residual will overflow; check calc_difference rather
-            # than checking new_weights since non-finite values rarely occur
+            # than checking new_weights since non-finite values rarely occur and
+            # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
             warnings.warn(
                 ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
                  '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
@@ -691,7 +695,8 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
             )
         residual = y - baseline
         std = _safe_std(residual[residual < 0], ddof=1)  # use dof=1 since sampling a subset
-        new_weights = 1 / (1 + np.exp((2 / std) * (residual - std)))
+        # add a negative sign since expit performs 1/(1+exp(-input))
+        new_weights = expit(-(2 / std) * (residual - std))
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i - 1] = calc_difference
         if calc_difference < tol:
@@ -852,7 +857,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
     smooth_half_window : int, optional
-        The half-window to use for smoothing the data beforebefore computing the first
+        The half-window to use for smoothing the data before computing the first
         and second derivatives. Default is None, which will use ``len(data) / 200``.
     num_smooths : int, optional
         The number of times to smooth the data before computing the first

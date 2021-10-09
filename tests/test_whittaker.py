@@ -273,6 +273,24 @@ class TestArPLS(AlgorithmTester):
 
         assert params['tol_history'].size == max_iter + 1
 
+    def test_avoid_overflow_warning(self, no_noise_data_fixture):
+        """
+        Ensures no warning is emitted for exponential overflow.
+
+        The weighting is 1 / (1 + exp(values)), so if values is too high,
+        exp(values) is inf, which should usually emit an overflow warning.
+        However, the resulting weight is 0, which is fine, so the warning is
+        not needed and should be avoided. This test ensures the overflow warning
+        is not emitted, and also ensures that the output is all finite, just in
+        case the weighting was not actually stable.
+
+        """
+        y, x = no_noise_data_fixture
+        with np.errstate(over='raise'):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
 
 class TestDrPLS(AlgorithmTester):
     """Class for testing drpls baseline."""
@@ -322,9 +340,12 @@ class TestDrPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline.dot(baseline))
+        # ensure last tolerence calculation was non-finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert not np.isfinite(params['tol_history'][-1])
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -388,9 +409,12 @@ class TestIArPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline.dot(baseline))
+        # ensure last tolerence calculation was non-finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert not np.isfinite(params['tol_history'][-1])
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -448,6 +472,24 @@ class TestAsPLS(AlgorithmTester):
         _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
+
+    def test_avoid_overflow_warning(self, no_noise_data_fixture):
+        """
+        Ensures no warning is emitted for exponential overflow.
+
+        The weighting is 1 / (1 + exp(values)), so if values is too high,
+        exp(values) is inf, which should usually emit an overflow warning.
+        However, the resulting weight is 0, which is fine, so the warning is
+        not needed and should be avoided. This test ensures the overflow warning
+        is not emitted, and also ensures that the output is all finite, just in
+        case the weighting was not actually stable.
+
+        """
+        y, x = no_noise_data_fixture
+        with np.errstate(over='raise'):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
 
 
 class TestPsalsa(AlgorithmTester):
