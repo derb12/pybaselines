@@ -6,7 +6,8 @@ Created on March 20, 2021
 
 """
 
-from numpy.testing import assert_array_equal
+import numpy as np
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import _compat
@@ -135,3 +136,22 @@ def test_jit_signature():
     output = _add4(input_1, input_2)
 
     assert_array_equal(expected, output)
+
+
+def test_norm():
+    """
+    Ensures _compat.norm acts as intended.
+
+    Several functions depend on the fact that norm(non-finite value) is non-finite,
+    so also test that behavior.
+
+    """
+    test_array = np.ones(5)
+
+    assert_allclose(_compat.norm(test_array), np.linalg.norm(test_array), 1e-14)
+
+    test_array[0] = np.nan
+    assert np.isnan(_compat.norm(test_array))
+
+    test_array[0] = np.inf
+    assert np.isinf(_compat.norm(test_array))

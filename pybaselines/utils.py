@@ -13,7 +13,7 @@ from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_openin
 from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
-from ._compat import jit, prange
+from ._compat import jit, norm, prange
 
 
 # Note: the triple quotes are for including the attributes within the documentation
@@ -77,8 +77,8 @@ def relative_difference(old, new, norm_order=None):
         The relative difference between the old and new values.
 
     """
-    numerator = np.linalg.norm(new - old, norm_order)
-    denominator = np.maximum(np.linalg.norm(old, norm_order), _MIN_FLOAT)
+    numerator = norm(new - old, norm_order)
+    denominator = np.maximum(norm(old, norm_order), _MIN_FLOAT)
     return numerator / denominator
 
 
