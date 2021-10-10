@@ -17,8 +17,9 @@ from scipy.sparse.linalg import spsolve
 from ._algorithm_setup import (
     _setup_morphology, _setup_splines, _setup_whittaker, _whittaker_smooth
 )
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._compat import _HAS_PENTAPY, _pentapy_solve, jit, prange
 from .utils import (
+    _check_scalar, _grey_closing_1d, _grey_dilation_1d, _grey_erosion_1d, _grey_opening_1d,
     _mollifier_kernel, _pentapy_solver, optimize_window as _optimize_window, pad_edges,
     padded_convolve, relative_difference
 )
@@ -469,49 +470,7 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     return baseline[data_bounds], params
 
 
-def _changing_rolling_ball(y, half_window):
-    """
-    Calculates the rolling ball algorithm with a changing window size.
-
-    Parameters
-    ----------
-    y : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
-    half_window : array-like, shape (N,)
-        The array of half-windows to use for the morphology functions.
-
-    Returns
-    -------
-    rough_baseline : numpy.ndarray, shape (N,)
-        The array of the baseline after the morphology functions.
-
-    Raises
-    ------
-    ValueError
-        Raised if y and half_window do not have the same length.
-
-    References
-    ----------
-    Kneen, M.A., et al. Algorithm for fitting XRF, SEM and PIXE X-ray spectra
-    backgrounds. Nuclear Instruments and Methods in Physics Research B, 1996,
-    109, 209-213.
-
-    """
-    num_y = len(y)
-    if len(half_window) != num_y:
-        raise ValueError('half_window array must be the same size as the data array')
-
-    minimum_y = np.empty(num_y)
-    for i, half_win in enumerate(half_window):
-        minimum_y[i] = min(y[max(0, i - half_win):min(i + half_win + 1, num_y)])
-
-    rough_baseline = np.empty(num_y)
-    for i, half_win in enumerate(half_window):
-        rough_baseline[i] = max(minimum_y[max(0, i - half_win):min(i + half_win + 1, num_y)])
-
-    return rough_baseline
-
-
+@jit(nopython=True, cache=True, parallel=True)
 def _changing_smooth_window(rough_baseline, smooth_half_window):
     """
     Smooths an array with the rolling average and a changing window size.
@@ -520,7 +479,7 @@ def _changing_smooth_window(rough_baseline, smooth_half_window):
     ----------
     rough_baseline : numpy.ndarray, shape (N,)
         The array of the baseline before smoothing, with N data points.
-    smooth_half_window : array-like, shape (N,)
+    smooth_half_window : numpy.ndarray, shape (N,)
         The array of half-windows to use for smoothing.
 
     Returns
@@ -540,12 +499,15 @@ def _changing_smooth_window(rough_baseline, smooth_half_window):
     109, 209-213.
 
     """
-    num_y = rough_baseline.shape[0]
+    num_y = len(rough_baseline)
     if len(smooth_half_window) != num_y:
         raise ValueError('smooth_half_window array must be the same size as the data array')
 
     baseline = np.empty(num_y)
-    for i, half_win in enumerate(smooth_half_window):
+    # TODO not sure if there is a more efficient method for moving average with changing
+    # window size
+    for i in prange(num_y):
+        half_win = smooth_half_window[i]
         baseline_slice = rough_baseline[max(0, i - half_win):min(i + half_win + 1, num_y)]
         baseline[i] = baseline_slice.sum() / baseline_slice.size
 
@@ -622,28 +584,21 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     Calibration of Spectra. Applied Spectroscopy, 2010, 64(9), 1007-1016.
 
     """
-    if half_window is None or isinstance(half_window, int):
-        y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-        rough_baseline = grey_opening(y, 2 * half_wind + 1)
-    else:
-        # do not need to convert data to numpy array
-        half_wind = half_window
-        rough_baseline = _changing_rolling_ball(data, half_wind)
-
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    len_y = len(y)
     if smooth_half_window is None:
         smooth_half_window = half_wind
+    smooth_hw, scalar_smooth_hw = _check_scalar(smooth_half_window, len_y, dtype=int)
 
-    if isinstance(smooth_half_window, int):
-        if smooth_half_window == 0:
-            baseline = rough_baseline
-        else:
-            pad_kws = pad_kwargs if pad_kwargs is not None else {}
-            baseline = uniform_filter1d(
-                pad_edges(rough_baseline, smooth_half_window, **pad_kws),
-                2 * smooth_half_window + 1
-            )[smooth_half_window:-smooth_half_window]
+    rough_baseline = _grey_opening_1d(y, half_wind)
+    if scalar_smooth_hw:
+        pad_kws = pad_kwargs if pad_kwargs is not None else {}
+        baseline = uniform_filter1d(
+            pad_edges(rough_baseline, smooth_hw, **pad_kws),
+            2 * smooth_hw + 1
+        )[smooth_hw:len_y + smooth_hw]
     else:
-        baseline = _changing_smooth_window(rough_baseline, smooth_half_window)
+        baseline = _changing_smooth_window(rough_baseline, smooth_hw)
 
     return baseline, {'half_window': half_wind}
 
@@ -712,14 +667,11 @@ def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None, **win
         smooth_half_window = half_wind
 
     rough_baseline = grey_erosion(y, 2 * half_wind + 1)
-    if smooth_half_window < 1:
-        baseline = rough_baseline
-    else:
-        pad_kws = pad_kwargs if pad_kwargs is not None else {}
-        baseline = uniform_filter1d(
-            pad_edges(rough_baseline, smooth_half_window, **pad_kws),
-            2 * smooth_half_window + 1
-        )[smooth_half_window:-smooth_half_window]
+    pad_kws = pad_kwargs if pad_kwargs is not None else {}
+    baseline = uniform_filter1d(
+        pad_edges(rough_baseline, smooth_half_window, **pad_kws),
+        2 * smooth_half_window + 1
+    )[smooth_half_window:len(y) + smooth_half_window]
 
     return baseline, {'half_window': half_wind}
 

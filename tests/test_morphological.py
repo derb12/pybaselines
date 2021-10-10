@@ -175,7 +175,7 @@ class TestRollingBall(AlgorithmTester):
 
     @pytest.mark.parametrize('half_window', (None, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0]))
     @pytest.mark.parametrize(
-        'smooth_half_window', (None, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0])
+        'smooth_half_window', (None, 0, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0])
     )
     def test_unchanged_data(self, data_fixture, half_window, smooth_half_window):
         """Ensures that input data is unchanged by the function."""
@@ -250,6 +250,13 @@ class TestRollingBall(AlgorithmTester):
         data_slice = slice(max(smooth_half_windows), -max(smooth_half_windows))
         assert not np.allclose(baseline_1[data_slice], baseline_2[data_slice])
 
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10, np.zeros(_y.shape[0])))
+    def test_smooth_half_windows(self, smooth_half_window):
+        """Ensures smooth-half-window is correctly processed."""
+        output = self._call_func(self.y, smooth_half_window=smooth_half_window)
+
+        assert output[0].shape == self.y.shape
+
 
 class TestMWMV(AlgorithmTester):
     """Class for testing mwmv baseline."""
@@ -269,6 +276,13 @@ class TestMWMV(AlgorithmTester):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10))
+    def test_smooth_half_windows(self, smooth_half_window):
+        """Ensures smooth-half-window is correctly processed."""
+        output = self._call_func(self.y, smooth_half_window=smooth_half_window)
+
+        assert output[0].shape == self.y.shape
 
 
 class TestTophat(AlgorithmTester):
