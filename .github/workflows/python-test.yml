@@ -74,7 +74,9 @@ jobs:
       # to officially support python 3.6; don't want to have to manually
       # build scipy, so just use the 0.19 wheel; no relevant differences
       # between 0.17 and 0.19.
+      # Remove optional dependencies beforehand.
       run: |
+        pip uninstall numba pentapy
         pip install numpy==1.14.5 scipy==0.19.0
 
     - name: Test with minimum required dependencies
@@ -83,8 +85,12 @@ jobs:
 
     - name: Install minimum optional dependencies
       if: matrix.python-version == '3.6'
+      # Explicitly specify llvmlite version for numba so it doesn't
+      # use the cached version from step 'Install optional dependencies'.
+      # TODO should probably just create a different environment for
+      # testing minimum dependencies.
       run: |
-        pip install pentapy==1.0 numba==0.45
+        pip install pentapy==1.0 numba==0.45 llvmlite==0.30.0
 
     - name: Test with minimum optional dependencies
       if: matrix.python-version == '3.6'
