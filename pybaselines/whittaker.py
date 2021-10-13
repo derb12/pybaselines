@@ -315,30 +315,58 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     main_diag_idx = diff_order if using_pentapy else -1
     main_diagonal = diagonals[main_diag_idx].copy()
     tol_history = np.empty(max_iter + 1)
+    # Have to have extensive error handling since the weights can all become
+    # very small due to the exp(i) term if too many iterations are performed;
+    # checking the negative residual length usually prevents any errors, but
+    # sometimes not so have to also catch any errors from the solvers
     for i in range(1, max_iter + 2):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(
+            output = _pentapy_solve(
                 diagonals, weight_array * y, True, True, _pentapy_solver()
             )
+            # if weights are all ~0, then pentapy sometimes outputs nan without
+            # warnings or errors, so have to check
+            if np.isfinite(output.dot(output)):
+                baseline = output
+            else:
+                warnings.warn(
+                    ('error occurred during fitting, indicating that "tol"'
+                     ' is too low, "max_iter" is too high, or "lam" is too high'),
+                    ParameterWarning
+                )
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
         else:
-            baseline = solveh_banded(
-                diagonals, weight_array * y, overwrite_b=True, check_finite=False
-            )
+            try:
+                output = solveh_banded(
+                    diagonals, weight_array * y, overwrite_b=True, check_finite=False
+                )
+            except np.linalg.LinAlgError:
+                warnings.warn(
+                    ('error occurred during fitting, indicating that "tol"'
+                     ' is too low, "max_iter" is too high, or "lam" is too high'),
+                    ParameterWarning
+                )
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
+            else:
+                baseline = output
+
         residual = y - baseline
         neg_mask = residual < 0
         neg_residual = residual[neg_mask]
-        if neg_residual.size < 2:
+        if len(neg_residual) < 2:
             # exit if there are < 2 negative residuals since all points or all but one
             # point would get a weight of 0, which fails the solver
             warnings.warn(
                 ('almost all baseline points are below the data, indicating that "tol"'
                  ' is too low and/or "max_iter" is too high'), ParameterWarning
             )
+            i -= 1  # reduce i so that output tol_history indexing is correct
             break
 
-        # same as abs(neg_residual).sum() since neg_residual are all negative
-        residual_l1_norm = -1 * neg_residual.sum()
+        residual_l1_norm = abs(neg_residual.sum())
         calc_difference = residual_l1_norm / y_l1_norm
         tol_history[i - 1] = calc_difference
         if calc_difference < tol:

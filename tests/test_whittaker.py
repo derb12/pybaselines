@@ -199,17 +199,16 @@ class TestAirPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
-    @pytest.mark.skip('test is a bit random; sometimes get a linalg error instead')
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures the that function gracefully exits when non-finite weights are created.
+        Ensures that the function gracefully exits when errors occur.
 
         When there are no negative residuals, which occurs when a low tol value is used with
-        a high max_iter value, the weighting function would produce non-finite values.
-        The returned baseline should be the last iteration that was successful, and thus
-        should not contain nan or +/- inf.
+        a high max_iter value, the weighting function would produce values all ~0, which
+        can fail the solvers. The returned baseline should be the last iteration that was
+        successful, and thus should not contain nan or +/- inf.
 
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
@@ -324,7 +323,7 @@ class TestDrPLS(AlgorithmTester):
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures the that function gracefully exits when non-finite weights are created.
+        Ensures that the function gracefully exits when non-finite weights are created.
 
         When there are no negative residuals or exp(iterations) / std is very high, both
         of which occur when a low tol value is used with a high max_iter value, the
@@ -393,7 +392,7 @@ class TestIArPLS(AlgorithmTester):
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures the that function gracefully exits when non-finite weights are created.
+        Ensures that the function gracefully exits when non-finite weights are created.
 
         When there are no negative residuals or exp(iterations) / std is very high, both
         of which occur when a low tol value is used with a high max_iter value, the
