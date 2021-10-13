@@ -19,9 +19,8 @@ from ._algorithm_setup import (
 )
 from ._compat import _HAS_PENTAPY, _pentapy_solve, jit, prange
 from .utils import (
-    _check_scalar, _grey_closing_1d, _grey_dilation_1d, _grey_erosion_1d, _grey_opening_1d,
-    _mollifier_kernel, _pentapy_solver, optimize_window as _optimize_window, pad_edges,
-    padded_convolve, relative_difference
+    _check_scalar, _grey_opening_1d, _mollifier_kernel, _pentapy_solver,
+    optimize_window as _optimize_window, pad_edges, padded_convolve, relative_difference
 )
 
 
@@ -525,16 +524,14 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
-    half_window : int or array-like(int), optional
+    half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`. If
-        an array of integers is input, its length must be equal to N.
-    smooth_half_window : int or array-like(int), optional
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    smooth_half_window : int, optional
         The half-window to use for smoothing the data after performing the
         morphological operation. Default is None, which will use the same
-        value as used for the morphological operation. If an array of integers
-        is input, its length must be equal to N.
+        value as used for the morphological operation.
     pad_kwargs : dict, optional
         A dictionary of keyword arguments to pass to :func:`.pad_edges` for
         padding the edges of the data to prevent edge effects from the moving average.
@@ -589,6 +586,13 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     if smooth_half_window is None:
         smooth_half_window = half_wind
     smooth_hw, scalar_smooth_hw = _check_scalar(smooth_half_window, len_y, dtype=int)
+    _, scalar_hw = _check_scalar(half_wind, len_y)
+    if not (scalar_hw and scalar_smooth_hw):
+        warnings.warn(
+            ('Using an array-like value for "half_window" or "smooth_half_window" is '
+             'deprecated, and support will be removed in version 0.8.0.'),
+            DeprecationWarning
+        )
 
     rough_baseline = _grey_opening_1d(y, half_wind)
     if scalar_smooth_hw:

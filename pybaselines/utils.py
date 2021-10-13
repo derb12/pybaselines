@@ -9,7 +9,7 @@ Created on March 5, 2021
 from math import ceil
 
 import numpy as np
-from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening
+from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
@@ -797,58 +797,7 @@ def _grey_dilation_1d_array(data, half_window):
     return output
 
 
-def _grey_erosion_1d(data, half_window):
-    """
-    Computes the rolling minimum with either a fixed or changing window size.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The data to use for the calculation.
-    half_window : int or array-like(int), shape (N,)
-        An integer or an array of integers to use for the rolling calculation.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
-
-    """
-    half_windows, scalar_half_window = _check_scalar(half_window, len(data), dtype=int)
-    if scalar_half_window:
-        output = grey_erosion(data, 2 * half_windows + 1)
-    else:
-        output = _grey_erosion_1d_array(np.asarray(data), half_windows)
-
-    return output
-
-
-def _grey_dilation_1d(data, half_window):
-    """
-    Computes the rolling maximum with either a fixed or changing window size.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The data to use for the calculation.
-    half_window : int or array-like(int), shape (N,)
-        An integer or an array of integers to use for the rolling calculation.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
-
-    """
-    half_windows, scalar_half_window = _check_scalar(half_window, len(data), dtype=int)
-    if scalar_half_window:
-        output = grey_dilation(data, 2 * half_windows + 1)
-    else:
-        output = _grey_dilation_1d_array(np.asarray(data), half_windows)
-
-    return output
-
-
+# TODO remove in version 0.8.0
 def _grey_opening_1d(data, half_window):
     """
     Computes the morphological opening with either a fixed or changing window size.
@@ -874,36 +823,6 @@ def _grey_opening_1d(data, half_window):
     else:
         output = _grey_dilation_1d_array(
             _grey_erosion_1d_array(np.asarray(data), half_windows), half_windows
-        )
-
-    return output
-
-
-def _grey_closing_1d(data, half_window):
-    """
-    Computes the morphological closing with either a fixed or changing window size.
-
-    The closing operation is a rolling maximum followed by a rolling minimum.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The data to use for the calculation.
-    half_window : int or array-like(int), shape (N,)
-        An integer or an array of integers to use for the rolling calculation.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
-
-    """
-    half_windows, scalar_half_window = _check_scalar(half_window, len(data), dtype=int)
-    if scalar_half_window:
-        output = grey_closing(data, 2 * half_windows + 1)
-    else:
-        output = _grey_erosion_1d_array(
-            _grey_dilation_1d_array(np.asarray(data), half_windows), half_windows
         )
 
     return output

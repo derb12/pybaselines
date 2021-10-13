@@ -173,6 +173,8 @@ class TestRollingBall(AlgorithmTester):
 
     _y = AlgorithmTester.y
 
+    # TODO remove warning filter in version 0.8.0
+    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
     @pytest.mark.parametrize('half_window', (None, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0]))
     @pytest.mark.parametrize(
         'smooth_half_window', (None, 0, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0])
@@ -209,7 +211,8 @@ class TestRollingBall(AlgorithmTester):
         is the same value as the single half-window.
         """
         baseline_1 = self._call_func(self.y, 1, 1)[0]
-        baseline_2 = self._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
+        with pytest.warns(DeprecationWarning):
+            baseline_2 = self._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
 
         assert_array_almost_equal(baseline_1, baseline_2)
 
@@ -221,7 +224,8 @@ class TestRollingBall(AlgorithmTester):
         values is the same value as the single smooth-half-window.
         """
         baseline_1 = self._call_func(self.y, 1, 1)[0]
-        baseline_2 = self._call_func(self.y, 1, np.full(self.y.shape[0], 1))[0]
+        with pytest.warns(DeprecationWarning):
+            baseline_2 = self._call_func(self.y, 1, np.full(self.y.shape[0], 1))[0]
 
         # avoid the edges since the two smoothing techniques will give slighly
         # different  results on the edges
@@ -233,7 +237,8 @@ class TestRollingBall(AlgorithmTester):
         baseline_1 = self._call_func(self.y, 1, 1)[0]
 
         half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        baseline_2 = self._call_func(self.y, half_windows, 1)[0]
+        with pytest.warns(DeprecationWarning):
+            baseline_2 = self._call_func(self.y, half_windows, 1)[0]
 
         assert not np.allclose(baseline_1, baseline_2)
 
@@ -242,7 +247,8 @@ class TestRollingBall(AlgorithmTester):
         baseline_1 = self._call_func(self.y, 1, 1)[0]
 
         smooth_half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        baseline_2 = self._call_func(self.y, 1, smooth_half_windows)[0]
+        with pytest.warns(DeprecationWarning):
+            baseline_2 = self._call_func(self.y, 1, smooth_half_windows)[0]
 
         # avoid the edges since the two smoothing techniques will give slighly
         # different  results on the edges and want to ensure the rest of the
@@ -250,6 +256,8 @@ class TestRollingBall(AlgorithmTester):
         data_slice = slice(max(smooth_half_windows), -max(smooth_half_windows))
         assert not np.allclose(baseline_1[data_slice], baseline_2[data_slice])
 
+    # TODO remove warning filter in version 0.8.0
+    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
     @pytest.mark.parametrize('smooth_half_window', (None, 0, 10, np.zeros(_y.shape[0])))
     def test_smooth_half_windows(self, smooth_half_window):
         """Ensures smooth-half-window is correctly processed."""

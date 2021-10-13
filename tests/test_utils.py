@@ -11,7 +11,7 @@ from numpy.testing import (
     assert_allclose, assert_almost_equal, assert_array_almost_equal, assert_array_equal
 )
 import pytest
-from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening
+from scipy.ndimage import grey_opening
 from scipy.sparse import identity
 
 from pybaselines import utils
@@ -576,10 +576,7 @@ def test_check_scalar_asarray_kwargs():
 def morphology_tester(data, half_window, operation):
     """Convenience function for testing all morphology types."""
     operations = {
-        'erosion': (utils._grey_erosion_1d, grey_erosion),
-        'dilation': (utils._grey_dilation_1d, grey_dilation),
         'opening': (utils._grey_opening_1d, grey_opening),
-        'closing': (utils._grey_closing_1d, grey_closing)
     }
     pybaselines_func, scipy_func = operations[operation]
 
@@ -612,28 +609,6 @@ def morphology_tester(data, half_window, operation):
 
 @pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
 @pytest.mark.parametrize('list_input', (False, True))
-def test_grey_erosion_1d(half_window, list_input, data_fixture):
-    """Tests grey-erosion."""
-    _, data = data_fixture
-    if list_input:
-        data = data.tolist()
-
-    morphology_tester(data, half_window, 'erosion')
-
-
-@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
-@pytest.mark.parametrize('list_input', (False, True))
-def test_grey_dilation_1d(half_window, list_input, data_fixture):
-    """Tests grey-dilation."""
-    _, data = data_fixture
-    if list_input:
-        data = data.tolist()
-
-    morphology_tester(data, half_window, 'dilation')
-
-
-@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
-@pytest.mark.parametrize('list_input', (False, True))
 def test_grey_opening_1d(half_window, list_input, data_fixture):
     """Tests grey-opening."""
     _, data = data_fixture
@@ -641,14 +616,3 @@ def test_grey_opening_1d(half_window, list_input, data_fixture):
         data = data.tolist()
 
     morphology_tester(data, half_window, 'opening')
-
-
-@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
-@pytest.mark.parametrize('list_input', (False, True))
-def test_grey_closing_1d(half_window, list_input, data_fixture):
-    """Tests grey-closing."""
-    _, data = data_fixture
-    if list_input:
-        data = data.tolist()
-
-    morphology_tester(data, half_window, 'closing')
