@@ -33,6 +33,8 @@ def _get_function(method, modules):
     -------
     func : Callable
         The corresponding function.
+    func_module : str
+        The module that `func` belongs to.
 
     Raises
     ------
@@ -41,17 +43,15 @@ def _get_function(method, modules):
 
     """
     function_string = method.lower()
-    func = None
     for module in modules:
-        try:
+        if hasattr(module, function_string):
             func = getattr(module, function_string)
-        except AttributeError:
-            pass
+            func_module = module.__name__.split('.')[-1]
+            break
+    else:  # in case no break
+        raise AttributeError(f'unknown method {method}')
 
-    if func is None:
-        raise AttributeError('unknown method')
-    # TODO should probably return the selected module as well
-    return func
+    return func, func_module
 
 
 def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
@@ -97,7 +97,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     in Chemistry, 2018, 2018.
 
     """
-    fit_func = _get_function(method, (whittaker, morphological))
+    fit_func = _get_function(method, (whittaker, morphological))[0]
     dataset = np.asarray(data)
     if average_dataset:
         _, fit_params = fit_func(np.mean(dataset.T, 1), **method_kwargs)
@@ -230,7 +230,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     if side not in ('left', 'right', 'both'):
         raise ValueError('side must be "left", "right", or "both"')
 
-    fit_func = _get_function(method, (whittaker, polynomial, morphological))
+    fit_func, func_module = _get_function(method, (whittaker, polynomial, morphological))
     y, x = _yx_arrays(data, x_data)
     sort_order = np.argsort(x)  # to ensure x is increasing
     x = x[sort_order]
@@ -264,13 +264,10 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         known_background = np.concatenate((known_background, added_left))
         lower_bound += added_window
 
-    if method in (
-        'iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly', 'loess', 'quant_reg',
-        'goldindec'
-    ):
+    if method == 'iasls' or func_module == 'polynomial':
         method_kwargs['x_data'] = fit_x_data
 
-    if 'poly' in method or method in ('loess', 'quant_reg', 'goldindec'):
+    if func_module == 'polynomial':
         if any(not isinstance(val, int) for val in (min_value, max_value, step)):
             raise TypeError((
                 'min_value, max_value, and step must all be integers when'

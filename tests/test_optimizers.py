@@ -10,16 +10,26 @@ import numpy as np
 from numpy.testing import assert_array_almost_equal, assert_array_equal
 import pytest
 
-from pybaselines import optimizers
+from pybaselines import optimizers, polynomial, whittaker
 
 from .conftest import AlgorithmTester, get_data
 
 
-@pytest.mark.parametrize('method', ('collab_pls', 'COLLAB_pls'))
-def test_get_function(method):
+@pytest.mark.parametrize(
+    'method_and_outputs', (
+        ('collab_pls', optimizers.collab_pls, 'optimizers'),
+        ('COLLAB_pls', optimizers.collab_pls, 'optimizers'),
+        ('modpoly', polynomial.modpoly, 'polynomial'),
+        ('asls', whittaker.asls, 'whittaker')
+    )
+)
+def test_get_function(method_and_outputs):
     """Ensures _get_function gets the correct method, regardless of case."""
-    selected_func = optimizers._get_function(method, [optimizers])
-    assert selected_func is optimizers.collab_pls
+    method, expected_func, expected_module = method_and_outputs
+    tested_modules = [optimizers, polynomial, whittaker]
+    selected_func, module = optimizers._get_function(method, tested_modules)
+    assert selected_func is expected_func
+    assert module == expected_module
 
 
 def test_get_function_fails_wrong_method():
