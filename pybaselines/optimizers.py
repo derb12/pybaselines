@@ -232,11 +232,13 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
     fit_func, func_module = _get_function(method, (whittaker, polynomial, morphological))
     y, x = _yx_arrays(data, x_data)
-    sort_order = np.argsort(x)  # to ensure x is increasing
-    x = x[sort_order]
-    y = y[sort_order]
-    max_x = np.nanmax(x)
-    min_x = np.nanmin(x)
+    sort_x = x_data is not None
+    if sort_x:
+        sort_order = np.argsort(x)  # to ensure x is increasing
+        x = x[sort_order]
+        y = y[sort_order]
+    max_x = x.max()
+    min_x = x.min()
     x_range = max_x - min_x
     known_background = np.array([])
     fit_x_data = x
@@ -249,7 +251,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
     added_gaussian = gaussian(
         np.linspace(-added_window / 2, added_window / 2, added_window),
-        height_scale * np.nanmax(y), 0, added_window * sigma_scale
+        height_scale * y.max(), 0, added_window * sigma_scale
     )
     if side in ('right', 'both'):
         added_x = np.linspace(max_x, max_x + x_range * (width_scale / 2), added_window)
@@ -306,7 +308,10 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
     params.update({'optimal_parameter': best_val, 'min_rmse': min_rmse})
 
-    return baseline[np.argsort(sort_order)], params
+    if sort_x:
+        baseline = baseline[np.argsort(sort_order)]
+
+    return baseline, params
 
 
 def _determine_polyorders(y, x, poly_order, weights, fit_function, **fit_kwargs):
