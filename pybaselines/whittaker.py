@@ -941,8 +941,8 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
             y_smooth = padded_convolve(y_smooth, smooth_kernel)
     y_smooth = y_smooth[smooth_half_window:num_y + smooth_half_window]
 
-    diff_y_1 = np.diff(np.concatenate((y_smooth[:1], y_smooth)))
-    diff_y_2 = np.diff(np.concatenate((diff_y_1[:1], diff_y_1)))  # TODO check this is correct
+    diff_y_1 = np.gradient(y_smooth)
+    diff_y_2 = np.gradient(diff_y_1)
     # x.dot(x) is same as (x**2).sum() but faster
     rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / num_y)
     rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / num_y)

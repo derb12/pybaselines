@@ -361,7 +361,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         pad_edges(y, smooth_half_window, **pad_kwargs),
         2 * smooth_half_window + 1
     )[smooth_half_window:num_y + smooth_half_window]
-    power = np.diff(np.concatenate((smooth_y[:1], smooth_y)))**2
+    power = np.gradient(smooth_y)**2
     mask = _iter_threshold(power, num_std)
     mask = _remove_single_points(mask) & weight_array
     rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
