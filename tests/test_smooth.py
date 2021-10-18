@@ -161,3 +161,30 @@ class TestRIA(AlgorithmTester):
         """Ensures function fails when the input side is not 'left', 'right', or 'both'."""
         with pytest.raises(ValueError):
             self._call_func(self.y, self.x, side='east')
+
+    def test_exit_conditions(self):
+        """
+        Tests the three exit conditions of the algorithm.
+
+        Can either exit due to reaching max iterations, reaching the desired tolerance,
+        or if the removed area exceeds the initial area of the extended portions.
+
+        """
+        high_max_iter = 500
+        low_max_iter = 5
+        high_tol = 1e-1
+        low_tol = -1
+        # set tol rather high so that it is guaranteed to be reached
+        regular_output = self._call_func(self.y, self.x, tol=high_tol, max_iter=high_max_iter)[1]
+        assert len(regular_output['tol_history']) < high_max_iter
+        assert regular_output['tol_history'][-1] < high_tol
+
+        # should reach maximum iterations before reaching tol
+        iter_output = self._call_func(self.y, self.x, tol=low_tol, max_iter=low_max_iter)[1]
+        assert len(iter_output['tol_history']) == low_max_iter
+        assert iter_output['tol_history'][-1] > low_tol
+
+        # removed area should be exceeded before maximum iterations or tolerance are reached
+        area_output = self._call_func(self.y, self.x, tol=low_tol, max_iter=high_max_iter)[1]
+        assert len(area_output['tol_history']) < high_max_iter
+        assert area_output['tol_history'][-1] > low_tol
