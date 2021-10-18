@@ -9,10 +9,10 @@ Introduction
 ------------
 
 Whittaker-smoothing-based (WSB) algorithms are usually referred to in literature
-as weighted least squares or penalized least squares, but are referred to as WSB
-in pybaselines to distinguish them from polynomial techniques that also take
-advantage of weighted least squares (like :func:`.loess`) and penalized least
-squares (like :func:`.penalized_poly`).
+as weighted least squares, penalized least squares, or asymmetric least squares,
+but are referred to as WSB in pybaselines to distinguish them from polynomial
+techniques that also take advantage of weighted least squares (like :func:`.loess`)
+and penalized least squares (like :func:`.penalized_poly`).
 
 The general idea behind WSB algorithms is to make the baseline match the measured
 data as well as it can while also penalizing the roughness of the baseline. The
@@ -24,10 +24,43 @@ resulting general function that is minimized to determine the baseline is then
 
 where :math:`y_i` is the measured data, :math:`z_i` is the estimated baseline,
 :math:`\lambda` is the penalty scale factor, :math:`w_i` is the weighting, and
-:math:`\Delta^d` is the finite-difference differential matrix of order d. Most
-WSB techniques recommend using the second order differential matrix, although
-some techniques use both the first and second order differential matrices.
+:math:`\Delta^d` is the forward-difference operator of order d.
 
+The resulting linear equation for solving the above minimization is:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
+
+where :math:`W` is the diagaonal matrix of the weights, and :math:`D_d` is the matrix
+version of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.
+For example, for an array of length 5, :math:`D_1` (first order difference matrix) is:
+
+.. math::
+
+    \begin{bmatrix}
+    -1 & 1 & 0 & 0 & 0 \\
+    0 & -1 & 1 & 0 & 0 \\
+    0 & 0 & -1 & 1 & 0 \\
+    0 & 0 & 0 & -1 & 1 \\
+    \end{bmatrix}
+
+and :math:`D_2` (second order difference matrix) is:
+
+.. math::
+
+    \begin{bmatrix}
+    1 & -2 & 1 & 0 & 0 \\
+    0 & 1 & -2 & 1 & 0 \\
+    0 & 0 & 1 & -2 & 1 \\
+    \end{bmatrix}
+
+Most WSB techniques recommend using the second order difference matrix, although
+some techniques use both the first and second order difference matrices.
+
+The baseline is iteratively calculated using the linear system above by solving for
+the baseline, :math:`z`, updating the weights, solving for the baseline using the new
+weights, and repeating until some exit criteria.
 The difference between WSB algorithms is the selection of weights and/or the
 function that is minimized.
 
@@ -53,6 +86,12 @@ Minimized function:
 .. math::
 
     \sum\limits_{i = 1}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i = 1}^{N - d} (\Delta^d z_i)^2
+
+Linear system:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
 
 Weighting:
 
@@ -171,6 +210,13 @@ Minimized function:
     + \lambda \sum\limits_{i = 1}^{N - 2} (\Delta^2 z_i)^2
     + \lambda_1 \sum\limits_{i = 1}^{N - 1} (\Delta^1 (y_i - z_i))^2
 
+Linear system:
+
+.. math::
+
+    (W^{\top} W + \lambda_1 D_1^{\top} D_1 + \lambda D_2^{\top} D_2) z
+    = (W^{\top} W + \lambda_1 D_1^{\top} D_1) y
+
 Weighting:
 
 .. math::
@@ -207,6 +253,12 @@ Minimized function:
 
     \sum\limits_{i = 1}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i = 1}^{N - d} (\Delta^d z_i)^2
 
+Linear system:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
+
 Weighting:
 
 .. math::
@@ -241,6 +293,12 @@ Minimized function:
 .. math::
 
     \sum\limits_{i = 1}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i = 1}^{N - d} (\Delta^d z_i)^2
+
+Linear system:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
 
 Weighting:
 
@@ -286,6 +344,14 @@ Minimized function:
 where :math:`\eta` is a value between 0 and 1 that controls the
 effective value of :math:`\lambda`.
 
+Linear system:
+
+.. math::
+
+    (W + D_1^{\top} D_1 + \lambda (I - \eta W) D_2^{\top} D_2) z = W y
+
+where :math:`I` is the identity matrix.
+
 Weighting:
 
 .. math::
@@ -328,6 +394,12 @@ Minimized function:
 .. math::
 
     \sum\limits_{i = 1}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i = 1}^{N - d} (\Delta^d z_i)^2
+
+Linear system:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
 
 Weighting:
 
@@ -376,6 +448,12 @@ where
         {abs(d_i)}
         {max(abs(\mathbf d))}
 
+Linear system:
+
+.. math::
+
+    (W + \lambda \alpha D_d^{\top} D_d) z = W y
+
 Weighting:
 
 .. math::
@@ -411,6 +489,12 @@ Minimized function:
 .. math::
 
     \sum\limits_{i = 1}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i = 1}^{N - d} (\Delta^d z_i)^2
+
+Linear system:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
 
 Weighting:
 
@@ -452,6 +536,12 @@ Minimized function:
 
     \sum\limits_{i = 1}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i = 1}^{N - d} (\Delta^d z_i)^2
 
+Linear system:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
+
 Weighting:
 
 The total weighting is given by:
@@ -464,18 +554,18 @@ where:
 
 .. math::
 
-    w_0 = \left\{\begin{array}{cr}
+    w_{0i} = \left\{\begin{array}{cr}
         p \cdot exp{\left(\frac{-[(y_i - z_i)/k]^2}{2}\right)} & y_i > z_i \\
         1 - p & y_i \le z_i
     \end{array}\right.
 
 .. math::
 
-    w_1 = exp{\left(\frac{-[y_{sm}' / rms(y_{sm}')]^2}{2}\right)}
+    w_{1i} = exp{\left(\frac{-[y_{sm_i}' / rms(y_{sm}')]^2}{2}\right)}
 
 .. math::
 
-    w_2 = exp{\left(\frac{-[y_{sm}'' / rms(y_{sm}'')]^2}{2}\right)}
+    w_{2i} = exp{\left(\frac{-[y_{sm_i}'' / rms(y_{sm}'')]^2}{2}\right)}
 
 :math:`k` is a factor that controls the exponential decay of the weights for baseline
 values greater than the data and should be approximately the height at which a value could

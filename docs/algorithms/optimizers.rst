@@ -11,9 +11,9 @@ Algorithms
 optimize_extended_range
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The :func:`.optimize_extended_range` function is based on the Extended Range
-Penalized Least Squares (erPLS) method, but extends its usage to all
-Whittaker-smoothing-based algorithms and polynomial algorithms.
+The :func:`.optimize_extended_range` function is based on the `Extended Range
+Penalized Least Squares (erPLS) method <https://doi.org/10.3390/s20072015>`_,
+but extends its usage to all Whittaker-smoothing-based algorithms and polynomial algorithms.
 
 In this algorithm, a linear baseline is extrapolated from the left and/or
 right edges, Gaussian peaks are added to these baselines, and then the original
