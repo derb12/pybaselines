@@ -412,8 +412,8 @@ def test_beads_ATb(beads_data, filter_type, freq_cutoff):
         A_banded, b, (filter_type, filter_type), (num_points, num_points)
     )
 
-    # use rtol=1.5e-7 since values are very small for d=2 and small freq_cutoff
-    assert_allclose(ATb_actual, ATb_banded, rtol=1.5e-7)
+    # use rtol=1.5e-7 with an atol since values are very small for d=2 and small freq_cutoff
+    assert_allclose(ATb_actual, ATb_banded, rtol=1.5e-7, atol=1e-14)
 
     # now check lam_0 * A.T * b
     lam_ATb_actual = lam_0 * A.T * b
