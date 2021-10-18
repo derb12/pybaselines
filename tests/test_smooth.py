@@ -6,6 +6,7 @@ Created on March 20, 2021
 
 """
 
+from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import smooth
@@ -119,3 +120,44 @@ class TestIpsa(AlgorithmTester):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+
+class TestRIA(AlgorithmTester):
+    """Class for testing ria baseline."""
+
+    func = smooth.ria
+
+    @pytest.mark.parametrize('side', ('left', 'right', 'both'))
+    def test_unchanged_data(self, data_fixture, side):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, x, y, x, side=side)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('tol_history',))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y, self.x), without_args=(self.y, None)
+        )
+
+    def test_x_ordering(self):
+        """Ensures arrays are correctly sorted within the function."""
+        reverse_x = self.x[::-1]
+        reverse_y = self.y[::-1]
+        regular_inputs_result = self._call_func(self.y, self.x)[0]
+        reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
+
+        assert_allclose(regular_inputs_result, reverse_inputs_result[::-1])
+
+    def test_unknown_side_fails(self):
+        """Ensures function fails when the input side is not 'left', 'right', or 'both'."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, side='east')

@@ -12,9 +12,10 @@ import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
 from scipy.signal import savgol_coeffs
 
-from ._algorithm_setup import _get_vander, _setup_smooth
+from ._algorithm_setup import _get_vander, _setup_smooth, _yx_arrays
 from .utils import (
-    _check_scalar, ParameterWarning, gaussian, gaussian_kernel, optimize_window, padded_convolve
+    _check_scalar, _get_edges, ParameterWarning, gaussian, gaussian_kernel, optimize_window,
+    padded_convolve, pad_edges, relative_difference
 )
 
 
@@ -485,3 +486,150 @@ def ipsa(data, half_window=None, max_iter=500, tol=1e-3, mask=None, **pad_kwargs
         y = np.minimum(y0, baseline)
 
     return baseline[window_size:-window_size], {'tol_history': tol_history[:i + 1]}
+
+
+def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both',
+        width_scale=0.1, height_scale=1., sigma_scale=1. / 12., **pad_kwargs):
+    """
+    Range Independent Algorithm (RIA).
+
+    Adds additional data to the left and/or right of the input data, and then
+    iteratively smooths until the area of the additional data is removed.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    half_window : int, optional
+        The half-window to use for the smoothing each iteration. Should be
+        approximately equal to the full-width-at-half-maximum of the peaks or features
+        in the data. Default is None, which will use the output of :func:`.optimize_window`,
+        which is not always a good value, but at least scales with the number of data points
+        and gives a starting point for tuning the parameter.
+    max_iter : int, optional
+        The maximum number of iterations. Default is 500.
+    tol : float, optional
+        The exit criteria. Default is 1e-2.
+    side : {'both', 'left', 'right'}, optional
+        The side of the measured data to extend. Default is 'both'.
+    width_scale : float, optional
+        The number of data points added to each side is `width_scale` * N. Default
+        is 0.1.
+    height_scale : float, optional
+        The height of the added Gaussian peak(s) is calculated as
+        `height_scale` * max(`data`). Default is 1.
+    sigma_scale : float, optional
+        The sigma value for the added Gaussian peak(s) is calculated as
+        `sigma_scale` * `width_scale` * N. Default is 1/12, which will make
+        the Gaussian span +- 6 sigma, making its total width about half of the
+        added length.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data when adding the extended left and/or right sections.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge (if the array length
+            is equal to `max_iter`) or the areas of the smoothed extended regions
+            exceeded their initial areas (if the array length is < `max_iter`).
+
+    Raises
+    ------
+    ValueError
+        Raised if `side` is not 'left', 'right', or 'both'.
+
+    References
+    ----------
+    Krishna, H., et al. Range-independent background subtraction algorithm for
+    recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 43(12)
+    (2012) 1884-1894.
+
+    """
+    side = side.lower()
+    if side not in ('left', 'right', 'both'):
+        raise ValueError('side must be "left", "right", or "both"')
+
+    y, x = _yx_arrays(data, x_data)
+    if half_window is None:
+        half_window = optimize_window(y)
+    sort_x = x_data is not None
+    if sort_x:
+        sort_order = np.argsort(x)
+        x = x[sort_order]
+        y = y[sort_order]
+    max_x = x.max()
+    min_x = x.min()
+    x_range = max_x - min_x
+
+    added_window = int(x.shape[0] * width_scale)
+    lower_bound = 0
+    upper_bound = 0
+    known_area = 0.
+
+    # TODO should make this a function that could be used by optimizers.optimize_extended_range too
+    added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
+    added_gaussian = gaussian(
+        np.linspace(-added_window / 2, added_window / 2, added_window),
+        height_scale * abs(y.max()), 0, added_window * sigma_scale
+    )
+    if side in ('left', 'both'):
+        added_x_left = np.linspace(
+            min_x - x_range * (width_scale / 2), min_x, added_window + 1
+        )[:-1]
+        added_y_left = added_gaussian + added_left
+        lower_bound = added_window
+        known_area += np.trapz(added_gaussian, added_x_left)
+    else:
+        added_x_left = []
+        added_y_left = []
+
+    if side in ('right', 'both'):
+        added_x_right = np.linspace(
+            max_x, max_x + x_range * (width_scale / 2), added_window + 1
+        )[1:]
+        added_y_right = added_gaussian + added_right
+        upper_bound = added_window
+        known_area += np.trapz(added_gaussian, added_x_right)
+    else:
+        added_x_right = []
+        added_y_right = []
+
+    fit_x_data = np.concatenate((added_x_left, x, added_x_right))
+    fit_data = np.concatenate((added_y_left, y, added_y_right))
+
+    upper_max = fit_data.shape[0] - upper_bound
+    tol_history = np.empty(max_iter)
+    window_size = 2 * half_window + 1
+    smoother_array = pad_edges(fit_data, window_size, extrapolate_window=2)
+    data_slice = slice(window_size, -window_size)
+    for i in range(max_iter):
+        # only smooth fit_data so that the outer section remains unchanged by
+        # smoothing and edge effects are ignored
+        smoother_array[data_slice] = uniform_filter1d(smoother_array, window_size)[data_slice]
+        residual = fit_data - smoother_array[data_slice]
+        calc_area = np.trapz(residual[:lower_bound], fit_x_data[:lower_bound])
+        if upper_bound:
+            calc_area += np.trapz(residual[-upper_bound:], fit_x_data[-upper_bound:])
+        calc_difference = relative_difference(known_area, calc_area)
+        tol_history[i] = calc_difference
+        if calc_difference < tol or calc_area > known_area:
+            break
+        smoother_array[data_slice] = np.minimum(fit_data, smoother_array[data_slice])
+
+    baseline = smoother_array[data_slice][lower_bound:upper_max]
+    if sort_x:
+        baseline = baseline[np.argsort(sort_order)]
+
+    return baseline, {'tol_history': tol_history[:i + 1]}

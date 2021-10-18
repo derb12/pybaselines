@@ -45,3 +45,8 @@ def swima(*args, **kwargs):  # noqa
 @_wrap_and_warn
 def ipsa(*args, **kwargs):  # noqa
     return smooth.ipsa(*args, **kwargs)
+
+
+@_wrap_and_warn
+def ria(*args, **kwargs):  # noqa
+    return smooth.ria(*args, **kwargs)

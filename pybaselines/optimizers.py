@@ -175,8 +175,8 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         If using a polynomial method, `step` must be an integer.
     pad_kwargs : dict, optional
         A dictionary of options to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution. Default
-        is None, which will use an empty dictionary.
+        the edges of the data when adding the extended left and/or right sections.
+        Default is None, which will use an empty dictionary.
     **method_kwargs
         Keyword arguments to pass to the selected `method` function.
 
