@@ -234,6 +234,33 @@ def test_high_pass_filter_bad_filtertype_fails(filter_type):
         misc._high_pass_filter(10, filter_type=filter_type)
 
 
+@pytest.mark.parametrize('filter_type', np.arange(1, 10))
+def test_high_pass_filter_convolution_matrix_hack(filter_type):
+    """Ensure the trick used for calculating the convolution matrix coefficients is correct."""
+    # the actual calculation from the beads MATLAB source using convolution
+    b_actual = np.array([1, -1])
+    convolve_array = np.array([-1, 2, -1])
+    for _ in range(filter_type - 1):
+        b_actual = np.convolve(b_actual, convolve_array)
+    b_actual = np.convolve(b_actual, np.array([-1, 1]))
+
+    a_actual = 1
+    convolve_array = np.array([1, 2, 1])
+    for _ in range(filter_type):
+        a_actual = np.convolve(a_actual, convolve_array)
+
+    # the faster alternative using finite differences
+    filter_order = 2 * filter_type
+    b = np.zeros(2 * filter_order + 1)
+    b[filter_order] = -1 if filter_type % 2 else 1  # same as (-1)**filter_type
+    for _ in range(filter_order):
+        b = b[:-1] - b[1:]
+    a = abs(b)
+
+    assert_array_equal(a, a_actual)
+    assert_array_equal(b, b_actual)
+
+
 @pytest.fixture()
 def beads_data():
     """Setup code for testing internal calculations for the beads algorithm."""

@@ -361,22 +361,20 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     elif filter_type < 1:
         raise ValueError('filter_type must be at least 1')
 
-    b = np.array([1, -1])
-    convolve_array = np.array([-1, 2, -1])
-    for _ in range(filter_type - 1):
-        b = np.convolve(b, convolve_array)
-    b = np.convolve(b, np.array([-1, 1]))
-
-    a = 1
-    convolve_array = np.array([1, 2, 1])
-    for _ in range(filter_type):
-        a = np.convolve(a, convolve_array)
+    # use finite differences instead of convolution to calculate a and b since
+    # it's faster
+    filter_order = 2 * filter_type
+    b = np.zeros(2 * filter_order + 1)
+    b[filter_order] = -1 if filter_type % 2 else 1  # same as (-1)**filter_type
+    for _ in range(filter_order):
+        b = b[:-1] - b[1:]
+    a = abs(b)
 
     cos_freq = np.cos(2 * np.pi * freq_cutoff)
     t = ((1 - cos_freq) / max(1 + cos_freq, _MIN_FLOAT))**filter_type
 
-    a_diags = np.repeat([b + a * t], data_size, axis=0).T
-    b_diags = np.repeat([b], data_size, axis=0).T
+    a_diags = np.repeat((b + a * t).reshape(1, -1), data_size, axis=0).T
+    b_diags = np.repeat(b.reshape(1, -1), data_size, axis=0).T
     if full_matrix:
         offsets = np.arange(-filter_type, filter_type + 1)
         A = spdiags(a_diags, offsets, data_size, data_size, 'csr')
