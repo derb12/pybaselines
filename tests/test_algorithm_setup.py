@@ -229,6 +229,13 @@ def test_setup_polynomial_weights(small_data, weight_enum):
     assert_array_equal(weight_array, desired_weights)
 
 
+def test_setup_polynomial_wrong_weight_shape(small_data):
+    """Ensures that an exception is raised if input weights and data are different shapes."""
+    weights = np.ones(small_data.shape[0] + 1)
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_polynomial(small_data, weights=weights)
+
+
 def test_setup_polynomial_domain(small_data):
     """Ensures output domain array is correct."""
     x = np.linspace(-5, 20, len(small_data))

@@ -207,7 +207,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
 
     """
     y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, weights, poly_order, return_vander=True, return_pinv=True
+        data, x_data, weights, poly_order, True, True, True
     )
     sqrt_w = np.sqrt(weight_array)
     if use_original:
@@ -312,7 +312,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
 
     """
     y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, weights, poly_order, return_vander=True, return_pinv=True
+        data, x_data, weights, poly_order, True, True, True
     )
     sqrt_w = np.sqrt(weight_array)
     if use_original:

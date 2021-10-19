@@ -238,6 +238,9 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
         )
     num_y = y.shape[0]
     # use hard-coded values for diff_order of 1 and 2 since it is much faster
+    # TODO need to do a shape check to ensure the vast versions are valid; len(y)
+    # must be >= 2 * diff_order + 1 (almost surely is); if not, need to do the
+    # actual calculation with the difference matrix, or just raise an error
     if diff_order == 1:
         diagonal_data = _diff_1_diags(num_y, upper_only)
     elif diff_order == 2:
@@ -254,10 +257,9 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
     if weights is None:
         weight_array = np.ones(num_y)
     else:
+        weight_array = np.asarray(weights)
         if copy_weights:
-            weight_array = np.asarray(weights).copy()
-        else:
-            weight_array = np.asarray(weights)
+            weight_array = weight_array.copy()
 
         if weight_array.shape != y.shape:
             raise ValueError('weights must have the same shape as the input data')
@@ -308,8 +310,8 @@ def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
     return vander, pseudo_inverse
 
 
-def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
-                      return_vander=False, return_pinv=False):
+def _setup_polynomial(data, x_data=None, weights=None, poly_order=2, return_vander=False,
+                      return_pinv=False, copy_weights=False):
     """
     Sets the starting parameters for doing polynomial fitting.
 
@@ -330,6 +332,9 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     return_pinv : bool, optional
         If True, and if `return_vander` is True, will calculate and return the
         pseudo-inverse of the Vandermonde matrix. Default is False.
+    copy_weights : boolean, optional
+        If True, will copy the array of input weights. Only needed if the
+        algorithm changes the weights in-place. Default is False.
 
     Returns
     -------
@@ -366,10 +371,16 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     else:
         original_domain = np.polynomial.polyutils.getdomain(x)
         x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1., 1.]))
-    if weights is not None:
-        weight_array = np.asarray(weights).copy()
+
+    if weights is None:
+        weight_array = np.ones(len(y))
     else:
-        weight_array = np.ones(y.shape[0])
+        weight_array = np.asarray(weights)
+        if copy_weights:
+            weight_array = weight_array.copy()
+
+        if weight_array.shape != y.shape:
+            raise ValueError('weights must have the same shape as the input data')
 
     output = [y, x, weight_array, original_domain]
     if return_vander:
@@ -438,7 +449,7 @@ def _setup_morphology(data, half_window=None, **window_kwargs):
     return y, output_half_window
 
 
-def _setup_smooth(data, half_window, **pad_kwargs):
+def _setup_smooth(data, half_window=0, **pad_kwargs):
     """
     Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -449,10 +460,10 @@ def _setup_smooth(data, half_window, **pad_kwargs):
     half_window : int, optional
         The half-window used for the smoothing functions. Used
         to pad the left and right edges of the data to reduce edge
-        effects.
+        effects. Default is 0, which provides no padding.
     **pad_kwargs
         Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+        the edges of the data to prevent edge effects from smoothing.
 
     Returns
     -------
