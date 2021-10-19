@@ -398,14 +398,14 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
     if max_half_window is None:
         max_half_window = (len(data) - 1) // 2
     y = _setup_smooth(data, max_half_window, **pad_kwargs)
-
+    len_y = len(y)  # includes the padding of max_half_window at each side
     data_slice = slice(max_half_window, -max_half_window)
     if smooth_half_window is None:
-        smooth_half_window = max(1, y[data_slice].shape[0] // 50)
+        smooth_half_window = max(1, (len_y - 2 * max_half_window) // 50)
     if smooth_half_window > 0:
         y = uniform_filter1d(y, 2 * smooth_half_window + 1)
 
-    vander, pseudo_inverse = _get_vander(np.linspace(-1, 1, y[data_slice].shape[0] - 1), 3)
+    vander, pseudo_inverse = _get_vander(np.linspace(-1, 1, len_y - 2 * max_half_window - 1), 3)
     baseline, converged, half_window = _swima_loop(
         y, vander, pseudo_inverse, data_slice, max_half_window, min_half_window
     )
@@ -414,7 +414,7 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
     if not converged:
         residual = y - baseline
         gaussian_bkg = gaussian(
-            np.arange(y.shape[0]), np.max(residual), y.shape[0] / 2, y.shape[0] / 6
+            np.arange(len_y), np.max(residual), len_y / 2, len_y / 6
         )
         baseline_2, converged, half_window = _swima_loop(
             residual + gaussian_bkg, vander, pseudo_inverse, data_slice, max_half_window, 3
@@ -426,19 +426,52 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
     return baseline[data_slice], {'half_window': half_windows, 'converged': converges}
 
 
-def ipsa(data, half_window=None, max_iter=500, tol=1e-3, mask=None, **pad_kwargs):
+def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
+         original_criteria=False, **pad_kwargs):
     """
     Iterative Polynomial Smoothing Algorithm (IPSA).
 
     Parameters
     ----------
-    data : [type]
-        [description]
-    half_window : [type]
-        [description]
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int
+        The half-window to use for the smoothing each iteration. Should be
+        approximately equal to the full-width-at-half-maximum of the peaks or features
+        in the data. Default is None, which will use 4 times the output of
+        :func:`.optimize_window`, which is not always a good value, but at least scales
+        with the number of data points and gives a starting point for tuning the parameter.
     max_iter : int, optional
-        [description], by default 500.
+        The maximum number of iterations. Default is 500.
     tol : float, optional
+        The exit criteria. Default is None, which uses 1e-3 if `original_criteria` is
+        False, and ``1 / (max(data) - min(data))`` if `original_criteria` is True.
+    roi : slice or array-like, shape(N,)
+        The region of interest, such that ``np.asarray(data)[roi]`` gives the values
+        for calculating the tolerance if `original_criteria` is True. Not used if
+        `original_criteria` is True. Default is None, which uses all values in `data`.
+    original_criteria : bool, optional
+        Whether to use the original exit criteria from the reference, which is difficult
+        to use since it requires knowledge of how high the peaks should be after baseline
+        correction. If False (default), then compares ``norm(old, new) / norm(old)``, where
+        `old` is the previous iteration's baseline, and `new` is the current iteration's
+        baseline.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from convolution.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
 
     References
     ----------
@@ -454,38 +487,35 @@ def ipsa(data, half_window=None, max_iter=500, tol=1e-3, mask=None, **pad_kwargs
     window_size = 2 * half_window + 1
     y = _setup_smooth(data, window_size, **pad_kwargs)
     y0 = y
-    num_y = y.shape[0]
-    # TODO this masking seems unnecessarily complex; should just use a different tolerance
-    # calculation altogether since this one completely changes depending on the height
-    # of the input data; could make it a boolean option to use norm(old, new)/norm(old)
-    # as an alternate tolerance, or just always use that instead of the tolerance calc
-    # used in the reference
-    if mask is None:
-        residual_region = np.zeros(num_y, dtype=bool)
-        residual_region[window_size:-window_size] = True
-    else:
-        mask = np.asarray(mask, dtype=bool)
-        mask_shape = mask.shape[0]
-        if mask_shape == num_y:
-            residual_region = mask
-        elif mask_shape == num_y - 2 * window_size:
-            filler = np.zeros(window_size, dtype=bool)
-            residual_region = np.concatenate((filler, mask, filler))
+    data_slice = slice(window_size, -window_size)
+    if original_criteria and not (roi is None or isinstance(roi, slice)):
+        roi = np.asarray(roi)
+
+    if tol is None:
+        if original_criteria:
+            # guess what the desired height should be; not a great guess, but it's
+            # something
+            tol = 1 / np.ptp(y[data_slice][roi])
         else:
-            raise ValueError('mask and y need to have the same shape')
+            tol = 1e-3
 
     savgol_coef = savgol_coeffs(window_size, 2)
     tol_history = np.empty(max_iter + 1)
+    old_baseline = y[data_slice]
     for i in range(max_iter + 1):
         baseline = padded_convolve(y, savgol_coef, 'edge')
-        residual = (y0 - baseline)[residual_region]
-        calc_tol = abs(residual.min() / residual.max())
+        if original_criteria:
+            residual = (y0 - baseline)[data_slice][roi]
+            calc_tol = abs(residual.min() / residual.max())
+        else:
+            calc_tol = relative_difference(old_baseline, baseline[data_slice])
         tol_history[i] = calc_tol
         if calc_tol < tol:
             break
         y = np.minimum(y0, baseline)
+        old_baseline = baseline[data_slice]
 
-    return baseline[window_size:-window_size], {'tol_history': tol_history[:i + 1]}
+    return baseline[data_slice], {'tol_history': tol_history[:i + 1]}
 
 
 def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both',
