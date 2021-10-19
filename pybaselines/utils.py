@@ -222,8 +222,7 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
         right_edge = np.empty(pad_length)
         # use x[pad_length:-pad_length] for fitting to ensure x and y are
         # same shape regardless of extrapolate window value
-        len_y = len(y)
-        x = np.arange(len_y + 2 * pad_length)
+        x = np.arange(len(y) + 2 * pad_length)
         for i, array in enumerate((left_edge, right_edge)):
             extrapolate_window_i = extrapolate_windows[i]
             if extrapolate_window_i == 1:
@@ -234,17 +233,13 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
                     x[pad_length:-pad_length][:extrapolate_window_i],
                     y[:extrapolate_window_i], 1
                 )
-                fit_line = poly(x[:pad_length + 1])
-                # adjust intercept so there is no discontinuity
-                array[:] = fit_line[:-1] + (y[0] - fit_line[-1])
+                array[:] = poly(x[:pad_length])
             else:
                 poly = np.polynomial.Polynomial.fit(
                     x[pad_length:-pad_length][-extrapolate_window_i:],
                     y[-extrapolate_window_i:], 1
                 )
-                fit_line = poly(x[len_y + pad_length - 1:])
-                # adjust intercept so there is no discontinuity
-                array[:] = fit_line[1:] + (y[-1] - fit_line[0])
+                array[:] = poly(x[-pad_length:])
     else:
         padded_data = np.pad(y, pad_length, mode, **pad_kwargs)
         left_edge = padded_data[:pad_length]
