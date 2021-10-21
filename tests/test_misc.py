@@ -466,10 +466,15 @@ class TestBeads(AlgorithmTester):
     func = misc.beads
 
     @pytest.mark.parametrize('cost_function', (1, 2, 'l1_v1', 'l1_v2', 'L1_V1'))
-    def test_unchanged_data(self, data_fixture, cost_function):
+    @pytest.mark.parametrize('smooth_hw', (0, 5))
+    @pytest.mark.parametrize('fit_parabola', (True, False))
+    def test_unchanged_data(self, data_fixture, cost_function, smooth_hw, fit_parabola):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y, cost_function=cost_function)
+        self._test_unchanged_data(
+            data_fixture, y, None, y, cost_function=cost_function, smooth_half_window=smooth_hw,
+            fit_parabola=fit_parabola
+        )
 
     @pytest.mark.parametrize('use_banded', (True, False))
     def test_output(self, use_banded):

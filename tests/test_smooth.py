@@ -20,10 +20,11 @@ class TestNoiseMedian(AlgorithmTester):
 
     func = smooth.noise_median
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('smooth_hw', (None, 0, 2))
+    def test_unchanged_data(self, data_fixture, smooth_hw):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y, 15)
+        self._test_unchanged_data(data_fixture, y, None, y, 15, smooth_half_window=smooth_hw)
 
     def test_output(self):
         """Ensures that the output has the desired format."""
@@ -40,10 +41,14 @@ class TestSNIP(AlgorithmTester):
 
     func = smooth.snip
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('smooth_hw', (-1, 0, 2))
+    @pytest.mark.parametrize('decreasing', (True, False))
+    def test_unchanged_data(self, data_fixture, smooth_hw, decreasing):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y, 15)
+        self._test_unchanged_data(
+            data_fixture, y, None, y, 15, smooth_half_window=smooth_hw, decreasing=decreasing
+        )
 
     def test_output(self):
         """Ensures that the output has the desired format."""
@@ -107,10 +112,11 @@ class TestIpsa(AlgorithmTester):
 
     func = smooth.ipsa
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('original_criteria', (True, False))
+    def test_unchanged_data(self, data_fixture, original_criteria):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y, original_criteria=original_criteria)
 
     def test_output(self):
         """Ensures that the output has the desired format."""

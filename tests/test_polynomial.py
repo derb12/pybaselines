@@ -62,10 +62,15 @@ class TestModPoly(AlgorithmTester):
 
     func = polynomial.modpoly
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('use_original', (True, False))
+    @pytest.mark.parametrize('mask_initial_peaks', (True, False))
+    def test_unchanged_data(self, data_fixture, use_original, mask_initial_peaks):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(
+            data_fixture, y, x, y, x, use_original=use_original,
+            mask_initial_peaks=mask_initial_peaks
+        )
 
     def test_no_x(self):
         """Ensures that function output is the same when no x is input."""
@@ -104,10 +109,15 @@ class TestIModPoly(AlgorithmTester):
 
     func = polynomial.imodpoly
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('use_original', (True, False))
+    @pytest.mark.parametrize('mask_initial_peaks', (True, False))
+    def test_unchanged_data(self, data_fixture, use_original, mask_initial_peaks):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(
+            data_fixture, y, x, y, x, use_original=use_original,
+            mask_initial_peaks=mask_initial_peaks
+        )
 
     def test_no_x(self):
         """Ensures that function output is the same when no x is input."""
@@ -269,6 +279,12 @@ class TestPenalizedPoly(AlgorithmTester):
         _, params = self._call_func(self.y, self.x, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter
+
+    @pytest.mark.parametrize('alpha_factor', (-0.1, 0, 1.01))
+    def test_wrong_alpha_factor_fails(self, alpha_factor):
+        """Ensures an alpha factor outside of (0, 1] fails."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, alpha_factor=alpha_factor)
 
 
 @pytest.mark.parametrize(
@@ -944,3 +960,15 @@ class TestGoldindec(AlgorithmTester):
 
         assert params['tol_history'].shape[0] == expected_shape_0
         assert params['tol_history'].shape[1] == expected_shape_1
+
+    @pytest.mark.parametrize('alpha_factor', (-0.1, 0, 1.01))
+    def test_wrong_alpha_factor_fails(self, alpha_factor):
+        """Ensures an alpha factor outside of (0, 1] fails."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, alpha_factor=alpha_factor)
+
+    @pytest.mark.parametrize('peak_ratio', (-0.1, 0, 1, 1.01))
+    def test_wrong_peak_ratio_fails(self, peak_ratio):
+        """Ensures a peak ratio outside of (0, 1) fails."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, peak_ratio=peak_ratio)

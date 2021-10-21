@@ -54,21 +54,25 @@ class TestCollabPLS(AlgorithmTester):
         """Makes the data two-dimensional with shape (M, N) as required by collab_pls."""
         return np.vstack((data, data))
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('average_dataset', (True, False))
+    def test_unchanged_data(self, data_fixture, average_dataset):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
 
         data_x, data_y = data_fixture
         stacked_data = (self._stack(data_x), self._stack(data_y))
         stacked_y = self._stack(y)
-        self._test_unchanged_data(stacked_data, stacked_y, None, stacked_y)
+        self._test_unchanged_data(
+            stacked_data, stacked_y, None, stacked_y, average_dataset=average_dataset
+        )
 
-    def test_output(self):
+    @pytest.mark.parametrize('average_dataset', (True, False))
+    def test_output(self, average_dataset):
         """Ensures that the output has the desired format."""
         stacked_y = self._stack(self.y)
         # will need to change checked_keys if default method is changed
         self._test_output(
-            stacked_y, stacked_y,
+            stacked_y, stacked_y, average_dataset=average_dataset,
             checked_keys=('average_weights', 'weights', 'tol_history')
         )
 

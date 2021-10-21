@@ -360,3 +360,46 @@ class TestFastChrom(AlgorithmTester):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+
+class TestCwtBR(AlgorithmTester):
+    """Class for testing cwt_br baseline."""
+
+    func = classification.cwt_br
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, x, y, x)
+
+    @pytest.mark.parametrize('scales', (None, np.arange(3, 20)))
+    def test_output(self, scales):
+        """Ensures that the output has the desired format."""
+        self._test_output(
+            self.y, self.y, scales=scales, checked_keys=('mask', 'tol_history', 'best_scale')
+        )
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+
+class TestFabc(AlgorithmTester):
+    """Class for testing fabc baseline."""
+
+    func = classification.fabc
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, x, y, x)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('mask', 'weights'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
