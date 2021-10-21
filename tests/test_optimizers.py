@@ -109,14 +109,23 @@ class TestOptimizeExtendedRange(AlgorithmTester):
             with_args=(self.y, self.x), without_args=(self.y, None)
         )
 
-    def test_x_ordering(self):
-        """Ensures arrays are correctly sorted within the function."""
+    @pytest.mark.parametrize('side', ('left', 'right', 'both'))
+    def test_ordering(self, side):
+        """Ensures arrays and weights are correctly sorted within the function."""
         reverse_x = self.x[::-1]
         reverse_y = self.y[::-1]
-        regular_inputs_result = self._call_func(self.y, self.x)[0]
-        reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
+        input_weights = np.ones(len(self.y))
+        input_weights[-1] = 0.9
+        original_weights = input_weights.copy()
+
+        regular_inputs_result = self._call_func(self.y, self.x, side=side)[0]
+        reverse_inputs_result = self._call_func(
+            reverse_y, reverse_x, side=side, weights=input_weights
+        )[0]
 
         assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+        # also ensure the input weights are unchanged when sorting
+        assert_array_equal(original_weights, input_weights)
 
     def test_output(self):
         """Ensures that the output has the desired format."""

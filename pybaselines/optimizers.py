@@ -231,12 +231,37 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         raise ValueError('side must be "left", "right", or "both"')
 
     fit_func, func_module = _get_function(method, (whittaker, polynomial, morphological))
+    if func_module == 'polynomial':
+        if any(not isinstance(val, int) for val in (min_value, max_value, step)):
+            raise TypeError((
+                'min_value, max_value, and step must all be integers when'
+                ' using a polynomial method'
+            ))
+        param_name = 'poly_order'
+    else:
+        if any(val > 100 for val in (min_value, max_value, step)):
+            raise ValueError((
+                'min_value, max_value, and step should be the power of 10 to use '
+                '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
+                'thus should not be greater than 100'
+            ))
+        param_name = 'lam'
+
     y, x = _yx_arrays(data, x_data)
+    added_window = int(x.shape[0] * width_scale)
     sort_x = x_data is not None
     if sort_x:
         sort_order = np.argsort(x)  # to ensure x is increasing
         x = x[sort_order]
         y = y[sort_order]
+        if 'weights' in method_kwargs:
+            # have to adjust weight length to accomodate the added sections; set weights
+            # to 1 to ensure the added sections are fit
+            method_kwargs['weights'] = np.pad(
+                method_kwargs['weights'][sort_order],
+                [0 if side == 'right' else added_window, 0 if side == 'left' else added_window],
+                constant_values=1
+            )
     max_x = x.max()
     min_x = x.min()
     x_range = max_x - min_x
@@ -247,7 +272,6 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
     if pad_kwargs is None:
         pad_kwargs = {}
-    added_window = int(x.shape[0] * width_scale)
     added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
     added_gaussian = gaussian(
         np.linspace(-added_window / 2, added_window / 2, added_window),
@@ -269,23 +293,9 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     if method == 'iasls' or func_module == 'polynomial':
         method_kwargs['x_data'] = fit_x_data
 
-    if func_module == 'polynomial':
-        if any(not isinstance(val, int) for val in (min_value, max_value, step)):
-            raise TypeError((
-                'min_value, max_value, and step must all be integers when'
-                ' using a polynomial method'
-            ))
-        param_name = 'poly_order'
-    else:
-        if any(val > 100 for val in (min_value, max_value, step)):
-            raise ValueError((
-                'min_value, max_value, and step should be the power of 10 to use '
-                '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
-                'thus should not be greater than 100'
-            ))
-        param_name = 'lam'
-
-    min_rmse = np.inf
+    added_len = 2 * added_window if side == 'both' else added_window
+    upper_idx = fit_data.shape[0] - upper_bound
+    min_sum_squares = np.inf
     best_val = None
     # TODO maybe switch to linspace since arange is inconsistent when using floats
     for var in np.arange(min_value, max_value + step, step):
@@ -296,17 +306,20 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         fit_baseline, fit_params = fit_func(fit_data, **method_kwargs)
         # TODO change the known baseline so that np.roll does not have to be
         # calculated each time, since it requires additional time
-        rmse = np.sqrt(np.mean(
-            (known_background - np.roll(fit_baseline, upper_bound)[:upper_bound + lower_bound])**2
-        ))
-
-        if rmse < min_rmse:
-            baseline = fit_baseline[lower_bound:fit_baseline.shape[0] - upper_bound]
+        residual = (
+            known_background - np.roll(fit_baseline, upper_bound)[:added_len]
+        )
+        # just calculate the sum of squares to reduce time from using sqrt for rmse
+        sum_squares = residual.dot(residual)
+        if sum_squares < min_sum_squares:
+            baseline = fit_baseline[lower_bound:upper_idx]
             params = fit_params
             best_val = var
-            min_rmse = rmse
+            min_sum_squares = sum_squares
 
-    params.update({'optimal_parameter': best_val, 'min_rmse': min_rmse})
+    params.update(
+        {'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len)}
+    )
 
     if sort_x:
         baseline = baseline[np.argsort(sort_order)]
