@@ -15,7 +15,7 @@ import warnings
 import numpy as np
 
 from . import classification, morphological, polynomial, spline, whittaker
-from ._algorithm_setup import _setup_polynomial, _yx_arrays
+from ._algorithm_setup import _setup_polynomial, _whittaker_smooth, _yx_arrays
 from .utils import _check_scalar, _get_edges, gaussian
 
 
@@ -60,7 +60,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     Collaborative Penalized Least Squares (collab-PLS).
 
     Averages the data or the fit weights for an entire dataset to get more
-    optimal results. Uses any Whittaker-smoothing-based algorithm.
+    optimal results. Uses any Whittaker-smoothing-based or weighted spline algorithm.
 
     Parameters
     ----------
@@ -72,8 +72,8 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
         weighting. If False, will fit each individual entry in the dataset and
         then average the weights to get the weighting for the dataset.
     method : str, optional
-        A string indicating the Whittaker-smoothing-based method to use for
-        fitting the baseline. Default is 'asls'.
+        A string indicating the Whittaker-smoothing-based or weighted spline method to
+        use for fitting the baseline. Default is 'asls'.
     **method_kwargs
         Keyword arguments to pass to the selected `method` function.
 
@@ -98,7 +98,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     in Chemistry, 2018, 2018.
 
     """
-    fit_func = _get_function(method, (whittaker, morphological))[0]
+    fit_func = _get_function(method, (whittaker, morphological, classification, spline))[0]
     dataset = np.asarray(data)
     if average_dataset:
         _, fit_params = fit_func(np.mean(dataset.T, 1), **method_kwargs)
@@ -113,8 +113,19 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     method_kwargs['tol'] = np.inf
     baselines = np.empty(dataset.shape)
     params = {'average_weights': method_kwargs['weights']}
+    method = method.lower()
+    if method == 'fabc':
+        # have to handle differently since weights for fabc is the mask for
+        # classification rather than weights for fitting
+        fit_func = _whittaker_smooth
+        for key in list(method_kwargs.keys()):
+            if key not in {'weights', 'lam', 'diff_order'}:
+                method_kwargs.pop(key)
+
     for i, entry in enumerate(dataset):
         baselines[i], param = fit_func(entry, **method_kwargs)
+        if method == 'fabc':
+            param = {'weights': param}
         for key, value in param.items():
             if key in params:
                 params[key].append(value)

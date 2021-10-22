@@ -86,7 +86,7 @@ class TestCollabPLS(AlgorithmTester):
         'method',
         (
             'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
-            'derpsalsa'
+            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc'
         )
     )
     def test_all_methods(self, method):
