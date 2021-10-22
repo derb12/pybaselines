@@ -124,15 +124,25 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         input_weights = np.ones(len(self.y))
         input_weights[-1] = 0.9
         original_weights = input_weights.copy()
+        method_kwargs = {'weights': input_weights}
+        input_kwargs = method_kwargs.copy()
 
         regular_inputs_result = self._call_func(self.y, self.x, side=side)[0]
         reverse_inputs_result = self._call_func(
-            reverse_y, reverse_x, side=side, method_kwargs={'weights': input_weights}
+            reverse_y, reverse_x, side=side, method_kwargs=method_kwargs
         )[0]
 
         assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
         # also ensure the input weights are unchanged when sorting
         assert_array_equal(original_weights, input_weights)
+        # ensure method_kwargs dict was unchanged
+        total_dict = input_kwargs.copy()
+        total_dict.update(method_kwargs)
+        for key in total_dict.keys():
+            if key not in input_kwargs or key not in method_kwargs:
+                raise AssertionError('keys in method_kwargs were alterred')
+            else:
+                assert_array_equal(input_kwargs[key], method_kwargs[key])
 
     def test_output(self):
         """Ensures that the output has the desired format."""

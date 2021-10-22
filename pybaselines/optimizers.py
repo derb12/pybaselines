@@ -191,8 +191,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         Default is None, which will use an empty dictionary.
     method_kwargs : dict, optional
         A dictionary of keyword arguments to pass to the selected `method` function.
-        Default is None, which will use an empty dictionary. Note that the dictionary
-        is modified within the function.
+        Default is None, which will use an empty dictionary.
     **kwargs
         Deprecated in version 0.7.0 and will be removed in version 0.9.0. Pass any
         keyword arguments for the fitting function in the `method_kwargs` dictionary.
@@ -268,7 +267,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
     y, x = _yx_arrays(data, x_data)
     added_window = int(x.shape[0] * width_scale)
-    method_kwargs = method_kwargs if method_kwargs is not None else {}
+    method_kwargs = method_kwargs.copy() if method_kwargs is not None else {}
     if kwargs:  # TODO remove in version 0.9
         warnings.warn(
             ('Passing additional keyword arguments directly to optimize_extended_range is '
