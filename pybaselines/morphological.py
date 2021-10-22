@@ -591,7 +591,7 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
         warnings.warn(
             ('Using an array-like value for "half_window" or "smooth_half_window" is '
              'deprecated, and support will be removed in version 0.8.0.'),
-            DeprecationWarning
+            DeprecationWarning, stacklevel=2
         )
 
     rough_baseline = _grey_opening_1d(y, half_wind)

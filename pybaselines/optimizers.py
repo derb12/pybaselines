@@ -10,6 +10,7 @@ Created on March 3, 2021
 """
 
 from math import ceil
+import warnings
 
 import numpy as np
 
@@ -124,8 +125,8 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
 
 
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
-                            height_scale=1., sigma_scale=1. / 12., min_value=2,
-                            max_value=8, step=1, pad_kwargs=None, **method_kwargs):
+                            height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
+                            step=1, pad_kwargs=None, method_kwargs=None, **kwargs):
     """
     Extends data and finds the best parameter value for the given baseline method.
 
@@ -177,8 +178,13 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         A dictionary of options to pass to :func:`.pad_edges` for padding
         the edges of the data when adding the extended left and/or right sections.
         Default is None, which will use an empty dictionary.
-    **method_kwargs
-        Keyword arguments to pass to the selected `method` function.
+    method_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to the selected `method` function.
+        Default is None, which will use an empty dictionary. Note that the dictionary
+        is modified within the function.
+    **kwargs
+        Deprecated in version 0.7.0 and will be removed in version 0.9.0. Pass any
+        keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
     Returns
     -------
@@ -251,6 +257,15 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
 
     y, x = _yx_arrays(data, x_data)
     added_window = int(x.shape[0] * width_scale)
+    method_kwargs = method_kwargs if method_kwargs is not None else {}
+    if kwargs:  # TODO remove in version 0.9
+        warnings.warn(
+            ('Passing additional keyword arguments directly to optimize_extended_range is '
+             'deprecated and will be removed in version 0.9.0. Place all keyword arguments '
+             'into the method_kwargs dictionary instead.'),
+            DeprecationWarning, stacklevel=2
+        )
+        method_kwargs.update(kwargs)
     sort_x = x_data is not None
     if sort_x:
         sort_order = np.argsort(x)  # to ensure x is increasing

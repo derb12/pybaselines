@@ -127,7 +127,7 @@ class TestOptimizeExtendedRange(AlgorithmTester):
 
         regular_inputs_result = self._call_func(self.y, self.x, side=side)[0]
         reverse_inputs_result = self._call_func(
-            reverse_y, reverse_x, side=side, weights=input_weights
+            reverse_y, reverse_x, side=side, method_kwargs={'weights': input_weights}
         )[0]
 
         assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
@@ -198,6 +198,11 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         """
         with pytest.raises(ValueError):
             self._call_func(self.y, self.x, method='asls', **{key: 1e4})
+
+    def test_kwargs_deprecation(self):
+        """Ensures a warning is emitted for passing kwargs meant for the fitting function."""
+        with pytest.warns(DeprecationWarning):
+            self._call_func(self.y, self.x, method='asls', lam=1e8)
 
 
 class TestAdaptiveMinMax(AlgorithmTester):
