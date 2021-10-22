@@ -466,6 +466,35 @@ def _rolling_std(data, half_window, ddof=0):
     return np.sqrt(squared_diff / (window_size - ddof))
 
 
+def _padded_rolling_std(data, half_window, ddof=0):
+    """
+    Convenience function that pads data before performing rolling standard deviation calculation.
+
+    Parameters
+    ----------
+    data : array-like
+        The array for the calculation.
+    half_window : int
+        The half-window the rolling calculation. The full number of points for each
+        window is ``half_window * 2 + 1``.
+    ddof : int, optional
+        The delta degrees of freedom for the calculation. Default is 0.
+
+    Returns
+    -------
+    numpy.ndarray
+        The array of the rolling standard deviation for each window.
+
+    Notes
+    -----
+    Reflect the data since the standard deviation calculation requires noisy data to work.
+
+    """
+    padded_data = np.pad(data, half_window, 'reflect')
+    rolling_std = _rolling_std(padded_data, half_window, ddof)[half_window:-half_window]
+    return rolling_std
+
+
 def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
                      fill_half_window=3, num_std=1.1, smooth_half_window=None,
                      weights=None, **pad_kwargs):
@@ -538,9 +567,8 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
     if smooth_half_window is None:
         smooth_half_window = half_window
 
-    # use dof=1 since sampling a subset of the data; reflect the data since the
-    # standard deviation calculation requires noisy data to work
-    std = _rolling_std(np.pad(y, half_window, 'reflect'), half_window, 1)[half_window:-half_window]
+    # use dof=1 since sampling a subset of the data
+    std = _padded_rolling_std(y, half_window, 1)
     median = np.median(std)
     median_2 = np.median(std[std < 2 * median])  # TODO make the 2 an input?
     while median_2 / median < 0.999:  # TODO make the 0.999 an input?
@@ -588,11 +616,12 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
         in the data. Default is None, which will use half of the value from
         :func:`.optimize_window`, which is not always a good value, but at least scales
         with the number of data points and gives a starting point for tuning the parameter.
-    threshold : float, optional
+    threshold : float of Callable, optional
         All points in the rolling standard deviation below `threshold` will be considered
         as baseline. Higher values will assign more points as baseline. Default is None,
         which will set the threshold as the 15th percentile of the rolling standard
-        deviation.
+        deviation. If `threshold` is Callable, it should take the rolling standard deviation
+        as the only argument and output a float.
     min_fwhm : int, optional
         After creating the interpolated baseline, any region where the baseline
         is greater than the data for `min_fwhm` consecutive points will have an additional
@@ -650,17 +679,21 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
     if min_fwhm is None:
         min_fwhm = 2 * half_window
 
-    # use dof=1 since sampling a subset of the data; reflect the data since the
-    # standard deviation calculation requires noisy data to work
-    std = _rolling_std(np.pad(y, half_window, 'reflect'), half_window, 1)[half_window:-half_window]
+    # use dof=1 since sampling a subset of the data
+    std = _padded_rolling_std(y, half_window, 1)
     if threshold is None:
         # scales fairly well with y and gaurantees baseline segments are created;
         # picked 15% since it seems to work better than 10%
-        threshold = np.percentile(std, 15)
+        threshold_val = np.percentile(std, 15)
+    elif callable(threshold):
+        threshold_val = threshold(std)
+    else:
+        threshold_val = threshold
 
     # reference did not mention removing single points, but do so anyway to
     # be more thorough
-    mask = _remove_single_points(std < threshold) & weight_array
+    mask = _remove_single_points(std < threshold_val)
+    np.logical_and(mask, weight_array, out=mask)
     rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
 
     mask_sum = mask.sum()

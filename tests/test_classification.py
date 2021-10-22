@@ -77,6 +77,30 @@ def test_rolling_std(y_scale, half_window, ddof):
     assert_allclose(calc_rolled_std[compare_slice], actual_rolled_std[compare_slice])
 
 
+@pytest.mark.parametrize('y_scale', (1, 1e-9, 1e9))
+@pytest.mark.parametrize('half_window', (1, 3, 10, 30))
+@pytest.mark.parametrize('ddof', (0, 1))
+def test_padded_rolling_std(y_scale, half_window, ddof):
+    """
+    Test the padded rolling standard deviation calculation against a nieve implementation.
+
+    Also tests different y-scales while using the same noise level, since some
+    implementations have numerical instability when values are small/large compared
+    to the standard deviation.
+
+    """
+    x = np.arange(100)
+    y = y_scale * np.sin(x) + np.random.normal(0, 0.2, x.size)
+    # only compare within [half_window:-half_window] since the calculation
+    # can have slightly different values at the edges
+    compare_slice = slice(half_window, -half_window)
+
+    actual_rolled_std = _nieve_rolling_std(y, half_window, ddof)
+    calc_rolled_std = classification._padded_rolling_std(y, half_window, ddof)
+
+    assert_allclose(calc_rolled_std[compare_slice], actual_rolled_std[compare_slice])
+
+
 @pytest.mark.parametrize(
     'mask_and_expected',
     (
@@ -360,6 +384,11 @@ class TestFastChrom(AlgorithmTester):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('threshold', (None, 1, lambda std: np.mean(std)))
+    def test_threshold_inputs(self, threshold):
+        """Ensures a callable threshold value works."""
+        self._call_func(self.y, self.x, half_window=20, threshold=threshold)
 
 
 class TestCwtBR(AlgorithmTester):
