@@ -84,7 +84,10 @@ class TestCollabPLS(AlgorithmTester):
 
     @pytest.mark.parametrize(
         'method',
-        ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa')
+        (
+            'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
+            'derpsalsa'
+        )
     )
     def test_all_methods(self, method):
         """Ensures all available methods work."""
@@ -148,21 +151,24 @@ class TestOptimizeExtendedRange(AlgorithmTester):
 
     @pytest.mark.parametrize(
         'method',
-        ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
-         'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg', 'goldindec')
+        (
+            'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
+            'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg', 'goldindec',
+            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'dietrich', 'cwt_br', 'fabc'
+        )
     )
     def test_all_methods(self, method):
         """Tests all methods that should work with optimize_extended_range."""
         if method == 'loess':
             # reduce number of calculations for loess since it is much slower
             kwargs = {'min_value': 1, 'max_value': 2}
-        elif 'poly' not in method:
-            # speed up whittaker tests
-            kwargs = {'min_value': 4}
         else:
             kwargs = {}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
-        self._call_func(self.y, self.x, method=method, height_scale=0.1, **kwargs)
+        self._call_func(
+            self.y, self.x, method=method, height_scale=0.1,
+            pad_kwargs={'extrapolate_window': 100}, **kwargs
+        )
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""

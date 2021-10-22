@@ -13,7 +13,7 @@ from math import ceil
 
 import numpy as np
 
-from . import morphological, polynomial, whittaker
+from . import classification, morphological, polynomial, spline, whittaker
 from ._algorithm_setup import _setup_polynomial, _yx_arrays
 from .utils import _check_scalar, _get_edges, gaussian
 
@@ -141,7 +141,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
     method : str, optional
-        A string indicating the Whittaker-smoothing-based or polynomial method
+        A string indicating the Whittaker-smoothing-based, polynomial, or spline method
         to use for fitting the baseline. Default is 'asls'.
     side : {'both', 'left', 'right'}, optional
         The side of the measured data to extend. Default is 'both'.
@@ -230,8 +230,10 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     if side not in ('left', 'right', 'both'):
         raise ValueError('side must be "left", "right", or "both"')
 
-    fit_func, func_module = _get_function(method, (whittaker, polynomial, morphological))
-    if func_module == 'polynomial':
+    fit_func, func_module = _get_function(
+        method, (whittaker, polynomial, morphological, spline, classification)
+    )
+    if func_module == 'polynomial' or method in ('dietrich', 'cwt_br'):
         if any(not isinstance(val, int) for val in (min_value, max_value, step)):
             raise TypeError((
                 'min_value, max_value, and step must all be integers when'
@@ -290,7 +292,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         known_background = np.concatenate((known_background, added_left))
         lower_bound += added_window
 
-    if method == 'iasls' or func_module == 'polynomial':
+    if func_module == 'polynomial' or method in ('iasls', 'dietrich', 'cwt_br'):
         method_kwargs['x_data'] = fit_x_data
 
     added_len = 2 * added_window if side == 'both' else added_window
