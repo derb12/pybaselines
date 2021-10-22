@@ -61,10 +61,15 @@ class TestMixtureModel(AlgorithmTester):
 
     func = spline.mixture_model
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('weight_bool', (True, False))
+    def test_unchanged_data(self, data_fixture, weight_bool):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
+        if weight_bool:
+            weights = np.ones_like(y)
+        else:
+            weights = None
+        self._test_unchanged_data(data_fixture, y, None, y, weights=weights)
 
     def test_output(self):
         """Ensures that the output has the desired format."""

@@ -293,7 +293,14 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
     weight_matrix = diags(weight_array)
-    if weights is None:
+    if weights is not None:
+        coef = spsolve(
+            spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
+            spl_basis.T * (weight_array * y),
+            permc_spec='NATURAL'
+        )
+        baseline = spl_basis * coef
+    else:
         # perform 2 iterations: first is a least-squares fit and second is initial
         # reweighted fit; 2 fits are needed to get weights to have a decent starting
         # distribution for the expectation-maximization
