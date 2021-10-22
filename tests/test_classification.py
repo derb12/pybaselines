@@ -102,26 +102,24 @@ def test_padded_rolling_std(y_scale, half_window, ddof):
 
 
 @pytest.mark.parametrize(
-    'mask_and_expected',
+    'inputs_and_expected',
     (
-        [[0, 1, 1, 0, 1, 1, 0], [0, 1, 1, 1, 1, 1, 0]],
-        [[0, 1, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0, 0]],
-        [[1, 0, 1, 1, 0, 0, 1], [0, 0, 1, 1, 0, 0, 0]],
-        [[0, 1, 1, 0, 0, 1, 1], [0, 1, 1, 0, 0, 1, 1]]
+        [2, [0, 1, 1, 0, 1, 1, 0], [0, 1, 1, 1, 1, 1, 0]],
+        [2, [0, 1, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0, 0]],
+        [3, [1, 0, 1, 1, 1, 0, 0, 1, 1], [0, 0, 1, 1, 1, 0, 0, 1, 1]],
+        [2, [0, 1, 1, 0, 0, 1, 1], [0, 1, 1, 0, 0, 1, 1]],
+        [
+            5, [1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ]
     )
 )
-def test_remove_single_points(mask_and_expected):
-    """
-    Test that _remove_single_points fills holes in binary mask.
+def test_refine_mask(inputs_and_expected):
+    """Test that _refine_mask fills holes in binary mask."""
+    min_length, mask, expected_mask = inputs_and_expected
+    output_mask = classification._refine_mask(mask, min_length)
 
-    Lone True values should be removed before lone False values, and
-    the edges should convert to False unless there are two True values.
-
-    """
-    mask, expected_mask = np.asarray(mask_and_expected, bool)
-    output_mask = classification._remove_single_points(mask)
-
-    assert_array_equal(expected_mask, output_mask)
+    assert_array_equal(np.asarray(expected_mask, bool), output_mask)
 
 
 @pytest.mark.parametrize(
