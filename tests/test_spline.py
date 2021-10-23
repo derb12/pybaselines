@@ -154,12 +154,14 @@ class TestCornerCutting(AlgorithmTester):
         self._test_output(self.y, self.y, checked_keys=())
 
     def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
+        """Ensures that function output is similar when no x is input."""
         self._test_algorithm_no_x(
-            with_args=(self.y, self.x), without_args=(self.y,), rtol=5e-6
+            with_args=(self.y, self.x), without_args=(self.y,), rtol=1e-3
         )
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        self._test_algorithm_list(
+            array_args=(self.y,), list_args=(y_list,), assertion_kwargs={'rtol': 1e-5}
+        )

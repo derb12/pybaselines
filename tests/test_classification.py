@@ -420,7 +420,7 @@ class TestFabc(AlgorithmTester):
     def test_unchanged_data(self, data_fixture):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
+        self._test_unchanged_data(data_fixture, y, None, y)
 
     def test_output(self):
         """Ensures that the output has the desired format."""
