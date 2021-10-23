@@ -9,7 +9,7 @@ Created on March 20, 2021
 from unittest import mock
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_almost_equal
+from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import _algorithm_setup, morphological
@@ -214,7 +214,7 @@ class TestRollingBall(AlgorithmTester):
         with pytest.warns(DeprecationWarning):
             baseline_2 = self._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
 
-        assert_array_almost_equal(baseline_1, baseline_2)
+        assert_allclose(baseline_1, baseline_2)
 
     def test_array_smooth_half_window_output(self):
         """
@@ -230,7 +230,7 @@ class TestRollingBall(AlgorithmTester):
         # avoid the edges since the two smoothing techniques will give slighly
         # different  results on the edges
         data_slice = slice(1, -1)
-        assert_array_almost_equal(baseline_1[data_slice], baseline_2[data_slice])
+        assert_allclose(baseline_1[data_slice], baseline_2[data_slice])
 
     def test_different_array_half_window_output(self):
         """Ensures that the output is different when using changing window sizes."""

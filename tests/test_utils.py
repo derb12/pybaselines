@@ -7,9 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import (
-    assert_allclose, assert_almost_equal, assert_array_almost_equal, assert_array_equal
-)
+from numpy.testing import assert_allclose, assert_almost_equal, assert_array_equal
 import pytest
 from scipy.ndimage import grey_opening
 from scipy.sparse import identity
@@ -30,9 +28,9 @@ def _x_data():
 @pytest.mark.parametrize('height', [0.1, 1, 10])
 def test_gaussian(_x_data, height, center, sigma):
     """Ensures that gaussian function in pybaselines.utils is correct."""
-    assert_array_almost_equal(
+    assert_allclose(
         utils.gaussian(_x_data, height, center, sigma),
-        gaussian(_x_data, height, center, sigma)
+        gaussian(_x_data, height, center, sigma), 1e-12, 1e-12
     )
 
 
@@ -156,7 +154,7 @@ def test_interp_inplace():
     # output should be the same object as the input y array
     assert output is y_calc
 
-    assert_array_almost_equal(y_calc, y_actual)
+    assert_allclose(y_calc, y_actual, 1e-12)
 
 
 def test_interp_inplace_endpoints():
@@ -170,7 +168,7 @@ def test_interp_inplace_endpoints():
 
     # output should be the same object as the input y array
     assert output is y_calc
-    assert_array_almost_equal(y_calc[1:-1], y_actual[1:-1])
+    assert_allclose(y_calc[1:-1], y_actual[1:-1], 1e-12)
     # first and last values should still be 0
     assert y_calc[0] == 0
     assert y_calc[-1] == 0
@@ -180,7 +178,7 @@ def test_interp_inplace_endpoints():
     y_calc[0] = y_actual[0]
     utils._interp_inplace(x, y_calc, None, y_actual[-1])
 
-    assert_array_almost_equal(y_calc[:-1], y_actual[:-1])
+    assert_allclose(y_calc[:-1], y_actual[:-1], 1e-12)
     assert y_calc[-1] == 0
 
     # specify only the left point
@@ -188,7 +186,7 @@ def test_interp_inplace_endpoints():
     y_calc[-1] = y_actual[-1]
     utils._interp_inplace(x, y_calc, y_actual[0])
 
-    assert_array_almost_equal(y_calc[1:], y_actual[1:])
+    assert_allclose(y_calc[1:], y_actual[1:], 1e-12)
     assert y_calc[0] == 0
 
 

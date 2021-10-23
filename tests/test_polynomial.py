@@ -9,7 +9,7 @@ Created on March 20, 2021
 from math import ceil
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import polynomial
@@ -254,7 +254,7 @@ class TestPenalizedPoly(AlgorithmTester):
             threshold=1e10, weights=weights
         )[0]
 
-        assert_array_almost_equal(poly_baseline, penalized_poly_1)
+        assert_allclose(poly_baseline, penalized_poly_1, 1e-10)
 
         modpoly_baseline = polynomial.modpoly(
             self.y, self.x, poly_order, tol=tol, weights=weights, use_original=True
@@ -264,7 +264,7 @@ class TestPenalizedPoly(AlgorithmTester):
             threshold=0, weights=weights, alpha_factor=1, tol=tol
         )[0]
 
-        assert_array_almost_equal(modpoly_baseline, penalized_poly_2)
+        assert_allclose(modpoly_baseline, penalized_poly_2, 1e-10)
 
     def test_output_coefs(self):
         """Ensures the output coefficients can correctly reproduce the baseline."""
@@ -493,7 +493,7 @@ class TestLoess(AlgorithmTester):
                 reverse_y, reverse_x, use_threshold=use_threshold, use_original=False
             )[0]
 
-            assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+            assert_allclose(regular_inputs_result, reverse_inputs_result[::-1], 1e-10)
 
             regular_inputs_result = self._call_func(
                 self.y, self.x, use_threshold=use_threshold, use_original=True
@@ -502,7 +502,7 @@ class TestLoess(AlgorithmTester):
                 reverse_y, reverse_x, use_threshold=use_threshold, use_original=True
             )[0]
 
-            assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+            assert_allclose(regular_inputs_result, reverse_inputs_result[::-1], 1e-10)
 
         else:
             regular_inputs_result = self._call_func(
@@ -512,7 +512,7 @@ class TestLoess(AlgorithmTester):
                 reverse_y, reverse_x, use_threshold=use_threshold
             )[0]
 
-            assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+            assert_allclose(regular_inputs_result, reverse_inputs_result[::-1], 1e-12)
 
     @pytest.mark.parametrize('fraction', (-0.1, 1.1, 5))
     def test_wrong_fraction_fails(self, fraction):

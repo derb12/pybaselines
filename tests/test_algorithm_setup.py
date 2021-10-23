@@ -7,7 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.sparse import dia_matrix
 
@@ -89,7 +89,7 @@ def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, upper_only, re
     if not reverse_diags:
         desired_diagonals = desired_diagonals[::-1]
 
-    assert_array_almost_equal(diagonal_data, desired_diagonals)
+    assert_allclose(diagonal_data, desired_diagonals, 1e-10)
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
@@ -275,11 +275,11 @@ def test_setup_polynomial_vandermonde(small_data, vander_enum, include_pinv):
         _, x, weight_array, _, vander_matrix = output
 
     desired_vander = np.polynomial.polynomial.polyvander(x, poly_order)
-    assert_array_almost_equal(desired_vander, vander_matrix)
+    assert_allclose(desired_vander, vander_matrix, 1e-12)
 
     if include_pinv:
         desired_pinv = np.linalg.pinv(np.sqrt(weight_array)[:, np.newaxis] * desired_vander)
-        assert_array_almost_equal(desired_pinv, pinv_matrix)
+        assert_allclose(desired_pinv, pinv_matrix, 1e-10)
 
 
 @pytest.mark.parametrize('array_enum', (0, 1))

@@ -7,7 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import optimizers, polynomial, whittaker
@@ -132,7 +132,7 @@ class TestOptimizeExtendedRange(AlgorithmTester):
             reverse_y, reverse_x, side=side, method_kwargs=method_kwargs
         )[0]
 
-        assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+        assert_allclose(regular_inputs_result, reverse_inputs_result[::-1], 1e-10)
         # also ensure the input weights are unchanged when sorting
         assert_array_equal(original_weights, input_weights)
         # ensure method_kwargs dict was unchanged
