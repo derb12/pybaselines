@@ -61,7 +61,7 @@ def _refine_mask(mask, min_length=2):
     # do not use border_value=1 since that automatically makes the borders True and
     # extends the True section by half_window on each side
     output = binary_opening(
-        np.pad(mask, half_length, constant_values=True), np.ones(min_length, bool)
+        np.pad(mask, half_length, 'constant', constant_values=True), np.ones(min_length, bool)
     )[half_length:len(mask) + half_length]
 
     # convert lone False values to True

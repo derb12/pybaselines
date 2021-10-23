@@ -287,7 +287,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
             method_kwargs['weights'] = np.pad(
                 method_kwargs['weights'][sort_order],
                 [0 if side == 'right' else added_window, 0 if side == 'left' else added_window],
-                constant_values=1
+                'constant', constant_values=1
             )
     max_x = x.max()
     min_x = x.min()

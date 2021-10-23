@@ -553,11 +553,13 @@ def _abs_diff(x, smooth_half_window=0):
         smooth_window = 2 * smooth_half_window + 1
         # TODO should mode be constant with cval=0 since derivative should be 0, or
         # does reflect give better results?
+        # TODO should probably just smooth the first derivative and compute the second
+        # derivative from the smoothed value rather than smoothing both.
         d2_x = np.abs(uniform_filter1d(d1_x[1:] - d1_x[:-1], smooth_window))
-        d1_x = np.abs(uniform_filter1d(d1_x, smooth_window, output=d1_x), out=d1_x)
+        uniform_filter1d(d1_x, smooth_window, output=d1_x)
     else:
         d2_x = np.abs(d1_x[1:] - d1_x[:-1])
-        d1_x = np.abs(d1_x, out=d1_x)
+    np.abs(d1_x, out=d1_x)
 
     return d1_x, d2_x
 
