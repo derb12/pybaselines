@@ -18,6 +18,7 @@ the baselines of experimental data.
    installation
    quickstart
    algorithms/index
+   examples/index
    api/index
    contributing
    changes

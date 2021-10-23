@@ -48,6 +48,12 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
+# sphinx-gallery output
+docs/examples/
+
+# sphinx-autoapi output
+docs/api
+
 # PyBuilder
 target/
 
