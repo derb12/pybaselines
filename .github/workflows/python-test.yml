@@ -19,7 +19,7 @@ on:
     - 'tests/**'
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-latest
     strategy:
@@ -39,16 +39,17 @@ jobs:
     - name: Install required dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install numpy>=1.14 scipy>=0.17 pytest
+        python -m pip install numpy>=1.14 scipy>=0.17 pytest
 
     # Only lint a single version; pick the most recent stable version
     - name: Install linting dependencies
+      id: install-linters
       if: matrix.python-version == '3.9'
       run: |
-        pip install flake8 flake8-comprehensions flake8-docstrings
+        python -m pip install flake8 flake8-comprehensions flake8-docstrings
 
     - name: Lint
-      if: matrix.python-version == '3.9'
+      if: steps.intall-linters.conclusion == 'success'
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
@@ -56,17 +57,32 @@ jobs:
         flake8 . --count --exit-zero --statistics
 
     - name: Test with required dependencies
-      run: pytest
+      run: pytest .
 
     - name: Install optional dependencies
-      run: pip install pentapy>=1.0 numba>=0.45
+      run: python -m pip install pentapy>=1.0 numba>=0.45
 
     - name: Test with optional dependencies
-      run: pytest
+      run: pytest .
 
-    # Ensure minimum versions work
+
+  test-min-dependencies:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.6']
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
     - name: Install minimum dependencies
-      if: matrix.python-version == '3.6'
       # Use numpy 1.14.5 rather than 1.14.0 since the optional
       # dependency pentapy requires numpy>=1.14.5; no relevant difference
       # between 1.14.0 and 1.14.5.
@@ -74,24 +90,15 @@ jobs:
       # to officially support python 3.6; don't want to have to manually
       # build scipy, so just use the 0.19 wheel; no relevant differences
       # between 0.17 and 0.19.
-      # Remove optional dependencies beforehand.
       run: |
-        pip uninstall numba pentapy
-        pip install numpy==1.14.5 scipy==0.19.0
+        python -m pip install --upgrade pip
+        python -m pip install numpy==1.14.5 scipy==0.19.0 pytest
 
     - name: Test with minimum required dependencies
-      if: matrix.python-version == '3.6'
-      run: pytest
+      run: pytest .
 
     - name: Install minimum optional dependencies
-      if: matrix.python-version == '3.6'
-      # Explicitly specify llvmlite version for numba so it doesn't
-      # use the cached version from step 'Install optional dependencies'.
-      # TODO should probably just create a different environment for
-      # testing minimum dependencies.
-      run: |
-        pip install pentapy==1.0 numba==0.45 llvmlite==0.30.0
+      run: python -m pip install pentapy==1.0 numba==0.45
 
     - name: Test with minimum optional dependencies
-      if: matrix.python-version == '3.6'
-      run: pytest
+      run: pytest .
