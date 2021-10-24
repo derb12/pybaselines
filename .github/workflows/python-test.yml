@@ -39,7 +39,7 @@ jobs:
     - name: Install required dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install numpy>=1.14 scipy>=0.17 pytest
+        python -m pip install numpy>=1.14 scipy>=1.0 pytest
 
     # Only lint a single version; pick the most recent stable version
     - name: Install linting dependencies
@@ -86,13 +86,9 @@ jobs:
       # Use numpy 1.14.5 rather than 1.14.0 since the optional
       # dependency pentapy requires numpy>=1.14.5; no relevant difference
       # between 1.14.0 and 1.14.5.
-      # Use scipy 0.19 rather than 0.17 since 0.19 is the first version
-      # to officially support python 3.6; don't want to have to manually
-      # build scipy, so just use the 0.19 wheel; no relevant differences
-      # between 0.17 and 0.19.
       run: |
         python -m pip install --upgrade pip
-        python -m pip install numpy==1.14.5 scipy==0.19.0 pytest
+        python -m pip install numpy==1.14.5 scipy==1.0 pytest
 
     - name: Test with minimum required dependencies
       run: pytest .
