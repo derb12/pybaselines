@@ -69,7 +69,7 @@ def _shift_rows(matrix, diagonals=2):
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
-    Fits the baseline using asymmetric least squared (AsLS) fitting.
+    Fits the baseline using asymmetric least squares (AsLS) fitting.
 
     Parameters
     ----------

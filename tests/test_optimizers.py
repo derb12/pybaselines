@@ -10,7 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import optimizers, polynomial, whittaker
+from pybaselines import optimizers, polynomial, whittaker, utils
 
 from .conftest import AlgorithmTester, get_data
 
@@ -213,6 +213,52 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         """Ensures a warning is emitted for passing kwargs meant for the fitting function."""
         with pytest.warns(DeprecationWarning):
             self._call_func(self.y, self.x, method='asls', lam=1e8)
+
+
+@pytest.mark.parametrize(
+    'baseline_ptp', (0.01, 0.1, 0.3, 0.5, 1, 5, 10, 40, 100, 200, 300, 500, 600, 1000)
+)
+def test_determine_polyorders(baseline_ptp):
+    """Ensures the correct polynomials are selected based on the signal to baseline ratio."""
+    x = np.linspace(0, 100, 1000)
+    # set y such that max(y) - min(y) is ~ 1 so that
+    # ptp(baseline) / ptp(y) ~= ptp(baseline)
+    y = (
+        utils.gaussian(x, 1, 25)
+        + utils.gaussian(x, 0.5, 50)
+        + utils.gaussian(x, 1, 75)
+    )
+    # use a linear baseline so that it's easy to set the peak-to-peak of the baseline
+    true_baseline = x * baseline_ptp / (x.max() - x.min())
+
+    # double check to make sure the system is setup as expected
+    assert_allclose(np.ptp(true_baseline), baseline_ptp, 0, 1e-3)
+    assert_allclose(np.ptp(y), 1, 0, 1e-3)
+
+    fit_baseline = polynomial.modpoly(y + true_baseline, x, 1)[0]
+    # sanity check to make sure internal baseline fit was correct
+    assert_allclose(np.ptp(fit_baseline), baseline_ptp, 0, 1e-3)
+
+    if baseline_ptp < 0.2:
+        expected_orders = (1, 2)
+    elif baseline_ptp < 0.75:
+        expected_orders = (2, 3)
+    elif baseline_ptp < 8.5:
+        expected_orders = (3, 4)
+    elif baseline_ptp < 55:
+        expected_orders = (4, 5)
+    elif baseline_ptp < 240:
+        expected_orders = (5, 6)
+    elif baseline_ptp < 517:
+        expected_orders = (6, 7)
+    else:
+        expected_orders = (6, 8)
+
+    output_orders = optimizers._determine_polyorders(
+        y + true_baseline, x, 1, None, polynomial.modpoly
+    )
+
+    assert output_orders == expected_orders
 
 
 class TestAdaptiveMinMax(AlgorithmTester):

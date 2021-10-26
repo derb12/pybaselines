@@ -577,8 +577,8 @@ def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
             np.repeat(inner_knots[-1], spline_degree)
         ))
 
-    num_bases = knots.shape[0] - spline_order
-    basis = np.empty((num_bases, x.shape[0]))
+    num_bases = len(knots) - spline_order
+    basis = np.empty((num_bases, len(x)))
     coefs = np.zeros(num_bases)
     # TODO would be faster to simply calculate the spline coefficients using de Boor's recursive
     # algorithm; does it also give just the coefficients without all the extra zeros? would be

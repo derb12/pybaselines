@@ -387,19 +387,19 @@ def _determine_polyorders(y, x, poly_order, weights, fit_function, **fit_kwargs)
     """
     baseline = fit_function(y, x, poly_order, weights=weights, **fit_kwargs)[0]
     signal = y - baseline
-    basline_to_signal = (baseline.max() - baseline.min()) / (signal.max() - signal.min())
+    baseline_to_signal = (baseline.max() - baseline.min()) / (signal.max() - signal.min())
     # Table 2 in reference
-    if basline_to_signal < 0.2:
+    if baseline_to_signal < 0.2:
         orders = (1, 2)
-    elif basline_to_signal < 0.75:
+    elif baseline_to_signal < 0.75:
         orders = (2, 3)
-    elif basline_to_signal < 8.5:
+    elif baseline_to_signal < 8.5:
         orders = (3, 4)
-    elif basline_to_signal < 55:
+    elif baseline_to_signal < 55:
         orders = (4, 5)
-    elif basline_to_signal < 240:
+    elif baseline_to_signal < 240:
         orders = (5, 6)
-    elif basline_to_signal < 517:
+    elif baseline_to_signal < 517:
         orders = (6, 7)
     else:
         orders = (6, 8)  # not a typo, use 6 and 8 rather than 7 and 8

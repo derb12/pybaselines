@@ -10,7 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import spline
+from pybaselines import spline, utils
 
 from .conftest import AlgorithmTester, get_data
 
@@ -56,6 +56,56 @@ def test_assign_weights(num_bins):
     assert_allclose(weights, expected_weights)
 
 
+@pytest.mark.parametrize('fraction_pos', (0, 0.4))
+@pytest.mark.parametrize('fraction_neg', (0, 0.3))
+def test_mixture_pdf(fraction_pos, fraction_neg):
+    """Ensures the probability density function for the Gaussian-uniform mixture model is right."""
+    x = np.linspace(-5, 10, 1000)
+    actual_sigma = 0.5
+    sigma = np.log10(actual_sigma)
+    # the gaussian should be area-normalized, so set height accordingly
+    height = 1 / (actual_sigma * np.sqrt(2 * np.pi))
+    expected_gaussian = utils.gaussian(x, height, 0, actual_sigma)
+
+    fraction_gaus = 1 - fraction_pos - fraction_neg
+    if fraction_pos > 0:
+        pos_uniform = np.zeros_like(x)
+        pos_uniform[x >= 0] = 1 / abs(x.max())
+    elif fraction_neg > 0:
+        pos_uniform = None
+    else:
+        pos_uniform = 0
+
+    if fraction_neg > 0:
+        neg_uniform = np.zeros_like(x)
+        neg_uniform[x <= 0] = 1 / abs(x.min())
+    elif fraction_pos > 0:
+        neg_uniform = None
+    else:
+        neg_uniform = 0
+
+    output_pdf = spline._mixture_pdf(
+        x, fraction_gaus, sigma, fraction_pos, pos_uniform, neg_uniform
+    )
+
+    # now ensure neg_uniform and pos_uniform are not None
+    if pos_uniform is None:
+        pos_uniform = 0
+    if neg_uniform is None:
+        neg_uniform = 0
+
+    expected_pdf = (
+        fraction_gaus * expected_gaussian
+        + fraction_pos * pos_uniform
+        + fraction_neg * neg_uniform
+    )
+
+    assert_allclose(expected_pdf, output_pdf, 1e-12, 1e-12)
+    # ensure pdf has an area of 1, ie total probability is 100%; accuracy is limited
+    # by number of x-values
+    assert_allclose(1.0, np.trapz(output_pdf, x), 1e-3)
+
+
 class TestMixtureModel(AlgorithmTester):
     """Class for testing mixture_model baseline."""
 
@@ -71,9 +121,15 @@ class TestMixtureModel(AlgorithmTester):
             weights = None
         self._test_unchanged_data(data_fixture, y, None, y, weights=weights)
 
-    def test_output(self):
+    @pytest.mark.parametrize('symmetric', (False, True))
+    def test_output(self, symmetric):
         """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+        if symmetric:
+            # make data with both positive and negative peaks; roll so peaks are not overlapping
+            y = np.roll(self.y, -50) - np.roll(self.y, 50)
+        else:
+            y = self.y
+        self._test_output(y, y, symmetric=symmetric, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
