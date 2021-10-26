@@ -20,6 +20,8 @@ right edges, Gaussian peaks are added to these baselines, and then the original
 data plus the extensions are input into the indicated Whittaker or polynomial function.
 An example of data with added baseline and Gaussian peaks is shown below.
 
+.. _extending-data-explanation:
+
 .. plot::
    :align: center
 

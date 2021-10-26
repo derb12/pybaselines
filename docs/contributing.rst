@@ -35,8 +35,9 @@ When submitting a pull request, follow similar procedures for a feature request,
 * Explain in detail how it works.
 * Keep the scope as narrow as possible to make it easier to incorporate.
 
-Setup Development Environment
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set Up Development Environment
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To clone the GitHub repository and install the necessary libraries for development:
 
@@ -45,31 +46,71 @@ To clone the GitHub repository and install the necessary libraries for developme
     git clone https://github.com/derb12/pybaselines.git
     pip -r install pybaselines/requirements/requirements-development.txt
 
+All sections below assume the above commands were ran.
 
 Style Guidelines
 ^^^^^^^^^^^^^^^^
 
 pybaselines has the following guidelines (note: if you have any questions/concerns about
 these guidelines, please feel free to open an issue or email the author; the guidelines
-are meant to help keep a consistent style, not to discourage contributing :) )
+are meant to help keep a consistent style, not to discourage contributing :) ).
 
 Any new code should follow `PEP 8 <https://www.python.org/dev/peps/pep-0008>`_ standards
 as closely as possible and be fully documented using
 `Numpy style <https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard>`_
-docstrings. To check that new code has the correct formatting, ensure that flake8 and
-flake8-docstrings are installed (they should be if the development environment was setup
-as described in the section above), and run the following command in the terminal while in
-the pybaselines directory:
+docstrings. To check that new code has the correct formatting, run the following command in the
+terminal while in the pybaselines directory:
 
 .. code-block:: console
 
-    flake8 .
+    flake8 . --statistics
 
-If implementing a new feature, please provide documentation discussing its
-implementation, and any necessary tests. To check that tests pass locally, ensure
-that pytest is installed and run the following command in the terminal while in the
-pybaselines directory:
+
+Testing
+^^^^^^^
+
+If implementing a new feature, please add any necessary tests. To check that tests pass
+locally, run the following command in the terminal while in the pybaselines directory:
 
 .. code-block:: console
 
-    pytest . --verbose
+    pytest .
+
+
+The testing steps below are just for reference and not necessary.
+
+If checking coverage (not necessary, but can be helpful to know), install
+`pytest-cov <https://pypi.org/project/pytest-cov>`_ and run:
+
+.. code-block:: console
+
+    pytest . --cov=pybaselines tests/ --cov-report=html
+
+If checking coverage both with and without the optional dependencies, run the
+above command first, install the optional dependencies, and then run:
+
+.. code-block:: console
+
+    pytest . --cov=pybaselines tests/ --cov-report=html --cov-append
+
+which will append the test results with the optional dependencies to the original
+coverage report to show the total code that is covered by the tests.
+
+Documentation
+^^^^^^^^^^^^^
+
+If submitting changes to the documentation or adding documentation for a new feature/algorithm,
+please ensure the documentation builds locally by running the following command while in the
+docs directory:
+
+.. code-block:: console
+
+    make html
+
+and ensure that no warnings or errors are raised during building.
+
+If adding a new baseline algorithm, please add a short summary of the algorithm to the
+appropriate module in the :doc:`algorithms section </algorithms/index>`, and, if possible,
+add a plot showing how the algorithm fits different baselines using matplotlib's ``plot``
+directive. Look at the rst sources for any of the files in the ``pybaselines/docs/algorithms``
+folder for examples.
