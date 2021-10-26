@@ -885,8 +885,8 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     return baseline, {'half_window': half_window, 'weights': weight_array}
 
 
-def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, beta_mult=1.1, gamma_mult=0.909,
-         diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3, **window_kwargs):
+def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, gamma_mult=0.909,
+         diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3, robust_opening=True, **window_kwargs):
     """
     Joint Baseline Correction and Denoising (jbcd) Algorithm.
 
@@ -907,7 +907,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, beta_mult=1.1, 
         values produce smoother baselines. Default is 1e1.
     gamma : float, optional
         The regularization parameter that controls how smooth the signal is. Larger
-        values produce smoother baselines. Default is 1e1.
+        values produce smoother baselines. Default is 1.
     beta_mult : float, optional
         The value that `beta` is multiplied by each iteration. Default is 1.1.
     gamma_mult : float, optional
@@ -921,6 +921,12 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, beta_mult=1.1, 
         The exit criteria for the change in the calculated signal. Default is 1e-2.
     tol_2 : float, optional
         The exit criteria for the change in the calculated baseline. Default is 1e-2.
+    robust_opening : bool, optional
+        If True (default), the opening used to represent the initial baseline is the
+        element-wise minimum between the morphological opening and the average of the
+        morphological erosion and dilation of the opening, similar to :func:`.mor`. If
+        False, the opening is just the morphological opening, as used in the reference.
+        The robust opening typically represents the baseline better.
     **window_kwargs
         Values for setting the half window used for the morphology operations.
         Items include:
@@ -970,12 +976,10 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1e1, beta_mult=1.1, 
     _, penalty_diagonals, _ = _setup_whittaker(
         data, 1, diff_order, None, False, not using_pentapy, using_pentapy
     )
-    window_size = 2 * half_wind + 1
 
-    # TODO could use the average opening similar to mor, since it should be closer to the
-    # actual baseline; could make it a boolean option; also should pad y to remove edge
-    # effects; should pad for all morphological functions
-    opening = grey_opening(y, window_size)
+    opening = grey_opening(y, 2 * half_wind + 1)
+    if robust_opening:
+        opening = np.minimum(opening, _avg_opening(y, half_wind, opening))
 
     baseline_old = opening
     signal_old = y

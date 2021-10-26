@@ -355,10 +355,11 @@ class TestJBCD(AlgorithmTester):
 
     func = morphological.jbcd
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('robust_opening', (False, True))
+    def test_unchanged_data(self, data_fixture, robust_opening):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y, robust_opening=robust_opening)
 
     def test_output(self):
         """Ensures that the output has the desired format."""
