@@ -6,17 +6,7 @@
 name: Test and Lint
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-    - 'pybaselines/**'
-    - 'tests/**'
-
-  pull_request:
-    # always trigger on a pull request, regardless of the branch
-    paths:
-    - 'pybaselines/**'
-    - 'tests/**'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -26,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         # Use strings since yaml considers 3.10 equal to 3.1
-        python-version: ['3.6', '3.7', '3.8', '3.9']
+        python-version: ['3.10']
 
     steps:
     - uses: actions/checkout@v2
@@ -39,64 +29,8 @@ jobs:
     - name: Install required dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install numpy>=1.14 scipy>=1.0 pytest
-
-    # Only lint a single version; pick a recent, stable version
-    - name: Install linting dependencies
-      id: install-linters
-      if: matrix.python-version == '3.9'
-      run: |
-        python -m pip install flake8 flake8-comprehensions flake8-docstrings
-
-    - name: Lint
-      if: steps.install-linters.outcome == 'success'
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings.
-        flake8 . --count --exit-zero --statistics
+        python -m pip install numpy>=1.14 pytest
+        python -m pip install -i https://pypi.anaconda.org/scipy-wheels-nightly/simple scipy
 
     - name: Test with required dependencies
-      run: pytest .
-
-    - name: Install optional dependencies
-      run: python -m pip install pentapy>=1.0 numba>=0.45
-
-    - name: Test with optional dependencies
-      run: pytest .
-
-
-  test-min-dependencies:
-
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.6']
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install minimum dependencies
-      # Use numpy 1.14.5 rather than 1.14.0 since the optional
-      # dependency pentapy requires numpy>=1.14.5; no relevant difference
-      # between 1.14.0 and 1.14.5.
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install numpy==1.14.5 scipy==1.0 pytest
-
-    - name: Test with minimum required dependencies
-      run: pytest .
-
-    - name: Install minimum optional dependencies
-    # Have to pin llvmlite to 0.30.0 since it otherwise gets a more recent
-    # version that is imcompatible with numba v0.45
-      run: python -m pip install pentapy==1.0 numba==0.45 llvmlite==0.30.0
-
-    - name: Test with minimum optional dependencies
       run: pytest .
