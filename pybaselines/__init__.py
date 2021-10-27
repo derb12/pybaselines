@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-pybaselines - A library of baseline correction algorithms.
+pybaselines - A library of baseline correction algorithms
 ==========================================================
 
 pybaselines provides different techniques for fitting baselines to experimental data.
