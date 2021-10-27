@@ -1270,7 +1270,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         )
     sort_x = x_data is not None
     if sort_x:
-        sort_order = np.argsort(x)  # to ensure x is increasing
+        sort_order = np.argsort(x, kind='mergesort')  # to ensure x is increasing
         x = x[sort_order]
         y = y[sort_order]
         weight_array = weight_array[sort_order]
@@ -1336,7 +1336,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         params['coef'] = np.array([_convert_coef(coef, original_domain) for coef in coefs])
 
     if sort_x:
-        baseline = baseline[np.argsort(sort_order)]
+        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
 
     return baseline, params
 

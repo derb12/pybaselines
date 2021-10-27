@@ -618,7 +618,7 @@ class TestLoess(AlgorithmTester):
         # use set values since minimum numpy version is < 1.17
         # once min numpy version is >= 1.17, can use the following to create x and y:
         # random_generator = np.random.default_rng(0)
-        # x = np.sort(random_generator.uniform(0, 10 * np.pi, num_x))
+        # x = np.sort(random_generator.uniform(0, 10 * np.pi, num_x), kind='stable')
         # use a simple sine function since only smoothing the data
         # y = np.sin(x) + random_generator.normal(0, 0.3, num_x)
         x = LOESS_X
@@ -672,7 +672,7 @@ class TestLoess(AlgorithmTester):
         # use set values since minimum numpy version is < 1.17
         # once min numpy version is >= 1.17, can use the following to create x and y:
         # random_generator = np.random.default_rng(0)
-        # x = np.sort(random_generator.uniform(0, 10 * np.pi, num_x))
+        # x = np.sort(random_generator.uniform(0, 10 * np.pi, num_x), kind='stable')
         # use a simple sine function since only smoothing the data
         # y = np.sin(x) + random_generator.normal(0, 0.3, num_x)
         x = LOESS_X

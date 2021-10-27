@@ -596,7 +596,7 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
         half_window = optimize_window(y)
     sort_x = x_data is not None
     if sort_x:
-        sort_order = np.argsort(x)
+        sort_order = np.argsort(x, kind='mergesort')
         x = x[sort_order]
         y = y[sort_order]
     max_x = x.max()
@@ -660,6 +660,6 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
 
     baseline = smoother_array[data_slice][lower_bound:upper_max]
     if sort_x:
-        baseline = baseline[np.argsort(sort_order)]
+        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
 
     return baseline, {'tol_history': tol_history[:i + 1]}

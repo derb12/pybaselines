@@ -278,7 +278,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         method_kwargs.update(kwargs)
     sort_x = x_data is not None
     if sort_x:
-        sort_order = np.argsort(x)  # to ensure x is increasing
+        sort_order = np.argsort(x, kind='mergesort')  # to ensure x is increasing
         x = x[sort_order]
         y = y[sort_order]
         if 'weights' in method_kwargs:
@@ -302,16 +302,20 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
     added_gaussian = gaussian(
         np.linspace(-added_window / 2, added_window / 2, added_window),
-        height_scale * y.max(), 0, added_window * sigma_scale
+        height_scale * abs(y.max()), 0, added_window * sigma_scale
     )
     if side in ('right', 'both'):
-        added_x = np.linspace(max_x, max_x + x_range * (width_scale / 2), added_window)
+        added_x = np.linspace(
+            max_x, max_x + x_range * (width_scale / 2), added_window + 1
+        )[1:]
         fit_x_data = np.concatenate((fit_x_data, added_x))
         fit_data = np.concatenate((fit_data, added_gaussian + added_right))
         known_background = added_right
         upper_bound += added_window
     if side in ('left', 'both'):
-        added_x = np.linspace(min_x - x_range * (width_scale / 2), min_x, added_window)
+        added_x = np.linspace(
+            min_x - x_range * (width_scale / 2), min_x, added_window + 1
+        )[:-1]
         fit_x_data = np.concatenate((added_x, fit_x_data))
         fit_data = np.concatenate((added_gaussian + added_left, fit_data))
         known_background = np.concatenate((known_background, added_left))
@@ -349,7 +353,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     )
 
     if sort_x:
-        baseline = baseline[np.argsort(sort_order)]
+        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
 
     return baseline, params
 
