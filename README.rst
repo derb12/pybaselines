@@ -6,6 +6,10 @@ pybaselines
     :target: https://pypi.python.org/pypi/pybaselines
     :alt: Most Recent Version
 
+.. image:: https://github.com/derb12/pybaselines/actions/workflows/tests/badge.svg
+    :target: https://github.com/derb12/pybaselines/actions
+    :alt: GitHub Actions test status
+
 .. image:: https://readthedocs.org/projects/pybaselines/badge/?version=latest
     :target: https://pybaselines.readthedocs.io
     :alt: Documentation Status

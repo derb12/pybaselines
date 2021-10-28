@@ -3,7 +3,7 @@
 
 # Will only trigger if there is a change within pybaselines or tests directories.
 
-name: Test and Lint
+name: tests
 
 on:
   push:
