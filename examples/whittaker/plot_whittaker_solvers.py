@@ -14,8 +14,8 @@ it takes when solving the system using sparse matrices rather than the banded ma
 is compared, since most other libraries use the sparse solution.
 
 Compared to the time required to solve using sparse matrices, Scipy's banded solver
-is ~50-70% faster and pentapy's banded solver is ~70-90% faster, reducing the
-computation time by about an order of magnitude.
+is ~50-70% faster and pentapy's banded solver is ~70-90% faster, ultimately reducing
+the computation time by about an order of magnitude.
 
 """
 

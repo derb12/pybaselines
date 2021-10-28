@@ -19,8 +19,7 @@ pybaselines
     :alt: BSD 3-clause license
 
 
-pybaselines is a library of baseline correction algorithms to help estimate
-the baselines of experimental data.
+pybaselines is a library of algorithms for the baseline correction of experimental data.
 
 * For Python 3.6+
 * Open Source: BSD 3-Clause License

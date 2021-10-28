@@ -2,6 +2,116 @@
 Changelog
 =========
 
+Version 0.7.0 (2021-10-28)
+--------------------------
+
+This is a minor version with new features, bug fixes, deprecations,
+and documentation improvements.
+
+Notice: beginning in version 0.8.0, a DeprecationWarning will be emitted
+when using any function from the pybaselines.window module. Use the
+pybaselines.smooth module instead.
+
+New Features
+~~~~~~~~~~~~
+
+* Added the range independent algorithm (ria) to pybaselines.smooth, which extends
+  the left and/or right edges, similar to optimizers.optimize_extended_range, and
+  iteratively smooths until the area of the extended regions is recovered.
+* Added the joint baseline correction and denoising algorithm (jbcd) to
+  pybaselines.morphological, which uses regularized least-squares fitting combined
+  with morphological operations to simultaneously obtain the baseline and denoised signal.
+* Added the iterative polynomial smoothing algorithm (ipsa) to pybaselines.smooth, which
+  iteratively smooths the input data using a second-order Savitzky–Golay filter.
+* Added the continuous wavelet transform baseline recognition algorithm (cwt_br) to
+  pybaselines.classification, which uses a continuous wavelet transform to classify
+  the baseline points and iterative polynomial fitting to create the baseline.
+* Added the fully automatic baseline correction algorithm (fabc) to
+  pybaselines.classification, which is very similar to classification.dietrich, except
+  that it uses a continuous wavelet transform to estimate the derivative and fits the
+  baseline using Whittaker smoothing.
+* Added a `min_length` parameter to most classification algorithms, which allows
+  discarding any values in the baseline mask where the number of consecutive points
+  designated as baseline is less than `min_length`, making the algorithms more robust.
+* The `threshold` for polynomial.fastchrom can now be a Callable to allow the user to
+  define their own thresholding functions based on the rolling standard deviation
+  distribution.
+* Allow optimizers.optimize_extended_range to use spline (mixture_model, irsqr)
+  and classification (dietrich, cwt_br, fabc) functions.
+* Allow optimizers.collab_pls to use spline functions (mixture_model, irsqr).
+
+Bug Fixes
+~~~~~~~~~
+
+* Increased the minimum scipy version to 1.0 in order to use the BLAS function
+  gbmv (dot product of a banded matrix and vector) for misc.beads.
+* Use stable sorting when sorting the x-values for polynomial.loess and
+  optimizers.optimize_extended_range to ensure that the sorting is correct.
+* Fixed an issue when specifying `output` with scipy.ndimage.uniform_filter1d in scipy
+  versions before version 1.1.0.
+* Fixed an issue using `dtype` with numpy.arange in a numba jit wrapped function, which
+  was not introduced until numba version 0.47.
+* Fixed an indexing error in spline.corner_cutting which would give an erroneous index
+  at which the maximum area removal occurred.
+* Fixed an issue that occurred when inputting weights into spline.mixture_model.
+* If weights are input into optimizers.optimize_extended_range as keyword arguments,
+  the weights are now correctly sorted to match the sorting of the x-values and padded
+  to account for the added portions on the left and/or right edges before using in the
+  fitting function.
+* Fixed the output of utils.padded_convolve when the kernel was even shaped (which
+  never happens in actual application in pybaselines) or larger than the data.
+* Fixed an issue caused by using an `extrapolate_window` of 1 for utils.pad_edges,
+  or an `extrapolate_window` of 0 or 1 for utils._get_edges (called by
+  optimizers.optimize_extended_range).
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Use scipy's expit function for whittaker.arpls and aspls, which does not emit the
+  warning for exponential overflow. The warning was not needed since the overflow
+  ultimately makes weights of 0 for the two functions.
+* Use np.gradient for the computed derivatives in derpsalsa and dietrich, which gives
+  slightly less noisy derivatives than the finite difference used by np.diff.
+* Only sort x-values if they are given for polynomial.loess and
+  optimizers.optimize_extended_range, which saves a little time otherwise.
+* Made whittaker.airpls error handling more robust in order to catch errors from the
+  solvers as well, which should catch any errors not prevented by checking the residual's
+  length.
+* Allow the `mode` for utils.pad_edges to be a callable padding function,
+  matching numpy.pad's behavior.
+* Added `tol_history` to the output parameters of classification.dietrich.
+* Switched to using Scipy's convolve over Numpy's. Scipy's convolve can choose between
+  the direct convolution, which is always used by Numpy, or an FFT based convolution,
+  which is significantly faster for large arrays.
+* Added testing for the minimum supported versions of all dependencies to
+  the project's continuous integration in order to ensure that the minimum
+  stated dependencies actually work.
+* Allow specifying two separate extrapolate windows when padding using
+  utils.pad_edges to allow better flexibility for fitting the edges.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Deprecated allowing passing additional keyword arguments to optimizers.optimize_extended_range
+  since the `pad_kwargs` parameter is used by both the optimize_extended_range function
+  and the internal functions it supports. Now, all keyword arguments should be placed in
+  the `method_kwargs` dictionary. Passing additional keyword arguments will raise
+  an error starting in version 0.9.0.
+* Deprecated allowing an array for the `half_window` or `smooth_half_window` parameters in
+  morphological.rolling_ball. While the array-based moving min/max functions were valid,
+  when combined for the morphological opening, the output would produce invalid results
+  where the opening values were greater than the input data, which should not be allowed by
+  the actual morphological opening. Using an array `half_window` will raise an error in
+  version 0.8.0.
+
+Documentation/Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Added several new examples that explore different aspects of pybaselines.
+* Use sphinx-gallery to display the example programs' code and outputs within
+  the documentation.
+
+
 Version 0.6.0 (2021-09-09)
 --------------------------
 
@@ -102,7 +212,7 @@ New Features
   regression to fit a polynomial to the baseline.
 * Added the top-hat transformation (tophat) to pybaselines.morphological, which estimates
   the baseline using the morphological opening.
-* Added the moving-window minimum value (mwmv) pybaseline.morphological, which estimates the
+* Added the moving-window minimum value (mwmv) pybaselines.morphological, which estimates the
   baseline using the rolling minimum values.
 * Added the baseline estimation and denoising with sparsity (beads) method to pybaselines.misc,
   which decomposes the input data into baseline and pure, noise-free signal by modeling the
