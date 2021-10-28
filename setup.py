@@ -9,7 +9,7 @@ for editable installs when using older versions of pip.
 Notes on minimum required versions for dependencies:
 
 numpy: >= 1.14 in order to use rcond=None with numpy.linalg.lstsq
-scipy: >= 0.17 to use bounds with scipy.optimize.curve_fit
+scipy: >= 1.0 to use the blas function gbmv for banded matrix-vector dot product
 pentapy: >= 1.0 to use solver #2
 numba: >= 0.45 in order to cache jit-ed functions with parallel=True
 

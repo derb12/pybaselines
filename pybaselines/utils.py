@@ -6,11 +6,14 @@ Created on March 5, 2021
 
 """
 
+from math import ceil
+
 import numpy as np
 from scipy.ndimage import grey_opening
+from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
-from ._compat import jit
+from ._compat import jit, prange
 
 
 # Note: the triple quotes are for including the attributes within the documentation
@@ -20,6 +23,20 @@ pentapy's solver can be used for solving pentadiagonal linear systems, such
 as those used for the Whittaker-smoothing-based algorithms. Should be 2 (default)
 or 1. See :func:`pentapy.core.solve` for more details.
 """
+
+
+def _pentapy_solver():
+    """
+    Convenience function for getting the current pentapy solver.
+
+    Returns
+    -------
+    PENTAPY_SOLVER : str or int
+        The currently specified solver for pentapy.
+
+    """
+    return PENTAPY_SOLVER
+
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
 # TODO this is mostly used to prevent dividing by 0; is there a better way to do that?
@@ -156,7 +173,7 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
         The array of the data.
     pad_length : int
         The number of points to add to the left and right edges.
-    mode : str, optional
+    mode : str or Callable, optional
         The method for padding. Default is 'extrapolate'. Any method other than
         'extrapolate' will use numpy.pad.
     extrapolate_window : int, optional
@@ -188,36 +205,41 @@ def _get_edges(data, pad_length, mode='extrapolate', extrapolate_window=None, **
     """
     y = np.asarray(data)
     if pad_length == 0:
-        return y
+        return np.array([]), np.array([])
     elif pad_length < 0:
         raise ValueError('pad length must be greater or equal to 0')
 
-    mode = mode.lower()
+    if isinstance(mode, str):
+        mode = mode.lower()
     if mode == 'extrapolate':
         if extrapolate_window is None:
             extrapolate_window = pad_length
+        extrapolate_windows = _check_scalar(extrapolate_window, 2, True, dtype=int)[0]
 
-        if extrapolate_window <= 0:
+        if np.any(extrapolate_windows <= 0):
             raise ValueError('extrapolate_window must be greater than 0')
-        elif extrapolate_window == 1:
-            # just use the edges rather than trying to fit a line
-            left_edge = np.array([y[0]])
-            right_edge = np.array([y[-1]])
-        else:
-            # TODO could probably reduce x to only pad_length and
-            # just add/subtract something
-            x = np.arange(-pad_length, y.shape[0] + pad_length)
-            left_poly = np.polynomial.Polynomial.fit(
-                x[pad_length:-pad_length][:extrapolate_window],
-                y[:extrapolate_window], 1
-            )
-            right_poly = np.polynomial.Polynomial.fit(
-                x[pad_length:-pad_length][-extrapolate_window:],
-                y[-extrapolate_window:], 1
-            )
-
-            left_edge = left_poly(x[:pad_length])
-            right_edge = right_poly(x[-pad_length:])
+        left_edge = np.empty(pad_length)
+        right_edge = np.empty(pad_length)
+        # use x[pad_length:-pad_length] for fitting to ensure x and y are
+        # same shape regardless of extrapolate window value
+        x = np.arange(len(y) + 2 * pad_length)
+        for i, array in enumerate((left_edge, right_edge)):
+            extrapolate_window_i = extrapolate_windows[i]
+            if extrapolate_window_i == 1:
+                # just use the edges rather than trying to fit a line
+                array[:] = y[0] if i == 0 else y[-1]
+            elif i == 0:
+                poly = np.polynomial.Polynomial.fit(
+                    x[pad_length:-pad_length][:extrapolate_window_i],
+                    y[:extrapolate_window_i], 1
+                )
+                array[:] = poly(x[:pad_length])
+            else:
+                poly = np.polynomial.Polynomial.fit(
+                    x[pad_length:-pad_length][-extrapolate_window_i:],
+                    y[-extrapolate_window_i:], 1
+                )
+                array[:] = poly(x[-pad_length:])
     else:
         padded_data = np.pad(y, pad_length, mode, **pad_kwargs)
         left_edge = padded_data[:pad_length]
@@ -237,7 +259,7 @@ def pad_edges(data, pad_length, mode='extrapolate',
         The array of the data.
     pad_length : int
         The number of points to add to the left and right edges.
-    mode : str, optional
+    mode : str or Callable, optional
         The method for padding. Default is 'extrapolate'. Any method other than
         'extrapolate' will use :func:`numpy.pad`.
     extrapolate_window : int, optional
@@ -263,11 +285,13 @@ def pad_edges(data, pad_length, mode='extrapolate',
     if pad_length == 0:
         return y
 
-    if mode.lower() == 'extrapolate':
+    if isinstance(mode, str):
+        mode = mode.lower()
+    if mode == 'extrapolate':
         left_edge, right_edge = _get_edges(y, pad_length, mode, extrapolate_window)
         padded_data = np.concatenate((left_edge, y, right_edge))
     else:
-        padded_data = np.pad(y, pad_length, mode.lower(), **pad_kwargs)
+        padded_data = np.pad(y, pad_length, mode, **pad_kwargs)
 
     return padded_data
 
@@ -278,30 +302,29 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
 
     Parameters
     ----------
-    data : numpy.ndarray, shape (N,)
-        The data to smooth.
-    kernel : numpy.ndarray, shape (M,)
-        A pre-computed, normalized kernel for the convolution. Indices should
-        span from -half_window to half_window.
-    mode : str, optional
+    data : array-like, shape (N,)
+        The data to convolve.
+    kernel : array-like, shape (M,)
+        The convolution kernel.
+    mode : str or Callable, optional
         The method for padding to pass to :func:`.pad_edges`. Default is 'reflect'.
     **pad_kwargs
         Any additional keyword arguments to pass to :func:`.pad_edges`.
 
     Returns
     -------
-    numpy.ndarray, shape (N,)
-        The smoothed input array.
+    convolution : numpy.ndarray, shape (N,)
+        The convolution output.
 
     """
     # TODO need to revisit this and ensure everything is correct
     # TODO look at using scipy.ndimage.convolve1d instead, or at least
     # comparing the output in tests; that function should have a similar usage
-    padding = min(data.shape[0], kernel.shape[0]) // 2
-    convolution = np.convolve(
-        pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='valid'
+    padding = ceil(min(len(data), len(kernel)) / 2)
+    convolution = convolve(
+        pad_edges(data, padding, mode, **pad_kwargs), kernel, mode='same'
     )
-    return convolution
+    return convolution[padding:-padding]
 
 
 def _safe_std(array, **kwargs):
@@ -650,3 +673,151 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
         opening = new_opening
 
     return max(half_window, 1)  # ensure half window is at least 1
+
+
+def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
+    """
+    Checks if the input is scalar and potentially coerces it to the desired length.
+
+    Only intended for one dimensional data.
+
+    Parameters
+    ----------
+    data : array-like
+        Either a scalar value or an array. Array-like inputs with only 1 item will also
+        be considered scalar.
+    desired_length : int
+        If `data` is an array, `desired_length` is the length the array must have. If `data`
+        is a scalar and `fill_scalar` is True, then `desired_length` is the length of the output.
+    fill_scalar : bool, optional
+        If True and `data` is a scalar, then will output an array with a length of
+        `desired_length`. Default is False, which leaves scalar values unchanged.
+    **asarray_kwargs : dict
+        Additional keyword arguments to pass to :func:`numpy.asarray`.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The array of values with 0 or 1 dimensions depending on the input parameters.
+    is_scalar : bool
+        True if the input was a scalar value or had a length of 1; otherwise, is False.
+
+    Raises
+    ------
+    ValueError
+        Raised if `data` is not a scalar and its length is not equal to `desired_length`.
+
+    """
+    output = np.asarray(data, **asarray_kwargs)
+    ndim = output.ndim
+    if not ndim:
+        is_scalar = True
+    else:
+        if ndim > 1:  # coerce to 1d shape
+            output = output.reshape(-1)
+        len_output = len(output)
+        if len_output == 1:
+            is_scalar = True
+            output = np.asarray(output[0], **asarray_kwargs)
+        else:
+            is_scalar = False
+
+    if is_scalar and fill_scalar:
+        output = np.full(desired_length, output)
+    elif not is_scalar and len_output != desired_length:
+        raise ValueError(f'desired length was {desired_length} but instead got {len_output}')
+
+    return output, is_scalar
+
+
+@jit(nopython=True, cache=True, parallel=True)
+def _grey_erosion_1d_array(data, half_window):
+    """
+    Computes the rolling minimum with an array of half-window values.
+
+    Parameters
+    ----------
+    data : numpy.ndarray, shape (N,)
+        The data to use for the calculation.
+    half_window : numpy.ndarray, shape (N,)
+        The array of half-windows to use for the rolling calculation.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The output array.
+
+    """
+    num_points = len(data)
+    output = np.empty(num_points)
+    # TODO not sure if there is a better way to perform the rolling min/max with a changing
+    # window size
+    # TODO negative half-window values will give incorrect results; not sure how I want to
+    # handle
+    for i in prange(num_points):
+        half_win = abs(half_window[i])
+        output[i] = data[max(0, i - half_win):min(i + half_win + 1, num_points)].min()
+
+    return output
+
+
+@jit(nopython=True, cache=True, parallel=True)
+def _grey_dilation_1d_array(data, half_window):
+    """
+    Computes the rolling maximum with an array of half-window values.
+
+    Parameters
+    ----------
+    data : numpy.ndarray, shape (N,)
+        The data to use for the calculation.
+    half_window : numpy.ndarray, shape (N,)
+        The array of half-windows to use for the rolling calculation.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The output array.
+
+    """
+    num_points = len(data)
+    output = np.empty(num_points)
+    # TODO not sure if there is a better way to perform the rolling min/max with a changing
+    # window size
+    # TODO negative half-window values will give incorrect results; not sure how I want to
+    # handle
+    for i in prange(num_points):
+        half_win = half_window[i]
+        output[i] = data[max(0, i - half_win):min(i + half_win + 1, num_points)].max()
+
+    return output
+
+
+# TODO remove in version 0.8.0
+def _grey_opening_1d(data, half_window):
+    """
+    Computes the morphological opening with either a fixed or changing window size.
+
+    The opening operation is a rolling minimum followed by a rolling maximum.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The data to use for the calculation.
+    half_window : int or array-like(int), shape (N,)
+        An integer or an array of integers to use for the rolling calculation.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The output array.
+
+    """
+    half_windows, scalar_half_window = _check_scalar(half_window, len(data), dtype=int)
+    if scalar_half_window:
+        output = grey_opening(data, 2 * half_windows + 1)
+    else:
+        output = _grey_dilation_1d_array(
+            _grey_erosion_1d_array(np.asarray(data), half_windows), half_windows
+        )
+
+    return output

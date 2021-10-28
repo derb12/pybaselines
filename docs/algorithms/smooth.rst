@@ -6,13 +6,13 @@ The contents of :mod:`pybaselines.smooth` contain algorithms that use smoothing
 to eliminate peaks and leave only the baseline.
 
 .. note::
-   The window size used for smoothing-based algorithms is index-based, rather
-   than based on the units of the data, so proper conversions must be done
-   by the user to get the desired window size.
+   The module pybaselines.smooth was named pybaselines.window until version 0.6.0.
 
 
 .. note::
-   The module pybaselines.smooth was named pybaselines.window until version 0.6.0.
+   The window size used for smoothing-based algorithms is index-based, rather
+   than based on the units of the data, so proper conversions must be done
+   by the user to get the desired window size.
 
 
 Algorithms
@@ -73,8 +73,7 @@ kernel. Note that this method does not perform well for tightly-grouped peaks.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        np.random.seed(1)  # set random seed
-        noise = np.random.normal(0, 0.2, x.size)
+        noise = np.random.default_rng(1).normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -184,5 +183,54 @@ incrementally increased to smooth peaks until convergence is reached.
         else:
             smooth_half_window = 5
         baseline = smooth.swima(y, smooth_half_window=smooth_half_window, extrapolate_window=20
+        )
+        ax.plot(baseline[0], 'g--')
+
+
+ipsa (Iterative Polynomial Smoothing Algorithm)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.ipsa` iteratively smooths the input data using a second-order
+Savitzky–Golay filter until the exit criteria is reached.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            half_window = 150
+        else:
+            half_window = 50
+        baseline = smooth.ipsa(y, half_window, extrapolate_window=20)
+        ax.plot(baseline[0], 'g--')
+
+
+ria (Range Independent Algorithm)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.ria` first extrapolates a linear baseline from the left and/or
+right edges of the data and adds Gaussian peaks to these baselines, similar to the
+:ref:`optimize_extended_range <extending-data-explanation>` function, and
+records their initial areas. The data is then iteratively smoothed using a
+zero-order Savitzky–Golay filter (moving average) until the area of the extended
+regions after subtracting the smoothed data from the initial data is close to
+their starting areas.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            width_scale = 0.3
+            half_window = 40
+        else:
+            width_scale = 0.12
+            half_window = 30
+        baseline = smooth.ria(
+            y, half_window=half_window, width_scale=width_scale, extrapolate_window=20
         )
         ax.plot(baseline[0], 'g--')

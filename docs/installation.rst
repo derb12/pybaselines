@@ -11,7 +11,7 @@ Dependencies
 pybaselines requires `Python <https://python.org>`_ version 3.6 or later and the following libraries:
 
 * `NumPy <https://numpy.org>`_ (>= 1.14)
-* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.17)
+* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 1.0)
 
 
 All of the required libraries should be automatically installed when
@@ -23,9 +23,9 @@ Optional Dependencies
 pybaselines has the following optional dependencies:
 
 * `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
-  provides a faster banded solver for Whittaker-smoothing-based algorithms
+  provides a faster solver for banded pentadiagonal linear systems
   (all functions in :mod:`pybaselines.whittaker` as well as
-  :func:`pybaselines.morphological.mpls`)
+  :func:`.mpls` and :func:`.jcbd`)
 * `numba <https://github.com/numba/numba>`_ (>= 0.45):
   speeds up calculations used by the following functions:
 

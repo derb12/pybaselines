@@ -7,11 +7,11 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.sparse import dia_matrix
 
-from pybaselines import _algorithm_setup
+from pybaselines import _algorithm_setup, utils
 from pybaselines.utils import ParameterWarning
 
 
@@ -21,28 +21,35 @@ def test_diff_2_diags(data_size, upper_only):
     """Ensures the output of _diff_2_diags is the correct shape and values."""
     diagonal_data = _algorithm_setup._diff_2_diags(data_size, upper_only)
 
-    diff_matrix = _algorithm_setup.difference_matrix(data_size, 2)
+    diff_matrix = utils.difference_matrix(data_size, 2)
     diag_matrix = (diff_matrix.T * diff_matrix).todia()
-    actual_diagonal_data = diag_matrix.data
+    actual_diagonal_data = diag_matrix.data[::-1]
     if upper_only:
-        actual_diagonal_data = diag_matrix.data[2:]
+        actual_diagonal_data = actual_diagonal_data[:3]
 
-    assert_array_equal(diagonal_data, actual_diagonal_data[::-1])
+    assert_array_equal(diagonal_data, actual_diagonal_data)
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))
+@pytest.mark.parametrize('add_zeros', (True, False))
 @pytest.mark.parametrize('upper_only', (True, False))
-def test_diff_1_diags(data_size, upper_only):
+def test_diff_1_diags(data_size, upper_only, add_zeros):
     """Ensures the output of _diff_1_diags is the correct shape and values."""
-    diagonal_data = _algorithm_setup._diff_1_diags(data_size, upper_only)
+    diagonal_data = _algorithm_setup._diff_1_diags(data_size, upper_only, add_zeros)
 
-    diff_matrix = _algorithm_setup.difference_matrix(data_size, 1)
+    diff_matrix = utils.difference_matrix(data_size, 1)
     diag_matrix = (diff_matrix.T * diff_matrix).todia()
-    actual_diagonal_data = diag_matrix.data
+    actual_diagonal_data = diag_matrix.data[::-1]
     if upper_only:
-        actual_diagonal_data = diag_matrix.data[1:]
+        actual_diagonal_data = actual_diagonal_data[:2]
+    if add_zeros:
+        filler = np.zeros(data_size)
+        if upper_only:
+            actual_diagonal_data = np.vstack((filler, actual_diagonal_data))
+        else:
+            actual_diagonal_data = np.vstack((filler, actual_diagonal_data, filler))
 
-    assert_array_equal(diagonal_data, actual_diagonal_data[::-1])
+    assert_array_equal(diagonal_data, actual_diagonal_data)
 
 
 @pytest.fixture
@@ -82,7 +89,7 @@ def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, upper_only, re
     if not reverse_diags:
         desired_diagonals = desired_diagonals[::-1]
 
-    assert_array_almost_equal(diagonal_data, desired_diagonals)
+    assert_allclose(diagonal_data, desired_diagonals, 1e-10)
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
@@ -222,6 +229,13 @@ def test_setup_polynomial_weights(small_data, weight_enum):
     assert_array_equal(weight_array, desired_weights)
 
 
+def test_setup_polynomial_wrong_weight_shape(small_data):
+    """Ensures that an exception is raised if input weights and data are different shapes."""
+    weights = np.ones(small_data.shape[0] + 1)
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_polynomial(small_data, weights=weights)
+
+
 def test_setup_polynomial_domain(small_data):
     """Ensures output domain array is correct."""
     x = np.linspace(-5, 20, len(small_data))
@@ -261,11 +275,11 @@ def test_setup_polynomial_vandermonde(small_data, vander_enum, include_pinv):
         _, x, weight_array, _, vander_matrix = output
 
     desired_vander = np.polynomial.polynomial.polyvander(x, poly_order)
-    assert_array_almost_equal(desired_vander, vander_matrix)
+    assert_allclose(desired_vander, vander_matrix, 1e-12)
 
     if include_pinv:
         desired_pinv = np.linalg.pinv(np.sqrt(weight_array)[:, np.newaxis] * desired_vander)
-        assert_array_almost_equal(desired_pinv, pinv_matrix)
+        assert_allclose(desired_pinv, pinv_matrix, 1e-10)
 
 
 @pytest.mark.parametrize('array_enum', (0, 1))
@@ -384,3 +398,14 @@ def test_setup_splines_diff_matrix_warns(small_data, diff_order):
     """Ensures using a diff_order > 4 with _setup_splines raises a warning."""
     with pytest.warns(ParameterWarning):
         _algorithm_setup._setup_splines(small_data, diff_order=diff_order)
+
+
+def test_changing_pentapy_solver():
+    """Ensure a change to utils.PENTAPY_SOLVER is communicated to pybaselines._algorithms_setup."""
+    original_solver = utils.PENTAPY_SOLVER
+    try:
+        for solver in range(5):
+            utils.PENTAPY_SOLVER = solver
+            assert _algorithm_setup._pentapy_solver() == solver
+    finally:
+        utils.PENTAPY_SOLVER = original_solver

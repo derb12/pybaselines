@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import whittaker
+from pybaselines import whittaker, utils
 from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data, has_pentapy
@@ -58,6 +58,17 @@ def test_shift_rows_1_diag():
     assert_array_equal(expected, output)
     # matrix should also be shifted since the changes are done in-place
     assert_array_equal(expected, matrix)
+
+
+def test_changing_pentapy_solver():
+    """Ensures a change to utils.PENTAPY_SOLVER is communicated to pybaselines.whittaker."""
+    original_solver = utils.PENTAPY_SOLVER
+    try:
+        for solver in range(5):
+            utils.PENTAPY_SOLVER = solver
+            assert whittaker._pentapy_solver() == solver
+    finally:
+        utils.PENTAPY_SOLVER = original_solver
 
 
 class TestAsLS(AlgorithmTester):
@@ -188,17 +199,16 @@ class TestAirPLS(AlgorithmTester):
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
-    @pytest.mark.skip('test is a bit random; sometimes get a linalg error instead')
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures the that function gracefully exits when non-finite weights are created.
+        Ensures that the function gracefully exits when errors occur.
 
         When there are no negative residuals, which occurs when a low tol value is used with
-        a high max_iter value, the weighting function would produce non-finite values.
-        The returned baseline should be the last iteration that was successful, and thus
-        should not contain nan or +/- inf.
+        a high max_iter value, the weighting function would produce values all ~0, which
+        can fail the solvers. The returned baseline should be the last iteration that was
+        successful, and thus should not contain nan or +/- inf.
 
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
@@ -262,6 +272,24 @@ class TestArPLS(AlgorithmTester):
 
         assert params['tol_history'].size == max_iter + 1
 
+    def test_avoid_overflow_warning(self, no_noise_data_fixture):
+        """
+        Ensures no warning is emitted for exponential overflow.
+
+        The weighting is 1 / (1 + exp(values)), so if values is too high,
+        exp(values) is inf, which should usually emit an overflow warning.
+        However, the resulting weight is 0, which is fine, so the warning is
+        not needed and should be avoided. This test ensures the overflow warning
+        is not emitted, and also ensures that the output is all finite, just in
+        case the weighting was not actually stable.
+
+        """
+        y, x = no_noise_data_fixture
+        with np.errstate(over='raise'):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
 
 class TestDrPLS(AlgorithmTester):
     """Class for testing drpls baseline."""
@@ -295,7 +323,7 @@ class TestDrPLS(AlgorithmTester):
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures the that function gracefully exits when non-finite weights are created.
+        Ensures that the function gracefully exits when non-finite weights are created.
 
         When there are no negative residuals or exp(iterations) / std is very high, both
         of which occur when a low tol value is used with a high max_iter value, the
@@ -311,9 +339,12 @@ class TestDrPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline.dot(baseline))
+        # ensure last tolerence calculation was non-finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert not np.isfinite(params['tol_history'][-1])
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -361,7 +392,7 @@ class TestIArPLS(AlgorithmTester):
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures the that function gracefully exits when non-finite weights are created.
+        Ensures that the function gracefully exits when non-finite weights are created.
 
         When there are no negative residuals or exp(iterations) / std is very high, both
         of which occur when a low tol value is used with a high max_iter value, the
@@ -377,9 +408,12 @@ class TestIArPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline.dot(baseline))
+        # ensure last tolerence calculation was non-finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert not np.isfinite(params['tol_history'][-1])
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -437,6 +471,24 @@ class TestAsPLS(AlgorithmTester):
         _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
+
+    def test_avoid_overflow_warning(self, no_noise_data_fixture):
+        """
+        Ensures no warning is emitted for exponential overflow.
+
+        The weighting is 1 / (1 + exp(values)), so if values is too high,
+        exp(values) is inf, which should usually emit an overflow warning.
+        However, the resulting weight is 0, which is fine, so the warning is
+        not needed and should be avoided. This test ensures the overflow warning
+        is not emitted, and also ensures that the output is all finite, just in
+        case the weighting was not actually stable.
+
+        """
+        y, x = no_noise_data_fixture
+        with np.errstate(over='raise'):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
 
 
 class TestPsalsa(AlgorithmTester):

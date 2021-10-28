@@ -7,7 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 
@@ -208,14 +208,16 @@ class AlgorithmTester:
         )
 
     @classmethod
-    def _test_algorithm_list(cls, array_args=(), list_args=(), **kwargs):
+    def _test_algorithm_list(cls, array_args=(), list_args=(), assertion_kwargs=None, **kwargs):
         """Ensures that function works the same for both array and list inputs."""
         output_array = cls.func(*array_args, **kwargs)
         output_list = cls.func(*list_args, **kwargs)
 
-        assert_array_almost_equal(
+        if assertion_kwargs is None:
+            assertion_kwargs = {}
+        assert_allclose(
             output_array[0], output_list[0],
-            err_msg='algorithm output is different for arrays vs lists'
+            err_msg='algorithm output is different for arrays vs lists', **assertion_kwargs
         )
 
     @classmethod

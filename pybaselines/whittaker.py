@@ -10,12 +10,13 @@ import warnings
 
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
+from scipy.special import expit
 
-from . import utils
 from ._algorithm_setup import _diff_1_diags, _setup_whittaker, _yx_arrays
 from ._compat import _HAS_PENTAPY, _pentapy_solve
 from .utils import (
-    ParameterWarning, _mollifier_kernel, _safe_std, pad_edges, padded_convolve, relative_difference
+    ParameterWarning, _mollifier_kernel, _pentapy_solver, _safe_std, pad_edges,
+    padded_convolve, relative_difference
 )
 
 
@@ -68,7 +69,7 @@ def _shift_rows(matrix, diagonals=2):
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     """
-    Fits the baseline using asymmetric least squared (AsLS) fitting.
+    Fits the baseline using asymmetric least squares (AsLS) fitting.
 
     Parameters
     ----------
@@ -133,7 +134,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     for i in range(max_iter + 1):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER)
+            baseline = _pentapy_solve(diagonals, weight_array * y, True, True, _pentapy_solver())
         else:
             baseline = solveh_banded(
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False
@@ -243,7 +244,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         diagonals[main_diag_idx] = main_diagonal + weight_squared
         if _HAS_PENTAPY:
             baseline = _pentapy_solve(
-                diagonals, weight_squared * y + d1_y, True, True, utils.PENTAPY_SOLVER
+                diagonals, weight_squared * y + d1_y, True, True, _pentapy_solver()
             )
         else:
             baseline = solveh_banded(
@@ -314,30 +315,58 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     main_diag_idx = diff_order if using_pentapy else -1
     main_diagonal = diagonals[main_diag_idx].copy()
     tol_history = np.empty(max_iter + 1)
+    # Have to have extensive error handling since the weights can all become
+    # very small due to the exp(i) term if too many iterations are performed;
+    # checking the negative residual length usually prevents any errors, but
+    # sometimes not so have to also catch any errors from the solvers
     for i in range(1, max_iter + 2):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+            output = _pentapy_solve(
+                diagonals, weight_array * y, True, True, _pentapy_solver()
             )
+            # if weights are all ~0, then pentapy sometimes outputs nan without
+            # warnings or errors, so have to check
+            if np.isfinite(output.dot(output)):
+                baseline = output
+            else:
+                warnings.warn(
+                    ('error occurred during fitting, indicating that "tol"'
+                     ' is too low, "max_iter" is too high, or "lam" is too high'),
+                    ParameterWarning
+                )
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
         else:
-            baseline = solveh_banded(
-                diagonals, weight_array * y, overwrite_b=True, check_finite=False
-            )
+            try:
+                output = solveh_banded(
+                    diagonals, weight_array * y, overwrite_b=True, check_finite=False
+                )
+            except np.linalg.LinAlgError:
+                warnings.warn(
+                    ('error occurred during fitting, indicating that "tol"'
+                     ' is too low, "max_iter" is too high, or "lam" is too high'),
+                    ParameterWarning
+                )
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
+            else:
+                baseline = output
+
         residual = y - baseline
         neg_mask = residual < 0
         neg_residual = residual[neg_mask]
-        if neg_residual.size < 2:
+        if len(neg_residual) < 2:
             # exit if there are < 2 negative residuals since all points or all but one
             # point would get a weight of 0, which fails the solver
             warnings.warn(
                 ('almost all baseline points are below the data, indicating that "tol"'
                  ' is too low and/or "max_iter" is too high'), ParameterWarning
             )
+            i -= 1  # reduce i so that output tol_history indexing is correct
             break
 
-        # same as abs(neg_residual).sum() since neg_residual are all negative
-        residual_l1_norm = -1 * neg_residual.sum()
+        residual_l1_norm = abs(neg_residual.sum())
         calc_difference = residual_l1_norm / y_l1_norm
         tol_history[i - 1] = calc_difference
         if calc_difference < tol:
@@ -407,7 +436,7 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+                diagonals, weight_array * y, True, True, _pentapy_solver()
             )
         else:
             baseline = solveh_banded(
@@ -416,7 +445,8 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         residual = y - baseline
         neg_residual = residual[residual < 0]
         std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
-        new_weights = 1 / (1 + np.exp((2 / std) * (residual - (2 * std - np.mean(neg_residual)))))
+        # add a negative sign since expit performs 1/(1+exp(-input))
+        new_weights = expit(-(2 / std) * (residual - (2 * std - np.mean(neg_residual))))
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i] = calc_difference
         if calc_difference < tol:
@@ -486,7 +516,7 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
         d2_w_diagonals = d2_diagonals * weight_array
         if _HAS_PENTAPY:
             baseline = _pentapy_solve(
-                d1_d2_diagonals + d2_w_diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+                d1_d2_diagonals + d2_w_diagonals, weight_array * y, True, True, _pentapy_solver()
             )
         else:
             baseline = solve_banded(
@@ -505,7 +535,8 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
             # are too few negative residuals; no way to catch both conditions before
             # new_weights calculation since it is hard to estimate if
             # (exp(i) / std) * residual will overflow; check calc_difference rather
-            # than checking new_weights since non-finite values rarely occur
+            # than checking new_weights since non-finite values rarely occur and
+            # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
             warnings.warn(
                 ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
                  '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
@@ -576,7 +607,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+                diagonals, weight_array * y, True, True, _pentapy_solver()
             )
         else:
             baseline = solveh_banded(
@@ -593,7 +624,8 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
             # are too few negative residuals; no way to catch both conditions before
             # new_weights calculation since it is hard to estimate if
             # (exp(i) / std) * residual will overflow; check calc_difference rather
-            # than checking new_weights since non-finite values rarely occur
+            # than checking new_weights since non-finite values rarely occur and
+            # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
             warnings.warn(
                 ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
                  '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
@@ -682,7 +714,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
         alpha_diagonals[diff_order] = alpha_diagonals[diff_order] + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
-                alpha_diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+                alpha_diagonals, weight_array * y, True, True, _pentapy_solver()
             )
         else:
             baseline = solve_banded(
@@ -691,7 +723,8 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
             )
         residual = y - baseline
         std = _safe_std(residual[residual < 0], ddof=1)  # use dof=1 since sampling a subset
-        new_weights = 1 / (1 + np.exp((2 / std) * (residual - std)))
+        # add a negative sign since expit performs 1/(1+exp(-input))
+        new_weights = expit(-(2 / std) * (residual - std))
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i - 1] = calc_difference
         if calc_difference < tol:
@@ -795,7 +828,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+                diagonals, weight_array * y, True, True, _pentapy_solver()
             )
         else:
             baseline = solveh_banded(
@@ -852,7 +885,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
     smooth_half_window : int, optional
-        The half-window to use for smoothing the data beforebefore computing the first
+        The half-window to use for smoothing the data before computing the first
         and second derivatives. Default is None, which will use ``len(data) / 200``.
     num_smooths : int, optional
         The number of times to smooth the data before computing the first
@@ -908,8 +941,8 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
             y_smooth = padded_convolve(y_smooth, smooth_kernel)
     y_smooth = y_smooth[smooth_half_window:num_y + smooth_half_window]
 
-    diff_y_1 = np.diff(np.concatenate((y_smooth[:1], y_smooth)))
-    diff_y_2 = np.diff(np.concatenate((diff_y_1[:1], diff_y_1)))  # TODO check this is correct
+    diff_y_1 = np.gradient(y_smooth)
+    diff_y_2 = np.gradient(diff_y_1)
     # x.dot(x) is same as (x**2).sum() but faster
     rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / num_y)
     rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / num_y)
@@ -925,7 +958,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
             baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER
+                diagonals, weight_array * y, True, True, _pentapy_solver()
             )
         else:
             baseline = solveh_banded(

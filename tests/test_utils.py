@@ -4,15 +4,12 @@
 @author: Donald Erb
 Created on March 20, 2021
 
-# TODO need to add tests for pad_edges, _extend_edges, and padded_convolve
-
 """
 
 import numpy as np
-from numpy.testing import (
-    assert_allclose, assert_almost_equal, assert_array_almost_equal, assert_array_equal
-)
+from numpy.testing import assert_allclose, assert_almost_equal, assert_array_equal
 import pytest
+from scipy.ndimage import grey_opening
 from scipy.sparse import identity
 
 from pybaselines import utils
@@ -31,9 +28,9 @@ def _x_data():
 @pytest.mark.parametrize('height', [0.1, 1, 10])
 def test_gaussian(_x_data, height, center, sigma):
     """Ensures that gaussian function in pybaselines.utils is correct."""
-    assert_array_almost_equal(
+    assert_allclose(
         utils.gaussian(_x_data, height, center, sigma),
-        gaussian(_x_data, height, center, sigma)
+        gaussian(_x_data, height, center, sigma), 1e-12, 1e-12
     )
 
 
@@ -157,7 +154,7 @@ def test_interp_inplace():
     # output should be the same object as the input y array
     assert output is y_calc
 
-    assert_array_almost_equal(y_calc, y_actual)
+    assert_allclose(y_calc, y_actual, 1e-12)
 
 
 def test_interp_inplace_endpoints():
@@ -171,7 +168,7 @@ def test_interp_inplace_endpoints():
 
     # output should be the same object as the input y array
     assert output is y_calc
-    assert_array_almost_equal(y_calc[1:-1], y_actual[1:-1])
+    assert_allclose(y_calc[1:-1], y_actual[1:-1], 1e-12)
     # first and last values should still be 0
     assert y_calc[0] == 0
     assert y_calc[-1] == 0
@@ -181,7 +178,7 @@ def test_interp_inplace_endpoints():
     y_calc[0] = y_actual[0]
     utils._interp_inplace(x, y_calc, None, y_actual[-1])
 
-    assert_array_almost_equal(y_calc[:-1], y_actual[:-1])
+    assert_allclose(y_calc[:-1], y_actual[:-1], 1e-12)
     assert y_calc[-1] == 0
 
     # specify only the left point
@@ -189,7 +186,7 @@ def test_interp_inplace_endpoints():
     y_calc[-1] = y_actual[-1]
     utils._interp_inplace(x, y_calc, y_actual[0])
 
-    assert_array_almost_equal(y_calc[1:], y_actual[1:])
+    assert_allclose(y_calc[1:], y_actual[1:], 1e-12)
     assert y_calc[0] == 0
 
 
@@ -312,3 +309,308 @@ def test_difference_matrix_formats(form):
     """
     assert utils.difference_matrix(10, 2, form).format == form
     assert utils.difference_matrix(10, 0, form).format == form
+
+
+def test_changing_pentapy_solver():
+    """Ensures a change to utils.PENTAPY_SOLVER is communicated by _pentapy_solver."""
+    original_solver = utils.PENTAPY_SOLVER
+    try:
+        for solver in range(5):
+            utils.PENTAPY_SOLVER = solver
+            assert utils._pentapy_solver() == solver
+    finally:
+        utils.PENTAPY_SOLVER = original_solver
+
+
+def pad_func(array, pad_width, axis, kwargs):
+    """A custom padding function for use with numpy.pad."""
+    pad_val = kwargs.get('pad_val', 0)
+    array[:pad_width[0]] = pad_val
+    if pad_width[1] != 0:
+        array[-pad_width[1]:] = pad_val
+
+
+@pytest.mark.parametrize('kernel_size', (1, 10, 31, 1000, 2000, 4000))
+@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate', pad_func))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_padded_convolve(kernel_size, pad_mode, list_input, data_fixture):
+    """
+    Ensures the output of the padded convolution is the same size as the input data.
+
+    Notes
+    -----
+    `data_fixture` has 1000 data points, so test kernels with size less than, equal to,
+    and greater than that size.
+
+    """
+    # make a simple uniform window kernel
+    kernel = np.ones(kernel_size) / kernel_size
+    _, data = data_fixture
+    if list_input:
+        input_data = data.tolist()
+    else:
+        input_data = data
+    conv_output = utils.padded_convolve(input_data, kernel, pad_mode)
+
+    assert isinstance(conv_output, np.ndarray)
+    assert data.shape == conv_output.shape
+
+
+def test_padded_convolve_empty_kernel():
+    """Ensures convolving with an empty kernel fails."""
+    with pytest.raises(ValueError):
+        utils.padded_convolve(np.arange(10), np.array([]))
+
+
+@pytest.mark.parametrize(
+    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
+)
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_pad_edges(pad_mode, pad_length, list_input, data_fixture):
+    """Tests various inputs for utils.pad_edges."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    if not callable(pad_mode):
+        np_pad_mode = pad_mode.lower()
+    else:
+        np_pad_mode = pad_mode
+    if np_pad_mode != 'extrapolate':
+        expected_output = np.pad(data, pad_length, np_pad_mode)
+    else:
+        expected_output = None
+
+    output = utils.pad_edges(data, pad_length, pad_mode)
+    assert isinstance(output, np.ndarray)
+    assert len(output) == len(data) + 2 * pad_length
+
+    if expected_output is not None:
+        assert_allclose(output, expected_output)
+
+
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('extrapolate_window', (None, 1, 2, 10, 1001, (10, 20), (1, 1)))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_pad_edges_extrapolate(pad_length, list_input, extrapolate_window, data_fixture):
+    """Ensures extrapolation works for utils.pad_edges."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    output = utils.pad_edges(data, pad_length, 'extrapolate', extrapolate_window)
+    assert isinstance(output, np.ndarray)
+    assert len(output) == len(data) + 2 * pad_length
+
+
+def test_pad_edges_extrapolate_windows():
+    """Ensures the separate extrapolate windows are correctly interpreted."""
+    input_array = np.zeros(50)
+    input_array[-10:] = 1.
+    extrapolate_windows = [40, 10]
+    pad_len = 20
+    output = utils.pad_edges(input_array, pad_len, extrapolate_window=extrapolate_windows)
+
+    assert_allclose(output[:pad_len], np.full(pad_len, 0.), 1e-14)
+    assert_allclose(output[-pad_len:], np.full(pad_len, 1.), 1e-14)
+
+
+@pytest.mark.parametrize('extrapolate_window', (0, (0, 0), (5, 0), (5, -1)))
+def test_pad_edges_extrapolate_zero_window(extrapolate_window):
+    """Ensures an extrapolate_window <= 0 raises an exception."""
+    with pytest.raises(ValueError):
+        utils.pad_edges(np.arange(10), 10, extrapolate_window=extrapolate_window)
+
+
+@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
+def test_pad_edges_negative_pad_length(pad_mode, data_fixture):
+    """Ensures a negative pad length raises an exception."""
+    with pytest.raises(ValueError):
+        utils.pad_edges(data_fixture[1], -5, pad_mode)
+
+
+@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
+def test_get_edges_negative_pad_length(pad_mode, data_fixture):
+    """Ensures a negative pad length raises an exception."""
+    with pytest.raises(ValueError):
+        utils._get_edges(data_fixture[1], -5, pad_mode)
+
+
+def test_pad_edges_custom_pad_func():
+    """Ensures pad_edges works with a callable padding function, same as numpy.pad."""
+    input_array = np.arange(20)
+    pad_val = 20
+    pad_length = 10
+
+    edge_array = np.full(pad_length, pad_val)
+    expected_output = np.concatenate((edge_array, input_array, edge_array))
+
+    actual_output = utils.pad_edges(input_array, pad_length, pad_func, pad_val=pad_val)
+
+    assert_array_equal(actual_output, expected_output)
+
+
+def test_get_edges_custom_pad_func():
+    """Ensures _get_edges works with a callable padding function, same as numpy.pad."""
+    input_array = np.arange(20)
+    pad_val = 20
+    pad_length = 10
+
+    expected_output = np.full(pad_length, pad_val)
+
+    left, right = utils._get_edges(input_array, pad_length, pad_func, pad_val=pad_val)
+
+    assert_array_equal(left, expected_output)
+    assert_array_equal(right, expected_output)
+
+
+@pytest.mark.parametrize(
+    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
+)
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_get_edges(pad_mode, pad_length, list_input, data_fixture):
+    """Tests various inputs for utils._get_edges."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    if not callable(pad_mode):
+        np_pad_mode = pad_mode.lower()
+    else:
+        np_pad_mode = pad_mode
+
+    if pad_length == 0:
+        check_output = True
+        expected_left = np.array([])
+        expected_right = np.array([])
+    elif np_pad_mode != 'extrapolate':
+        check_output = True
+        expected_left, _, expected_right = np.array_split(
+            np.pad(data, pad_length, np_pad_mode), [pad_length, -pad_length]
+        )
+    else:
+        check_output = False
+
+    left, right = utils._get_edges(data, pad_length, pad_mode)
+    assert isinstance(left, np.ndarray)
+    assert len(left) == pad_length
+    assert isinstance(right, np.ndarray)
+    assert len(right) == pad_length
+
+    if check_output:
+        assert_allclose(left, expected_left)
+        assert_allclose(right, expected_right)
+
+
+@pytest.mark.parametrize('fill_scalar', (True, False))
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('nested_input', (True, False))
+def test_check_scalar_scalar_input(fill_scalar, list_input, nested_input):
+    """Ensures _check_scalar works with scalar values."""
+    input_data = 5
+    desired_length = 10
+    if fill_scalar:
+        desired_output = np.full(desired_length, input_data)
+    else:
+        desired_output = np.asarray(input_data)
+    if nested_input:
+        input_data = [input_data]
+    if list_input:
+        input_data = [input_data]
+
+    output, was_scalar = utils._check_scalar(input_data, desired_length)
+
+    assert was_scalar
+    assert isinstance(output, np.ndarray)
+    assert_array_equal(output, desired_output)
+
+
+@pytest.mark.parametrize('fit_desired_length', (True, False))
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('nested_input', (True, False))
+def test_check_scalar_array_input(fit_desired_length, list_input, nested_input):
+    """Ensures _check_scalar works with array-like inputs."""
+    desired_length = 20
+    fill_value = 5
+    if fit_desired_length:
+        input_data = np.full(desired_length, fill_value)
+    else:
+        input_data = np.full(desired_length - 1, fill_value)
+
+    if nested_input:
+        input_data = input_data.reshape(-1, 1)
+    if list_input:
+        input_data = input_data.tolist()
+
+    if fit_desired_length:
+        output, was_scalar = utils._check_scalar(input_data, desired_length)
+
+        assert not was_scalar
+        assert isinstance(output, np.ndarray)
+        assert_array_equal(output, np.asarray(input_data).reshape(-1))
+    else:
+        with pytest.raises(ValueError):
+            utils._check_scalar(input_data, desired_length)
+
+
+def test_check_scalar_asarray_kwargs():
+    """Ensures kwargs are passed to np.asarray by _check_scalar."""
+    for dtype in (int, float, np.float64, np.int64):
+        output, _ = utils._check_scalar(20, 1, dtype=dtype)
+        assert output.dtype == dtype
+
+        output, _ = utils._check_scalar(20, 10, True, dtype=dtype)
+        assert output.dtype == dtype
+
+        output, _ = utils._check_scalar([20], 1, dtype=dtype)
+        assert output.dtype == dtype
+
+        output, _ = utils._check_scalar(np.array([1, 2, 3]), 3, dtype=dtype)
+        assert output.dtype == dtype
+
+
+def morphology_tester(data, half_window, operation):
+    """Convenience function for testing all morphology types."""
+    operations = {
+        'opening': (utils._grey_opening_1d, grey_opening),
+    }
+    pybaselines_func, scipy_func = operations[operation]
+
+    # ensure scalar half_window and array half_window give same result if array is
+    # all the same value
+    scalar_output = pybaselines_func(data, half_window)
+    array_output = pybaselines_func(data, np.full_like(data, half_window, type(half_window)))
+
+    assert_allclose(
+        array_output, scalar_output,
+        err_msg='array and scalar half-windows produce different results'
+    )
+
+    # also ensure both outputs are the same as output by scipy
+    if isinstance(half_window, (int, float)):
+        window = 2 * int(half_window) + 1
+    else:
+        window = 2 * int(half_window[0]) + 1
+    scipy_output = scipy_func(data, window)
+
+    assert_allclose(
+        array_output, scipy_output,
+        err_msg='scipy and array half-window produce different results'
+    )
+    assert_allclose(
+        scalar_output, scipy_output,
+        err_msg='scipy and scalar half-window produce different results'
+    )
+
+
+@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_grey_opening_1d(half_window, list_input, data_fixture):
+    """Tests grey-opening."""
+    _, data = data_fixture
+    if list_input:
+        data = data.tolist()
+
+    morphology_tester(data, half_window, 'opening')

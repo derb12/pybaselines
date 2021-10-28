@@ -10,6 +10,7 @@ Created on March 20, 2021
 # also test that each function emits a DeprecationWarning to use pybaselines.smooth
 # instead
 
+from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import window
@@ -57,7 +58,7 @@ class TestSNIP(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y, 15), list_args=(y_list, 15))
 
-    @pytest.mark.parametrize('max_half_window', (15, [15], [12, 20], (12, 15, 20)))
+    @pytest.mark.parametrize('max_half_window', (15, [15], [12, 20], (12, 15)))
     def test_max_half_window_inputs(self, max_half_window):
         """Tests valid inputs for `max_half_window`."""
         self._test_output(self.y, self.y, max_half_window)
@@ -76,6 +77,12 @@ class TestSNIP(AlgorithmTester):
     def test_too_large_max_half_window(self, max_half_window):
         """Ensures a warning emitted when max_half_window is greater than (len(data) - 1) // 2."""
         with pytest.warns(ParameterWarning):
+            self._call_func(self.y, max_half_window)
+
+    @pytest.mark.parametrize('max_half_window', ([10, 20, 30], (5, 10, 15, 20)))
+    def test_too_many_max_half_windows_fails(self, max_half_window):
+        """Ensures an error is raised if max-half-windows has more than two items."""
+        with pytest.raises(ValueError):
             self._call_func(self.y, max_half_window)
 
 
@@ -97,3 +104,64 @@ class TestSwima(AlgorithmTester):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+
+class TestIpsa(AlgorithmTester):
+    """Class for testing ipsa baseline."""
+
+    func = window.ipsa
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('tol_history',))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+
+class TestRIA(AlgorithmTester):
+    """Class for testing ria baseline."""
+
+    func = window.ria
+
+    @pytest.mark.parametrize('side', ('left', 'right', 'both'))
+    def test_unchanged_data(self, data_fixture, side):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, x, y, x, side=side)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('tol_history',))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y, self.x), without_args=(self.y, None)
+        )
+
+    def test_x_ordering(self):
+        """Ensures arrays are correctly sorted within the function."""
+        reverse_x = self.x[::-1]
+        reverse_y = self.y[::-1]
+        regular_inputs_result = self._call_func(self.y, self.x)[0]
+        reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
+
+        assert_allclose(regular_inputs_result, reverse_inputs_result[::-1])
+
+    def test_unknown_side_fails(self):
+        """Ensures function fails when the input side is not 'left', 'right', or 'both'."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, side='east')

@@ -207,7 +207,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
 
     """
     y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, weights, poly_order, return_vander=True, return_pinv=True
+        data, x_data, weights, poly_order, True, True, True
     )
     sqrt_w = np.sqrt(weight_array)
     if use_original:
@@ -312,7 +312,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
 
     """
     y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, weights, poly_order, return_vander=True, return_pinv=True
+        data, x_data, weights, poly_order, True, True, True
     )
     sqrt_w = np.sqrt(weight_array)
     if use_original:
@@ -1057,7 +1057,8 @@ def _determine_fits(x, num_x, total_points, delta):
         # to skip the if check_fits check for every x-value; does it affect
         # calculation time that much?
         check_fits = False
-        fits = np.arange(num_x, dtype=np.intp)
+        # TODO once numba minimum version is >= 0.47, can use dtype kwarg in np.arange
+        fits = np.arange(num_x).astype(np.intp)
         # numba cannot compile in nopython mode when directly creating
         # np.array([], dtype=np.intp), so work-around by creating np.array([[0, 0]])
         # and then index with [:total_skips], which becomes np.array([])
@@ -1267,10 +1268,12 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             ('polynomial orders greater than 2 can have numerical issues;'
              ' consider using a polynomial order of 1 or 2 instead'), ParameterWarning
         )
-    sort_order = np.argsort(x)  # to ensure x is increasing
-    x = x[sort_order]
-    y = y[sort_order]
-    weight_array = weight_array[sort_order]
+    sort_x = x_data is not None
+    if sort_x:
+        sort_order = np.argsort(x, kind='mergesort')  # to ensure x is increasing
+        x = x[sort_order]
+        y = y[sort_order]
+        weight_array = weight_array[sort_order]
     if use_original:
         y0 = y
 
@@ -1332,7 +1335,10 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         # save a little memory; is providing coefficients for loess even useful?
         params['coef'] = np.array([_convert_coef(coef, original_domain) for coef in coefs])
 
-    return baseline[np.argsort(sort_order)], params
+    if sort_x:
+        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
+
+    return baseline, params
 
 
 def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,

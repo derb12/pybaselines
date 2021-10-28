@@ -40,7 +40,8 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
-    'matplotlib.sphinxext.plot_directive'
+    'matplotlib.sphinxext.plot_directive',
+    'sphinx_gallery.gen_gallery'
 ]
 
 #autosummary_generate = True # enables autosummary extension
@@ -136,6 +137,41 @@ autoapi_python_class_content = 'both' # include class docstring from both class 
 # ignore an import warning from sphinx-autoapi due to double import of utils
 suppress_warnings = ['autoapi.python_import_resolution']
 
+
+# -- Settings for sphinx-gallery extension ----------------------------
+
+from sphinx_gallery.sorting import ExplicitOrder, FileNameSortKey
+
+# specifies the order of the example galleries
+gallery_section_order = [
+    '../examples/general',
+    '../examples/whittaker',
+    '../examples/morphological',
+    '../examples/classification',
+]
+
+sphinx_gallery_conf = {
+    # location of example files
+    'examples_dirs': ['../examples'],
+    # location of output folder
+    'gallery_dirs': ['examples'],
+    # must set to None or else autoapi errors
+    'backreferences_dir': None,
+    # remove button on front page for downloading all examples
+    'download_all_examples': False,
+    # order sections explicitly
+    'subsection_order': ExplicitOrder(gallery_section_order),
+    # order subsection examples by filename
+    'within_subsection_order': FileNameSortKey,
+    # removes configuration comments from rst output
+    'remove_config_comments': True,
+    # disables trying to link variables to intersphinx
+    'inspect_global_variables': False,
+    # prevents getting repr of last item in cell; good for ignoring matplotlib objects
+    'capture_repr': ()
+}
+
+
 # -- Options for HTML output -------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -164,7 +200,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'mcetldoc'
+htmlhelp_basename = 'pybaselinesdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------
@@ -237,6 +273,6 @@ texinfo_documents = [
      'pybaselines Documentation',
      author,
      'pybaselines',
-     'One line description of project.',
+     'A library of baseline correction algorithms.',
      'Miscellaneous'),
 ]

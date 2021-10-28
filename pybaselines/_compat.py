@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Compatibility code to help use optional dependencies.
+"""Code to help use optional dependencies and handle changes within dependency versions.
 
 Created on June 24, 2021
 @author: Donald Erb

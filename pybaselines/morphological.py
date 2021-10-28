@@ -14,12 +14,13 @@ from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_openin
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
-from . import utils
-from ._algorithm_setup import _setup_morphology, _setup_splines, _setup_whittaker
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._algorithm_setup import (
+    _setup_morphology, _setup_splines, _setup_whittaker, _whittaker_smooth
+)
+from ._compat import _HAS_PENTAPY, _pentapy_solve, jit, prange
 from .utils import (
-    _mollifier_kernel, optimize_window as _optimize_window, pad_edges, padded_convolve,
-    relative_difference
+    _check_scalar, _grey_opening_1d, _mollifier_kernel, _pentapy_solver,
+    optimize_window as _optimize_window, pad_edges, padded_convolve, relative_difference
 )
 
 
@@ -145,7 +146,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
         w = weights
     else:
         rough_baseline = grey_opening(y, [2 * half_wind + 1])
-        diff = np.diff(np.hstack([rough_baseline[0], rough_baseline, rough_baseline[-1]]))
+        diff = np.diff(np.concatenate([rough_baseline[:1], rough_baseline, rough_baseline[-1:]]))
         # diff == 0 means the point is on a flat segment, and diff != 0 means the
         # adjacent point is not the same flat segment. The union of the two finds
         # the endpoints of each segment, and np.flatnonzero converts the mask to
@@ -159,18 +160,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
             w[index] = 1 - p
 
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    _, diagonals, weight_array = _setup_whittaker(
-        y, lam, diff_order, w, False, not using_pentapy, using_pentapy
-    )
-    main_diag_idx = diff_order if using_pentapy else -1
-    diagonals[main_diag_idx] = diagonals[main_diag_idx] + weight_array
-    if using_pentapy:
-        baseline = _pentapy_solve(diagonals, weight_array * y, True, True, utils.PENTAPY_SOLVER)
-    else:
-        baseline = solveh_banded(
-            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False
-        )
+    baseline, weight_array = _whittaker_smooth(y, lam, diff_order, w)
 
     params = {'weights': weight_array, 'half_window': half_wind}
     return baseline, params
@@ -479,49 +469,7 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     return baseline[data_bounds], params
 
 
-def _changing_rolling_ball(y, half_window):
-    """
-    Calculates the rolling ball algorithm with a changing window size.
-
-    Parameters
-    ----------
-    y : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
-    half_window : array-like, shape (N,)
-        The array of half-windows to use for the morphology functions.
-
-    Returns
-    -------
-    rough_baseline : numpy.ndarray, shape (N,)
-        The array of the baseline after the morphology functions.
-
-    Raises
-    ------
-    ValueError
-        Raised if y and half_window do not have the same length.
-
-    References
-    ----------
-    Kneen, M.A., et al. Algorithm for fitting XRF, SEM and PIXE X-ray spectra
-    backgrounds. Nuclear Instruments and Methods in Physics Research B, 1996,
-    109, 209-213.
-
-    """
-    num_y = len(y)
-    if len(half_window) != num_y:
-        raise ValueError('half_window array must be the same size as the data array')
-
-    minimum_y = np.empty(num_y)
-    for i, half_win in enumerate(half_window):
-        minimum_y[i] = min(y[max(0, i - half_win):min(i + half_win + 1, num_y)])
-
-    rough_baseline = np.empty(num_y)
-    for i, half_win in enumerate(half_window):
-        rough_baseline[i] = max(minimum_y[max(0, i - half_win):min(i + half_win + 1, num_y)])
-
-    return rough_baseline
-
-
+@jit(nopython=True, cache=True, parallel=True)
 def _changing_smooth_window(rough_baseline, smooth_half_window):
     """
     Smooths an array with the rolling average and a changing window size.
@@ -530,7 +478,7 @@ def _changing_smooth_window(rough_baseline, smooth_half_window):
     ----------
     rough_baseline : numpy.ndarray, shape (N,)
         The array of the baseline before smoothing, with N data points.
-    smooth_half_window : array-like, shape (N,)
+    smooth_half_window : numpy.ndarray, shape (N,)
         The array of half-windows to use for smoothing.
 
     Returns
@@ -550,12 +498,15 @@ def _changing_smooth_window(rough_baseline, smooth_half_window):
     109, 209-213.
 
     """
-    num_y = rough_baseline.shape[0]
+    num_y = len(rough_baseline)
     if len(smooth_half_window) != num_y:
         raise ValueError('smooth_half_window array must be the same size as the data array')
 
     baseline = np.empty(num_y)
-    for i, half_win in enumerate(smooth_half_window):
+    # TODO not sure if there is a more efficient method for moving average with changing
+    # window size
+    for i in prange(num_y):
+        half_win = smooth_half_window[i]
         baseline_slice = rough_baseline[max(0, i - half_win):min(i + half_win + 1, num_y)]
         baseline[i] = baseline_slice.sum() / baseline_slice.size
 
@@ -573,16 +524,14 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
-    half_window : int or array-like(int), optional
+    half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`. If
-        an array of integers is input, its length must be equal to N.
-    smooth_half_window : int or array-like(int), optional
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    smooth_half_window : int, optional
         The half-window to use for smoothing the data after performing the
         morphological operation. Default is None, which will use the same
-        value as used for the morphological operation. If an array of integers
-        is input, its length must be equal to N.
+        value as used for the morphological operation.
     pad_kwargs : dict, optional
         A dictionary of keyword arguments to pass to :func:`.pad_edges` for
         padding the edges of the data to prevent edge effects from the moving average.
@@ -632,28 +581,28 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     Calibration of Spectra. Applied Spectroscopy, 2010, 64(9), 1007-1016.
 
     """
-    if half_window is None or isinstance(half_window, int):
-        y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-        rough_baseline = grey_opening(y, 2 * half_wind + 1)
-    else:
-        # do not need to convert data to numpy array
-        half_wind = half_window
-        rough_baseline = _changing_rolling_ball(data, half_wind)
-
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    len_y = len(y)
     if smooth_half_window is None:
         smooth_half_window = half_wind
+    smooth_hw, scalar_smooth_hw = _check_scalar(smooth_half_window, len_y, dtype=int)
+    _, scalar_hw = _check_scalar(half_wind, len_y)
+    if not (scalar_hw and scalar_smooth_hw):
+        warnings.warn(
+            ('Using an array-like value for "half_window" or "smooth_half_window" is '
+             'deprecated, and support will be removed in version 0.8.0.'),
+            DeprecationWarning, stacklevel=2
+        )
 
-    if isinstance(smooth_half_window, int):
-        if smooth_half_window == 0:
-            baseline = rough_baseline
-        else:
-            pad_kws = pad_kwargs if pad_kwargs is not None else {}
-            baseline = uniform_filter1d(
-                pad_edges(rough_baseline, smooth_half_window, **pad_kws),
-                2 * smooth_half_window + 1
-            )[smooth_half_window:-smooth_half_window]
+    rough_baseline = _grey_opening_1d(y, half_wind)
+    if scalar_smooth_hw:
+        pad_kws = pad_kwargs if pad_kwargs is not None else {}
+        baseline = uniform_filter1d(
+            pad_edges(rough_baseline, smooth_hw, **pad_kws),
+            2 * smooth_hw + 1
+        )[smooth_hw:len_y + smooth_hw]
     else:
-        baseline = _changing_smooth_window(rough_baseline, smooth_half_window)
+        baseline = _changing_smooth_window(rough_baseline, smooth_hw)
 
     return baseline, {'half_window': half_wind}
 
@@ -722,14 +671,11 @@ def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None, **win
         smooth_half_window = half_wind
 
     rough_baseline = grey_erosion(y, 2 * half_wind + 1)
-    if smooth_half_window < 1:
-        baseline = rough_baseline
-    else:
-        pad_kws = pad_kwargs if pad_kwargs is not None else {}
-        baseline = uniform_filter1d(
-            pad_edges(rough_baseline, smooth_half_window, **pad_kws),
-            2 * smooth_half_window + 1
-        )[smooth_half_window:-smooth_half_window]
+    pad_kws = pad_kwargs if pad_kwargs is not None else {}
+    baseline = uniform_filter1d(
+        pad_edges(rough_baseline, smooth_half_window, **pad_kws),
+        2 * smooth_half_window + 1
+    )[smooth_half_window:len(y) + smooth_half_window]
 
     return baseline, {'half_window': half_wind}
 
@@ -937,3 +883,139 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     baseline = spl_basis * optimal_coef
 
     return baseline, {'half_window': half_window, 'weights': weight_array}
+
+
+def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, gamma_mult=0.909,
+         diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3, robust_opening=True, **window_kwargs):
+    """
+    Joint Baseline Correction and Denoising (jbcd) Algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    half_window : int, optional
+        The half-window used for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    alpha : float, optional
+        The regularization parameter that controls how close the baseline must fit the
+        calculated morphological opening. Larger values make the fit more constrained to
+        the opening and can make the baseline less smooth. Default is 0.1.
+    beta : float, optional
+        The regularization parameter that controls how smooth the baseline is. Larger
+        values produce smoother baselines. Default is 1e1.
+    gamma : float, optional
+        The regularization parameter that controls how smooth the signal is. Larger
+        values produce smoother baselines. Default is 1.
+    beta_mult : float, optional
+        The value that `beta` is multiplied by each iteration. Default is 1.1.
+    gamma_mult : float, optional
+        The value that `gamma` is multiplied by each iteration. Default is 0.909.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 1
+        (first order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The maximum number of iterations. Default is 20.
+    tol : float, optional
+        The exit criteria for the change in the calculated signal. Default is 1e-2.
+    tol_2 : float, optional
+        The exit criteria for the change in the calculated baseline. Default is 1e-2.
+    robust_opening : bool, optional
+        If True (default), the opening used to represent the initial baseline is the
+        element-wise minimum between the morphological opening and the average of the
+        morphological erosion and dilation of the opening, similar to :func:`.mor`. If
+        False, the opening is just the morphological opening, as used in the reference.
+        The robust opening typically represents the baseline better.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'half_window': int
+            The half window used for the morphological calculations.
+        * 'tol_history': numpy.ndarray, shape (K, 2)
+            An array containing the calculated tolerance values for each
+            iteration. Index 0 are the tolerence values for the relative change in
+            the signal, and index 1 are the tolerance values for the relative change
+            in the baseline. The length of the array is the number of iterations
+            completed, K. If the last values in the array are greater than the input
+            `tol` or `tol_2` values, then the function did not converge.
+        * 'signal': numpy.ndarray, shape (N,)
+            The pure signal portion of the input `data` without noise or the baseline.
+
+    References
+    ----------
+    Liu, H., et al. Joint Baseline-Correction and Denoising for Raman Spectra.
+    Applied Spectroscopy, 2015, 69(9), 1013-1022.
+
+    """
+    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    _, penalty_diagonals, _ = _setup_whittaker(
+        data, 1, diff_order, None, False, not using_pentapy, using_pentapy
+    )
+
+    opening = grey_opening(y, 2 * half_wind + 1)
+    if robust_opening:
+        opening = np.minimum(opening, _avg_opening(y, half_wind, opening))
+
+    baseline_old = opening
+    signal_old = y
+    main_diag_idx = diff_order if using_pentapy else -1
+    pentapy_solver = _pentapy_solver()
+    partial_rhs_2 = (2 * alpha) * opening
+    tol_history = np.empty((max_iter + 1, 2))
+    for i in range(max_iter + 1):
+        lhs_1 = gamma * penalty_diagonals
+        lhs_1[main_diag_idx] += 1.
+        lhs_2 = (2 * beta) * penalty_diagonals
+        lhs_2[main_diag_idx] += 1. + 2. * alpha
+        if using_pentapy:
+            signal = _pentapy_solve(lhs_1, y - baseline_old, True, True, pentapy_solver)
+            baseline = _pentapy_solve(
+                lhs_2, y - signal + partial_rhs_2, True, True, pentapy_solver
+            )
+        else:
+            signal = solveh_banded(
+                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True, check_finite=False
+            )
+            baseline = solveh_banded(
+                lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True,
+                check_finite=False
+            )
+
+        calc_tol_1 = relative_difference(signal_old, signal)
+        calc_tol_2 = relative_difference(baseline_old, baseline)
+        tol_history[i] = (calc_tol_1, calc_tol_2)
+        if calc_tol_1 < tol and calc_tol_2 < tol_2:
+            break
+        signal_old = signal
+        baseline_old = baseline
+        gamma *= gamma_mult
+        beta *= beta_mult
+
+    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1], 'signal': signal}
+
+    return baseline, params

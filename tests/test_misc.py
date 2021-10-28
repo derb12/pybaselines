@@ -234,6 +234,33 @@ def test_high_pass_filter_bad_filtertype_fails(filter_type):
         misc._high_pass_filter(10, filter_type=filter_type)
 
 
+@pytest.mark.parametrize('filter_type', np.arange(1, 10))
+def test_high_pass_filter_convolution_matrix_hack(filter_type):
+    """Ensure the trick used for calculating the convolution matrix coefficients is correct."""
+    # the actual calculation from the beads MATLAB source using convolution
+    b_actual = np.array([1, -1])
+    convolve_array = np.array([-1, 2, -1])
+    for _ in range(filter_type - 1):
+        b_actual = np.convolve(b_actual, convolve_array)
+    b_actual = np.convolve(b_actual, np.array([-1, 1]))
+
+    a_actual = 1
+    convolve_array = np.array([1, 2, 1])
+    for _ in range(filter_type):
+        a_actual = np.convolve(a_actual, convolve_array)
+
+    # the faster alternative using finite differences
+    filter_order = 2 * filter_type
+    b = np.zeros(2 * filter_order + 1)
+    b[filter_order] = -1 if filter_type % 2 else 1  # same as (-1)**filter_type
+    for _ in range(filter_order):
+        b = b[:-1] - b[1:]
+    a = abs(b)
+
+    assert_array_equal(a, a_actual)
+    assert_array_equal(b, b_actual)
+
+
 @pytest.fixture()
 def beads_data():
     """Setup code for testing internal calculations for the beads algorithm."""
@@ -273,8 +300,8 @@ def test_beads_diff_matrix_calculation(beads_data, filter_type, freq_cutoff):
     ))
     diff_1_matrix = _algorithm_setup.difference_matrix(num_points, 1)
     diff_2_matrix = _algorithm_setup.difference_matrix(num_points, 2)
-    d1_y = np.diff(y)
-    d2_y = np.diff(y, 2)
+    d1_y = abs(np.diff(y))
+    d2_y = abs(np.diff(y, 2))
     d_y = np.concatenate((d1_y, d2_y))
     diff_matrix = vstack((diff_1_matrix, diff_2_matrix))  # the full difference matrix, D
 
@@ -296,10 +323,11 @@ def test_beads_diff_matrix_calculation(beads_data, filter_type, freq_cutoff):
     diff_2_banded = np.zeros((5, num_points))
     # D.T * L * D == D_1.T * L_1 * D_1 + D_2.T * L_2 + D_2, so can calculate the
     # individual differences separately
-    diff_1_banded[1][1:] = diff_1_banded[3][:-1] = -d1_y
+    d1_y_output, d2_y_output = misc._abs_diff(y)
+    diff_1_banded[1][1:] = diff_1_banded[3][:-1] = -d1_y_output
     diff_1_banded[2] = -(diff_1_banded[1] + diff_1_banded[3])
 
-    diff_2_banded[0][2:] = diff_2_banded[-1][:-2] = d2_y
+    diff_2_banded[0][2:] = diff_2_banded[-1][:-2] = d2_y_output
     diff_2_banded[1] = (
         2 * (diff_2_banded[0] - np.roll(diff_2_banded[0], -1, 0))
         - 4 * diff_2_banded[0]
@@ -412,8 +440,8 @@ def test_beads_ATb(beads_data, filter_type, freq_cutoff):
         A_banded, b, (filter_type, filter_type), (num_points, num_points)
     )
 
-    # use rtol=1.5e-7 since values are very small for d=2 and small freq_cutoff
-    assert_allclose(ATb_actual, ATb_banded, rtol=1.5e-7)
+    # use rtol=1.5e-7 with an atol since values are very small for d=2 and small freq_cutoff
+    assert_allclose(ATb_actual, ATb_banded, rtol=1.5e-7, atol=1e-14)
 
     # now check lam_0 * A.T * b
     lam_ATb_actual = lam_0 * A.T * b
@@ -439,10 +467,15 @@ class TestBeads(AlgorithmTester):
     func = misc.beads
 
     @pytest.mark.parametrize('cost_function', (1, 2, 'l1_v1', 'l1_v2', 'L1_V1'))
-    def test_unchanged_data(self, data_fixture, cost_function):
+    @pytest.mark.parametrize('smooth_hw', (0, 5))
+    @pytest.mark.parametrize('fit_parabola', (True, False))
+    def test_unchanged_data(self, data_fixture, cost_function, smooth_hw, fit_parabola):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y, cost_function=cost_function)
+        self._test_unchanged_data(
+            data_fixture, y, None, y, cost_function=cost_function, smooth_half_window=smooth_hw,
+            fit_parabola=fit_parabola
+        )
 
     @pytest.mark.parametrize('use_banded', (True, False))
     def test_output(self, use_banded):

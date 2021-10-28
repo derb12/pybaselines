@@ -11,14 +11,16 @@ Algorithms
 optimize_extended_range
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The :func:`.optimize_extended_range` function is based on the Extended Range
-Penalized Least Squares (erPLS) method, but extends its usage to all
-Whittaker-smoothing-based algorithms and polynomial algorithms.
+The :func:`.optimize_extended_range` function is based on the `Extended Range
+Penalized Least Squares (erPLS) method <https://doi.org/10.3390/s20072015>`_,
+but extends its usage to all Whittaker-smoothing-based algorithms and polynomial algorithms.
 
 In this algorithm, a linear baseline is extrapolated from the left and/or
 right edges, Gaussian peaks are added to these baselines, and then the original
 data plus the extensions are input into the indicated Whittaker or polynomial function.
 An example of data with added baseline and Gaussian peaks is shown below.
+
+.. _extending-data-explanation:
 
 .. plot::
    :align: center
@@ -39,8 +41,7 @@ An example of data with added baseline and Gaussian peaks is shown below.
         + gaussian(x, 9, 880, 8)
     )
     baseline = 5 + 10 * np.exp(-x / 800)
-    np.random.seed(1)  # set random seed
-    noise = np.random.normal(0, 0.2, x.size)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
     y = signal * 0.5 + baseline + noise
 
     # parameters that define the added baseline and gaussian peaks
@@ -130,8 +131,7 @@ added linear regions is selected as the optimal parameter.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        np.random.seed(1)  # set random seed
-        noise = np.random.normal(0, 0.2, x.size)
+        noise = np.random.default_rng(1).normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -205,8 +205,7 @@ algorithm versus the individual baselines from the mpls method.
         + gaussian(x, 9, 800, 10)
     )
     baseline = 5 + 15 * np.exp(-x / 400)
-    np.random.seed(1)  # set random seed
-    noise = np.random.normal(0, 0.2, x.size)
+    noise = np.random.default_rng(0).normal(0, 0.2, x.size)
     y = signal + baseline + noise
     y2 = signal * 1.3 + baseline * 2 + noise
     y3 = signal * 0.5 + baseline * 0.5 + noise * 3

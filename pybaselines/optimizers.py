@@ -10,12 +10,13 @@ Created on March 3, 2021
 """
 
 from math import ceil
+import warnings
 
 import numpy as np
 
-from . import morphological, polynomial, whittaker
-from ._algorithm_setup import _setup_polynomial, _yx_arrays
-from .utils import _get_edges, gaussian
+from . import classification, morphological, polynomial, spline, whittaker
+from ._algorithm_setup import _setup_polynomial, _whittaker_smooth, _yx_arrays
+from .utils import _check_scalar, _get_edges, gaussian
 
 
 def _get_function(method, modules):
@@ -33,6 +34,8 @@ def _get_function(method, modules):
     -------
     func : Callable
         The corresponding function.
+    func_module : str
+        The module that `func` belongs to.
 
     Raises
     ------
@@ -41,17 +44,15 @@ def _get_function(method, modules):
 
     """
     function_string = method.lower()
-    func = None
     for module in modules:
-        try:
+        if hasattr(module, function_string):
             func = getattr(module, function_string)
-        except AttributeError:
-            pass
+            func_module = module.__name__.split('.')[-1]
+            break
+    else:  # in case no break
+        raise AttributeError(f'unknown method {method}')
 
-    if func is None:
-        raise AttributeError('unknown method')
-    # TODO should probably return the selected module as well
-    return func
+    return func, func_module
 
 
 def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
@@ -59,7 +60,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     Collaborative Penalized Least Squares (collab-PLS).
 
     Averages the data or the fit weights for an entire dataset to get more
-    optimal results. Uses any Whittaker-smoothing-based algorithm.
+    optimal results. Uses any Whittaker-smoothing-based or weighted spline algorithm.
 
     Parameters
     ----------
@@ -71,8 +72,8 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
         weighting. If False, will fit each individual entry in the dataset and
         then average the weights to get the weighting for the dataset.
     method : str, optional
-        A string indicating the Whittaker-smoothing-based method to use for
-        fitting the baseline. Default is 'asls'.
+        A string indicating the Whittaker-smoothing-based or weighted spline method to
+        use for fitting the baseline. Default is 'asls'.
     **method_kwargs
         Keyword arguments to pass to the selected `method` function.
 
@@ -97,7 +98,7 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     in Chemistry, 2018, 2018.
 
     """
-    fit_func = _get_function(method, (whittaker, morphological))
+    fit_func = _get_function(method, (whittaker, morphological, classification, spline))[0]
     dataset = np.asarray(data)
     if average_dataset:
         _, fit_params = fit_func(np.mean(dataset.T, 1), **method_kwargs)
@@ -112,8 +113,19 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     method_kwargs['tol'] = np.inf
     baselines = np.empty(dataset.shape)
     params = {'average_weights': method_kwargs['weights']}
+    method = method.lower()
+    if method == 'fabc':
+        # have to handle differently since weights for fabc is the mask for
+        # classification rather than weights for fitting
+        fit_func = _whittaker_smooth
+        for key in list(method_kwargs.keys()):
+            if key not in {'weights', 'lam', 'diff_order'}:
+                method_kwargs.pop(key)
+
     for i, entry in enumerate(dataset):
         baselines[i], param = fit_func(entry, **method_kwargs)
+        if method == 'fabc':
+            param = {'weights': param}
         for key, value in param.items():
             if key in params:
                 params[key].append(value)
@@ -124,8 +136,8 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
 
 
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
-                            height_scale=1., sigma_scale=1. / 12., min_value=2,
-                            max_value=8, step=1, pad_kwargs=None, **method_kwargs):
+                            height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
+                            step=1, pad_kwargs=None, method_kwargs=None, **kwargs):
     """
     Extends data and finds the best parameter value for the given baseline method.
 
@@ -141,7 +153,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
     method : str, optional
-        A string indicating the Whittaker-smoothing-based or polynomial method
+        A string indicating the Whittaker-smoothing-based, polynomial, or spline method
         to use for fitting the baseline. Default is 'asls'.
     side : {'both', 'left', 'right'}, optional
         The side of the measured data to extend. Default is 'both'.
@@ -175,10 +187,14 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         If using a polynomial method, `step` must be an integer.
     pad_kwargs : dict, optional
         A dictionary of options to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution. Default
-        is None, which will use an empty dictionary.
-    **method_kwargs
-        Keyword arguments to pass to the selected `method` function.
+        the edges of the data when adding the extended left and/or right sections.
+        Default is None, which will use an empty dictionary.
+    method_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to the selected `method` function.
+        Default is None, which will use an empty dictionary.
+    **kwargs
+        Deprecated in version 0.7.0 and will be removed in version 0.9.0. Pass any
+        keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
     Returns
     -------
@@ -230,47 +246,10 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     if side not in ('left', 'right', 'both'):
         raise ValueError('side must be "left", "right", or "both"')
 
-    fit_func = _get_function(method, (whittaker, polynomial, morphological))
-    y, x = _yx_arrays(data, x_data)
-    sort_order = np.argsort(x)  # to ensure x is increasing
-    x = x[sort_order]
-    y = y[sort_order]
-    max_x = np.nanmax(x)
-    min_x = np.nanmin(x)
-    x_range = max_x - min_x
-    known_background = np.array([])
-    fit_x_data = x
-    fit_data = y
-    lower_bound = upper_bound = 0
-
-    if pad_kwargs is None:
-        pad_kwargs = {}
-    added_window = int(x.shape[0] * width_scale)
-    added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
-    added_gaussian = gaussian(
-        np.linspace(-added_window / 2, added_window / 2, added_window),
-        height_scale * np.nanmax(y), 0, added_window * sigma_scale
+    fit_func, func_module = _get_function(
+        method, (whittaker, polynomial, morphological, spline, classification)
     )
-    if side in ('right', 'both'):
-        added_x = np.linspace(max_x, max_x + x_range * (width_scale / 2), added_window)
-        fit_x_data = np.hstack((fit_x_data, added_x))
-        fit_data = np.hstack((fit_data, added_gaussian + added_right))
-        known_background = added_right
-        upper_bound += added_window
-    if side in ('left', 'both'):
-        added_x = np.linspace(min_x - x_range * (width_scale / 2), min_x, added_window)
-        fit_x_data = np.hstack((added_x, fit_x_data))
-        fit_data = np.hstack((added_gaussian + added_left, fit_data))
-        known_background = np.hstack((known_background, added_left))
-        lower_bound += added_window
-
-    if method in (
-        'iasls', 'modpoly', 'imodpoly', 'poly', 'penalized_poly', 'loess', 'quant_reg',
-        'goldindec'
-    ):
-        method_kwargs['x_data'] = fit_x_data
-
-    if 'poly' in method or method in ('loess', 'quant_reg', 'goldindec'):
+    if func_module == 'polynomial' or method in ('dietrich', 'cwt_br'):
         if any(not isinstance(val, int) for val in (min_value, max_value, step)):
             raise TypeError((
                 'min_value, max_value, and step must all be integers when'
@@ -286,7 +265,68 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
             ))
         param_name = 'lam'
 
-    min_rmse = np.inf
+    y, x = _yx_arrays(data, x_data)
+    added_window = int(x.shape[0] * width_scale)
+    method_kwargs = method_kwargs.copy() if method_kwargs is not None else {}
+    if kwargs:  # TODO remove in version 0.9
+        warnings.warn(
+            ('Passing additional keyword arguments directly to optimize_extended_range is '
+             'deprecated and will be removed in version 0.9.0. Place all keyword arguments '
+             'into the method_kwargs dictionary instead.'),
+            DeprecationWarning, stacklevel=2
+        )
+        method_kwargs.update(kwargs)
+    sort_x = x_data is not None
+    if sort_x:
+        sort_order = np.argsort(x, kind='mergesort')  # to ensure x is increasing
+        x = x[sort_order]
+        y = y[sort_order]
+        if 'weights' in method_kwargs:
+            # have to adjust weight length to accomodate the added sections; set weights
+            # to 1 to ensure the added sections are fit
+            method_kwargs['weights'] = np.pad(
+                method_kwargs['weights'][sort_order],
+                [0 if side == 'right' else added_window, 0 if side == 'left' else added_window],
+                'constant', constant_values=1
+            )
+    max_x = x.max()
+    min_x = x.min()
+    x_range = max_x - min_x
+    known_background = np.array([])
+    fit_x_data = x
+    fit_data = y
+    lower_bound = upper_bound = 0
+
+    if pad_kwargs is None:
+        pad_kwargs = {}
+    added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
+    added_gaussian = gaussian(
+        np.linspace(-added_window / 2, added_window / 2, added_window),
+        height_scale * abs(y.max()), 0, added_window * sigma_scale
+    )
+    if side in ('right', 'both'):
+        added_x = np.linspace(
+            max_x, max_x + x_range * (width_scale / 2), added_window + 1
+        )[1:]
+        fit_x_data = np.concatenate((fit_x_data, added_x))
+        fit_data = np.concatenate((fit_data, added_gaussian + added_right))
+        known_background = added_right
+        upper_bound += added_window
+    if side in ('left', 'both'):
+        added_x = np.linspace(
+            min_x - x_range * (width_scale / 2), min_x, added_window + 1
+        )[:-1]
+        fit_x_data = np.concatenate((added_x, fit_x_data))
+        fit_data = np.concatenate((added_gaussian + added_left, fit_data))
+        known_background = np.concatenate((known_background, added_left))
+        lower_bound += added_window
+
+    if func_module == 'polynomial' or method in ('iasls', 'dietrich', 'cwt_br'):
+        method_kwargs['x_data'] = fit_x_data
+
+    added_len = 2 * added_window if side == 'both' else added_window
+    upper_idx = fit_data.shape[0] - upper_bound
+    min_sum_squares = np.inf
     best_val = None
     # TODO maybe switch to linspace since arange is inconsistent when using floats
     for var in np.arange(min_value, max_value + step, step):
@@ -297,19 +337,25 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         fit_baseline, fit_params = fit_func(fit_data, **method_kwargs)
         # TODO change the known baseline so that np.roll does not have to be
         # calculated each time, since it requires additional time
-        rmse = np.sqrt(np.mean(
-            (known_background - np.roll(fit_baseline, upper_bound)[:upper_bound + lower_bound])**2
-        ))
-
-        if rmse < min_rmse:
-            baseline = fit_baseline[lower_bound:fit_baseline.shape[0] - upper_bound]
+        residual = (
+            known_background - np.roll(fit_baseline, upper_bound)[:added_len]
+        )
+        # just calculate the sum of squares to reduce time from using sqrt for rmse
+        sum_squares = residual.dot(residual)
+        if sum_squares < min_sum_squares:
+            baseline = fit_baseline[lower_bound:upper_idx]
             params = fit_params
             best_val = var
-            min_rmse = rmse
+            min_sum_squares = sum_squares
 
-    params.update({'optimal_parameter': best_val, 'min_rmse': min_rmse})
+    params.update(
+        {'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len)}
+    )
 
-    return baseline[np.argsort(sort_order)], params
+    if sort_x:
+        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
+
+    return baseline, params
 
 
 def _determine_polyorders(y, x, poly_order, weights, fit_function, **fit_kwargs):
@@ -345,19 +391,19 @@ def _determine_polyorders(y, x, poly_order, weights, fit_function, **fit_kwargs)
     """
     baseline = fit_function(y, x, poly_order, weights=weights, **fit_kwargs)[0]
     signal = y - baseline
-    basline_to_signal = (baseline.max() - baseline.min()) / (signal.max() - signal.min())
+    baseline_to_signal = (baseline.max() - baseline.min()) / (signal.max() - signal.min())
     # Table 2 in reference
-    if basline_to_signal < 0.2:
+    if baseline_to_signal < 0.2:
         orders = (1, 2)
-    elif basline_to_signal < 0.75:
+    elif baseline_to_signal < 0.75:
         orders = (2, 3)
-    elif basline_to_signal < 8.5:
+    elif baseline_to_signal < 8.5:
         orders = (3, 4)
-    elif basline_to_signal < 55:
+    elif baseline_to_signal < 55:
         orders = (4, 5)
-    elif basline_to_signal < 240:
+    elif baseline_to_signal < 240:
         orders = (5, 6)
-    elif basline_to_signal < 517:
+    elif baseline_to_signal < 517:
         orders = (6, 7)
     else:
         orders = (6, 8)  # not a typo, use 6 and 8 rather than 7 and 8
@@ -418,8 +464,8 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
             The weight array used for fitting the data.
         * 'constrained_weights': numpy.ndarray, shape (N,)
             The weight array used for the endpoint-constrained fits.
-        * 'poly_order': tuple(int, int)
-            A tuple of the two polynomial orders used for the fitting.
+        * 'poly_order': numpy.ndarray, shape (2,)
+            An array of the two polynomial orders used for the fitting.
 
     References
     ----------
@@ -432,17 +478,14 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     y, x, weight_array, _ = _setup_polynomial(data, x_data, weights)
     constrained_range = max(1, ceil(y.shape[0] * constrained_fraction))
 
-    if isinstance(poly_order, int):
-        poly_orders = (poly_order, poly_order + 1)
-    elif poly_order is not None:
-        if len(poly_order) == 1:
-            poly_orders = (poly_order[0], poly_order[0] + 1)
-        else:
-            poly_orders = (poly_order[0], poly_order[1])
-    else:
+    if poly_order is None:
         poly_orders = _determine_polyorders(
             y, x, estimation_poly_order, weight_array, fit_func, **method_kwargs
         )
+    else:
+        poly_orders, scalar_poly_order = _check_scalar(poly_order, 2, True, dtype=int)
+        if scalar_poly_order:
+            poly_orders[1] += 1  # add 1 since they are initially equal if scalar input
 
     # use high weighting rather than Lagrange multipliers to constrain the points
     # to better work with noisy data

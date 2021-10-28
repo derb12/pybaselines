@@ -6,9 +6,8 @@ to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. T
 the project is to provide a semi-unified API to allow quickly testing and comparing
 multiple baseline correction algorithms to find the best one for a set of data.
 
-pybaselines has 40+ baseline correction algorithms. The algorithms are grouped
-accordingly (note: when a method is labelled as 'improved', that is the method's
-name, not editorialization):
+pybaselines has 45+ baseline correction algorithms. Whenever possible, the original
+names of the algorithms were used. The algorithms are grouped accordingly:
 
 * Polynomial methods (:mod:`pybaselines.polynomial`)
 
@@ -43,12 +42,15 @@ name, not editorialization):
     * mwmv (Moving Window Minimum Value)
     * tophat (Top-hat Transformation)
     * mpspline (Morphology-Based Penalized Spline)
+    * jbcd (Joint Baseline Correction and Denoising)
 
 * Smoothing-based methods (:mod:`pybaselines.smooth`)
 
     * noise_median (Noise Median method)
     * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
     * swima (Small-Window Moving Average)
+    * ipsa (Iterative Polynomial Smoothing Algorithm)
+    * ria (Range Independent Algorithm)
 
 * Spline methods (:mod:`pybaselines.spline`)
 
@@ -62,6 +64,8 @@ name, not editorialization):
     * golotvin (Golotvin's Classification Method)
     * std_distribution (Standard Deviation Distribution)
     * fastchrom (FastChrom's Baseline Method)
+    * cwt_br (Continuous Wavelet Transform Baseline Recognition)
+    * fabc (Fully Automatic Baseline Correction)
 
 * Optimizers (:mod:`pybaselines.optimizers`)
 

@@ -9,10 +9,10 @@ Created on March 20, 2021
 from unittest import mock
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_almost_equal
+from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import morphological
+from pybaselines import _algorithm_setup, morphological
 
 from .conftest import AlgorithmTester, get_data, has_pentapy
 
@@ -52,7 +52,7 @@ class TestMPLS(AlgorithmTester):
     @has_pentapy
     def test_pentapy_solver(self):
         """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(morphological, '_HAS_PENTAPY', False):
+        with mock.patch.object(_algorithm_setup, '_HAS_PENTAPY', False):
             scipy_output = self._call_func(self.y)[0]
         pentapy_output = self._call_func(self.y)[0]
 
@@ -173,9 +173,11 @@ class TestRollingBall(AlgorithmTester):
 
     _y = AlgorithmTester.y
 
+    # TODO remove warning filter in version 0.8.0
+    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
     @pytest.mark.parametrize('half_window', (None, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0]))
     @pytest.mark.parametrize(
-        'smooth_half_window', (None, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0])
+        'smooth_half_window', (None, 0, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0])
     )
     def test_unchanged_data(self, data_fixture, half_window, smooth_half_window):
         """Ensures that input data is unchanged by the function."""
@@ -209,9 +211,10 @@ class TestRollingBall(AlgorithmTester):
         is the same value as the single half-window.
         """
         baseline_1 = self._call_func(self.y, 1, 1)[0]
-        baseline_2 = self._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
+        with pytest.warns(DeprecationWarning):
+            baseline_2 = self._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
 
-        assert_array_almost_equal(baseline_1, baseline_2)
+        assert_allclose(baseline_1, baseline_2)
 
     def test_array_smooth_half_window_output(self):
         """
@@ -221,19 +224,21 @@ class TestRollingBall(AlgorithmTester):
         values is the same value as the single smooth-half-window.
         """
         baseline_1 = self._call_func(self.y, 1, 1)[0]
-        baseline_2 = self._call_func(self.y, 1, np.full(self.y.shape[0], 1))[0]
+        with pytest.warns(DeprecationWarning):
+            baseline_2 = self._call_func(self.y, 1, np.full(self.y.shape[0], 1))[0]
 
         # avoid the edges since the two smoothing techniques will give slighly
         # different  results on the edges
         data_slice = slice(1, -1)
-        assert_array_almost_equal(baseline_1[data_slice], baseline_2[data_slice])
+        assert_allclose(baseline_1[data_slice], baseline_2[data_slice])
 
     def test_different_array_half_window_output(self):
         """Ensures that the output is different when using changing window sizes."""
         baseline_1 = self._call_func(self.y, 1, 1)[0]
 
         half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        baseline_2 = self._call_func(self.y, half_windows, 1)[0]
+        with pytest.warns(DeprecationWarning):
+            baseline_2 = self._call_func(self.y, half_windows, 1)[0]
 
         assert not np.allclose(baseline_1, baseline_2)
 
@@ -242,13 +247,23 @@ class TestRollingBall(AlgorithmTester):
         baseline_1 = self._call_func(self.y, 1, 1)[0]
 
         smooth_half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        baseline_2 = self._call_func(self.y, 1, smooth_half_windows)[0]
+        with pytest.warns(DeprecationWarning):
+            baseline_2 = self._call_func(self.y, 1, smooth_half_windows)[0]
 
         # avoid the edges since the two smoothing techniques will give slighly
         # different  results on the edges and want to ensure the rest of the
         # data is also non-equal
         data_slice = slice(max(smooth_half_windows), -max(smooth_half_windows))
         assert not np.allclose(baseline_1[data_slice], baseline_2[data_slice])
+
+    # TODO remove warning filter in version 0.8.0
+    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10, np.zeros(_y.shape[0])))
+    def test_smooth_half_windows(self, smooth_half_window):
+        """Ensures smooth-half-window is correctly processed."""
+        output = self._call_func(self.y, smooth_half_window=smooth_half_window)
+
+        assert output[0].shape == self.y.shape
 
 
 class TestMWMV(AlgorithmTester):
@@ -269,6 +284,13 @@ class TestMWMV(AlgorithmTester):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10))
+    def test_smooth_half_windows(self, smooth_half_window):
+        """Ensures smooth-half-window is correctly processed."""
+        output = self._call_func(self.y, smooth_half_window=smooth_half_window)
+
+        assert output[0].shape == self.y.shape
 
 
 class TestTophat(AlgorithmTester):
@@ -326,3 +348,40 @@ class TestMpsline(AlgorithmTester):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
             self._call_func(self.y, p=p)
+
+
+class TestJBCD(AlgorithmTester):
+    """Class for testing jbcd baseline."""
+
+    func = morphological.jbcd
+
+    @pytest.mark.parametrize('robust_opening', (False, True))
+    def test_unchanged_data(self, data_fixture, robust_opening):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y, robust_opening=robust_opening)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('half_window', 'tol_history', 'signal'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        factor = {2: 1e4, 3: 1e10}[diff_order]
+
+        self._call_func(self.y, beta=factor, gamma=factor, diff_order=diff_order)
+
+    @has_pentapy
+    def test_pentapy_solver(self):
+        """Ensure pentapy solver gives similar result to SciPy's solver."""
+        with mock.patch.object(morphological, '_HAS_PENTAPY', False):
+            scipy_output = self._call_func(self.y, diff_order=2)[0]
+        pentapy_output = self._call_func(self.y, diff_order=2)[0]
+
+        assert_allclose(pentapy_output, scipy_output, 1e-4)

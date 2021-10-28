@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-pybaselines - A library of baseline correction algorithms.
-==========================================================
+pybaselines - A library of algorithms for the baseline correction of experimental data.
+=======================================================================================
 
 pybaselines provides different techniques for fitting baselines to experimental data.
 
@@ -38,12 +38,15 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * mwmv (Moving Window Minimum Value)
     * tophat (Top-hat Transformation)
     * mpspline (Morphology-Based Penalized Spline)
+    * jbcd (Joint Baseline Correction and Denoising)
 
 * Smoothing-based methods (:mod:`pybaselines.smooth`)
 
     * noise_median (Noise Median method)
     * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
     * swima (Small-Window Moving Average)
+    * ipsa (Iterative Polynomial Smoothing Algorithm)
+    * ria (Range Independent Algorithm)
 
 * Spline methods (:mod:`pybaselines.spline`)
 
@@ -57,6 +60,8 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * golotvin (Golotvin's Classification Method)
     * std_distribution (Standard Deviation Distribution)
     * fastchrom (FastChrom's Baseline Method)
+    * cwt_br (Continuous Wavelet Transform Baseline Recognition)
+    * fabc (Fully Automatic Baseline Correction)
 
 * Optimizers (:mod:`pybaselines.optimizers`)
 

@@ -7,19 +7,29 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_almost_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import optimizers
+from pybaselines import optimizers, polynomial, whittaker, utils
 
 from .conftest import AlgorithmTester, get_data
 
 
-@pytest.mark.parametrize('method', ('collab_pls', 'COLLAB_pls'))
-def test_get_function(method):
+@pytest.mark.parametrize(
+    'method_and_outputs', (
+        ('collab_pls', optimizers.collab_pls, 'optimizers'),
+        ('COLLAB_pls', optimizers.collab_pls, 'optimizers'),
+        ('modpoly', polynomial.modpoly, 'polynomial'),
+        ('asls', whittaker.asls, 'whittaker')
+    )
+)
+def test_get_function(method_and_outputs):
     """Ensures _get_function gets the correct method, regardless of case."""
-    selected_func = optimizers._get_function(method, [optimizers])
-    assert selected_func is optimizers.collab_pls
+    method, expected_func, expected_module = method_and_outputs
+    tested_modules = [optimizers, polynomial, whittaker]
+    selected_func, module = optimizers._get_function(method, tested_modules)
+    assert selected_func is expected_func
+    assert module == expected_module
 
 
 def test_get_function_fails_wrong_method():
@@ -44,21 +54,25 @@ class TestCollabPLS(AlgorithmTester):
         """Makes the data two-dimensional with shape (M, N) as required by collab_pls."""
         return np.vstack((data, data))
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('average_dataset', (True, False))
+    def test_unchanged_data(self, data_fixture, average_dataset):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
 
         data_x, data_y = data_fixture
         stacked_data = (self._stack(data_x), self._stack(data_y))
         stacked_y = self._stack(y)
-        self._test_unchanged_data(stacked_data, stacked_y, None, stacked_y)
+        self._test_unchanged_data(
+            stacked_data, stacked_y, None, stacked_y, average_dataset=average_dataset
+        )
 
-    def test_output(self):
+    @pytest.mark.parametrize('average_dataset', (True, False))
+    def test_output(self, average_dataset):
         """Ensures that the output has the desired format."""
         stacked_y = self._stack(self.y)
         # will need to change checked_keys if default method is changed
         self._test_output(
-            stacked_y, stacked_y,
+            stacked_y, stacked_y, average_dataset=average_dataset,
             checked_keys=('average_weights', 'weights', 'tol_history')
         )
 
@@ -70,7 +84,10 @@ class TestCollabPLS(AlgorithmTester):
 
     @pytest.mark.parametrize(
         'method',
-        ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa')
+        (
+            'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
+            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc'
+        )
     )
     def test_all_methods(self, method):
         """Ensures all available methods work."""
@@ -99,14 +116,33 @@ class TestOptimizeExtendedRange(AlgorithmTester):
             with_args=(self.y, self.x), without_args=(self.y, None)
         )
 
-    def test_x_ordering(self):
-        """Ensures arrays are correctly sorted within the function."""
+    @pytest.mark.parametrize('side', ('left', 'right', 'both'))
+    def test_ordering(self, side):
+        """Ensures arrays and weights are correctly sorted within the function."""
         reverse_x = self.x[::-1]
         reverse_y = self.y[::-1]
-        regular_inputs_result = self._call_func(self.y, self.x)[0]
-        reverse_inputs_result = self._call_func(reverse_y, reverse_x)[0]
+        input_weights = np.ones(len(self.y))
+        input_weights[-1] = 0.9
+        original_weights = input_weights.copy()
+        method_kwargs = {'weights': input_weights}
+        input_kwargs = method_kwargs.copy()
 
-        assert_array_almost_equal(regular_inputs_result, reverse_inputs_result[::-1])
+        regular_inputs_result = self._call_func(self.y, self.x, side=side)[0]
+        reverse_inputs_result = self._call_func(
+            reverse_y, reverse_x, side=side, method_kwargs=method_kwargs
+        )[0]
+
+        assert_allclose(regular_inputs_result, reverse_inputs_result[::-1], 1e-10)
+        # also ensure the input weights are unchanged when sorting
+        assert_array_equal(original_weights, input_weights)
+        # ensure method_kwargs dict was unchanged
+        total_dict = input_kwargs.copy()
+        total_dict.update(method_kwargs)
+        for key in total_dict.keys():
+            if key not in input_kwargs or key not in method_kwargs:
+                raise AssertionError('keys in method_kwargs were alterred')
+            else:
+                assert_array_equal(input_kwargs[key], method_kwargs[key])
 
     def test_output(self):
         """Ensures that the output has the desired format."""
@@ -125,21 +161,24 @@ class TestOptimizeExtendedRange(AlgorithmTester):
 
     @pytest.mark.parametrize(
         'method',
-        ('asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
-         'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg', 'goldindec')
+        (
+            'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
+            'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg', 'goldindec',
+            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'dietrich', 'cwt_br', 'fabc'
+        )
     )
     def test_all_methods(self, method):
         """Tests all methods that should work with optimize_extended_range."""
         if method == 'loess':
             # reduce number of calculations for loess since it is much slower
             kwargs = {'min_value': 1, 'max_value': 2}
-        elif 'poly' not in method:
-            # speed up whittaker tests
-            kwargs = {'min_value': 4}
         else:
             kwargs = {}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
-        self._call_func(self.y, self.x, method=method, height_scale=0.1, **kwargs)
+        self._call_func(
+            self.y, self.x, method=method, height_scale=0.1,
+            pad_kwargs={'extrapolate_window': 100}, **kwargs
+        )
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
@@ -169,6 +208,57 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         """
         with pytest.raises(ValueError):
             self._call_func(self.y, self.x, method='asls', **{key: 1e4})
+
+    def test_kwargs_deprecation(self):
+        """Ensures a warning is emitted for passing kwargs meant for the fitting function."""
+        with pytest.warns(DeprecationWarning):
+            self._call_func(self.y, self.x, method='asls', lam=1e8)
+
+
+@pytest.mark.parametrize(
+    'baseline_ptp', (0.01, 0.1, 0.3, 0.5, 1, 5, 10, 40, 100, 200, 300, 500, 600, 1000)
+)
+def test_determine_polyorders(baseline_ptp):
+    """Ensures the correct polynomials are selected based on the signal to baseline ratio."""
+    x = np.linspace(0, 100, 1000)
+    # set y such that max(y) - min(y) is ~ 1 so that
+    # ptp(baseline) / ptp(y) ~= ptp(baseline)
+    y = (
+        utils.gaussian(x, 1, 25)
+        + utils.gaussian(x, 0.5, 50)
+        + utils.gaussian(x, 1, 75)
+    )
+    # use a linear baseline so that it's easy to set the peak-to-peak of the baseline
+    true_baseline = x * baseline_ptp / (x.max() - x.min())
+
+    # double check to make sure the system is setup as expected
+    assert_allclose(np.ptp(true_baseline), baseline_ptp, 0, 1e-3)
+    assert_allclose(np.ptp(y), 1, 0, 1e-3)
+
+    fit_baseline = polynomial.modpoly(y + true_baseline, x, 1)[0]
+    # sanity check to make sure internal baseline fit was correct
+    assert_allclose(np.ptp(fit_baseline), baseline_ptp, 0, 1e-3)
+
+    if baseline_ptp < 0.2:
+        expected_orders = (1, 2)
+    elif baseline_ptp < 0.75:
+        expected_orders = (2, 3)
+    elif baseline_ptp < 8.5:
+        expected_orders = (3, 4)
+    elif baseline_ptp < 55:
+        expected_orders = (4, 5)
+    elif baseline_ptp < 240:
+        expected_orders = (5, 6)
+    elif baseline_ptp < 517:
+        expected_orders = (6, 7)
+    else:
+        expected_orders = (6, 8)
+
+    output_orders = optimizers._determine_polyorders(
+        y + true_baseline, x, 1, None, polynomial.modpoly
+    )
+
+    assert output_orders == expected_orders
 
 
 class TestAdaptiveMinMax(AlgorithmTester):
@@ -215,4 +305,10 @@ class TestAdaptiveMinMax(AlgorithmTester):
     def test_polyorder_outputs(self, poly_order):
         """Ensures that the correct polynomial orders were used."""
         _, params = self._call_func(self.y, self.x, poly_order)
-        assert params['poly_order'] == (0, 1)
+        assert_array_equal(params['poly_order'], np.array([0, 1]))
+
+    @pytest.mark.parametrize('poly_order', ([0, 1, 2], (0, 1, 2, 3)))
+    def test_too_many_polyorders_fails(self, poly_order):
+        """Ensures an error is raised if poly_order has more than two items."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, poly_order)

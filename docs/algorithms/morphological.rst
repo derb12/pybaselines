@@ -81,8 +81,7 @@ method.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        np.random.seed(1)  # set random seed
-        noise = np.random.normal(0, 0.2, x.size)
+        noise = np.random.default_rng(1).normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -312,3 +311,87 @@ Finally, a penalized spline is fit to the smoothed data with the assigned weight
             y, lam=lam, p=p, pad_kwargs={'extrapolate_window': 30}
         )
         ax.plot(baseline[0], 'g--')
+
+
+jbcd (Joint Baseline Correction and Denoising)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.jbcd` uses regularized least-squares fitting combined with morphological operations
+to simultaneously obtain the baseline and denoised signal.
+
+Minimized function:
+
+.. math::
+
+    \frac{1}{2} \sum\limits_{i = 1}^N (s_i + b_i - y_i)^2
+    + \alpha \sum\limits_{i = 1}^N (b_i - Op_i)^2
+    + \beta \sum\limits_{i = 1}^{N - d} (\Delta^d b_i)^2
+    + \gamma \sum\limits_{i = 1}^{N - d} (\Delta^d s_i)^2
+
+where :math:`y_i` is the measured data, :math:`b_i` is the estimated baseline,
+:math:`s_i` is the estimated signal, :math:`\Delta^d` is the forward-difference
+operator of order d, :math:`Op_i` is the morphological opening of the measured data,
+and :math:`\alpha`, :math:`\beta`, and :math:`\gamma` are regularization parameters.
+
+Linear systems:
+
+The initial signal, :math:`s^0`, and baseline, :math:`b^0`, are set equal to :math:`y`,
+and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`n`, :math:`s^n`
+and :math:`b^n`, are solved for sequentially using the following two
+linear equations:
+
+.. math::
+
+    (I + 2 \gamma D_d^{\top} D_d) s^n = y - b^{n-1}
+
+.. math::
+
+    (I + 2 \alpha I + 2 \beta D_d^{\top} D_d) b^n = y - s^n + 2 \alpha Op
+
+where :math:`I` is the identity matrix and :math:`D_d` is the matrix version
+of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.
+After each iteration, :math:`\beta`, and :math:`\gamma` are updated by user-specified
+multipliers.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            half_window = 50
+        else:
+            half_window = 20
+        baseline = morphological.jbcd(
+            y, half_window, gamma=1, beta_mult=1.05, gamma_mult=0.95
+        )
+        ax.plot(baseline[0], 'g--')
+
+The signal with the baseline removed and noise decreased can also be obtained from the output
+of the jbcd function.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the second-to-top-most algorithm's code
+    axes, data = create_data()
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        if i == 1:
+            half_window = 50
+        else:
+            half_window = 20
+        baseline = morphological.jbcd(
+            y, half_window, gamma=1, beta_mult=1.05, gamma_mult=0.95
+        )
+
+        ax.clear()  # remove the old plots in the axis
+        data_handle = ax.plot(y)
+        signal_handle = ax.plot(baseline[1]['signal'])
+
+    axes[-1].clear()  # remove the old legend
+    axes[-1].legend(
+        (data_handle[0], signal_handle[0]),
+        ('data', 'signal from jcbd'), loc='center', frameon=False
+    )

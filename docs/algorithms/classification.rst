@@ -35,8 +35,7 @@ method. The plot below shows such an example.
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 5 * np.exp(-x / 400)
-    np.random.seed(1)  # set random seed
-    noise = np.random.normal(0, 0.2, x.size)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     weights = np.ones(y.shape[0])
@@ -119,8 +118,7 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        np.random.seed(1)  # set random seed
-        noise = np.random.normal(0, 0.2, x.size)
+        noise = np.random.default_rng(1).normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -158,13 +156,13 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
             poly_order = i + 1
         else:
             poly_order = 1
-        if i == 2:
-            num_std = 1.95
-        elif i == 3:
-            num_std = 2.6
+        if i == 1:
+            num_std = 2.5
         else:
-            num_std = 1.85
-        baseline = classification.dietrich(y, None, 8, num_std=num_std, poly_order=poly_order)
+            num_std = 3
+        baseline = classification.dietrich(
+            y, None, smooth_half_window=5, num_std=num_std, poly_order=poly_order, min_length=3
+        )
         ax.plot(baseline[0], 'g--')
 
 
@@ -183,7 +181,7 @@ the noise's standard deviation as belonging to the baseline.
     # to see contents of create_data function, look at the top-most algorithm's code
     for i, (ax, y) in enumerate(zip(*create_data())):
         if i == 1:
-            half_window = 25
+            half_window = 20
         else:
             half_window = 10
         if i in (1, 3):
@@ -244,4 +242,72 @@ threshold, and peak regions are iteratively interpolated until the baseline is b
         baseline = classification.fastchrom(
             y, None, half_window=12, threshold=1, min_fwhm=min_fwhm
         )
+        ax.plot(baseline[0], 'g--')
+
+
+cwt_br (Continuous Wavelet Transform Baseline Recognition)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.cwt_br` identifies baseline segments by performing a continous wavelet
+transform (CWT) on the input data at various scales, and picks the scale with the first
+local minimum in the Shannon entropy. The threshold for baseline points is obtained by fitting
+a Gaussian to the histogram of the CWT at the optimal scale, and the final baseline is fit
+using a weighted polynomial where identified baseline points are given a weight of 1 while all
+other points have a weight of 0.
+
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    scales = np.arange(2, 40)
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i < 4:
+            poly_order = i + 1
+            symmetric = False
+        else:
+            poly_order = 1
+            symmetric = True
+        if i in (0, 4):
+            min_length = 3
+        else:
+            min_length = 20
+        baseline = classification.cwt_br(
+            y, poly_order=poly_order, scales=scales, min_length=min_length,
+            symmetric=symmetric, num_std=0.5
+        )
+        ax.plot(baseline[0], 'g--')
+
+
+fabc (Fully Automatic Baseline Correction)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.fabc` identifies baseline segments by thresholding the squared first derivative
+of the data, similar to :func:`dietrich`. However, fabc approximates the first derivative
+using a continous wavelet transform with the Haar wavelet, which is more robust to noise
+than the numerical derivative in Dietrich's method. The baseline is then fit using
+Whittaker smoothing with all baseline points having a weight of 1 and all other points
+a weight of 0.
+
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            lam = 1e4
+        elif i == 3:
+            lam = 5e2
+        elif i in (0, 4):
+            lam = 1e6
+        else:
+            lam = 1e3
+        if i == 1:
+            num_std = 2.5
+        else:
+            num_std = 3
+        baseline = classification.fabc(y, lam=lam, scale=16, num_std=num_std, min_length=3)
         ax.plot(baseline[0], 'g--')

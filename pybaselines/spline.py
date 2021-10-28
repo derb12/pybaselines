@@ -293,7 +293,14 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
     weight_matrix = diags(weight_array)
-    if weights is None:
+    if weights is not None:
+        coef = spsolve(
+            spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
+            spl_basis.T * (weight_array * y),
+            permc_spec='NATURAL'
+        )
+        baseline = spl_basis * coef
+    else:
         # perform 2 iterations: first is a least-squares fit and second is initial
         # reweighted fit; 2 fits are needed to get weights to have a decent starting
         # distribution for the expectation-maximization
@@ -660,7 +667,7 @@ def corner_cutting(data, x_data=None, max_iter=100):
     num_y = y.shape[0]
     mask = np.ones(num_y, bool)
 
-    areas = np.empty(max_iter)
+    areas = np.zeros(max_iter)
     kept_points = np.zeros(num_y, int)
     old_area = np.trapz(y, x)
     old_sum = num_y
@@ -676,6 +683,7 @@ def corner_cutting(data, x_data=None, max_iter=100):
         new_sum = mask.sum()
         num_corners = old_sum - new_sum
         if num_corners == 0:
+            i -= 1  # subtract 1 so that areas is correctly indexed
             break
         old_sum = new_sum
 
@@ -685,8 +693,7 @@ def corner_cutting(data, x_data=None, max_iter=100):
         ym = y[mask]
 
         # TODO area calculation does not match reference values; need to recheck
-        # and figure out the correct criteria; sometimes get extremely large (~1e80)
-        # area values when the removed region is small (~ 1 point removed)
+        # and figure out the correct criteria
         # area = (
         #     (xm[1:-1] - xm[:-2]) * (ym[1:-1] + ym[:-2])
         #     + (xm[2:] - xm[1:-1]) * (ym[2:] + ym[1:-1])

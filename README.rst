@@ -6,6 +6,10 @@ pybaselines
     :target: https://pypi.python.org/pypi/pybaselines
     :alt: Most Recent Version
 
+.. image:: https://github.com/derb12/pybaselines/actions/workflows/python-test.yml/badge.svg
+    :target: https://github.com/derb12/pybaselines/actions
+    :alt: GitHub Actions test status
+
 .. image:: https://readthedocs.org/projects/pybaselines/badge/?version=latest
     :target: https://pybaselines.readthedocs.io
     :alt: Documentation Status
@@ -19,8 +23,7 @@ pybaselines
     :alt: BSD 3-clause license
 
 
-pybaselines is a library of baseline correction algorithms to help estimate
-the baselines of experimental data.
+pybaselines is a library of algorithms for the baseline correction of experimental data.
 
 * For Python 3.6+
 * Open Source: BSD 3-Clause License
@@ -40,9 +43,8 @@ to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. T
 the project is to provide a semi-unified API to allow quickly testing and comparing
 multiple baseline correction algorithms to find the best one for a set of data.
 
-pybaselines has 40+ baseline correction algorithms. The algorithms are grouped
-accordingly (note: when a method is labelled as 'improved', that is the method's
-name, not editorialization):
+pybaselines has 45+ baseline correction algorithms. Whenever possible, the original
+names of the algorithms were used. The algorithms are grouped accordingly:
 
 * Polynomial methods (pybaselines.polynomial)
 
@@ -77,6 +79,7 @@ name, not editorialization):
   * mwmv (Moving Window Minimum Value)
   * tophat (Top-hat Transformation)
   * mpspline (Morphology-Based Penalized Spline)
+  * jbcd (Joint Baseline Correction and Denoising)
 
 * Smoothing-based methods (pybaselines.smooth)
 
@@ -89,6 +92,8 @@ name, not editorialization):
   * mixture_model (Mixture Model)
   * irsqr (Iterative Reweighted Spline Quantile Regression)
   * corner_cutting (Corner-Cutting Method)
+  * ipsa (Iterative Polynomial Smoothing Algorithm)
+  * ria (Range Independent Algorithm)
 
 * Baseline/Peak Classification methods (pybaselines.classification)
 
@@ -96,6 +101,8 @@ name, not editorialization):
   * golotvin (Golotvin's Classification Method)
   * std_distribution (Standard Deviation Distribution)
   * fastchrom (FastChrom's Baseline Method)
+  * cwt_br (Continuous Wavelet Transform Baseline Recognition)
+  * fabc (Fully Automatic Baseline Correction)
 
 * Optimizers (pybaselines.optimizers)
 
@@ -161,7 +168,7 @@ pybaselines requires `Python <https://python.org>`_ version 3.6 or later
 and the following libraries:
 
 * `NumPy <https://numpy.org>`_ (>= 1.14)
-* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 0.17)
+* `SciPy <https://www.scipy.org/scipylib/index.html>`_ (>= 1.0)
 
 
 All of the required libraries should be automatically installed when
@@ -180,10 +187,11 @@ will output two items: a numpy array of the calculated baseline and a
 dictionary of potentially useful parameters.
 
 For more details on each baseline algorithm, refer to the `algorithms section`_ of
-pybaselines's documentation.
+pybaselines's documentation. For examples of their usage, refer to the `examples section`_.
 
 .. _algorithms section: https://pybaselines.readthedocs.io/en/latest/algorithms/index.html
 
+.. _examples section: https://pybaselines.readthedocs.io/en/latest/examples/index.html
 
 A simple example is shown below.
 
@@ -208,23 +216,16 @@ A simple example is shown below.
     )
     # exponentially decaying baseline
     true_baseline = 2 + 10 * np.exp(-x / 400)
-    np.random.seed(1)  # set random seed
-    noise = np.random.normal(0, 0.2, x.size)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
 
     y = signal + true_baseline + noise
 
     bkg_1 = pybaselines.polynomial.modpoly(y, x, poly_order=3)[0]
     bkg_2 = pybaselines.whittaker.asls(y, lam=1e7, p=0.02)[0]
     bkg_3 = pybaselines.morphological.mor(y, half_window=30)[0]
-    try:
-        bkg_4 = pybaselines.smooth.snip(
-            y, max_half_window=40, decreasing=True, smooth_half_window=3
-        )[0]
-    except AttributeError:
-        # pybaselines.window was renamed to pybaselines.smooth in version 0.6
-        bkg_4 = pybaselines.window.snip(
-            y, max_half_window=40, decreasing=True, smooth_half_window=3
-        )[0]
+    bkg_4 = pybaselines.smooth.snip(
+        y, max_half_window=40, decreasing=True, smooth_half_window=3
+    )[0]
 
     plt.plot(x, y, label='raw data', lw=1.5)
     plt.plot(x, true_baseline, lw=3, label='true baseline')

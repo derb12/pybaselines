@@ -4,15 +4,23 @@
 Created on March 31, 2021
 @author: Donald Erb
 
+TODO: non-finite values (nan or inf) could be replaced for algorithms that use weighting
+by setting their values to arbitrary value (eg. 0) within the output y, set their weights
+to 0, and then back-fill after the calculation; something to consider, rather than just
+raising an exception when encountering a non-finite value; could also interpolate rather
+than just filling back in the nan or inf value.
+
 """
 
 import warnings
 
 import numpy as np
 from scipy.interpolate import splev
+from scipy.linalg import solveh_banded
 from scipy.sparse import csr_matrix
 
-from .utils import ParameterWarning, difference_matrix, optimize_window, pad_edges
+from ._compat import _HAS_PENTAPY, _pentapy_solve
+from .utils import _pentapy_solver, ParameterWarning, difference_matrix, optimize_window, pad_edges
 
 
 def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
@@ -123,8 +131,8 @@ def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
     Returns
     -------
     output : numpy.ndarray
-        The array containing the diagonal data. Has a shape of (2, `data_size`)
-        if `upper_only` is True, otherwise (3, `data_size`).
+        The array containing the diagonal data. The number of rows depends on
+        `upper_only` and `add_zeros`.
 
     Notes
     -----
@@ -148,16 +156,16 @@ def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
     output[1, 1:-1] = 2
 
     if add_zeros:
-        zeros = np.zeros(data_size)
+        zeros = np.zeros((1, data_size))
 
     if upper_only:
         if add_zeros:
-            output = np.vstack((zeros, output))
+            output = np.concatenate((zeros, output))
         return output
 
     output[-1, -1] = 0
     if add_zeros:
-        output = np.vstack((zeros, output, zeros))
+        output = np.concatenate((zeros, output, zeros))
 
     return output
 
@@ -230,6 +238,9 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
         )
     num_y = y.shape[0]
     # use hard-coded values for diff_order of 1 and 2 since it is much faster
+    # TODO need to do a shape check to ensure the vast versions are valid; len(y)
+    # must be >= 2 * diff_order + 1 (almost surely is); if not, need to do the
+    # actual calculation with the difference matrix, or just raise an error
     if diff_order == 1:
         diagonal_data = _diff_1_diags(num_y, upper_only)
     elif diff_order == 2:
@@ -246,10 +257,9 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
     if weights is None:
         weight_array = np.ones(num_y)
     else:
+        weight_array = np.asarray(weights)
         if copy_weights:
-            weight_array = np.asarray(weights).copy()
-        else:
-            weight_array = np.asarray(weights)
+            weight_array = weight_array.copy()
 
         if weight_array.shape != y.shape:
             raise ValueError('weights must have the same shape as the input data')
@@ -300,8 +310,8 @@ def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
     return vander, pseudo_inverse
 
 
-def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
-                      return_vander=False, return_pinv=False):
+def _setup_polynomial(data, x_data=None, weights=None, poly_order=2, return_vander=False,
+                      return_pinv=False, copy_weights=False):
     """
     Sets the starting parameters for doing polynomial fitting.
 
@@ -322,6 +332,9 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     return_pinv : bool, optional
         If True, and if `return_vander` is True, will calculate and return the
         pseudo-inverse of the Vandermonde matrix. Default is False.
+    copy_weights : boolean, optional
+        If True, will copy the array of input weights. Only needed if the
+        algorithm changes the weights in-place. Default is False.
 
     Returns
     -------
@@ -358,10 +371,16 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2,
     else:
         original_domain = np.polynomial.polyutils.getdomain(x)
         x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1., 1.]))
-    if weights is not None:
-        weight_array = np.asarray(weights).copy()
+
+    if weights is None:
+        weight_array = np.ones(len(y))
     else:
-        weight_array = np.ones(y.shape[0])
+        weight_array = np.asarray(weights)
+        if copy_weights:
+            weight_array = weight_array.copy()
+
+        if weight_array.shape != y.shape:
+            raise ValueError('weights must have the same shape as the input data')
 
     output = [y, x, weight_array, original_domain]
     if return_vander:
@@ -430,7 +449,7 @@ def _setup_morphology(data, half_window=None, **window_kwargs):
     return y, output_half_window
 
 
-def _setup_smooth(data, half_window, **pad_kwargs):
+def _setup_smooth(data, half_window=0, **pad_kwargs):
     """
     Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -441,10 +460,10 @@ def _setup_smooth(data, half_window, **pad_kwargs):
     half_window : int, optional
         The half-window used for the smoothing functions. Used
         to pad the left and right edges of the data to reduce edge
-        effects.
+        effects. Default is 0, which provides no padding.
     **pad_kwargs
         Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+        the edges of the data to prevent edge effects from smoothing.
 
     Returns
     -------
@@ -558,8 +577,8 @@ def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
             np.repeat(inner_knots[-1], spline_degree)
         ))
 
-    num_bases = knots.shape[0] - spline_order
-    basis = np.empty((num_bases, x.shape[0]))
+    num_bases = len(knots) - spline_order
+    basis = np.empty((num_bases, len(x)))
     coefs = np.zeros(num_bases)
     # TODO would be faster to simply calculate the spline coefficients using de Boor's recursive
     # algorithm; does it also give just the coefficients without all the extra zeros? would be
@@ -663,3 +682,50 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     penalty_matrix = lam * diff_matrix.T * diff_matrix
 
     return y, x, basis, weight_array, penalty_matrix
+
+
+def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):
+    """
+    Performs Whittaker smoothing on the input data.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother fits.
+        Default is 1e6.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the weights will be an array
+        with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    smooth_y : numpy.ndarray, shape (N,)
+        The smoothed data.
+    weight_array : numpy.ndarray, shape (N,)
+        The weights used for fitting the data.
+
+    References
+    ----------
+    Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+    """
+    using_pentapy = _HAS_PENTAPY and diff_order == 2
+    y, diagonals, weight_array = _setup_whittaker(
+        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
+    )
+    main_diag_idx = diff_order if using_pentapy else -1
+    diagonals[main_diag_idx] = diagonals[main_diag_idx] + weight_array
+    if using_pentapy:
+        smooth_y = _pentapy_solve(diagonals, weight_array * y, True, True, _pentapy_solver())
+    else:
+        smooth_y = solveh_banded(
+            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False
+        )
+
+    return smooth_y, weight_array
