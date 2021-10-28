@@ -2,4 +2,4 @@
 Examples
 ========
 
-This will show various uses of pybaselines.
+This section shows various uses of pybaselines.
