@@ -2,6 +2,9 @@
 
 sphinx==3.1.2
 sphinx-rtd-theme==0.4.3
+# pin docutils to v0.16 since v0.17 breaks bulleted lists; can remove
+# once I update the sphinx-rtd-theme version
+docutils==0.16
 sphinx-autoapi==1.8.1
 sphinx-gallery==0.10.0
 matplotlib==3.2.2

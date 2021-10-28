@@ -14,14 +14,17 @@ pybaselines
     :target: https://pybaselines.readthedocs.io
     :alt: Documentation Status
 
-.. image:: https://img.shields.io/pypi/pyversions/pybaselines.svg
-    :target: https://pypi.python.org/pypi/pybaselines
-    :alt: Supported Python versions
-
 .. image:: https://img.shields.io/badge/license-BSD%203--Clause-blue.svg
     :target: https://github.com/derb12/pybaselines/tree/main/LICENSE.txt
     :alt: BSD 3-clause license
 
+.. image:: https://img.shields.io/pypi/pyversions/pybaselines.svg
+    :target: https://pypi.python.org/pypi/pybaselines
+    :alt: Supported Python versions
+
+.. image:: https://zenodo.org/badge/350510397.svg
+    :target: https://zenodo.org/badge/latestdoi/350510397
+    :alt: Zenodo DOI
 
 pybaselines is a library of algorithms for the baseline correction of experimental data.
 
