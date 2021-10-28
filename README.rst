@@ -6,7 +6,7 @@ pybaselines
     :target: https://pypi.python.org/pypi/pybaselines
     :alt: Most Recent Version
 
-.. image:: https://github.com/derb12/pybaselines/actions/workflows/tests/badge.svg
+.. image:: https://github.com/derb12/pybaselines/actions/workflows/python-test.yml/badge.svg
     :target: https://github.com/derb12/pybaselines/actions
     :alt: GitHub Actions test status
 
