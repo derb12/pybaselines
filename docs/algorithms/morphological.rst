@@ -81,8 +81,7 @@ method.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        np.random.seed(1)  # set random seed
-        noise = np.random.normal(0, 0.2, x.size)
+        noise = np.random.default_rng(1).normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)

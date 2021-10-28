@@ -73,8 +73,7 @@ residual belonging to the noise's normal distribution.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        np.random.seed(1)  # set random seed
-        noise = np.random.normal(0, 0.2, x.size)
+        noise = np.random.default_rng(1).normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -161,7 +160,9 @@ between all but the first and last non-corner points.
 
     # to see contents of create_data function, look at the top-most algorithm's code
     for i, (ax, y) in enumerate(zip(*create_data())):
-        if i in (1, 3):
+        if i == 1:
+            max_iter = 12
+        elif i == 3:
             max_iter = 11
         else:
             max_iter = 100

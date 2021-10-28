@@ -300,8 +300,8 @@ def test_beads_diff_matrix_calculation(beads_data, filter_type, freq_cutoff):
     ))
     diff_1_matrix = _algorithm_setup.difference_matrix(num_points, 1)
     diff_2_matrix = _algorithm_setup.difference_matrix(num_points, 2)
-    d1_y = np.diff(y)
-    d2_y = np.diff(y, 2)
+    d1_y = abs(np.diff(y))
+    d2_y = abs(np.diff(y, 2))
     d_y = np.concatenate((d1_y, d2_y))
     diff_matrix = vstack((diff_1_matrix, diff_2_matrix))  # the full difference matrix, D
 
@@ -323,10 +323,11 @@ def test_beads_diff_matrix_calculation(beads_data, filter_type, freq_cutoff):
     diff_2_banded = np.zeros((5, num_points))
     # D.T * L * D == D_1.T * L_1 * D_1 + D_2.T * L_2 + D_2, so can calculate the
     # individual differences separately
-    diff_1_banded[1][1:] = diff_1_banded[3][:-1] = -d1_y
+    d1_y_output, d2_y_output = misc._abs_diff(y)
+    diff_1_banded[1][1:] = diff_1_banded[3][:-1] = -d1_y_output
     diff_1_banded[2] = -(diff_1_banded[1] + diff_1_banded[3])
 
-    diff_2_banded[0][2:] = diff_2_banded[-1][:-2] = d2_y
+    diff_2_banded[0][2:] = diff_2_banded[-1][:-2] = d2_y_output
     diff_2_banded[1] = (
         2 * (diff_2_banded[0] - np.roll(diff_2_banded[0], -1, 0))
         - 4 * diff_2_banded[0]

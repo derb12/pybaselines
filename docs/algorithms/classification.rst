@@ -35,8 +35,7 @@ method. The plot below shows such an example.
         + gaussian(x, 9, 800, 10)
     )
     real_baseline = 5 + 5 * np.exp(-x / 400)
-    np.random.seed(1)  # set random seed
-    noise = np.random.normal(0, 0.2, x.size)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
     weights = np.ones(y.shape[0])
@@ -119,8 +118,7 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
             + gaussian(x, 18, 800, 18)
             + gaussian(x, 15, 830, 12)
         )
-        np.random.seed(1)  # set random seed
-        noise = np.random.normal(0, 0.2, x.size)
+        noise = np.random.default_rng(1).normal(0, 0.2, x.size)
         linear_baseline = 3 + 0.01 * x
         exponential_baseline = 5 + 15 * np.exp(-x / 400)
         gaussian_baseline = 5 + gaussian(x, 20, 500, 500)
@@ -183,7 +181,7 @@ the noise's standard deviation as belonging to the baseline.
     # to see contents of create_data function, look at the top-most algorithm's code
     for i, (ax, y) in enumerate(zip(*create_data())):
         if i == 1:
-            half_window = 25
+            half_window = 20
         else:
             half_window = 10
         if i in (1, 3):

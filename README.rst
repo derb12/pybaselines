@@ -184,10 +184,11 @@ will output two items: a numpy array of the calculated baseline and a
 dictionary of potentially useful parameters.
 
 For more details on each baseline algorithm, refer to the `algorithms section`_ of
-pybaselines's documentation.
+pybaselines's documentation. For examples of their usage, refer to the `examples section`_.
 
 .. _algorithms section: https://pybaselines.readthedocs.io/en/latest/algorithms/index.html
 
+.. _examples section: https://pybaselines.readthedocs.io/en/latest/examples/index.html
 
 A simple example is shown below.
 
@@ -212,8 +213,7 @@ A simple example is shown below.
     )
     # exponentially decaying baseline
     true_baseline = 2 + 10 * np.exp(-x / 400)
-    np.random.seed(1)  # set random seed
-    noise = np.random.normal(0, 0.2, x.size)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
 
     y = signal + true_baseline + noise
 

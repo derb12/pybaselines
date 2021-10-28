@@ -771,8 +771,7 @@ class TestQuantReg(AlgorithmTester):
         # is >= 1.17, can use np.random.default_rng to get a consistent random
         # generator and recreate outputs without having to save y as well
 
-        # np.random.seed(0)
-        # y = x + np.random.normal(0, 200, x.size)
+        # y = x + np.random.default_rng(0).normal(0, 200, x.size)
         y = QUANTILE_Y
 
         self._test_accuracy(
