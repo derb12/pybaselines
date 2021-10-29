@@ -16,13 +16,6 @@ from pybaselines import _algorithm_setup, morphological
 from .conftest import AlgorithmTester, get_data, has_pentapy
 
 
-def test_deprecated_optimize_window():
-    """Ensure calling optimize_window raises a DeprecationWarning."""
-    x, y = get_data()
-    with pytest.warns(DeprecationWarning):
-        morphological.optimize_window(y)
-
-
 class TestMPLS(AlgorithmTester):
     """Class for testing mpls baseline."""
 

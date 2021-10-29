@@ -6,8 +6,6 @@ Created on March 5, 2021
 
 """
 
-import warnings
-
 import numpy as np
 from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
@@ -19,20 +17,8 @@ from ._algorithm_setup import (
 )
 from ._compat import _HAS_PENTAPY, _pentapy_solve
 from .utils import (
-    _mollifier_kernel, _pentapy_solver,
-    optimize_window as _optimize_window, pad_edges, padded_convolve, relative_difference
+    _mollifier_kernel, _pentapy_solver, pad_edges, padded_convolve, relative_difference
 )
-
-
-# TODO remove in version 0.8.0
-def optimize_window(*args, **kwargs):  # noqa
-    warnings.warn(
-        (
-            'morphological.optimize_window is deprecated and will be removed in '
-            'version 0.8.0; use pybaselines.utils.optimize_window instead'
-        ), DeprecationWarning, stacklevel=2
-    )
-    return _optimize_window(*args, **kwargs)
 
 
 def _avg_opening(y, half_window, opening=None):
@@ -801,8 +787,7 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     )
     spline_fit = spl_basis * initial_coef
     if weights is None:
-        if half_window is None:
-            half_window = _optimize_window(spline_fit, **window_kwargs)
+        _, half_window = _setup_morphology(spline_fit, half_window, **window_kwargs)
         full_window = 2 * half_window + 1
 
         pad_kws = pad_kwargs if pad_kwargs is not None else {}
