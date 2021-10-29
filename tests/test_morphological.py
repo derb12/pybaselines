@@ -8,7 +8,6 @@ Created on March 20, 2021
 
 from unittest import mock
 
-import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
@@ -171,14 +170,8 @@ class TestRollingBall(AlgorithmTester):
 
     func = morphological.rolling_ball
 
-    _y = AlgorithmTester.y
-
-    # TODO remove warning filter in version 0.8.0
-    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
-    @pytest.mark.parametrize('half_window', (None, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0]))
-    @pytest.mark.parametrize(
-        'smooth_half_window', (None, 0, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0])
-    )
+    @pytest.mark.parametrize('half_window', (None, 10))
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 1))
     def test_unchanged_data(self, data_fixture, half_window, smooth_half_window):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
@@ -193,72 +186,7 @@ class TestRollingBall(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
-    def test_incorrect_half_window_fails(self):
-        """Ensures an exception is raised if half_window is an array with len != len(data)."""
-        with pytest.raises(ValueError):
-            self._call_func(self.y, np.array([1, 1]))
-
-    def test_incorrect_smooth_half_window_fails(self):
-        """Ensures exception is raised if smooth_half_window is an array with len != len(data)."""
-        with pytest.raises(ValueError):
-            self._call_func(self.y, 1, np.array([1, 1]))
-
-    def test_array_half_window_output(self):
-        """
-        Checks the array-based rolling ball versus the constant value implementation.
-
-        Ensures that both give the same answer if the array of half-window values
-        is the same value as the single half-window.
-        """
-        baseline_1 = self._call_func(self.y, 1, 1)[0]
-        with pytest.warns(DeprecationWarning):
-            baseline_2 = self._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
-
-        assert_allclose(baseline_1, baseline_2)
-
-    def test_array_smooth_half_window_output(self):
-        """
-        Checks the smoothing array-based rolling ball versus the constant value implementation.
-
-        Ensures that both give the same answer if the array of smooth-half-window
-        values is the same value as the single smooth-half-window.
-        """
-        baseline_1 = self._call_func(self.y, 1, 1)[0]
-        with pytest.warns(DeprecationWarning):
-            baseline_2 = self._call_func(self.y, 1, np.full(self.y.shape[0], 1))[0]
-
-        # avoid the edges since the two smoothing techniques will give slighly
-        # different  results on the edges
-        data_slice = slice(1, -1)
-        assert_allclose(baseline_1[data_slice], baseline_2[data_slice])
-
-    def test_different_array_half_window_output(self):
-        """Ensures that the output is different when using changing window sizes."""
-        baseline_1 = self._call_func(self.y, 1, 1)[0]
-
-        half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        with pytest.warns(DeprecationWarning):
-            baseline_2 = self._call_func(self.y, half_windows, 1)[0]
-
-        assert not np.allclose(baseline_1, baseline_2)
-
-    def test_different_array_smooth_half_window_output(self):
-        """Ensures that the output is different when using changing smoothing window sizes."""
-        baseline_1 = self._call_func(self.y, 1, 1)[0]
-
-        smooth_half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        with pytest.warns(DeprecationWarning):
-            baseline_2 = self._call_func(self.y, 1, smooth_half_windows)[0]
-
-        # avoid the edges since the two smoothing techniques will give slighly
-        # different  results on the edges and want to ensure the rest of the
-        # data is also non-equal
-        data_slice = slice(max(smooth_half_windows), -max(smooth_half_windows))
-        assert not np.allclose(baseline_1[data_slice], baseline_2[data_slice])
-
-    # TODO remove warning filter in version 0.8.0
-    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
-    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10, np.zeros(_y.shape[0])))
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10))
     def test_smooth_half_windows(self, smooth_half_window):
         """Ensures smooth-half-window is correctly processed."""
         output = self._call_func(self.y, smooth_half_window=smooth_half_window)

@@ -13,7 +13,7 @@ from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
-from ._compat import jit, prange
+from ._compat import jit
 
 
 # Note: the triple quotes are for including the attributes within the documentation
@@ -728,96 +728,3 @@ def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
         raise ValueError(f'desired length was {desired_length} but instead got {len_output}')
 
     return output, is_scalar
-
-
-@jit(nopython=True, cache=True, parallel=True)
-def _grey_erosion_1d_array(data, half_window):
-    """
-    Computes the rolling minimum with an array of half-window values.
-
-    Parameters
-    ----------
-    data : numpy.ndarray, shape (N,)
-        The data to use for the calculation.
-    half_window : numpy.ndarray, shape (N,)
-        The array of half-windows to use for the rolling calculation.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
-
-    """
-    num_points = len(data)
-    output = np.empty(num_points)
-    # TODO not sure if there is a better way to perform the rolling min/max with a changing
-    # window size
-    # TODO negative half-window values will give incorrect results; not sure how I want to
-    # handle
-    for i in prange(num_points):
-        half_win = abs(half_window[i])
-        output[i] = data[max(0, i - half_win):min(i + half_win + 1, num_points)].min()
-
-    return output
-
-
-@jit(nopython=True, cache=True, parallel=True)
-def _grey_dilation_1d_array(data, half_window):
-    """
-    Computes the rolling maximum with an array of half-window values.
-
-    Parameters
-    ----------
-    data : numpy.ndarray, shape (N,)
-        The data to use for the calculation.
-    half_window : numpy.ndarray, shape (N,)
-        The array of half-windows to use for the rolling calculation.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
-
-    """
-    num_points = len(data)
-    output = np.empty(num_points)
-    # TODO not sure if there is a better way to perform the rolling min/max with a changing
-    # window size
-    # TODO negative half-window values will give incorrect results; not sure how I want to
-    # handle
-    for i in prange(num_points):
-        half_win = half_window[i]
-        output[i] = data[max(0, i - half_win):min(i + half_win + 1, num_points)].max()
-
-    return output
-
-
-# TODO remove in version 0.8.0
-def _grey_opening_1d(data, half_window):
-    """
-    Computes the morphological opening with either a fixed or changing window size.
-
-    The opening operation is a rolling minimum followed by a rolling maximum.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The data to use for the calculation.
-    half_window : int or array-like(int), shape (N,)
-        An integer or an array of integers to use for the rolling calculation.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
-
-    """
-    half_windows, scalar_half_window = _check_scalar(half_window, len(data), dtype=int)
-    if scalar_half_window:
-        output = grey_opening(data, 2 * half_windows + 1)
-    else:
-        output = _grey_dilation_1d_array(
-            _grey_erosion_1d_array(np.asarray(data), half_windows), half_windows
-        )
-
-    return output
