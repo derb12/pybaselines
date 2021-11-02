@@ -563,15 +563,15 @@ def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
     if penalized:
         x_min = x.min()
         x_max = x.max()
-        dx = (x_max - x_min) / (num_knots + 1)  # +1 since number of sections is num_knots + 1
+        # number of sections is num_knots - 1 since counting the first and last knots as inner knots
+        dx = (x_max - x_min) / (num_knots - 1)
         knots = np.linspace(
             x_min - spline_degree * dx, x_max + spline_degree * dx,
-            num_knots + 2 * spline_order
+            num_knots + 2 * spline_degree
         )
     else:
         # TODO maybe provide a better way to select knot positions for regular B-splines
-        # use 0 and 100 percentile for the outer knots
-        inner_knots = np.percentile(x, np.linspace(0, 100, num_knots + 2))
+        inner_knots = np.percentile(x, np.linspace(0, 100, num_knots))
         knots = np.concatenate((
             np.repeat(inner_knots[0], spline_degree), inner_knots,
             np.repeat(inner_knots[-1], spline_degree)
