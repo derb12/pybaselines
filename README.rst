@@ -89,14 +89,14 @@ names of the algorithms were used. The algorithms are grouped accordingly:
   * noise_median (Noise Median method)
   * snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
   * swima (Small-Window Moving Average)
+  * ipsa (Iterative Polynomial Smoothing Algorithm)
+  * ria (Range Independent Algorithm)
 
 * Spline methods (pybaselines.spline)
 
   * mixture_model (Mixture Model)
   * irsqr (Iterative Reweighted Spline Quantile Regression)
   * corner_cutting (Corner-Cutting Method)
-  * ipsa (Iterative Polynomial Smoothing Algorithm)
-  * ria (Range Independent Algorithm)
 
 * Baseline/Peak Classification methods (pybaselines.classification)
 
