@@ -13,7 +13,7 @@ from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
-from ._compat import jit
+from ._compat import jit, _pentapy_solve
 
 
 # Note: the triple quotes are for including the attributes within the documentation
@@ -25,17 +25,28 @@ or 1. See :func:`pentapy.core.solve` for more details.
 """
 
 
-def _pentapy_solver():
+def _pentapy_solver(ab, y):
     """
-    Convenience function for getting the current pentapy solver.
+    Convenience function for calling pentapy's solver with defaults already set.
+
+    Solves the linear system :math:`A @ x = y` for `x`, given the matrix `A` in
+    banded format, `ab`. The default settings of :func`:pentapy.solve` are
+    already set for the fastest configuration.
+
+    Parameters
+    ----------
+    ab : array-like
+        The matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
+    y : array-like
+        The right hand side of the equation.
 
     Returns
     -------
-    PENTAPY_SOLVER : str or int
-        The currently specified solver for pentapy.
+    numpy.ndarray
+        The solution to the linear system.
 
     """
-    return PENTAPY_SOLVER
+    return _pentapy_solve(ab, y, is_flat=True, index_row_wise=True, solver=PENTAPY_SOLVER)
 
 
 # the minimum positive float values such that a + _MIN_FLOAT != a

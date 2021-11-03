@@ -426,17 +426,6 @@ def test_setup_splines_array_lam(small_data):
         _algorithm_setup._setup_splines(small_data, lam=[1, 2])
 
 
-def test_changing_pentapy_solver():
-    """Ensure a change to utils.PENTAPY_SOLVER is communicated to pybaselines._algorithms_setup."""
-    original_solver = utils.PENTAPY_SOLVER
-    try:
-        for solver in range(5):
-            utils.PENTAPY_SOLVER = solver
-            assert _algorithm_setup._pentapy_solver() == solver
-    finally:
-        utils.PENTAPY_SOLVER = original_solver
-
-
 @pytest.mark.parametrize('lam', (5, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]])))
 def test_check_lam(lam):
     """Ensures scalar lam values are correctly processed."""

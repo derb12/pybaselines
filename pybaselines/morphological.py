@@ -15,7 +15,7 @@ from scipy.sparse.linalg import spsolve
 from ._algorithm_setup import (
     _check_lam, _setup_morphology, _setup_splines, _setup_whittaker, _whittaker_smooth
 )
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._compat import _HAS_PENTAPY
 from .utils import (
     _mollifier_kernel, _pentapy_solver, pad_edges, padded_convolve, relative_difference
 )
@@ -911,7 +911,6 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
     baseline_old = opening
     signal_old = y
     main_diag_idx = diff_order if using_pentapy else -1
-    pentapy_solver = _pentapy_solver()
     partial_rhs_2 = (2 * alpha) * opening
     tol_history = np.empty((max_iter + 1, 2))
     for i in range(max_iter + 1):
@@ -920,10 +919,8 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
         lhs_2 = (2 * beta) * penalty_diagonals
         lhs_2[main_diag_idx] += 1. + 2. * alpha
         if using_pentapy:
-            signal = _pentapy_solve(lhs_1, y - baseline_old, True, True, pentapy_solver)
-            baseline = _pentapy_solve(
-                lhs_2, y - signal + partial_rhs_2, True, True, pentapy_solver
-            )
+            signal = _pentapy_solver(lhs_1, y - baseline_old)
+            baseline = _pentapy_solver(lhs_2, y - signal + partial_rhs_2)
         else:
             signal = solveh_banded(
                 lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True, check_finite=False

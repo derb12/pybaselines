@@ -13,7 +13,7 @@ from scipy.linalg import solve_banded, solveh_banded
 from scipy.special import expit
 
 from ._algorithm_setup import _check_lam, _diff_1_diags, _setup_whittaker, _yx_arrays
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._compat import _HAS_PENTAPY
 from .utils import (
     ParameterWarning, _mollifier_kernel, _pentapy_solver, _safe_std, pad_edges,
     padded_convolve, relative_difference
@@ -134,7 +134,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     for i in range(max_iter + 1):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(diagonals, weight_array * y, True, True, _pentapy_solver())
+            baseline = _pentapy_solver(diagonals, weight_array * y)
         else:
             baseline = solveh_banded(
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False
@@ -243,9 +243,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         weight_squared = weight_array * weight_array
         diagonals[main_diag_idx] = main_diagonal + weight_squared
         if _HAS_PENTAPY:
-            baseline = _pentapy_solve(
-                diagonals, weight_squared * y + d1_y, True, True, _pentapy_solver()
-            )
+            baseline = _pentapy_solver(diagonals, weight_squared * y + d1_y)
         else:
             baseline = solveh_banded(
                 diagonals, weight_squared * y + d1_y, overwrite_b=True, check_finite=False
@@ -322,9 +320,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     for i in range(1, max_iter + 2):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            output = _pentapy_solve(
-                diagonals, weight_array * y, True, True, _pentapy_solver()
-            )
+            output = _pentapy_solver(diagonals, weight_array * y)
             # if weights are all ~0, then pentapy sometimes outputs nan without
             # warnings or errors, so have to check
             if np.isfinite(output.dot(output)):
@@ -435,9 +431,7 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     for i in range(max_iter + 1):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, _pentapy_solver()
-            )
+            baseline = _pentapy_solver(diagonals, weight_array * y)
         else:
             baseline = solveh_banded(
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False
@@ -515,8 +509,8 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None):
     for i in range(1, max_iter + 2):
         d2_w_diagonals = d2_diagonals * weight_array
         if _HAS_PENTAPY:
-            baseline = _pentapy_solve(
-                d1_d2_diagonals + d2_w_diagonals, weight_array * y, True, True, _pentapy_solver()
+            baseline = _pentapy_solver(
+                d1_d2_diagonals + d2_w_diagonals, weight_array * y
             )
         else:
             baseline = solve_banded(
@@ -606,9 +600,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
     for i in range(1, max_iter + 2):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, _pentapy_solver()
-            )
+            baseline = _pentapy_solver(diagonals, weight_array * y)
         else:
             baseline = solveh_banded(
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False
@@ -713,9 +705,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
         alpha_diagonals = diagonals * alpha_array
         alpha_diagonals[diff_order] = alpha_diagonals[diff_order] + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(
-                alpha_diagonals, weight_array * y, True, True, _pentapy_solver()
-            )
+            baseline = _pentapy_solver(alpha_diagonals, weight_array * y)
         else:
             baseline = solve_banded(
                 lower_upper, _shift_rows(alpha_diagonals, diff_order), weight_array * y,
@@ -827,9 +817,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     for i in range(max_iter + 1):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, _pentapy_solver()
-            )
+            baseline = _pentapy_solver(diagonals, weight_array * y)
         else:
             baseline = solveh_banded(
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False
@@ -957,9 +945,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
     for i in range(max_iter + 1):
         diagonals[main_diag_idx] = main_diagonal + weight_array
         if using_pentapy:
-            baseline = _pentapy_solve(
-                diagonals, weight_array * y, True, True, _pentapy_solver()
-            )
+            baseline = _pentapy_solver(diagonals, weight_array * y)
         else:
             baseline = solveh_banded(
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False

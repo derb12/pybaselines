@@ -20,7 +20,7 @@ from scipy.interpolate import splev
 from scipy.linalg import solveh_banded
 from scipy.sparse import csr_matrix
 
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._compat import _HAS_PENTAPY
 from .utils import (
     _check_scalar, _pentapy_solver, ParameterWarning, difference_matrix, optimize_window, pad_edges
 )
@@ -774,7 +774,7 @@ def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):
     main_diag_idx = diff_order if using_pentapy else -1
     diagonals[main_diag_idx] = diagonals[main_diag_idx] + weight_array
     if using_pentapy:
-        smooth_y = _pentapy_solve(diagonals, weight_array * y, True, True, _pentapy_solver())
+        smooth_y = _pentapy_solver(diagonals, weight_array * y)
     else:
         smooth_y = solveh_banded(
             diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False
