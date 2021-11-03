@@ -147,6 +147,19 @@ def test_setup_whittaker_diff_matrix_warns(small_data, diff_order):
         _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
 
 
+def test_setup_whittaker_negative_lam_fails(small_data):
+    """Ensures a negative lam value fails."""
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_whittaker(small_data, -1)
+
+
+def test_setup_whittaker_array_lam(small_data):
+    """Ensures a lam that is a single array passes while larger arrays fail."""
+    _algorithm_setup._setup_whittaker(small_data, [1])
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_whittaker(small_data, [1, 2])
+
+
 @pytest.mark.parametrize('array_enum', (0, 1))
 def test_yx_arrays_output_array(small_data, array_enum):
     """Ensures output y and x are always numpy arrays and that x is not scaled."""
@@ -400,6 +413,19 @@ def test_setup_splines_diff_matrix_warns(small_data, diff_order):
         _algorithm_setup._setup_splines(small_data, diff_order=diff_order)
 
 
+def test_setup_splines_negative_lam_fails(small_data):
+    """Ensures a negative lam value fails."""
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(small_data, lam=-1)
+
+
+def test_setup_splines_array_lam(small_data):
+    """Ensures a lam that is a single array passes while larger arrays fail."""
+    _algorithm_setup._setup_whittaker(small_data, lam=[1])
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(small_data, lam=[1, 2])
+
+
 def test_changing_pentapy_solver():
     """Ensure a change to utils.PENTAPY_SOLVER is communicated to pybaselines._algorithms_setup."""
     original_solver = utils.PENTAPY_SOLVER
@@ -409,3 +435,28 @@ def test_changing_pentapy_solver():
             assert _algorithm_setup._pentapy_solver() == solver
     finally:
         utils.PENTAPY_SOLVER = original_solver
+
+
+@pytest.mark.parametrize('lam', (5, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]])))
+def test_check_lam(lam):
+    """Ensures scalar lam values are correctly processed."""
+    output_lam = _algorithm_setup._check_lam(lam)
+    assert output_lam == 5
+
+
+def test_check_lam_failures():
+    """Ensures array-like values or values < or <= 0 fail."""
+    # fails due to array of values
+    with pytest.raises(ValueError):
+        _algorithm_setup._check_lam([5, 10])
+
+    # fails for lam <= 0 when allow_zero is False
+    for lam in range(-5, 1):
+        with pytest.raises(ValueError):
+            _algorithm_setup._check_lam(lam)
+
+    # test that is allows zero if allow_zero is True
+    _algorithm_setup._check_lam(0, True)
+    for lam in range(-5, 0):
+        with pytest.raises(ValueError):
+            _algorithm_setup._check_lam(lam, True)

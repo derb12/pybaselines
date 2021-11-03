@@ -12,6 +12,7 @@ than just filling back in the nan or inf value.
 
 """
 
+import operator
 import warnings
 
 import numpy as np
@@ -20,7 +21,9 @@ from scipy.linalg import solveh_banded
 from scipy.sparse import csr_matrix
 
 from ._compat import _HAS_PENTAPY, _pentapy_solve
-from .utils import _pentapy_solver, ParameterWarning, difference_matrix, optimize_window, pad_edges
+from .utils import (
+    _check_scalar, _pentapy_solver, ParameterWarning, difference_matrix, optimize_window, pad_edges
+)
 
 
 def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
@@ -170,6 +173,53 @@ def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
     return output
 
 
+def _check_lam(lam, allow_zero=False):
+    """
+    Ensures the regularization parameter `lam` is a scalar greater than 0.
+
+    Parameters
+    ----------
+    lam : float or array-like
+        The regularization parameter, lambda, used in Whittaker smoothing and
+        penalized splines.
+    allow_zero : bool
+        If False (default), only allows `lam` values > 0. If True, allows `lam` >= 0.
+
+    Returns
+    -------
+    float
+        The scalar `lam` value.
+
+    Raises
+    ------
+    ValueError
+        Raised if `lam` is less than or equal to 0.
+
+    Notes
+    -----
+    Array-like `lam` values could be permitted, but they require using the full
+    banded penalty matrix. Many functions use only half of the penalty matrix due
+    to its symmetry; that symmetry is broken when using an array for `lam`, so allowing
+    an array `lam` would change how the system is solved. Further, array-like `lam`
+    values cause some instability and/or discontinuities when using Whittaker smoothing
+    or penalized splines. Thus, it is easier and better to only allow scalar `lam` values.
+
+    """
+    output_lam = _check_scalar(lam, 1)[0]
+    if allow_zero:
+        operation = operator.lt
+        text = 'greater than or equal to'
+    else:
+        operation = operator.le
+        text = 'greater than'
+    if np.any(operation(output_lam, 0)):
+        raise ValueError(f'lam must be {text} 0')
+
+    # use an empty tuple to get the single scalar value; that way, if the input
+    # lam is a single item in an array, it is converted to a single scalar
+    return output_lam[()]
+
+
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
                      upper_only=True, reverse_diags=False):
     """
@@ -208,16 +258,14 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
         squared finite-difference matrix of order `diff_order`. Has a shape of
         (`diff_order` + 1, N) if `upper_only` is True, otherwise
         (`diff_order` * 2 + 1, N).
-
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
 
     Raises
     ------
     ValueError
-        Raised is `diff_order` is less than 1.
-    ValueError
-        Raised if `weights` and `data` do not have the same shape.
+        Raised is `diff_order` is less than 1 or if `weights` and `data` do not
+        have the same shape.
 
     Warns
     -----
@@ -264,7 +312,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
         if weight_array.shape != y.shape:
             raise ValueError('weights must have the same shape as the input data')
 
-    return y, lam * diagonal_data, weight_array
+    return y, _check_lam(lam) * diagonal_data, weight_array
 
 
 def _get_vander(x, poly_order=2, weights=None, calc_pinv=True):
@@ -683,7 +731,7 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
             ParameterWarning
         )
     diff_matrix = difference_matrix(basis.shape[1], diff_order, 'csc')
-    penalty_matrix = lam * diff_matrix.T * diff_matrix
+    penalty_matrix = _check_lam(lam) * (diff_matrix.T * diff_matrix)
 
     return y, x, basis, weight_array, penalty_matrix
 

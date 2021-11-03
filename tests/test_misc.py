@@ -526,3 +526,18 @@ class TestBeads(AlgorithmTester):
             _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('negative_lam', [0, 1, 2])
+    def test_negative_lam_fails(self, negative_lam):
+        """Ensures that a negative regularization parameter fails."""
+        lams = [1, 1, 1]
+        lams[negative_lam] *= -1
+        with pytest.raises(ValueError):
+            self._call_func(self.y, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
+
+    @pytest.mark.parametrize('zero_lam', [0, 1, 2])
+    def test_zero_lam_passes(self, zero_lam):
+        """Ensures that a zero-valued regularization parameter passes."""
+        lams = [1, 1, 1]
+        lams[zero_lam] = 0
+        self._call_func(self.y, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])

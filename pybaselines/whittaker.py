@@ -12,7 +12,7 @@ import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
 from scipy.special import expit
 
-from ._algorithm_setup import _diff_1_diags, _setup_whittaker, _yx_arrays
+from ._algorithm_setup import _check_lam, _diff_1_diags, _setup_whittaker, _yx_arrays
 from ._compat import _HAS_PENTAPY, _pentapy_solve
 from .utils import (
     ParameterWarning, _mollifier_kernel, _pentapy_solver, _safe_std, pad_edges,
@@ -232,12 +232,12 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     main_diag_idx = 2 if _HAS_PENTAPY else -1
     main_diagonal = diagonals[main_diag_idx].copy()
 
-    # lam_1 * D_1.T * D_1 * y
+    # lam_1 * (D_1.T @ D_1) * y
     d1_y = y.copy()
     d1_y[0] = y[0] - y[1]
     d1_y[-1] = y[-1] - y[-2]
     d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
-    d1_y = lam_1 * d1_y
+    d1_y = _check_lam(lam_1) * d1_y
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
         weight_squared = weight_array * weight_array

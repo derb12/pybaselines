@@ -6,10 +6,6 @@ Created on March 20, 2021
 
 """
 
-# TODO for now, just test that pybaselines.window still works; in a later version
-# also test that each function emits a DeprecationWarning to use pybaselines.smooth
-# instead
-
 from numpy.testing import assert_allclose
 import pytest
 

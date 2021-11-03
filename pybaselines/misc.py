@@ -73,6 +73,7 @@ from scipy.sparse.linalg import splu, spsolve
 
 from ._compat import _HAS_NUMBA, jit
 from .utils import _MIN_FLOAT, relative_difference
+from ._algorithm_setup import _check_lam
 
 
 def interp_pts(x_data, baseline_points=(), interp_method='linear'):
@@ -1008,6 +1009,9 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
     if smooth_half_window is None:
         smooth_half_window = 0
 
+    lam_0 = _check_lam(lam_0, True)
+    lam_1 = _check_lam(lam_1, True)
+    lam_2 = _check_lam(lam_2, True)
     if _HAS_NUMBA:
         baseline, params = _banded_beads(
             y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,

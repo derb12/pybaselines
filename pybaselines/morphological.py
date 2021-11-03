@@ -13,7 +13,7 @@ from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import (
-    _setup_morphology, _setup_splines, _setup_whittaker, _whittaker_smooth
+    _check_lam, _setup_morphology, _setup_splines, _setup_whittaker, _whittaker_smooth
 )
 from ._compat import _HAS_PENTAPY, _pentapy_solve
 from .utils import (
@@ -766,8 +766,6 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     """
     if half_window is not None and half_window < 1:
         raise ValueError('half-window must be greater than 0')
-    elif lam <= 0:
-        raise ValueError('lam must be greater than 0')
     elif not 0 <= p <= 1:
         raise ValueError('p must be between 0 and 1')
 
@@ -806,7 +804,7 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
 
     weight_matrix.setdiag(weight_array)
     optimal_coef = spsolve(
-        spl_basis.T * weight_matrix * spl_basis + (lam / lam_smooth) * penalty_matrix,
+        spl_basis.T * weight_matrix * spl_basis + (_check_lam(lam) / lam_smooth) * penalty_matrix,
         spl_basis.T * (weight_array * spline_fit), permc_spec='NATURAL'
     )
     baseline = spl_basis * optimal_coef
