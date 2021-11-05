@@ -9,47 +9,101 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import dia_matrix
+from scipy.sparse import dia_matrix, identity
+from scipy.sparse.linalg import spsolve
 
 from pybaselines import _algorithm_setup, utils
 from pybaselines.utils import ParameterWarning
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))
-@pytest.mark.parametrize('upper_only', (True, False))
-def test_diff_2_diags(data_size, upper_only):
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_diff_2_diags(data_size, lower_only):
     """Ensures the output of _diff_2_diags is the correct shape and values."""
-    diagonal_data = _algorithm_setup._diff_2_diags(data_size, upper_only)
+    diagonal_data = _algorithm_setup._diff_2_diags(data_size, lower_only)
 
     diff_matrix = utils.difference_matrix(data_size, 2)
-    diag_matrix = (diff_matrix.T * diff_matrix).todia()
+    diag_matrix = (diff_matrix.T @ diff_matrix).todia()
     actual_diagonal_data = diag_matrix.data[::-1]
-    if upper_only:
-        actual_diagonal_data = actual_diagonal_data[:3]
+    if lower_only:
+        actual_diagonal_data = actual_diagonal_data[2:]
 
     assert_array_equal(diagonal_data, actual_diagonal_data)
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))
-@pytest.mark.parametrize('add_zeros', (True, False))
-@pytest.mark.parametrize('upper_only', (True, False))
-def test_diff_1_diags(data_size, upper_only, add_zeros):
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_diff_1_diags(data_size, lower_only):
     """Ensures the output of _diff_1_diags is the correct shape and values."""
-    diagonal_data = _algorithm_setup._diff_1_diags(data_size, upper_only, add_zeros)
+    diagonal_data = _algorithm_setup._diff_1_diags(data_size, lower_only)
 
     diff_matrix = utils.difference_matrix(data_size, 1)
-    diag_matrix = (diff_matrix.T * diff_matrix).todia()
+    diag_matrix = (diff_matrix.T @ diff_matrix).todia()
     actual_diagonal_data = diag_matrix.data[::-1]
-    if upper_only:
-        actual_diagonal_data = actual_diagonal_data[:2]
-    if add_zeros:
-        filler = np.zeros(data_size)
-        if upper_only:
-            actual_diagonal_data = np.vstack((filler, actual_diagonal_data))
-        else:
-            actual_diagonal_data = np.vstack((filler, actual_diagonal_data, filler))
+    if lower_only:
+        actual_diagonal_data = actual_diagonal_data[1:]
 
     assert_array_equal(diagonal_data, actual_diagonal_data)
+
+
+@pytest.mark.parametrize('data_size', (10, 1001))
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_diff_3_diags(data_size, lower_only):
+    """Ensures the output of _diff_3_diags is the correct shape and values."""
+    diagonal_data = _algorithm_setup._diff_3_diags(data_size, lower_only)
+
+    diff_matrix = utils.difference_matrix(data_size, 3)
+    diag_matrix = (diff_matrix.T @ diff_matrix).todia()
+    actual_diagonal_data = diag_matrix.data[::-1]
+    if lower_only:
+        actual_diagonal_data = actual_diagonal_data[3:]
+
+    assert_array_equal(diagonal_data, actual_diagonal_data)
+
+
+@pytest.mark.parametrize('data_size', (10, 1001))
+@pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5, 6, 7, 8))
+@pytest.mark.parametrize('lower_only', (True, False))
+@pytest.mark.parametrize('padding', (-1, 0, 1, 2))
+def test_diff_penalty_diagonals(data_size, diff_order, lower_only, padding):
+    """
+    Ensures the penalty matrix (squared finite difference matrix) diagonals are correct.
+
+    Also tests the condition for when `data_size` < 2 * `diff_order` + 1 to ensure
+    the slower, sparse route is taken.
+
+    """
+    diagonal_data = _algorithm_setup.diff_penalty_diagonals(
+        data_size, diff_order, lower_only, padding
+    )
+
+    diff_matrix = utils.difference_matrix(data_size, diff_order)
+    diag_matrix = (diff_matrix.T @ diff_matrix).todia()
+    actual_diagonal_data = diag_matrix.data[::-1]
+    if lower_only:
+        actual_diagonal_data = actual_diagonal_data[diff_order:]
+    if padding > 0:
+        pad_layers = np.repeat(np.zeros((1, data_size)), padding, axis=0)
+        if lower_only:
+            actual_diagonal_data = np.concatenate((actual_diagonal_data, pad_layers))
+        else:
+            actual_diagonal_data = np.concatenate((pad_layers, actual_diagonal_data, pad_layers))
+
+    assert_array_equal(diagonal_data, actual_diagonal_data)
+
+
+def test_diff_penalty_diagonals_order_neg():
+    """Ensures penalty matrix fails for negative order."""
+    with pytest.raises(ValueError):
+        _algorithm_setup.diff_penalty_diagonals(10, -1)
+
+
+def test_diff_penalty_diagonals_datasize_too_small():
+    """Ensures penalty matrix fails for data size <= 0."""
+    with pytest.raises(ValueError):
+        _algorithm_setup.diff_penalty_diagonals(0)
+    with pytest.raises(ValueError):
+        _algorithm_setup.diff_penalty_diagonals(-1)
 
 
 @pytest.fixture
@@ -70,23 +124,26 @@ def test_setup_whittaker_y_array(small_data, array_enum):
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lam', (1, 20))
-@pytest.mark.parametrize('upper_only', (True, False))
+@pytest.mark.parametrize('lower_only', (True, False))
 @pytest.mark.parametrize('reverse_diags', (True, False))
-def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, upper_only, reverse_diags):
+def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, lower_only, reverse_diags):
     """Ensures output difference matrix diagonal data is in desired format."""
+    if reverse_diags and lower_only:
+        # this configuration is never used
+        return
+
     _, diagonal_data, _ = _algorithm_setup._setup_whittaker(
-        small_data, lam, diff_order, upper_only=upper_only, reverse_diags=reverse_diags
+        small_data, lam, diff_order, lower_only=lower_only, reverse_diags=reverse_diags
     )
 
-    # numpy gives transpose of the desired differential matrix
-    numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order).T
-    desired_diagonals = dia_matrix(lam * np.dot(numpy_diff.T, numpy_diff)).data
-    if upper_only:  # only include the upper diagonals
+    numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
+    desired_diagonals = dia_matrix(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
+    if lower_only:  # only include the lower diagonals
         desired_diagonals = desired_diagonals[diff_order:]
 
     # the diagonals should be in the opposite order as the diagonal matrix's data
     # if reverse_diags is False
-    if not reverse_diags:
+    if reverse_diags:
         desired_diagonals = desired_diagonals[::-1]
 
     assert_allclose(diagonal_data, desired_diagonals, 1e-10)
@@ -449,3 +506,24 @@ def test_check_lam_failures():
     for lam in range(-5, 0):
         with pytest.raises(ValueError):
             _algorithm_setup._check_lam(lam, True)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+def test_whittaker_smooth(data_fixture, diff_order):
+    """Ensures the Whittaker smoothing function performs correctly."""
+    x, y = data_fixture
+    lam = 1
+    output = _algorithm_setup._whittaker_smooth(y, lam, diff_order)
+
+    assert isinstance(output[0], np.ndarray)
+    assert isinstance(output[1], np.ndarray)
+
+    # construct the sparse solution and compare
+    len_y = len(y)
+    diff_matrix = utils.difference_matrix(len_y, diff_order, 'csc')
+    penalty = lam * (diff_matrix.T @ diff_matrix)
+
+    # solve the simple case for all weights are 1
+    expected_output = spsolve(identity(len_y) + penalty, y)
+
+    assert_allclose(output[0], expected_output, 1e-6)

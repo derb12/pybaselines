@@ -64,7 +64,7 @@ def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
     return y, x
 
 
-def _diff_2_diags(data_size, upper_only=True):
+def _diff_2_diags(data_size, lower_only=True):
     """
     Creates the the diagonals of the square of a second-order finite-difference matrix.
 
@@ -72,50 +72,49 @@ def _diff_2_diags(data_size, upper_only=True):
     ----------
     data_size : int
         The number of data points.
-    upper_only : bool, optional
-        If True (default), will return only the upper diagonals of the
+    lower_only : bool, optional
+        If True (default), will return only the lower diagonals of the
         matrix. If False, will include all diagonals of the matrix.
 
     Returns
     -------
     output : numpy.ndarray
         The array containing the diagonal data. Has a shape of (3, `data_size`)
-        if `upper_only` is True, otherwise (5, `data_size`).
+        if `lower_only` is True, otherwise (5, `data_size`).
 
     Notes
     -----
     Equivalent to calling:
 
+        from pybaselines.utils import difference_matrix
         diff_matrix = difference_matrix(data_size, 2)
-        diag_matrix = (diff_matrix.T * diff_matrix).todia()
-        if upper_only:
-            output = diag_matrix.data[2:][::-1]
-        else:
-            output = diag_matrix.data[::-1]
+        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            output = output[2:]
 
-    but is several orders of magnitude times faster. The data is reversed
-    in order to fit the format required by SciPy's solve_banded and solveh_banded.
+    but is several orders of magnitude times faster.
+
+    The data is output in the banded format required by SciPy's solve_banded
+    and solveh_banded.
 
     """
-    output = np.ones((3 if upper_only else 5, data_size))
-    output[0, 0] = output[1, 0] = output[0, 1] = 0
-    output[1, 1] = output[1, -1] = -2
-    output[2, 1] = output[2, -2] = 5
-    output[1, 2:-1] = -4
-    output[2, 2:-2] = 6
-
-    if upper_only:
-        return output
+    output = np.ones((3 if lower_only else 5, data_size))
 
     output[-1, -1] = output[-1, -2] = output[-2, -1] = 0
     output[-2, 0] = output[-2, -2] = -2
-    output[-3, 1] = output[-3, -2] = 5
     output[-2, 1:-2] = -4
+    output[-3, 1] = output[-3, -2] = 5
+    output[-3, 2:-2] = 6
+
+    if not lower_only:
+        output[0, 0] = output[1, 0] = output[0, 1] = 0
+        output[1, 1] = output[1, -1] = -2
+        output[1, 2:-1] = -4
 
     return output
 
 
-def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
+def _diff_1_diags(data_size, lower_only=True):
     """
     Creates the the diagonals of the square of a first-order finite-difference matrix.
 
@@ -123,54 +122,183 @@ def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
     ----------
     data_size : int
         The number of data points.
-    upper_only : bool, optional
-        If True (default), will return only the upper diagonals of the
+    lower_only : bool, optional
+        If True (default), will return only the lower diagonals of the
         matrix. If False, will include all diagonals of the matrix.
-    add_zeros : bool, optional
-        If True, will stack a row of zeros on top of the output, and on the bottom
-        if `upper_only` is False, so that the output array can be added to the output
-        of :func:`_diff_2_diags`.
 
     Returns
     -------
     output : numpy.ndarray
-        The array containing the diagonal data. The number of rows depends on
-        `upper_only` and `add_zeros`.
+        The array containing the diagonal data. Has a shape of (2, `data_size`)
+        if `lower_only` is True, otherwise (3, `data_size`).
 
     Notes
     -----
     Equivalent to calling:
 
+        from pybaselines.utils import difference_matrix
         diff_matrix = difference_matrix(data_size, 1)
-        diag_matrix = (diff_matrix.T * diff_matrix).todia()
-        if upper_only:
-            output = diag_matrix.data[1:][::-1]
-        else:
-            output = diag_matrix.data[::-1]
+        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            output = output[1:]
 
-    but is several orders of magnitude times faster. The data is reversed
-    in order to fit the format required by SciPy's solve_banded and solveh_banded.
+    but is several orders of magnitude times faster.
+
+    The data is output in the banded format required by SciPy's solve_banded
+    and solveh_banded.
 
     """
-    output = np.full((2 if upper_only else 3, data_size), -1.)
-
-    output[0, 0] = 0
-    output[1, 0] = output[1, -1] = 1
-    output[1, 1:-1] = 2
-
-    if add_zeros:
-        zeros = np.zeros((1, data_size))
-
-    if upper_only:
-        if add_zeros:
-            output = np.concatenate((zeros, output))
-        return output
+    output = np.full((2 if lower_only else 3, data_size), -1.)
 
     output[-1, -1] = 0
-    if add_zeros:
-        output = np.concatenate((zeros, output, zeros))
+    output[-2, 0] = output[-2, -1] = 1
+    output[-2, 1:-1] = 2
+
+    if not lower_only:
+        output[0, 0] = 0
 
     return output
+
+
+def _diff_3_diags(data_size, lower_only=True):
+    """
+    Creates the the diagonals of the square of a third-order finite-difference matrix.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    lower_only : bool, optional
+        If True (default), will return only the lower diagonals of the
+        matrix. If False, will include all diagonals of the matrix.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The array containing the diagonal data. Has a shape of (4, `data_size`)
+        if `lower_only` is True, otherwise (7, `data_size`).
+
+    Notes
+    -----
+    Equivalent to calling:
+
+        from pybaselines.utils import difference_matrix
+        diff_matrix = difference_matrix(data_size, 3)
+        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            output = output[3:]
+
+    but is several orders of magnitude times faster.
+
+    The data is output in the banded format required by SciPy's solve_banded
+    and solveh_banded.
+
+    """
+    output = np.full((4 if lower_only else 7, data_size), -1.)
+
+    for row in range(-1, -4, -1):
+        output[row, -4 - row:] = 0
+
+    output[-2, 0] = output[-2, -3] = 3
+    output[-2, 1:-3] = 6
+    output[-3, 0] = output[-3, -2] = -3
+    output[-3, 1] = output[-3, -3] = -12
+    output[-3, 2:-3] = -15
+    output[-4, 0] = output[-4, -1] = 1
+    output[-4, 1] = output[-4, -2] = 10
+    output[-4, 2] = output[-4, -3] = 19
+    output[-4, 3:-3] = 20
+
+    if not lower_only:
+        for row in range(3):
+            output[row, :3 - row] = 0
+
+        output[1, 2] = output[1, -1] = 3
+        output[1, 3:-1] = 6
+        output[2, 1] = output[2, -1] = -3
+        output[2, 2] = output[2, -2] = -12
+        output[2, 3:-2] = -15
+
+    return output
+
+
+def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
+    """
+    Creates the diagonals of the finite difference penalty matrix.
+
+    If `D` is the finite difference matrix, then the finite difference penalty
+    matrix is defined as ``D.T @ D``. The penalty matrix is banded and symmetric, so
+    the non-zero diagonal bands can be computed efficiently.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
+    lower_only : bool, optional
+        If True (default), will return only the lower diagonals of the
+        matrix. If False, will include all diagonals of the matrix.
+    padding : int, optional
+        The number of extra layers of zeros to add to the bottom and top, if
+        `lower_only` is True. Useful if working with other diagonal arrays with
+        a different number of rows. Default is 0, which adds no extra layers.
+        Negative `padding` is treated as equivalent to 0.
+
+    Returns
+    -------
+    diagonals : numpy.ndarray
+        The diagonals of the finite difference penalty matrix.
+
+    Raises
+    ------
+    ValueError
+        Raised if `diff_order` is negative or if `data_size` less than 1.
+
+    Notes
+    -----
+    Equivalent to calling:
+
+        from pybaselines.utils import difference_matrix
+        diff_matrix = difference_matrix(data_size, diff_order)
+        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            output = output[diff_order:]
+
+    but is several orders of magnitude times faster.
+
+    The data is output in the banded format required by SciPy's solve_banded
+    and solveh_banded functions.
+
+    """
+    if diff_order < 0:
+        raise ValueError('the difference order must be >= 0')
+    elif data_size <= 0:
+        raise ValueError('data size must be > 0')
+
+    # the fast, hard-coded values require that data_size > 2 * diff_order + 1,
+    # otherwise, the band structure has to actually be calculated
+    if diff_order == 0:
+        diagonals = np.ones((1, data_size))
+    elif data_size < 2 * diff_order + 1 or diff_order > 3:
+        diff_matrix = difference_matrix(data_size, diff_order, 'csc')
+        # scipy's diag_matrix stores the diagonals in opposite order of
+        # the typical LAPACK banded structure
+        diagonals = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            diagonals = diagonals[diff_order:]
+    else:
+        diag_func = {1: _diff_1_diags, 2: _diff_2_diags, 3: _diff_3_diags}[diff_order]
+        diagonals = diag_func(data_size, lower_only)
+
+    if padding > 0:
+        pad_layers = np.repeat(np.zeros((1, data_size)), padding, axis=0)
+        if lower_only:
+            diagonals = np.concatenate((diagonals, pad_layers))
+        else:
+            diagonals = np.concatenate((pad_layers, diagonals, pad_layers))
+
+    return diagonals
 
 
 def _check_lam(lam, allow_zero=False):
@@ -221,7 +349,7 @@ def _check_lam(lam, allow_zero=False):
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
-                     upper_only=True, reverse_diags=False):
+                     lower_only=True, reverse_diags=False):
     """
     Sets the starting parameters for doing penalized least squares.
 
@@ -242,8 +370,8 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
     copy_weights : boolean, optional
         If True, will copy the array of input weights. Only needed if the
         algorithm changes the weights in-place. Default is False.
-    upper_only : boolean, optional
-        If True (default), will include only the upper non-zero diagonals of
+    lower_only : boolean, optional
+        If True (default), will include only the lower non-zero diagonals of
         the squared difference matrix. If False, will include all non-zero diagonals.
     reverse_diags : boolean, optional
         If True, will reverse the order of the diagonals of the squared difference
@@ -256,7 +384,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
     numpy.ndarray
         The array containing the diagonal data of the product of `lam` and the
         squared finite-difference matrix of order `diff_order`. Has a shape of
-        (`diff_order` + 1, N) if `upper_only` is True, otherwise
+        (`diff_order` + 1, N) if `lower_only` is True, otherwise
         (`diff_order` * 2 + 1, N).
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
@@ -285,23 +413,6 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
             ParameterWarning
         )
     num_y = y.shape[0]
-    # use hard-coded values for diff_order of 1 and 2 since it is much faster
-    # TODO need to do a shape check to ensure the vast versions are valid; len(y)
-    # must be >= 2 * diff_order + 1 (almost surely is); if not, need to do the
-    # actual calculation with the difference matrix, or just raise an error
-    if diff_order == 1:
-        diagonal_data = _diff_1_diags(num_y, upper_only)
-    elif diff_order == 2:
-        diagonal_data = _diff_2_diags(num_y, upper_only)
-    else:  # TODO figure out the general formula to avoid using the sparse matrices
-        # csc format is fastest for the D.T * D operation
-        diff_matrix = difference_matrix(num_y, diff_order, 'csc')
-        diff_matrix = diff_matrix.T * diff_matrix
-        diagonal_data = diff_matrix.todia().data[diff_order if upper_only else 0:][::-1]
-
-    if reverse_diags:
-        diagonal_data = diagonal_data[::-1]
-
     if weights is None:
         weight_array = np.ones(num_y)
     else:
@@ -311,6 +422,10 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
 
         if weight_array.shape != y.shape:
             raise ValueError('weights must have the same shape as the input data')
+
+    diagonal_data = diff_penalty_diagonals(num_y, diff_order, lower_only)
+    if reverse_diags:
+        diagonal_data = diagonal_data[::-1]
 
     return y, _check_lam(lam) * diagonal_data, weight_array
 
@@ -731,7 +846,7 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
             ParameterWarning
         )
     diff_matrix = difference_matrix(basis.shape[1], diff_order, 'csc')
-    penalty_matrix = _check_lam(lam) * (diff_matrix.T * diff_matrix)
+    penalty_matrix = _check_lam(lam) * (diff_matrix.T @ diff_matrix)
 
     return y, x, basis, weight_array, penalty_matrix
 
@@ -771,13 +886,14 @@ def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):
     y, diagonals, weight_array = _setup_whittaker(
         data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
     )
-    main_diag_idx = diff_order if using_pentapy else -1
+    main_diag_idx = diff_order if using_pentapy else 0
     diagonals[main_diag_idx] = diagonals[main_diag_idx] + weight_array
     if using_pentapy:
         smooth_y = _pentapy_solver(diagonals, weight_array * y)
     else:
         smooth_y = solveh_banded(
-            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False
+            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False,
+            lower=True
         )
 
     return smooth_y, weight_array

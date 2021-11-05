@@ -586,13 +586,16 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Notes
     -----
+    The resulting matrices are sparse versions of::
+
+        import numpy as np
+        np.diff(np.eye(data_size), diff_order, axis=0)
+
+    This implementation allows using the differential matrices are they
+    are written in various publications, ie. D.T @ D.
+
     Most baseline algorithms use 2nd order differential matrices when
     doing penalized least squared fitting or Whittaker-smoothing-based fitting.
-
-    The resulting matrices are transposes of the result of
-    np.diff(np.eye(data_size), diff_order). This implementation allows using
-    the differential matrices are they are written in various publications,
-    ie. D.T * D.
 
     """
     if diff_order < 0:

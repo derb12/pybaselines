@@ -13,7 +13,7 @@ from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import (
-    _check_lam, _setup_morphology, _setup_splines, _setup_whittaker, _whittaker_smooth
+    _check_lam, _setup_morphology, _setup_splines, _whittaker_smooth, diff_penalty_diagonals
 )
 from ._compat import _HAS_PENTAPY
 from .utils import (
@@ -900,9 +900,9 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
     using_pentapy = _HAS_PENTAPY and diff_order == 2
-    _, penalty_diagonals, _ = _setup_whittaker(
-        data, 1, diff_order, None, False, not using_pentapy, using_pentapy
-    )
+    penalty_diagonals = diff_penalty_diagonals(len(y), diff_order, not using_pentapy)
+    if using_pentapy:
+        penalty_diagonals = penalty_diagonals[::-1]
 
     opening = grey_opening(y, 2 * half_wind + 1)
     if robust_opening:
@@ -910,7 +910,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
 
     baseline_old = opening
     signal_old = y
-    main_diag_idx = diff_order if using_pentapy else -1
+    main_diag_idx = diff_order if using_pentapy else 0
     partial_rhs_2 = (2 * alpha) * opening
     tol_history = np.empty((max_iter + 1, 2))
     for i in range(max_iter + 1):
@@ -923,11 +923,12 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
             baseline = _pentapy_solver(lhs_2, y - signal + partial_rhs_2)
         else:
             signal = solveh_banded(
-                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True, check_finite=False
+                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True, lower=True,
+                check_finite=False
             )
             baseline = solveh_banded(
                 lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True,
-                check_finite=False
+                lower=True, check_finite=False
             )
 
         calc_tol_1 = relative_difference(signal_old, signal)
