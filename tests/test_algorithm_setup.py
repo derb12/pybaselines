@@ -449,6 +449,55 @@ def test_spline_basis(num_knots, degree, penalized):
     assert basis.shape[1] == num_knots + degree - 1
 
 
+@pytest.mark.parametrize('lam', (1, 20))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))
+@pytest.mark.parametrize('num_knots', (5, 50, 100))
+def test_setup_splines_diff_matrix(small_data, lam, diff_order, spline_degree, num_knots):
+    """Ensures output difference matrix diagonal data is in desired format."""
+    *_, penalty_matrix = _algorithm_setup._setup_splines(
+        small_data, None, None, spline_degree, num_knots, True, diff_order, lam
+    )
+
+    num_bases = num_knots + spline_degree - 1
+    numpy_diff = np.diff(np.eye(num_bases), diff_order, axis=0)
+    desired_matrix = lam * (numpy_diff.T @ numpy_diff)
+
+    assert_allclose(penalty_matrix.toarray(), desired_matrix, 1e-10)
+
+
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))
+@pytest.mark.parametrize('num_knots', (5, 50, 100))
+def test_setup_splines_too_high_diff_order(small_data, spline_degree, num_knots):
+    """
+    Ensures an exception is raised when the difference order is >= number of basis functions.
+
+    The number of basis functions is equal to the number of knots + the spline degree - 1.
+    Tests both difference order equal to and greater than the number of basis functions.
+
+    """
+    diff_order = num_knots + spline_degree - 1
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(
+            small_data, None, None, spline_degree, num_knots, True, diff_order
+        )
+
+    diff_order += 1
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(
+            small_data, None, None, spline_degree, num_knots, True, diff_order
+        )
+
+
+@pytest.mark.parametrize('num_knots', (0, 1))
+def test_setup_splines_too_few_knots(small_data, num_knots):
+    """Ensures an error is raised if the number of knots is less than 2."""
+    with pytest.raises(ValueError):
+        _algorithm_setup._setup_splines(
+            small_data, None, None, 3, num_knots, True, 1
+        )
+
+
 def test_setup_splines_wrong_weight_shape(small_data):
     """Ensures that an exception is raised if input weights and data are different shapes."""
     weights = np.ones(small_data.shape[0] + 1)

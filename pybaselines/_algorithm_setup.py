@@ -18,7 +18,7 @@ import warnings
 import numpy as np
 from scipy.interpolate import splev
 from scipy.linalg import solveh_banded
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, spdiags
 
 from ._compat import _HAS_PENTAPY
 from .utils import (
@@ -813,8 +813,9 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     Raises
     ------
     ValueError
-        Raised is `diff_order` is less than 1 or if `weights` and `data` do not have
-        the same shape.
+        Raised if `diff_order` is less than 1, if `weights` and `data` do not have
+        the same shape, if `num_knots` is less than 2, or if the number of spline
+        basis functions (`num_knots` + `spline_degree` - 1) is <= `diff_order`.
 
     Warns
     -----
@@ -822,6 +823,8 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         Raised if `diff_order` is greater than 4.
 
     """
+    if num_knots < 2:  # num_knots == 2 means the only knots are the two endpoints
+        raise ValueError('the number of knots must be at least 2')
     y, x = _yx_arrays(data, x_data)
     if weights is not None:
         weight_array = np.asarray(weights)
@@ -835,18 +838,28 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     if not penalized:
         return y, x, basis, weight_array
 
+    num_bases = basis.shape[1]  # number of basis functions
     if diff_order < 1:
         raise ValueError(
             'the differential order must be > 0 for spline methods'
         )
+    elif diff_order >= num_bases:
+        raise ValueError((
+            'the difference order must be less than the number of basis '
+            'functions, which is the number of knots + spline degree - 1'
+        ))
     elif diff_order > 4:
         warnings.warn(
             ('differential orders greater than 4 can have numerical issues;'
              ' consider using a differential order of 2 or 3 instead'),
             ParameterWarning
         )
-    diff_matrix = difference_matrix(basis.shape[1], diff_order, 'csc')
-    penalty_matrix = _check_lam(lam) * (diff_matrix.T @ diff_matrix)
+
+    penalty_diagonals = _check_lam(lam) * diff_penalty_diagonals(num_bases, diff_order, False)
+    penalty_matrix = spdiags(
+        penalty_diagonals, np.arange(diff_order, -(diff_order + 1), -1),
+        num_bases, num_bases, 'csr'
+    )
 
     return y, x, basis, weight_array, penalty_matrix
 
