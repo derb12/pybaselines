@@ -769,7 +769,7 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     elif not 0 <= p <= 1:
         raise ValueError('p must be between 0 and 1')
 
-    y, _, spl_basis, weight_array, penalty_matrix = _setup_splines(
+    y, _, weight_array, spl_basis, penalty_matrix = _setup_splines(
         data, None, weights, spline_degree, num_knots, True, diff_order, lam_smooth
     )
     # TODO should this use np.isclose instead?

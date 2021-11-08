@@ -592,7 +592,7 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
         np.diff(np.eye(data_size), diff_order, axis=0)
 
     This implementation allows using the differential matrices are they
-    are written in various publications, ie. D.T @ D.
+    are written in various publications, ie. ``D.T @ D``.
 
     Most baseline algorithms use 2nd order differential matrices when
     doing penalized least squared fitting or Whittaker-smoothing-based fitting.

@@ -26,7 +26,7 @@ from .utils import (
 )
 
 
-def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
+def _yx_arrays(data, x_data=None, x_min=-1., x_max=1., check_finite=False):
     """
     Converts input data into numpy arrays and provides x data if none is given.
 
@@ -55,7 +55,10 @@ def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
     converts it to an array.
 
     """
-    y = np.asarray(data)
+    if check_finite:
+        y = np.asarray_chkfinite(data)
+    else:
+        y = np.asarray(data)
     if x_data is None:
         x = np.linspace(x_min, x_max, y.shape[0])
     else:
@@ -292,7 +295,7 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
         diagonals = diag_func(data_size, lower_only)
 
     if padding > 0:
-        pad_layers = np.repeat(np.zeros((1, data_size)), padding, axis=0)
+        pad_layers = np.zeros((padding, data_size))
         if lower_only:
             diagonals = np.concatenate((diagonals, pad_layers))
         else:
@@ -761,11 +764,11 @@ def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
     # transpose to get a shape similar to the Vandermonde matrix
     # TODO maybe it's preferable to not transpose, since typically basis.T is used in
     # calculations more than basis; maybe make it a boolean input
-    return basis.T
+    return csr_matrix(basis.T)
 
 
 def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=10,
-                   penalized=True, diff_order=3, lam=1, sparse_basis=True):
+                   penalized=True, diff_order=3, lam=1, make_basis=True):
     """
     Sets the starting parameters for doing spline fitting.
 
@@ -793,9 +796,8 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         The smoothing parameter, lambda. Typical values are between 10 and
         1e8, but it strongly depends on the number of knots and the difference order.
         Default is 1.
-    sparse_basis : bool, optional
-        If True (default), will convert the spline basis to a sparse matrix with CSR
-        format.
+    make_basis : bool, optional
+        If True (default), will create the matrix containing the spline basis functions.
 
     Returns
     -------
@@ -803,19 +805,21 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         The y-values of the measured data, converted to a numpy array.
     x : numpy.ndarray, shape (N,)
         The x-values for fitting the spline.
-    basis : numpy.ndarray or scipy.sparse.csr.csr_matrix
-        The spline basis matrix. Is sparse with CSR format if `sparse_basis` is True.
     weight_array : numpy.ndarray, shape (N,)
-        The weight array for fitting a polynomial to the data.
+        The weight array for fitting the spline to the data.
+    basis : scipy.sparse.csr.csr_matrix
+        The spline basis matrix. Only returned if `make_basis` is True.
     penalty_matrix : scipy.sparse.csr.csr_matrix
-        The penalty matrix for the spline. Only returned if `penalized` is True.
+        The penalty matrix for the spline. Only returned if both `penalized`
+        and `make_basis` are True.
 
     Raises
     ------
     ValueError
         Raised if `diff_order` is less than 1, if `weights` and `data` do not have
-        the same shape, if `num_knots` is less than 2, or if the number of spline
-        basis functions (`num_knots` + `spline_degree` - 1) is <= `diff_order`.
+        the same shape, if `num_knots` is less than 2, if the number of spline
+        basis functions (`num_knots` + `spline_degree` - 1) is <= `diff_order`, or
+        if `spline_degree` is less than 0.
 
     Warns
     -----
@@ -823,25 +827,32 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         Raised if `diff_order` is greater than 4.
 
     """
-    if num_knots < 2:  # num_knots == 2 means the only knots are the two endpoints
-        raise ValueError('the number of knots must be at least 2')
-    y, x = _yx_arrays(data, x_data)
+    y, x = _yx_arrays(data, x_data, check_finite=True)
     if weights is not None:
         weight_array = np.asarray(weights)
         if weight_array.shape != y.shape:
             raise ValueError('weights must have the same shape as the input data')
     else:
         weight_array = np.ones(y.shape[0])
+    if not make_basis:
+        return y, x, weight_array
+
+    if num_knots < 2:  # num_knots == 2 means the only knots are the two endpoints
+        raise ValueError('the number of knots must be at least 2')
+    elif spline_degree < 0:
+        raise ValueError('spline degree must be >= 0')
+    # explicitly cast x and y as floats since most scipy functions do so anyway, so
+    # can just do it once
+    x = x.astype(float, copy=False)
+    y = y.astype(float, copy=False)
     basis = spline_basis(x, num_knots, spline_degree, penalized)
-    if sparse_basis:
-        basis = csr_matrix(basis)
     if not penalized:
-        return y, x, basis, weight_array
+        return y, x, weight_array, basis
 
     num_bases = basis.shape[1]  # number of basis functions
     if diff_order < 1:
         raise ValueError(
-            'the differential order must be > 0 for spline methods'
+            'the difference order must be > 0 for spline methods'
         )
     elif diff_order >= num_bases:
         raise ValueError((
@@ -861,7 +872,7 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         num_bases, num_bases, 'csr'
     )
 
-    return y, x, basis, weight_array, penalty_matrix
+    return y, x, weight_array, basis, penalty_matrix
 
 
 def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):

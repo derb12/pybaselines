@@ -999,7 +999,7 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
     return baseline
 
 
-@jit(nopython=True, cache=True, fastmath=True)
+@jit(nopython=True, cache=True)
 def _determine_fits(x, num_x, total_points, delta):
     """
     Determines the x-values to fit and the left and right indices for each fit x-value.

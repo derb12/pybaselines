@@ -14,7 +14,7 @@ from scipy.optimize import curve_fit
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 
-from ._algorithm_setup import _setup_splines, _yx_arrays
+from ._algorithm_setup import _setup_splines
 from ._compat import jit
 from .utils import _MIN_FLOAT, _quantile_loss, gaussian, relative_difference
 
@@ -285,7 +285,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     # TODO figure out how to do the B.T * W * B and B.T * (w * y) operations using the banded
     # representations since that is the only part preventing using fully banded representations
 
-    y, _, spl_basis, weight_array, penalty_matrix = _setup_splines(
+    y, _, weight_array, spl_basis, penalty_matrix = _setup_splines(
         data, None, weights, spline_degree, num_knots, True, diff_order, lam
     )
     # scale y between -1 and 1 so that the residual fit is more numerically stable
@@ -462,7 +462,7 @@ def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_ord
     if not 0 < quantile < 1:
         raise ValueError('quantile must be between 0 and 1')
 
-    y, _, spl_basis, weight_array, penalty_matrix = _setup_splines(
+    y, _, weight_array, spl_basis, penalty_matrix = _setup_splines(
         data, None, weights, spline_degree, num_knots, True, diff_order, lam
     )
     weight_matrix = diags(weight_array)
@@ -663,9 +663,9 @@ def corner_cutting(data, x_data=None, max_iter=100):
     Construction. Analyst, 2015, 140(23), 7984-7996.
 
     """
-    y, x = _yx_arrays(data, x_data)
+    y, x, mask = _setup_splines(data, x_data, make_basis=False)
+    mask = mask.astype(bool, copy=False)
     num_y = y.shape[0]
-    mask = np.ones(num_y, bool)
 
     areas = np.zeros(max_iter)
     kept_points = np.zeros(num_y, int)
