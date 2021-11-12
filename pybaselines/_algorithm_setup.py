@@ -16,11 +16,10 @@ import operator
 import warnings
 
 import numpy as np
-from scipy.interpolate import splev
 from scipy.linalg import solveh_banded
-from scipy.sparse import csr_matrix, spdiags
 
 from ._compat import _HAS_PENTAPY
+from ._spline_utils import _spline_basis, _spline_knots
 from .utils import (
     _check_scalar, _pentapy_solver, ParameterWarning, difference_matrix, optimize_window, pad_edges
 )
@@ -87,7 +86,7 @@ def _diff_2_diags(data_size, lower_only=True):
 
     Notes
     -----
-    Equivalent to calling:
+    Equivalent to calling::
 
         from pybaselines.utils import difference_matrix
         diff_matrix = difference_matrix(data_size, 2)
@@ -137,7 +136,7 @@ def _diff_1_diags(data_size, lower_only=True):
 
     Notes
     -----
-    Equivalent to calling:
+    Equivalent to calling::
 
         from pybaselines.utils import difference_matrix
         diff_matrix = difference_matrix(data_size, 1)
@@ -183,7 +182,7 @@ def _diff_3_diags(data_size, lower_only=True):
 
     Notes
     -----
-    Equivalent to calling:
+    Equivalent to calling::
 
         from pybaselines.utils import difference_matrix
         diff_matrix = difference_matrix(data_size, 3)
@@ -260,7 +259,7 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
 
     Notes
     -----
-    Equivalent to calling:
+    Equivalent to calling::
 
         from pybaselines.utils import difference_matrix
         diff_matrix = difference_matrix(data_size, diff_order)
@@ -687,86 +686,6 @@ def _setup_classification(data, x_data=None, weights=None):
     return y, x, weight_array, original_domain
 
 
-def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
-    """
-    Creates the basis matrix for B-splines and P-splines.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The array of x-values
-    num_knots : int, optional
-        The number of interior knots for the spline. Default is 10.
-    spline_degree : int, optional
-        The degree of the spline. Default is 3, which is a cubic spline.
-    penalized : bool, optional
-        Whether the basis matrix should be for a penalized spline or a regular
-        B-spline. Default is False, which creates the basis for a B-spline.
-
-    Returns
-    -------
-    basis : numpy.ndarray
-        The basis matrix representing the spline, similar to the Vandermonde matrix
-        for polynomials.
-
-    Notes
-    -----
-    If `penalized` is True, makes the knots uniformly spaced to create p-splines. That
-    way, can use a finite difference matrix to impose penalties on the spline.
-
-    `degree` is used instead of `order` like for polynomials since the order of a spline
-    is defined by convention as `degree` + 1.
-
-    References
-    ----------
-    Eilers, P., et al. Twenty years of P-splines. SORT: Statistics and Operations Research
-    Transactions, 2015, 39(2), 149-186.
-
-    Hastie, T., et al. The Elements of Statistical Learning. Springer, 2017. Chapter 5.
-
-    """
-    spline_order = spline_degree + 1
-    if penalized:
-        x_min = x.min()
-        x_max = x.max()
-        # number of sections is num_knots - 1 since counting the first and last knots as inner knots
-        dx = (x_max - x_min) / (num_knots - 1)
-        # calculate inner knots separately to ensure x_min and x_max are correct;
-        # otherwise, they can be slighly off due to floating point errors
-        inner_knots = np.linspace(x_min, x_max, num_knots)
-        knots = np.concatenate((
-            np.linspace(x_min - spline_degree * dx, x_min - dx, spline_degree),
-            inner_knots,
-            np.linspace(x_max + dx, x_max + spline_degree * dx, spline_degree),
-        ))
-    else:
-        # TODO maybe provide a better way to select knot positions for regular B-splines
-        inner_knots = np.percentile(x, np.linspace(0, 100, num_knots))
-        knots = np.concatenate((
-            np.repeat(inner_knots[0], spline_degree), inner_knots,
-            np.repeat(inner_knots[-1], spline_degree)
-        ))
-
-    num_bases = len(knots) - spline_order
-    basis = np.empty((num_bases, len(x)))
-    coefs = np.zeros(num_bases)
-    # TODO would be faster to simply calculate the spline coefficients using de Boor's recursive
-    # algorithm; does it also give just the coefficients without all the extra zeros? would be
-    # nice if so, since it would use less space; also could then probably make a sparse or banded
-    # matrix rather than the full, dense array
-
-    # adapted from Scipy forums at: http://scipy-user.10969.n7.nabble.com/B-spline-basis-functions
-    for i in range(num_bases):
-        coefs[i] = 1  # evaluate the i-th basis within splev
-        basis[i] = splev(x, (knots, coefs, spline_degree))
-        coefs[i] = 0  # reset back to zero
-
-    # transpose to get a shape similar to the Vandermonde matrix
-    # TODO maybe it's preferable to not transpose, since typically basis.T is used in
-    # calculations more than basis; maybe make it a boolean input
-    return csr_matrix(basis.T)
-
-
 def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=10,
                    penalized=True, diff_order=3, lam=1, make_basis=True):
     """
@@ -809,7 +728,12 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         The weight array for fitting the spline to the data.
     basis : scipy.sparse.csr.csr_matrix
         The spline basis matrix. Only returned if `make_basis` is True.
-    penalty_matrix : scipy.sparse.csr.csr_matrix
+    knots : numpy.ndarray, shape (``num_knots + 2 * spline_degree``,)
+        The array of knots for the spline, properly padded on each side. Only
+        return if `make_basis` if True.
+    penalty_diagonals : numpy.ndarray, shape (`diff_order` + 1, N)
+        The finite difference penalty matrix, in LAPACK's lower banded format (see
+        :func:`scipy.linalg.solveh_banded`).
         The penalty matrix for the spline. Only returned if both `penalized`
         and `make_basis` are True.
 
@@ -825,6 +749,11 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     -----
     UserWarning
         Raised if `diff_order` is greater than 4.
+
+    Notes
+    -----
+    `degree` is used instead of `order` like for polynomials since the order of a spline
+    is defined by convention as `degree` + 1.
 
     """
     y, x = _yx_arrays(data, x_data, check_finite=True)
@@ -845,9 +774,10 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     # can just do it once
     x = x.astype(float, copy=False)
     y = y.astype(float, copy=False)
-    basis = spline_basis(x, num_knots, spline_degree, penalized)
+    knots = _spline_knots(x, num_knots, spline_degree, penalized)
+    basis = _spline_basis(x, knots, spline_degree)
     if not penalized:
-        return y, x, weight_array, basis
+        return y, x, weight_array, basis, knots
 
     num_bases = basis.shape[1]  # number of basis functions
     if diff_order < 1:
@@ -866,13 +796,11 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
             ParameterWarning
         )
 
-    penalty_diagonals = _check_lam(lam) * diff_penalty_diagonals(num_bases, diff_order, False)
-    penalty_matrix = spdiags(
-        penalty_diagonals, np.arange(diff_order, -(diff_order + 1), -1),
-        num_bases, num_bases, 'csr'
+    penalty_diagonals = _check_lam(lam) * diff_penalty_diagonals(
+        num_bases, diff_order, padding=spline_degree - diff_order
     )
 
-    return y, x, weight_array, basis, penalty_matrix
+    return y, x, weight_array, basis, knots, penalty_diagonals
 
 
 def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):

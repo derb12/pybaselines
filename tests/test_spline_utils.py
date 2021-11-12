@@ -62,6 +62,34 @@ def test_find_interval():
 
 @pytest.mark.parametrize('num_knots', (2, 20, 1001))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
+@pytest.mark.parametrize('penalized', (True, False))
+def test_spline_knots(data_fixture, num_knots, spline_degree, penalized):
+    """Ensures the spline knot placement is correct."""
+    x, y = data_fixture
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, penalized)
+    min_x = x.min()
+    max_x = x.max()
+    if penalized:
+        dx = (max_x - min_x) / (num_knots - 1)
+        inner_knots = np.linspace(min_x, max_x, num_knots)
+        expected_knots = np.concatenate((
+            np.linspace(min_x - dx * spline_degree, min_x - dx, spline_degree),
+            inner_knots,
+            np.linspace(max_x + dx, max_x + dx * spline_degree, spline_degree)
+        ))
+    else:
+        inner_knots = np.percentile(x, np.linspace(0, 100, num_knots))
+        expected_knots = np.concatenate((
+            np.repeat(min_x, spline_degree),
+            inner_knots,
+            np.repeat(max_x, spline_degree)
+        ))
+
+    assert_allclose(knots, expected_knots, 1e-10)
+
+
+@pytest.mark.parametrize('num_knots', (2, 20, 1001))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('source', ('simple', 'numba', 'scipy'))
 def test_spline_basis(data_fixture, num_knots, spline_degree, source):
     """Tests the accuracy of the spline basis matrix."""

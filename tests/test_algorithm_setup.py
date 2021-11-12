@@ -432,21 +432,22 @@ def test_setup_classification_domain(small_data):
 
 
 @pytest.mark.parametrize('num_knots', (5, 15, 100))
-@pytest.mark.parametrize('degree', (1, 2, 3, 4))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))
 @pytest.mark.parametrize('penalized', (True, False))
-def test_spline_basis(num_knots, degree, penalized):
+def test_setup_splines_spline_basis(small_data, num_knots, spline_degree, penalized):
     """Ensures the spline basis function is correctly created."""
-    x = np.linspace(-1, 1, 500)
-    basis = _algorithm_setup.spline_basis(x, num_knots, degree, penalized)
+    _, _, _, basis, _, _ = _algorithm_setup._setup_splines(
+        small_data, None, None, spline_degree, num_knots
+    )
 
-    assert basis.shape[0] == x.shape[0]
+    assert basis.shape[0] == len(small_data)
     # num_knots == number of inner knots with min and max points counting as
     # the first and last inner knots; then add `degree` extra knots
     # on each end to accomodate the final polynomial on each end; therefore,
     # total number of knots = num_knots + 2 * degree; the number of basis
     # functions is total knots - (degree + 1), so the ultimate
     # shape of the basis matrix should be num_knots + degree - 1
-    assert basis.shape[1] == num_knots + degree - 1
+    assert basis.shape[1] == num_knots + spline_degree - 1
 
 
 @pytest.mark.parametrize('lam', (1, 20))
@@ -455,15 +456,18 @@ def test_spline_basis(num_knots, degree, penalized):
 @pytest.mark.parametrize('num_knots', (5, 50, 100))
 def test_setup_splines_diff_matrix(small_data, lam, diff_order, spline_degree, num_knots):
     """Ensures output difference matrix diagonal data is in desired format."""
-    *_, penalty_matrix = _algorithm_setup._setup_splines(
+    *_, penalty_diagonals = _algorithm_setup._setup_splines(
         small_data, None, None, spline_degree, num_knots, True, diff_order, lam
     )
 
     num_bases = num_knots + spline_degree - 1
     numpy_diff = np.diff(np.eye(num_bases), diff_order, axis=0)
-    desired_matrix = lam * (numpy_diff.T @ numpy_diff)
+    desired_diagonals = lam * dia_matrix(numpy_diff.T @ numpy_diff).data[::-1][diff_order:]
+    if diff_order < spline_degree:
+        padding = np.zeros((spline_degree - diff_order, desired_diagonals.shape[1]))
+        desired_diagonals = np.concatenate((desired_diagonals, padding))
 
-    assert_allclose(penalty_matrix.toarray(), desired_matrix, 1e-10)
+    assert_allclose(penalty_diagonals, desired_diagonals, 1e-10, 1e-12)
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))

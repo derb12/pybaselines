@@ -8,15 +8,15 @@ Created on August 4, 2021
 
 from functools import partial
 from math import ceil
+import warnings
 
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy.sparse import diags
-from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import _setup_splines
 from ._compat import jit
-from .utils import _MIN_FLOAT, _quantile_loss, gaussian, relative_difference
+from ._spline_utils import _solve_pspline
+from .utils import _MIN_FLOAT, _quantile_loss, ParameterWarning, gaussian, relative_difference
 
 
 @jit(nopython=True, cache=True)
@@ -280,40 +280,33 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     """
     if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
-    # TODO maybe provide a way to find the optimal lam value for the spline,
-    # using AIC, AICc, or generalized cross-validation
-    # TODO figure out how to do the B.T * W * B and B.T * (w * y) operations using the banded
-    # representations since that is the only part preventing using fully banded representations
 
-    y, _, weight_array, spl_basis, penalty_matrix = _setup_splines(
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
         data, None, weights, spline_degree, num_knots, True, diff_order, lam
     )
     # scale y between -1 and 1 so that the residual fit is more numerically stable
     y_domain = np.polynomial.polyutils.getdomain(y)
     y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
-    weight_matrix = diags(weight_array)
     if weights is not None:
-        coef = spsolve(
-            spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
-            spl_basis.T * (weight_array * y),
-            permc_spec='NATURAL'
-        )
-        baseline = spl_basis * coef
+        coef = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coef
     else:
         # perform 2 iterations: first is a least-squares fit and second is initial
         # reweighted fit; 2 fits are needed to get weights to have a decent starting
         # distribution for the expectation-maximization
-        for _ in range(2):
-            coef = spsolve(
-                spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
-                spl_basis.T * (weight_array * y),
-                permc_spec='NATURAL'
+        if symmetric and not 0.2 < p < 0.8:
+            # p values far away from 0.5 with symmetric=True give bad initial weights
+            # for the expectation maximization
+            warnings.warn(
+                'should use a p value closer to 0.5 when symmetric is True',
+                ParameterWarning, stacklevel=2
             )
-            baseline = spl_basis * coef
+        for _ in range(2):
+            coef = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+            baseline = basis @ coef
             mask = y > baseline
             weight_array = mask * p + (~mask) * (1 - p)
-            weight_matrix.setdiag(weight_array)
 
     # now perform the expectation-maximization
     # TODO not sure if there is a better way to do this than transforming
@@ -365,9 +358,10 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         )[0]
         sigma = 10**fit_params[1]
         gaus_pdf = fit_params[0] * gaussian(bins, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
-        # no need to clip between 0 and 1 if dividing by _MIN_FLOAT since that
-        # means the numerator is also 0
         posterior_prob = gaus_pdf / np.maximum(fit_func(bins, *fit_params), _MIN_FLOAT)
+        # need to clip since a bad initial start can erroneously set the sum of the fractions
+        # of each distribution to > 1
+        np.clip(posterior_prob, 0, 1, out=posterior_prob)
         new_weights = _assign_weights(bin_mapping, posterior_prob, residual)
 
         calc_difference = relative_difference(weight_array, new_weights)
@@ -376,19 +370,13 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
             break
 
         weight_array = new_weights
-        weight_matrix.setdiag(weight_array)
-        coef = spsolve(
-            spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
-            spl_basis.T * (weight_array * y),
-            permc_spec='NATURAL'
-        )
-        baseline = spl_basis * coef
+        coef = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coef
         residual = y - baseline
 
-    # TODO return spline coefficients? would be useless without the basis matrix or
-    # the knot locations; probably don't want to return basis since it's not useful;
-    # best thing would be return the inner knots and coefficients so that an equivalent
-    # spline could be recreated with scipy, and let scipy handle extrapolation, etc.
+    # TODO could potentially return a BSpline object from scipy.interpolate
+    # using knots, spline degree, and coef, but would need to allow user to
+    # input the x-values for it to be useful
     params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
     baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
@@ -462,26 +450,20 @@ def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_ord
     if not 0 < quantile < 1:
         raise ValueError('quantile must be between 0 and 1')
 
-    y, _, weight_array, spl_basis, penalty_matrix = _setup_splines(
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
         data, None, weights, spline_degree, num_knots, True, diff_order, lam
     )
-    weight_matrix = diags(weight_array)
-    old_coef = np.zeros(spl_basis.shape[1])
+    old_coef = np.zeros(basis.shape[1])
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
-        coef = spsolve(
-            spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
-            spl_basis.T * (weight_array * y),
-            permc_spec='NATURAL'
-        )
-        baseline = spl_basis * coef
+        coef = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coef
         calc_difference = relative_difference(old_coef, coef)
         tol_history[i] = calc_difference
         if calc_difference < tol:
             break
         old_coef = coef
         weight_array = _quantile_loss(y, baseline, quantile, eps)
-        weight_matrix.setdiag(weight_array)
 
     params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 

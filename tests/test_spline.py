@@ -127,9 +127,11 @@ class TestMixtureModel(AlgorithmTester):
         if symmetric:
             # make data with both positive and negative peaks; roll so peaks are not overlapping
             y = np.roll(self.y, -50) - np.roll(self.y, 50)
+            p = 0.5
         else:
             y = self.y
-        self._test_output(y, y, symmetric=symmetric, checked_keys=('weights', 'tol_history'))
+            p = 0.01
+        self._test_output(y, y, p=p, symmetric=symmetric, checked_keys=('weights', 'tol_history'))
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
