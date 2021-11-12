@@ -64,7 +64,8 @@ def test_rolling_std(y_scale, half_window, ddof):
 
     """
     x = np.arange(100)
-    y = y_scale * np.sin(x) + np.random.normal(0, 0.2, x.size)
+    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
+    y = y_scale * np.sin(x) + np.random.RandomState(0).normal(0, 0.2, x.size)
     # only compare within [half_window:-half_window] since the calculation
     # can have slightly different values at the edges
     compare_slice = slice(half_window, -half_window)
@@ -90,7 +91,8 @@ def test_padded_rolling_std(y_scale, half_window, ddof):
 
     """
     x = np.arange(100)
-    y = y_scale * np.sin(x) + np.random.normal(0, 0.2, x.size)
+    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
+    y = y_scale * np.sin(x) + np.random.RandomState(0).normal(0, 0.2, x.size)
     # only compare within [half_window:-half_window] since the calculation
     # can have slightly different values at the edges
     compare_slice = slice(half_window, -half_window)

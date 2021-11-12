@@ -16,17 +16,16 @@ import operator
 import warnings
 
 import numpy as np
-from scipy.interpolate import splev
 from scipy.linalg import solveh_banded
-from scipy.sparse import csr_matrix
 
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._compat import _HAS_PENTAPY
+from ._spline_utils import _spline_basis, _spline_knots
 from .utils import (
     _check_scalar, _pentapy_solver, ParameterWarning, difference_matrix, optimize_window, pad_edges
 )
 
 
-def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
+def _yx_arrays(data, x_data=None, x_min=-1., x_max=1., check_finite=False):
     """
     Converts input data into numpy arrays and provides x data if none is given.
 
@@ -55,7 +54,10 @@ def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
     converts it to an array.
 
     """
-    y = np.asarray(data)
+    if check_finite:
+        y = np.asarray_chkfinite(data)
+    else:
+        y = np.asarray(data)
     if x_data is None:
         x = np.linspace(x_min, x_max, y.shape[0])
     else:
@@ -64,7 +66,7 @@ def _yx_arrays(data, x_data=None, x_min=-1., x_max=1.):
     return y, x
 
 
-def _diff_2_diags(data_size, upper_only=True):
+def _diff_2_diags(data_size, lower_only=True):
     """
     Creates the the diagonals of the square of a second-order finite-difference matrix.
 
@@ -72,50 +74,49 @@ def _diff_2_diags(data_size, upper_only=True):
     ----------
     data_size : int
         The number of data points.
-    upper_only : bool, optional
-        If True (default), will return only the upper diagonals of the
+    lower_only : bool, optional
+        If True (default), will return only the lower diagonals of the
         matrix. If False, will include all diagonals of the matrix.
 
     Returns
     -------
     output : numpy.ndarray
         The array containing the diagonal data. Has a shape of (3, `data_size`)
-        if `upper_only` is True, otherwise (5, `data_size`).
+        if `lower_only` is True, otherwise (5, `data_size`).
 
     Notes
     -----
-    Equivalent to calling:
+    Equivalent to calling::
 
+        from pybaselines.utils import difference_matrix
         diff_matrix = difference_matrix(data_size, 2)
-        diag_matrix = (diff_matrix.T * diff_matrix).todia()
-        if upper_only:
-            output = diag_matrix.data[2:][::-1]
-        else:
-            output = diag_matrix.data[::-1]
+        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            output = output[2:]
 
-    but is several orders of magnitude times faster. The data is reversed
-    in order to fit the format required by SciPy's solve_banded and solveh_banded.
+    but is several orders of magnitude times faster.
+
+    The data is output in the banded format required by SciPy's solve_banded
+    and solveh_banded.
 
     """
-    output = np.ones((3 if upper_only else 5, data_size))
-    output[0, 0] = output[1, 0] = output[0, 1] = 0
-    output[1, 1] = output[1, -1] = -2
-    output[2, 1] = output[2, -2] = 5
-    output[1, 2:-1] = -4
-    output[2, 2:-2] = 6
-
-    if upper_only:
-        return output
+    output = np.ones((3 if lower_only else 5, data_size))
 
     output[-1, -1] = output[-1, -2] = output[-2, -1] = 0
     output[-2, 0] = output[-2, -2] = -2
-    output[-3, 1] = output[-3, -2] = 5
     output[-2, 1:-2] = -4
+    output[-3, 1] = output[-3, -2] = 5
+    output[-3, 2:-2] = 6
+
+    if not lower_only:
+        output[0, 0] = output[1, 0] = output[0, 1] = 0
+        output[1, 1] = output[1, -1] = -2
+        output[1, 2:-1] = -4
 
     return output
 
 
-def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
+def _diff_1_diags(data_size, lower_only=True):
     """
     Creates the the diagonals of the square of a first-order finite-difference matrix.
 
@@ -123,54 +124,183 @@ def _diff_1_diags(data_size, upper_only=True, add_zeros=False):
     ----------
     data_size : int
         The number of data points.
-    upper_only : bool, optional
-        If True (default), will return only the upper diagonals of the
+    lower_only : bool, optional
+        If True (default), will return only the lower diagonals of the
         matrix. If False, will include all diagonals of the matrix.
-    add_zeros : bool, optional
-        If True, will stack a row of zeros on top of the output, and on the bottom
-        if `upper_only` is False, so that the output array can be added to the output
-        of :func:`_diff_2_diags`.
 
     Returns
     -------
     output : numpy.ndarray
-        The array containing the diagonal data. The number of rows depends on
-        `upper_only` and `add_zeros`.
+        The array containing the diagonal data. Has a shape of (2, `data_size`)
+        if `lower_only` is True, otherwise (3, `data_size`).
 
     Notes
     -----
-    Equivalent to calling:
+    Equivalent to calling::
 
+        from pybaselines.utils import difference_matrix
         diff_matrix = difference_matrix(data_size, 1)
-        diag_matrix = (diff_matrix.T * diff_matrix).todia()
-        if upper_only:
-            output = diag_matrix.data[1:][::-1]
-        else:
-            output = diag_matrix.data[::-1]
+        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            output = output[1:]
 
-    but is several orders of magnitude times faster. The data is reversed
-    in order to fit the format required by SciPy's solve_banded and solveh_banded.
+    but is several orders of magnitude times faster.
+
+    The data is output in the banded format required by SciPy's solve_banded
+    and solveh_banded.
 
     """
-    output = np.full((2 if upper_only else 3, data_size), -1.)
-
-    output[0, 0] = 0
-    output[1, 0] = output[1, -1] = 1
-    output[1, 1:-1] = 2
-
-    if add_zeros:
-        zeros = np.zeros((1, data_size))
-
-    if upper_only:
-        if add_zeros:
-            output = np.concatenate((zeros, output))
-        return output
+    output = np.full((2 if lower_only else 3, data_size), -1.)
 
     output[-1, -1] = 0
-    if add_zeros:
-        output = np.concatenate((zeros, output, zeros))
+    output[-2, 0] = output[-2, -1] = 1
+    output[-2, 1:-1] = 2
+
+    if not lower_only:
+        output[0, 0] = 0
 
     return output
+
+
+def _diff_3_diags(data_size, lower_only=True):
+    """
+    Creates the the diagonals of the square of a third-order finite-difference matrix.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    lower_only : bool, optional
+        If True (default), will return only the lower diagonals of the
+        matrix. If False, will include all diagonals of the matrix.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The array containing the diagonal data. Has a shape of (4, `data_size`)
+        if `lower_only` is True, otherwise (7, `data_size`).
+
+    Notes
+    -----
+    Equivalent to calling::
+
+        from pybaselines.utils import difference_matrix
+        diff_matrix = difference_matrix(data_size, 3)
+        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            output = output[3:]
+
+    but is several orders of magnitude times faster.
+
+    The data is output in the banded format required by SciPy's solve_banded
+    and solveh_banded.
+
+    """
+    output = np.full((4 if lower_only else 7, data_size), -1.)
+
+    for row in range(-1, -4, -1):
+        output[row, -4 - row:] = 0
+
+    output[-2, 0] = output[-2, -3] = 3
+    output[-2, 1:-3] = 6
+    output[-3, 0] = output[-3, -2] = -3
+    output[-3, 1] = output[-3, -3] = -12
+    output[-3, 2:-3] = -15
+    output[-4, 0] = output[-4, -1] = 1
+    output[-4, 1] = output[-4, -2] = 10
+    output[-4, 2] = output[-4, -3] = 19
+    output[-4, 3:-3] = 20
+
+    if not lower_only:
+        for row in range(3):
+            output[row, :3 - row] = 0
+
+        output[1, 2] = output[1, -1] = 3
+        output[1, 3:-1] = 6
+        output[2, 1] = output[2, -1] = -3
+        output[2, 2] = output[2, -2] = -12
+        output[2, 3:-2] = -15
+
+    return output
+
+
+def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
+    """
+    Creates the diagonals of the finite difference penalty matrix.
+
+    If `D` is the finite difference matrix, then the finite difference penalty
+    matrix is defined as ``D.T @ D``. The penalty matrix is banded and symmetric, so
+    the non-zero diagonal bands can be computed efficiently.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
+    lower_only : bool, optional
+        If True (default), will return only the lower diagonals of the
+        matrix. If False, will include all diagonals of the matrix.
+    padding : int, optional
+        The number of extra layers of zeros to add to the bottom and top, if
+        `lower_only` is True. Useful if working with other diagonal arrays with
+        a different number of rows. Default is 0, which adds no extra layers.
+        Negative `padding` is treated as equivalent to 0.
+
+    Returns
+    -------
+    diagonals : numpy.ndarray
+        The diagonals of the finite difference penalty matrix.
+
+    Raises
+    ------
+    ValueError
+        Raised if `diff_order` is negative or if `data_size` less than 1.
+
+    Notes
+    -----
+    Equivalent to calling::
+
+        from pybaselines.utils import difference_matrix
+        diff_matrix = difference_matrix(data_size, diff_order)
+        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            output = output[diff_order:]
+
+    but is several orders of magnitude times faster.
+
+    The data is output in the banded format required by SciPy's solve_banded
+    and solveh_banded functions.
+
+    """
+    if diff_order < 0:
+        raise ValueError('the difference order must be >= 0')
+    elif data_size <= 0:
+        raise ValueError('data size must be > 0')
+
+    # the fast, hard-coded values require that data_size > 2 * diff_order + 1,
+    # otherwise, the band structure has to actually be calculated
+    if diff_order == 0:
+        diagonals = np.ones((1, data_size))
+    elif data_size < 2 * diff_order + 1 or diff_order > 3:
+        diff_matrix = difference_matrix(data_size, diff_order, 'csc')
+        # scipy's diag_matrix stores the diagonals in opposite order of
+        # the typical LAPACK banded structure
+        diagonals = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        if lower_only:
+            diagonals = diagonals[diff_order:]
+    else:
+        diag_func = {1: _diff_1_diags, 2: _diff_2_diags, 3: _diff_3_diags}[diff_order]
+        diagonals = diag_func(data_size, lower_only)
+
+    if padding > 0:
+        pad_layers = np.zeros((padding, data_size))
+        if lower_only:
+            diagonals = np.concatenate((diagonals, pad_layers))
+        else:
+            diagonals = np.concatenate((pad_layers, diagonals, pad_layers))
+
+    return diagonals
 
 
 def _check_lam(lam, allow_zero=False):
@@ -221,7 +351,7 @@ def _check_lam(lam, allow_zero=False):
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
-                     upper_only=True, reverse_diags=False):
+                     lower_only=True, reverse_diags=False):
     """
     Sets the starting parameters for doing penalized least squares.
 
@@ -242,8 +372,8 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
     copy_weights : boolean, optional
         If True, will copy the array of input weights. Only needed if the
         algorithm changes the weights in-place. Default is False.
-    upper_only : boolean, optional
-        If True (default), will include only the upper non-zero diagonals of
+    lower_only : boolean, optional
+        If True (default), will include only the lower non-zero diagonals of
         the squared difference matrix. If False, will include all non-zero diagonals.
     reverse_diags : boolean, optional
         If True, will reverse the order of the diagonals of the squared difference
@@ -256,7 +386,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
     numpy.ndarray
         The array containing the diagonal data of the product of `lam` and the
         squared finite-difference matrix of order `diff_order`. Has a shape of
-        (`diff_order` + 1, N) if `upper_only` is True, otherwise
+        (`diff_order` + 1, N) if `lower_only` is True, otherwise
         (`diff_order` * 2 + 1, N).
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
@@ -285,23 +415,6 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
             ParameterWarning
         )
     num_y = y.shape[0]
-    # use hard-coded values for diff_order of 1 and 2 since it is much faster
-    # TODO need to do a shape check to ensure the vast versions are valid; len(y)
-    # must be >= 2 * diff_order + 1 (almost surely is); if not, need to do the
-    # actual calculation with the difference matrix, or just raise an error
-    if diff_order == 1:
-        diagonal_data = _diff_1_diags(num_y, upper_only)
-    elif diff_order == 2:
-        diagonal_data = _diff_2_diags(num_y, upper_only)
-    else:  # TODO figure out the general formula to avoid using the sparse matrices
-        # csc format is fastest for the D.T * D operation
-        diff_matrix = difference_matrix(num_y, diff_order, 'csc')
-        diff_matrix = diff_matrix.T * diff_matrix
-        diagonal_data = diff_matrix.todia().data[diff_order if upper_only else 0:][::-1]
-
-    if reverse_diags:
-        diagonal_data = diagonal_data[::-1]
-
     if weights is None:
         weight_array = np.ones(num_y)
     else:
@@ -311,6 +424,10 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
 
         if weight_array.shape != y.shape:
             raise ValueError('weights must have the same shape as the input data')
+
+    diagonal_data = diff_penalty_diagonals(num_y, diff_order, lower_only)
+    if reverse_diags:
+        diagonal_data = diagonal_data[::-1]
 
     return y, _check_lam(lam) * diagonal_data, weight_array
 
@@ -569,88 +686,8 @@ def _setup_classification(data, x_data=None, weights=None):
     return y, x, weight_array, original_domain
 
 
-def spline_basis(x, num_knots=10, spline_degree=3, penalized=False):
-    """
-    Creates the basis matrix for B-splines and P-splines.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The array of x-values
-    num_knots : int, optional
-        The number of interior knots for the spline. Default is 10.
-    spline_degree : int, optional
-        The degree of the spline. Default is 3, which is a cubic spline.
-    penalized : bool, optional
-        Whether the basis matrix should be for a penalized spline or a regular
-        B-spline. Default is False, which creates the basis for a B-spline.
-
-    Returns
-    -------
-    basis : numpy.ndarray
-        The basis matrix representing the spline, similar to the Vandermonde matrix
-        for polynomials.
-
-    Notes
-    -----
-    If `penalized` is True, makes the knots uniformly spaced to create p-splines. That
-    way, can use a finite difference matrix to impose penalties on the spline.
-
-    `degree` is used instead of `order` like for polynomials since the order of a spline
-    is defined by convention as `degree` + 1.
-
-    References
-    ----------
-    Eilers, P., et al. Twenty years of P-splines. SORT: Statistics and Operations Research
-    Transactions, 2015, 39(2), 149-186.
-
-    Hastie, T., et al. The Elements of Statistical Learning. Springer, 2017. Chapter 5.
-
-    """
-    spline_order = spline_degree + 1
-    if penalized:
-        x_min = x.min()
-        x_max = x.max()
-        # number of sections is num_knots - 1 since counting the first and last knots as inner knots
-        dx = (x_max - x_min) / (num_knots - 1)
-        # calculate inner knots separately to ensure x_min and x_max are correct;
-        # otherwise, they can be slighly off due to floating point errors
-        inner_knots = np.linspace(x_min, x_max, num_knots)
-        knots = np.concatenate((
-            np.linspace(x_min - spline_degree * dx, x_min - dx, spline_degree),
-            inner_knots,
-            np.linspace(x_max + dx, x_max + spline_degree * dx, spline_degree),
-        ))
-    else:
-        # TODO maybe provide a better way to select knot positions for regular B-splines
-        inner_knots = np.percentile(x, np.linspace(0, 100, num_knots))
-        knots = np.concatenate((
-            np.repeat(inner_knots[0], spline_degree), inner_knots,
-            np.repeat(inner_knots[-1], spline_degree)
-        ))
-
-    num_bases = len(knots) - spline_order
-    basis = np.empty((num_bases, len(x)))
-    coefs = np.zeros(num_bases)
-    # TODO would be faster to simply calculate the spline coefficients using de Boor's recursive
-    # algorithm; does it also give just the coefficients without all the extra zeros? would be
-    # nice if so, since it would use less space; also could then probably make a sparse or banded
-    # matrix rather than the full, dense array
-
-    # adapted from Scipy forums at: http://scipy-user.10969.n7.nabble.com/B-spline-basis-functions
-    for i in range(num_bases):
-        coefs[i] = 1  # evaluate the i-th basis within splev
-        basis[i] = splev(x, (knots, coefs, spline_degree))
-        coefs[i] = 0  # reset back to zero
-
-    # transpose to get a shape similar to the Vandermonde matrix
-    # TODO maybe it's preferable to not transpose, since typically basis.T is used in
-    # calculations more than basis; maybe make it a boolean input
-    return basis.T
-
-
 def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=10,
-                   penalized=True, diff_order=3, lam=1, sparse_basis=True):
+                   penalized=True, diff_order=3, lam=1, make_basis=True):
     """
     Sets the starting parameters for doing spline fitting.
 
@@ -678,9 +715,8 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         The smoothing parameter, lambda. Typical values are between 10 and
         1e8, but it strongly depends on the number of knots and the difference order.
         Default is 1.
-    sparse_basis : bool, optional
-        If True (default), will convert the spline basis to a sparse matrix with CSR
-        format.
+    make_basis : bool, optional
+        If True (default), will create the matrix containing the spline basis functions.
 
     Returns
     -------
@@ -688,52 +724,83 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         The y-values of the measured data, converted to a numpy array.
     x : numpy.ndarray, shape (N,)
         The x-values for fitting the spline.
-    basis : numpy.ndarray or scipy.sparse.csr.csr_matrix
-        The spline basis matrix. Is sparse with CSR format if `sparse_basis` is True.
     weight_array : numpy.ndarray, shape (N,)
-        The weight array for fitting a polynomial to the data.
-    penalty_matrix : scipy.sparse.csr.csr_matrix
-        The penalty matrix for the spline. Only returned if `penalized` is True.
+        The weight array for fitting the spline to the data.
+    basis : scipy.sparse.csr.csr_matrix
+        The spline basis matrix. Only returned if `make_basis` is True.
+    knots : numpy.ndarray, shape (``num_knots + 2 * spline_degree``,)
+        The array of knots for the spline, properly padded on each side. Only
+        return if `make_basis` if True.
+    penalty_diagonals : numpy.ndarray, shape (`diff_order` + 1, N)
+        The finite difference penalty matrix, in LAPACK's lower banded format (see
+        :func:`scipy.linalg.solveh_banded`).
+        The penalty matrix for the spline. Only returned if both `penalized`
+        and `make_basis` are True.
 
     Raises
     ------
     ValueError
-        Raised is `diff_order` is less than 1 or if `weights` and `data` do not have
-        the same shape.
+        Raised if `diff_order` is less than 1, if `weights` and `data` do not have
+        the same shape, if `num_knots` is less than 2, if the number of spline
+        basis functions (`num_knots` + `spline_degree` - 1) is <= `diff_order`, or
+        if `spline_degree` is less than 0.
 
     Warns
     -----
     UserWarning
         Raised if `diff_order` is greater than 4.
 
+    Notes
+    -----
+    `degree` is used instead of `order` like for polynomials since the order of a spline
+    is defined by convention as `degree` + 1.
+
     """
-    y, x = _yx_arrays(data, x_data)
+    y, x = _yx_arrays(data, x_data, check_finite=True)
     if weights is not None:
         weight_array = np.asarray(weights)
         if weight_array.shape != y.shape:
             raise ValueError('weights must have the same shape as the input data')
     else:
         weight_array = np.ones(y.shape[0])
-    basis = spline_basis(x, num_knots, spline_degree, penalized)
-    if sparse_basis:
-        basis = csr_matrix(basis)
-    if not penalized:
-        return y, x, basis, weight_array
+    if not make_basis:
+        return y, x, weight_array
 
+    if num_knots < 2:  # num_knots == 2 means the only knots are the two endpoints
+        raise ValueError('the number of knots must be at least 2')
+    elif spline_degree < 0:
+        raise ValueError('spline degree must be >= 0')
+    # explicitly cast x and y as floats since most scipy functions do so anyway, so
+    # can just do it once
+    x = x.astype(float, copy=False)
+    y = y.astype(float, copy=False)
+    knots = _spline_knots(x, num_knots, spline_degree, penalized)
+    basis = _spline_basis(x, knots, spline_degree)
+    if not penalized:
+        return y, x, weight_array, basis, knots
+
+    num_bases = basis.shape[1]  # number of basis functions
     if diff_order < 1:
         raise ValueError(
-            'the differential order must be > 0 for spline methods'
+            'the difference order must be > 0 for spline methods'
         )
+    elif diff_order >= num_bases:
+        raise ValueError((
+            'the difference order must be less than the number of basis '
+            'functions, which is the number of knots + spline degree - 1'
+        ))
     elif diff_order > 4:
         warnings.warn(
             ('differential orders greater than 4 can have numerical issues;'
              ' consider using a differential order of 2 or 3 instead'),
             ParameterWarning
         )
-    diff_matrix = difference_matrix(basis.shape[1], diff_order, 'csc')
-    penalty_matrix = _check_lam(lam) * (diff_matrix.T * diff_matrix)
 
-    return y, x, basis, weight_array, penalty_matrix
+    penalty_diagonals = _check_lam(lam) * diff_penalty_diagonals(
+        num_bases, diff_order, padding=spline_degree - diff_order
+    )
+
+    return y, x, weight_array, basis, knots, penalty_diagonals
 
 
 def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):
@@ -771,13 +838,14 @@ def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):
     y, diagonals, weight_array = _setup_whittaker(
         data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
     )
-    main_diag_idx = diff_order if using_pentapy else -1
+    main_diag_idx = diff_order if using_pentapy else 0
     diagonals[main_diag_idx] = diagonals[main_diag_idx] + weight_array
     if using_pentapy:
-        smooth_y = _pentapy_solve(diagonals, weight_array * y, True, True, _pentapy_solver())
+        smooth_y = _pentapy_solver(diagonals, weight_array * y)
     else:
         smooth_y = solveh_banded(
-            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False
+            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False,
+            lower=True
         )
 
     return smooth_y, weight_array
