@@ -14,12 +14,14 @@ on:
     paths:
     - 'pybaselines/**'
     - 'tests/**'
+    - '.github/workflows/**'
 
   pull_request:
     # always trigger on a pull request, regardless of the branch
     paths:
     - 'pybaselines/**'
     - 'tests/**'
+    - '.github/workflows/**'
 
 jobs:
   test:
