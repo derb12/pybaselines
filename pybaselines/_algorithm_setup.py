@@ -303,6 +303,48 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
     return diagonals
 
 
+def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarray_kwargs):
+    """
+    Ensures the input is a scalar value.
+
+    Parameters
+    ----------
+    value : float or array-like
+        The value to check.
+    allow_zero : bool, optional
+        If False (default), only allows `value` > 0. If True, allows `value` >= 0.
+    variable_name : str, optional
+        The name displayed if an error occurs. Default is 'lam'.
+    **asarray_kwargs : dict
+        Additional keyword arguments to pass to :func:`numpy.asarray`.
+
+    Returns
+    -------
+    output : float
+        The verified scalar value.
+
+    Raises
+    ------
+    ValueError
+        Raised if `value` is less than or equal to 0 if `allow_zero` is False or
+        less than 0 if `allow_zero` is True.
+
+    """
+    output = _check_scalar(value, 1, **asarray_kwargs)[0]
+    if allow_zero:
+        operation = operator.lt
+        text = 'greater than or equal to'
+    else:
+        operation = operator.le
+        text = 'greater than'
+    if np.any(operation(output, 0)):
+        raise ValueError(f'{variable_name} must be {text} 0')
+
+    # use an empty tuple to get the single scalar value; that way, if the input
+    # is a single item in an array, it is converted to a single scalar
+    return output[()]
+
+
 def _check_lam(lam, allow_zero=False):
     """
     Ensures the regularization parameter `lam` is a scalar greater than 0.
@@ -331,23 +373,51 @@ def _check_lam(lam, allow_zero=False):
     banded penalty matrix. Many functions use only half of the penalty matrix due
     to its symmetry; that symmetry is broken when using an array for `lam`, so allowing
     an array `lam` would change how the system is solved. Further, array-like `lam`
-    values cause some instability and/or discontinuities when using Whittaker smoothing
-    or penalized splines. Thus, it is easier and better to only allow scalar `lam` values.
+    values with large changes in scale cause some instability and/or discontinuities
+    when using Whittaker smoothing or penalized splines. Thus, it is easier and better
+    to only allow scalar `lam` values.
+
+    TODO will maybe change this in the future to allow array-like `lam`, and the
+    solver will be determined based on that; however, until then, want to ensure users
+    don't unknowingly use an array-like `lam` when it doesn't work.
 
     """
-    output_lam = _check_scalar(lam, 1)[0]
-    if allow_zero:
-        operation = operator.lt
-        text = 'greater than or equal to'
-    else:
-        operation = operator.le
-        text = 'greater than'
-    if np.any(operation(output_lam, 0)):
-        raise ValueError(f'lam must be {text} 0')
+    return _check_scalar_variable(lam, allow_zero)
 
-    # use an empty tuple to get the single scalar value; that way, if the input
-    # lam is a single item in an array, it is converted to a single scalar
-    return output_lam[()]
+
+def _check_half_window(half_window, allow_zero=False):
+    """
+    Ensures the half-window is an integer and has an appropriate value.
+
+    Parameters
+    ----------
+    half_window : int, optional
+        The half-window used for the smoothing functions. Used
+        to pad the left and right edges of the data to reduce edge
+        effects. Default is 0, which provides no padding.
+    allow_zero : bool, optional
+        If True, allows `half_window` to be 0; otherwise, `half_window`
+        must be at least 1. Default is False.
+
+    Returns
+    -------
+    output_half_window : int
+        The verified half-window value.
+
+    Raises
+    ------
+    TypeError
+        Raised if the integer converted `half_window` is not equal to the input
+        `half_window`.
+
+    """
+    output_half_window = _check_scalar_variable(
+        half_window, allow_zero, 'half_window', dtype=np.intp
+    )
+    if output_half_window != half_window:
+        raise TypeError('half_window must be an integer')
+
+    return output_half_window
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
@@ -607,14 +677,14 @@ def _setup_morphology(data, half_window=None, **window_kwargs):
     """
     y = np.asarray(data)
     if half_window is not None:
-        output_half_window = half_window
+        output_half_window = _check_half_window(half_window)
     else:
         output_half_window = optimize_window(y, **window_kwargs)
 
     return y, output_half_window
 
 
-def _setup_smooth(data, half_window=0, **pad_kwargs):
+def _setup_smooth(data, half_window=0, allow_zero=True, **pad_kwargs):
     """
     Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -626,6 +696,9 @@ def _setup_smooth(data, half_window=0, **pad_kwargs):
         The half-window used for the smoothing functions. Used
         to pad the left and right edges of the data to reduce edge
         effects. Default is 0, which provides no padding.
+    allow_zero : bool, optional
+        If True (default), allows `half_window` to be 0; otherwise, `half_window`
+        must be at least 1.
     **pad_kwargs
         Additional keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data to prevent edge effects from smoothing.
@@ -636,7 +709,8 @@ def _setup_smooth(data, half_window=0, **pad_kwargs):
         The padded array of data.
 
     """
-    return pad_edges(data, half_window, **pad_kwargs)
+    hw = _check_half_window(half_window, allow_zero)
+    return pad_edges(data, hw, **pad_kwargs)
 
 
 def _setup_classification(data, x_data=None, weights=None):
