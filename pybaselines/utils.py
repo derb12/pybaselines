@@ -141,7 +141,8 @@ def gaussian_kernel(window_size, sigma=1.0):
 
     """
     # centers distribution from -half_window to half_window
-    x = np.arange(0, window_size) - (window_size - 1) / 2
+    window_size = max(1, window_size)
+    x = np.arange(window_size) - (window_size - 1) / 2
     gaus = gaussian(x, 1, 0, sigma)
     return gaus / np.sum(gaus)
 

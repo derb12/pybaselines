@@ -178,7 +178,7 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
         range_args = (1, max_of_half_windows + 1, 1)
 
     y = _setup_smooth(data, max_of_half_windows, **pad_kwargs)
-    num_y = y.shape[0]  # new num_y since y is now padded
+    num_y += 2 * max_of_half_windows  # new num_y since y is now padded
     smooth = smooth_half_window is not None and smooth_half_window > 0
     baseline = y.copy()
     for i in range(*range_args):

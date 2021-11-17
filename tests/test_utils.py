@@ -48,6 +48,24 @@ def test_gaussian_kernel(window_size, sigma):
     assert_almost_equal(np.sum(kernel), 1)
 
 
+def test_gaussian_kernel_0_windowsize(data_fixture):
+    """
+    Ensures the gaussian kernel with 0 window size gives an array of [1].
+
+    Also ensures the convolution with the kernel gives the unchanged input.
+    """
+    kernel = utils.gaussian_kernel(0, 3)
+
+    assert kernel.size == 1
+    assert kernel.shape == (1,)
+    assert_array_equal(kernel, 1)
+    assert_almost_equal(np.sum(kernel), 1)
+
+    x, y = data_fixture
+    out = utils.padded_convolve(y, kernel)
+    assert_array_equal(y, out)
+
+
 @pytest.mark.parametrize('sign', (1, -1))
 def test_relative_difference_scalar(sign):
     """Tests relative_difference to ensure it uses abs for scalars."""
