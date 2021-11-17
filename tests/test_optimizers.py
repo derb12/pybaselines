@@ -98,6 +98,11 @@ class TestCollabPLS(AlgorithmTester):
         with pytest.raises(AttributeError):
             self._call_func(self._stack(self.y), method='unknown function')
 
+    def test_single_dataset_fails(self):
+        """Ensures an error is raised if the input has the shape (N,)."""
+        with pytest.raises(ValueError, match='the input data must'):
+            self._call_func(self.y)
+
 
 class TestOptimizeExtendedRange(AlgorithmTester):
     """Class for testing optimize_extended_range baseline."""

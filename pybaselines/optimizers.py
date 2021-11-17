@@ -100,6 +100,11 @@ def collab_pls(data, average_dataset=True, method='asls', **method_kwargs):
     """
     fit_func = _get_function(method, (whittaker, morphological, classification, spline))[0]
     dataset = np.asarray(data)
+    if dataset.ndim < 2:
+        raise ValueError((
+            'the input data must have a shape of (number of measurements, number of points), '
+            f'but instead has a shape of {dataset.shape}'
+        ))
     if average_dataset:
         _, fit_params = fit_func(np.mean(dataset.T, 1), **method_kwargs)
         method_kwargs['weights'] = fit_params['weights']
