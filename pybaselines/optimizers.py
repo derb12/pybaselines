@@ -437,13 +437,17 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then will be an array with
         size equal to N and all values set to 1.
-    constrained_fraction : float, optional
+    constrained_fraction : float or Sequence(float, float), optional
         The fraction of points at the left and right edges to use for the
-        constrained fit. Default is 0.01.
-    constrained_weight : float, optional
+        constrained fit. Default is 0.01. If `constrained_fraction` is a sequence,
+        the first item is the fraction for the left edge and the second is the
+        fraction for the right edge.
+    constrained_weight : float or Sequence(float, float), optional
         The weighting to give to the endpoints. Higher values ensure that the
         end points are fit, but can cause large fluctuations in the other sections
-        of the polynomial. Default is 1e5.
+        of the polynomial. Default is 1e5. If `constrained_weight` is a sequence,
+        the first item is the weight for the left edge and the second is the
+        weight for the right edge.
     estimation_poly_order : int, optional
         The polynomial order used for estimating the baseline-to-signal ratio
         to select the appropriate polynomial orders if `poly_order` is None.
@@ -476,8 +480,6 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     """
     fit_func = {'modpoly': polynomial.modpoly, 'imodpoly': polynomial.imodpoly}[method.lower()]
     y, x, weight_array, _ = _setup_polynomial(data, x_data, weights)
-    constrained_range = max(1, ceil(y.shape[0] * constrained_fraction))
-
     if poly_order is None:
         poly_orders = _determine_polyorders(
             y, x, estimation_poly_order, weight_array, fit_func, **method_kwargs
@@ -489,9 +491,14 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
 
     # use high weighting rather than Lagrange multipliers to constrain the points
     # to better work with noisy data
+    weightings = _check_scalar(constrained_weight, 2, True)[0]
+    constrained_fractions = _check_scalar(constrained_fraction, 2, True)[0]
+    if np.any(constrained_fractions < 0) or np.any(constrained_fractions > 1):
+        raise ValueError('constrained_fraction must be between 0 and 1')
+    len_y = len(y)
     constrained_weights = weight_array.copy()
-    constrained_weights[:constrained_range] = constrained_weight
-    constrained_weights[-constrained_range:] = constrained_weight
+    constrained_weights[:ceil(len_y * constrained_fractions[0])] = weightings[0]
+    constrained_weights[len_y - ceil(len_y * constrained_fractions[1]):] = weightings[1]
 
     # TODO should make parameters available; a list with an item for each fit like collab_pls
     baselines = np.empty((4, y.shape[0]))

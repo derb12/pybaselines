@@ -312,3 +312,31 @@ class TestAdaptiveMinMax(AlgorithmTester):
         """Ensures an error is raised if poly_order has more than two items."""
         with pytest.raises(ValueError):
             self._call_func(self.y, self.x, poly_order)
+
+    @pytest.mark.parametrize('constrained_fraction', (0.01, [0.01], (0, 0.01), [0.01, 1]))
+    def test_constrained_fraction_inputs(self, constrained_fraction):
+        """Tests valid inputs for constrained_fraction."""
+        self._test_output(self.y, self.y, self.x, constrained_fraction=constrained_fraction)
+
+    @pytest.mark.parametrize('constrained_fraction', ([0.01, 0.02, 0.02], (0.01, 0.01, 0.01, 0.01)))
+    def test_too_many_constrained_fraction(self, constrained_fraction):
+        """Ensures an error is raised if constrained_fraction has more than two items."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, constrained_fraction=constrained_fraction)
+
+    @pytest.mark.parametrize('constrained_fraction', (-0.5, [-0.01, 0.02], 1.1, [0.05, 1.1]))
+    def test_invalid_constrained_fraction(self, constrained_fraction):
+        """Ensures an error is raised if constrained_fraction is outside of [0, 1]."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, constrained_fraction=constrained_fraction)
+
+    @pytest.mark.parametrize('constrained_weight', (1e5, [1e5], (1e3, 1e5)))
+    def test_constrained_weight_inputs(self, constrained_weight):
+        """Tests valid inputs for constrained_weight."""
+        self._test_output(self.y, self.y, self.x, constrained_weight=constrained_weight)
+
+    @pytest.mark.parametrize('constrained_weight', ([1e4, 1e2, 1e5], (1e3, 1e3, 1e3, 1e3)))
+    def test_too_many_constrained_weight(self, constrained_weight):
+        """Ensures an error is raised if constrained_weight has more than two items."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, constrained_weight=constrained_weight)
