@@ -2,9 +2,17 @@
 pybaselines
 ===========
 
+.. image:: https://github.com/derb12/pybaselines/raw/main/docs/images/logo.png
+    :alt: Logo
+    :align: center
+
 .. image:: https://img.shields.io/pypi/v/pybaselines.svg
     :target: https://pypi.python.org/pypi/pybaselines
-    :alt: Most Recent Version
+    :alt: Current Pypi Version
+
+.. image:: https://img.shields.io/conda/vn/conda-forge/pybaselines.svg
+    :target: https://anaconda.org/conda-forge/pybaselines
+    :alt: Current conda Version
 
 .. image:: https://github.com/derb12/pybaselines/actions/workflows/python-test.yml/badge.svg
     :target: https://github.com/derb12/pybaselines/actions
@@ -13,10 +21,6 @@ pybaselines
 .. image:: https://readthedocs.org/projects/pybaselines/badge/?version=latest
     :target: https://pybaselines.readthedocs.io
     :alt: Documentation Status
-
-.. image:: https://img.shields.io/badge/license-BSD%203--Clause-blue.svg
-    :target: https://github.com/derb12/pybaselines/tree/main/LICENSE.txt
-    :alt: BSD 3-clause license
 
 .. image:: https://img.shields.io/pypi/pyversions/pybaselines.svg
     :target: https://pypi.python.org/pypi/pybaselines
@@ -41,10 +45,11 @@ pybaselines is a library of algorithms for the baseline correction of experiment
 Introduction
 ------------
 
-pybaselines provides many different baseline correction algorithms for fitting baselines
-to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. The aim of
-the project is to provide a semi-unified API to allow quickly testing and comparing
-multiple baseline correction algorithms to find the best one for a set of data.
+pybaselines is a Python library that provides many different algorithms for
+performing baseline correction on data from experimental techniques such as
+Raman, FTIR, NMR, XRD, PIXE, etc. The aim of the project is to provide a
+semi-unified API to allow quickly testing and comparing multiple baseline
+correction algorithms to find the best one for a set of data.
 
 pybaselines has 45+ baseline correction algorithms. Whenever possible, the original
 names of the algorithms were used. The algorithms are grouped accordingly:
@@ -125,26 +130,25 @@ Installation
 Stable Release
 ~~~~~~~~~~~~~~
 
-pybaselines is easily installed from `pypi <https://pypi.org/project/pybaselines>`_
+pybaselines can be installed from `pypi <https://pypi.org/project/pybaselines>`_
 using `pip <https://pip.pypa.io>`_, by running the following command in the terminal:
 
 .. code-block:: console
 
     pip install pybaselines
 
-To also install the `optional dependencies`_ when installing pybaselines, run:
+pybaselines can alternatively be installed from the
+`conda-forge <https://anaconda.org/conda-forge/pybaselines>`_ channel using conda by running:
 
 .. code-block:: console
 
-    pip install pybaselines[full]
+    conda install -c conda-forge pybaselines
 
-
-.. _optional dependencies: https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies
 
 Development Version
 ~~~~~~~~~~~~~~~~~~~
 
-The sources for pybaselines can be downloaded from the `Github repo`_.
+The sources for pybaselines can be downloaded from the `GitHub repo`_.
 
 The public repository can be cloned using:
 
@@ -161,7 +165,7 @@ Once the repository is downloaded, it can be installed with:
     pip install .
 
 
-.. _Github repo: https://github.com/derb12/pybaselines
+.. _GitHub repo: https://github.com/derb12/pybaselines
 
 
 Dependencies
@@ -175,11 +179,17 @@ and the following libraries:
 
 
 All of the required libraries should be automatically installed when
-installing pybaselines using either of the two installation methods above.
+installing pybaselines using any of the installation methods above.
 
 The optional dependencies for pybaselines are listed in the
 `documentation <https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies>`_.
+To also install the optional dependencies when installing pybaselines with pip, run:
 
+.. code-block:: console
+
+    pip install pybaselines[full]
+
+If installing with conda, the optional dependencies have to be specified manually.
 
 Quick Start
 -----------

@@ -1,10 +1,11 @@
 Introduction
 ============
 
-pybaselines provides many different baseline correction algorithms for fitting baselines
-to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. The aim of
-the project is to provide a semi-unified API to allow quickly testing and comparing
-multiple baseline correction algorithms to find the best one for a set of data.
+pybaselines is a Python library that provides many different algorithms for
+performing baseline correction on data from experimental techniques such as
+Raman, FTIR, NMR, XRD, PIXE, etc. The aim of the project is to provide a
+semi-unified API to allow quickly testing and comparing multiple baseline
+correction algorithms to find the best one for a set of data.
 
 pybaselines has 45+ baseline correction algorithms. Whenever possible, the original
 names of the algorithms were used. The algorithms are grouped accordingly:
