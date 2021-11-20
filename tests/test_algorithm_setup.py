@@ -12,7 +12,7 @@ import pytest
 from scipy.sparse import dia_matrix, identity
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import _algorithm_setup, utils
+from pybaselines import _algorithm_setup, optimizers, polynomial, utils, whittaker
 from pybaselines.utils import ParameterWarning
 
 
@@ -612,3 +612,72 @@ def test_whittaker_smooth(data_fixture, diff_order):
     expected_output = spsolve(identity(len_y) + penalty, y)
 
     assert_allclose(output[0], expected_output, 1e-6)
+
+
+@pytest.mark.parametrize(
+    'method_and_outputs', (
+        ('collab_pls', optimizers.collab_pls, 'optimizers'),
+        ('COLLAB_pls', optimizers.collab_pls, 'optimizers'),
+        ('modpoly', polynomial.modpoly, 'polynomial'),
+        ('asls', whittaker.asls, 'whittaker')
+    )
+)
+def test_get_function(method_and_outputs):
+    """Ensures _get_function gets the correct method, regardless of case."""
+    method, expected_func, expected_module = method_and_outputs
+    tested_modules = [optimizers, polynomial, whittaker]
+    selected_func, module = _algorithm_setup._get_function(method, tested_modules)
+    assert selected_func is expected_func
+    assert module == expected_module
+
+
+def test_get_function_fails_wrong_method():
+    """Ensures _get_function fails when an no function with the input name is available."""
+    with pytest.raises(AttributeError):
+        _algorithm_setup._get_function('unknown function', [optimizers])
+
+
+def test_get_function_fails_no_module():
+    """Ensures _get_function fails when not given any modules to search."""
+    with pytest.raises(AttributeError):
+        _algorithm_setup._get_function('collab_pls', [])
+
+
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))
+def test_setup_optimizer(small_data, list_input, method_kwargs):
+    """Ensures output of _setup_optimizer is correct."""
+    if list_input:
+        data = small_data.tolist()
+    else:
+        data = small_data
+    y, fit_func, func_module, output_kwargs = _algorithm_setup._setup_optimizer(
+        data, 'asls', [whittaker], method_kwargs
+    )
+
+    assert isinstance(y, np.ndarray)
+    assert fit_func is whittaker.asls
+    assert func_module == 'whittaker'
+    assert isinstance(output_kwargs, dict)
+
+
+@pytest.mark.parametrize('copy_kwargs', (True, False))
+def test_setup_optimizer_copy_kwargs(small_data, copy_kwargs):
+    """Ensures the copy behavior of the input keyword argument dictionary."""
+    input_kwargs = {'a': 1}
+    y, _, _, output_kwargs = _algorithm_setup._setup_optimizer(
+        small_data, 'asls', [whittaker], input_kwargs, copy_kwargs
+    )
+
+    output_kwargs['a'] = 2
+    if copy_kwargs:
+        assert input_kwargs['a'] == 1
+    else:
+        assert input_kwargs['a'] == 2
+
+
+def test_setup_optimizer_kwargs_warns(data_fixture):
+    """Ensures a warning is emitted if extra keyword arguments are passed to the setup."""
+    x, y = data_fixture
+    with pytest.warns(DeprecationWarning):
+        _algorithm_setup._setup_optimizer(y, 'asls', [whittaker], None, True, x_data=x)

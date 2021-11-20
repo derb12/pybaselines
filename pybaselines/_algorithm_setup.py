@@ -380,6 +380,11 @@ def _check_lam(lam, allow_zero=False):
     TODO will maybe change this in the future to allow array-like `lam`, and the
     solver will be determined based on that; however, until then, want to ensure users
     don't unknowingly use an array-like `lam` when it doesn't work.
+    NOTE for future: if multiplying an array `lam` with the penalties in banded format,
+    do not reverse the order (ie. keep it like the output of sparse.dia.data), multiply
+    by the array, and then shift the rows based on the difference order (same procedure
+    as done for aspls). That will give the same output as
+    ``(diags(lam) @ D.T @ D).todia().data[::-1]``.
 
     """
     return _check_scalar_variable(lam, allow_zero)
@@ -457,7 +462,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
         The array containing the diagonal data of the product of `lam` and the
         squared finite-difference matrix of order `diff_order`. Has a shape of
         (`diff_order` + 1, N) if `lower_only` is True, otherwise
-        (`diff_order` * 2 + 1, N).
+        (``diff_order * 2 + 1``, N).
     weight_array : numpy.ndarray, shape (N,), optional
         The weighting array.
 
@@ -923,3 +928,61 @@ def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):
         )
 
     return smooth_y, weight_array
+
+
+def _get_function(method, modules):
+    """
+    Tries to retrieve the indicated function from a list of modules.
+
+    Parameters
+    ----------
+    method : str
+        The string name of the desired function. Case does not matter.
+    modules : Sequence
+        A sequence of modules in which to look for the method.
+
+    Returns
+    -------
+    func : Callable
+        The corresponding function.
+    func_module : str
+        The module that `func` belongs to.
+
+    Raises
+    ------
+    AttributeError
+        Raised if no matching function is found within the modules.
+
+    """
+    function_string = method.lower()
+    for module in modules:
+        if hasattr(module, function_string):
+            func = getattr(module, function_string)
+            func_module = module.__name__.split('.')[-1]
+            break
+    else:  # in case no break
+        raise AttributeError(f'unknown method {method}')
+
+    return func, func_module
+
+
+def _setup_optimizer(data, method, modules=(), method_kwargs=None, copy_kwargs=True, **kwargs):
+    y = np.asarray(data)
+    fit_func, func_module = _get_function(method, modules)
+    if method_kwargs is None:
+        method_kws = {}
+    elif copy_kwargs:
+        method_kws = method_kwargs.copy()
+    else:
+        method_kws = method_kwargs
+
+    if kwargs:  # TODO remove in version 0.10 or 1.0
+        warnings.warn(
+            ('Passing additional keyword arguments directly to optimizer functions is '
+             'deprecated and will be removed in version 0.10.0 or version 1.0. Place all '
+             'keyword arguments into the method_kwargs dictionary instead.'),
+            DeprecationWarning, stacklevel=2
+        )
+        method_kws.update(kwargs)
+
+    return y, fit_func, func_module, method_kws
