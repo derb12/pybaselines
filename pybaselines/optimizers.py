@@ -16,7 +16,7 @@ import numpy as np
 
 from . import classification, morphological, polynomial, spline, whittaker
 from ._algorithm_setup import _setup_polynomial, _whittaker_smooth, _yx_arrays
-from .utils import _check_scalar, _get_edges, gaussian
+from .utils import _check_scalar, _get_edges, _inverted_sort, gaussian
 
 
 def _get_function(method, modules):
@@ -358,7 +358,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     )
 
     if sort_x:
-        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
+        baseline = baseline[_inverted_sort(sort_order)]
 
     return baseline, params
 

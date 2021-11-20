@@ -575,3 +575,17 @@ def test_check_scalar_asarray_kwargs():
 
         output, _ = utils._check_scalar(np.array([1, 2, 3]), 3, dtype=dtype)
         assert output.dtype == dtype
+
+
+@pytest.mark.parametrize('seed', (123, 98765))
+def test_invert_sort(seed):
+    """Ensures the inverted sort works."""
+    # TODO replace with np.random.default_rng once minimum numpy version is >= 1.17
+    values = np.random.RandomState(seed).normal(0, 10, 1000)
+    sort_order = values.argsort(kind='mergesort')
+
+    expected_inverted_sort = sort_order.argsort(kind='mergesort')
+    inverted_order = utils._inverted_sort(sort_order)
+
+    assert_array_equal(expected_inverted_sort, inverted_order)
+    assert_array_equal(values, values[sort_order][inverted_order])

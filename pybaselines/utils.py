@@ -743,3 +743,37 @@ def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
         raise ValueError(f'desired length was {desired_length} but instead got {len_output}')
 
     return output, is_scalar
+
+
+def _inverted_sort(sort_order):
+    """
+    Finds the indices that invert a sorting.
+
+    Given an array `a`, and the indices that sort the array, `sort_order`, the
+    inverted sort is defined such that it gives the original index order of `a`,
+    ie. ``a == a[sort_order][inverted_order]``.
+
+    Parameters
+    ----------
+    sort_order : numpy.ndarray, shape (N,)
+        The original index array for sorting.
+
+    Returns
+    -------
+    inverted_order : numpy.ndarray, shape (N,)
+        The array that inverts the sort given by `sort_order`.
+
+    Notes
+    -----
+    This function is equivalent to doing::
+
+        inverted_order = sort_order.argsort()
+
+    but is faster for large arrays since no additional sorting is performed.
+
+    """
+    num_points = len(sort_order)
+    inverted_order = np.empty(num_points, dtype=np.intp)
+    inverted_order[sort_order] = np.arange(num_points, dtype=np.intp)
+
+    return inverted_order

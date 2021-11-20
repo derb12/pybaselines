@@ -81,7 +81,7 @@ import numpy as np
 from ._algorithm_setup import _get_vander, _setup_polynomial
 from ._compat import jit, prange
 from .utils import (
-    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, _quantile_irls,
+    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, _inverted_sort, _quantile_irls,
     relative_difference
 )
 
@@ -1336,7 +1336,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         params['coef'] = np.array([_convert_coef(coef, original_domain) for coef in coefs])
 
     if sort_x:
-        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
+        baseline = baseline[_inverted_sort(sort_order)]
 
     return baseline, params
 

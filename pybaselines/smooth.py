@@ -14,8 +14,8 @@ from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _get_vander, _setup_smooth, _yx_arrays
 from .utils import (
-    _check_scalar, _get_edges, ParameterWarning, gaussian, gaussian_kernel, optimize_window,
-    padded_convolve, pad_edges, relative_difference
+    _check_scalar, _get_edges, _inverted_sort, ParameterWarning, gaussian, gaussian_kernel,
+    optimize_window, padded_convolve, pad_edges, relative_difference
 )
 
 
@@ -660,6 +660,6 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
 
     baseline = smoother_array[data_slice][lower_bound:upper_max]
     if sort_x:
-        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
+        baseline = baseline[_inverted_sort(sort_order)]
 
     return baseline, {'tol_history': tol_history[:i + 1]}
