@@ -225,19 +225,18 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
             data, lam, 2, weights, False, not _HAS_PENTAPY, _HAS_PENTAPY
         )
 
-    diagonals = (
-        d2_diags
-        + diff_penalty_diagonals(y.shape[0], 1, not _HAS_PENTAPY, 1)[::-1 if _HAS_PENTAPY else 1]
-    )
+    lambda_1 = _check_lam(lam_1)
+    d1_diags = diff_penalty_diagonals(y.shape[0], 1, not _HAS_PENTAPY, 1)
+    diagonals = d2_diags + lambda_1 * d1_diags[::-1 if _HAS_PENTAPY else 1]
     main_diag_idx = 2 if _HAS_PENTAPY else 0
     main_diagonal = diagonals[main_diag_idx].copy()
 
-    # lam_1 * (D_1.T @ D_1) * y
+    # lam_1 * (D_1.T @ D_1) @ y
     d1_y = y.copy()
     d1_y[0] = y[0] - y[1]
     d1_y[-1] = y[-1] - y[-2]
     d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
-    d1_y = _check_lam(lam_1) * d1_y
+    d1_y = lambda_1 * d1_y
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
         weight_squared = weight_array * weight_array
