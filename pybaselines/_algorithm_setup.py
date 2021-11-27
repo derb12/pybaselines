@@ -966,7 +966,45 @@ def _get_function(method, modules):
     return func, func_module
 
 
-def _setup_optimizer(data, method, modules=(), method_kwargs=None, copy_kwargs=True, **kwargs):
+def _setup_optimizer(data, method, modules, method_kwargs=None, copy_kwargs=True, **kwargs):
+    """
+    Sets the starting parameters for doing optimizer algorithms.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    method : str
+        The string name of the desired function, like 'asls'. Case does not matter.
+    modules : Sequence(module, ...)
+        The modules to search for the indicated `method` function.
+    method_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to the fitting function. Default
+        is None, which uses an emtpy dictionary.
+    copy_kwargs : bool, optional
+        If True (default), will copy the input `method_kwargs` so that the input
+        dictionary is not modified within the function.
+    **kwargs
+        Deprecated in version 0.8.0 and will be removed in version 0.10 or 1.0. Pass any
+        keyword arguments for the fitting function in the `method_kwargs` dictionary.
+
+    Returns
+    -------
+    y : numpy.ndarray, shape (N,)
+        The y-values of the measured data, converted to a numpy array.
+    fit_func : Callable
+        The function for fitting the baseline.
+    func_module : str
+        The string name of the module that contained `fit_func`.
+    method_kws : dict
+        A dictionary of keyword arguments to pass to `fit_func`.
+
+    Warns
+    -----
+    DeprecationWarning
+        Passed if `kwargs` is not empty.
+
+    """
     y = np.asarray(data)
     fit_func, func_module = _get_function(method, modules)
     if method_kwargs is None:

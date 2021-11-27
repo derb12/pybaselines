@@ -8,7 +8,56 @@ splines to the baseline.
 Introduction
 ------------
 
-To be added...
+A spline is a piecewise joining of individual curves. There are different types of
+splines, but only basis splines (B-splines) will be discussed since they are
+predominantly used in pybaselines. B-splines can be expressed as:
+
+.. math::
+
+    s(x) = \sum\limits_{i}^N \sum\limits_{j}^M {B_j(x_i) c_j}
+
+where :math:`N` is the number of points in :math:`x`, :math:`M` is the number of spline
+basis functions, :math:`B_j(x_i)` is the j-th basis function evaluated at :math:`x_i`,
+and :math:`c_j` is the coefficient for the j-th basis (can also be considered as
+the height of the j-th basis). In pybaselines, the number of spline basis functions,
+:math:`M`, is calculated as the number of knots, `num_knots`, plus the spline degree
+minus 1.
+
+For regular B-spline fitting, the spline coefficients that best fit data
+are gotten from minimizing the least-squares:
+
+.. math:: \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+
+where :math:`y_i` and :math:`x_i` are the measured data, and :math:`w_i` is
+the weighting. In order to control the smoothness of the fitting spline, a penalty
+on the finite-difference between spline coefficients is added, resulting in penalized
+B-splines called P-splines (several `good <https://doi.org/10.1214/ss/1038425655>`_
+`papers <https://doi.org/10.1002/wics.125>`_ exist for an introduction to P-splines).
+The minimized function for P-splines is thus:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^m {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+where :math:`\lambda` is the penalty scale factor, and
+:math:`\Delta^d` is the finite-difference operator of order d. Note that P-splines
+use uniformly spaced knots so that the finite-difference is easy to calculate.
+
+The resulting linear equation for solving the above minimization is:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+where :math:`W` is the diagaonal matrix of the weights, :math:`B` is the matrix
+containing all of the spline basis functions, and :math:`D_d` is the matrix
+version of :math:`\Delta^d` (same as :ref:`explained <difference-matrix-explanation>`
+for Whittaker-smoothing-based algorithms). P-splines are very similar to Whittaker
+smoothing; in fact, if the number of basis functions, :math:`M`, is set up to be equal
+to the number of data points, :math:`N`, and the spline degree is set to 0, then
+:math:`B` becomes the identity matrix and the above equation becomes identical
+to the equation used for Whittaker smoothing.
 
 
 Algorithms
