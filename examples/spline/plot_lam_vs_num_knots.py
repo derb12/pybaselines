@@ -27,7 +27,7 @@ from example_helpers import make_data, optimize_lam
 
 # %%
 # The baseline for this example is an exponentially decaying baseline, shown below.
-# Other baseline types could be examined, similar to
+# Other baseline types could be examined, similar to the
 # :ref:`Whittaker lam vs data size example <sphx_glr_examples_whittaker_plot_lam_vs_data_size.py>`,
 # which should give similar results.
 plt.plot(make_data(1000, bkg_type='exponential')[0])
