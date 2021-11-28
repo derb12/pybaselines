@@ -6,11 +6,13 @@ Created on March 20, 2021
 
 """
 
+from unittest import mock
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import spline, utils
+from pybaselines import spline, utils, whittaker
 
 from .conftest import AlgorithmTester, get_data
 
@@ -104,6 +106,28 @@ def test_mixture_pdf(fraction_pos, fraction_neg):
     # ensure pdf has an area of 1, ie total probability is 100%; accuracy is limited
     # by number of x-values
     assert_allclose(1.0, np.trapz(output_pdf, x), 1e-3)
+
+
+def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
+                              test_rtol=1e-6, test_atol=1e-12, **kwargs):
+    """
+    Compares the output of the penalized spline (P-spline) versions of Whittaker functions.
+
+    The number of knots for the P-splines are set to ``len(data) + 1`` and the spline
+    degree is set to 0; the result is that the spline basis becomes the identity matrix,
+    and the P-spline version should give the same output as the Whittaker version if
+    the weighting and linear systems were correctly set up.
+
+    """
+    # ensure the Whittaker functions use Scipy since that is what P-splines use
+    with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
+        whittaker_output = whittaker_func(data, lam=lam, **kwargs)[0]
+
+    spline_output = pspline_class._call_func(
+        data, lam=lam, num_knots=len(data) + 1, spline_degree=0, **kwargs
+    )[0]
+
+    assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
 
 
 class TestMixtureModel(AlgorithmTester):
@@ -223,3 +247,48 @@ class TestCornerCutting(AlgorithmTester):
         self._test_algorithm_list(
             array_args=(self.y,), list_args=(y_list,), assertion_kwargs={'rtol': 1e-5}
         )
+
+
+class TestPsplineAsLS(AlgorithmTester):
+    """Class for testing pspline_asls baseline."""
+
+    func = spline.pspline_asls
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    @pytest.mark.parametrize('p', (0.01, 0.1))
+    def test_whittaker_comparison(self, lam, p):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.asls, self.y, lam=lam, p=p)

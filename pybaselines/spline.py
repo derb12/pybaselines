@@ -697,3 +697,89 @@ def corner_cutting(data, x_data=None, max_iter=100):
     # first, and then decide what to return; if so, need to make the bezier spline
     # function public and do input validation
     return baseline, {}
+
+
+def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_order=2,
+                 max_iter=50, tol=1e-3, weights=None):
+    """
+    A penalized spline version of the asymmetric least squares (AsLS) algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e3.
+    p : float, optional
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given `p` weight, and values less than the baseline
+        will be given `p - 1` weight. Default is 1e-2.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+
+    Raises
+    ------
+    ValueError
+        Raised if p is not between 0 and 1.
+
+    References
+    ----------
+    Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+    Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
+    Leiden University Medical Centre Report, 2005, 1(1).
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+    if not 0 < p < 1:
+        raise ValueError('p must be between 0 and 1')
+
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
+        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+    )
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coeffs
+        mask = y > baseline
+        new_weights = p * mask + (1 - p) * (~mask)
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
+        weight_array = new_weights
+
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+
+    return baseline, params
