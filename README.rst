@@ -149,20 +149,11 @@ Development Version
 ~~~~~~~~~~~~~~~~~~~
 
 The sources for pybaselines can be downloaded from the `GitHub repo`_.
-
-The public repository can be cloned using:
-
-.. code-block:: console
-
-    git clone https://github.com/derb12/pybaselines.git
-
-
-Once the repository is downloaded, it can be installed with:
+To install the current version of pybaselines from GitHub, run:
 
 .. code-block:: console
 
-    cd pybaselines
-    pip install .
+    pip install git+https://github.com/derb12/pybaselines.git#egg=pybaselines
 
 
 .. _GitHub repo: https://github.com/derb12/pybaselines

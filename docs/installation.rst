@@ -35,9 +35,7 @@ pybaselines has the following optional dependencies:
     * :func:`.std_distribution`
     * :func:`.fastchrom`
     * :func:`.beads`
-    * :func:`.mixture_model`
-    * :func:`.irsqr`
-    * :func:`.corner_cutting`
+    * all functions in :mod:`pybaselines.spline`
 
 Stable Release
 ~~~~~~~~~~~~~~
@@ -68,18 +66,19 @@ If installing with conda, the optional dependencies have to be specified manuall
 Development Version
 ~~~~~~~~~~~~~~~~~~~
 
-The sources for pybaselines can be downloaded from the `GitHub repo <https://github.com/derb12/pybaselines>`_.
+The sources for pybaselines can be downloaded from the
+`GitHub repo <https://github.com/derb12/pybaselines>`_.
 
-The public repository can be cloned using:
+To directly install the current version of pybaselines from GitHub, run:
+
+.. code-block:: console
+
+    pip install git+https://github.com/derb12/pybaselines.git#egg=pybaselines
+
+Alternatively, to download the entire public repository and install pybaselines, run:
 
 .. code-block:: console
 
     git clone https://github.com/derb12/pybaselines.git
-
-
-Once the repository is downloaded, it can be installed with:
-
-.. code-block:: console
-
     cd pybaselines
     pip install .

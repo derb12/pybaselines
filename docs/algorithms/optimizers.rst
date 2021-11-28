@@ -13,7 +13,7 @@ optimize_extended_range
 
 The :func:`.optimize_extended_range` function is based on the `Extended Range
 Penalized Least Squares (erPLS) method <https://doi.org/10.3390/s20072015>`_,
-but extends its usage to all Whittaker-smoothing-based algorithms and polynomial algorithms.
+but extends its usage to all Whittaker-smoothing-based, polynomial, and spline algorithms.
 
 In this algorithm, a linear baseline is extrapolated from the left and/or
 right edges, Gaussian peaks are added to these baselines, and then the original
@@ -176,7 +176,7 @@ collab_pls (Collaborative Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :func:`.collab_pls` is intended for fitting multiple datasets of related data,
-and can use any Whittaker-smoothing-based method. The general idea is that using
+and can use any Whittaker-smoothing-based or spline method. The general idea is that using
 multiple sets of data should be better able to estimate the overall baseline rather
 than individually fitting each set of data.
 
