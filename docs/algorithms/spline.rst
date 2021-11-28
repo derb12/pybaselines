@@ -23,7 +23,7 @@ the height of the j-th basis). In pybaselines, the number of spline basis functi
 :math:`M`, is calculated as the number of knots, `num_knots`, plus the spline degree
 minus 1.
 
-For regular B-spline fitting, the spline coefficients that best fit data
+For regular B-spline fitting, the spline coefficients that best fit the data
 are gotten from minimizing the least-squares:
 
 .. math:: \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
@@ -37,7 +37,7 @@ The minimized function for P-splines is thus:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^m {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 where :math:`\lambda` is the penalty scale factor, and

@@ -147,6 +147,7 @@ gallery_section_order = [
     '../examples/general',
     '../examples/whittaker',
     '../examples/morphological',
+    '../examples/spline',
     '../examples/classification',
 ]
 
@@ -168,7 +169,9 @@ sphinx_gallery_conf = {
     # disables trying to link variables to intersphinx
     'inspect_global_variables': False,
     # prevents getting repr of last item in cell; good for ignoring matplotlib objects
-    'capture_repr': ()
+    'capture_repr': (),
+    # ignore the example_helpers.py files that contain setup code for the examples
+    'ignore_pattern': r'example_helpers\.py',
 }
 
 
