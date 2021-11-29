@@ -1440,7 +1440,7 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter
         if calc_difference < tol:
             break
 
-    params = {'weights': weight_array, 'tol_history': tol_history}
+    params = {'weights': weight_array**2, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 
