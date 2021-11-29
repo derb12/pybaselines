@@ -21,6 +21,7 @@ parameter each iteration that controls the local stiffness of the baseline.
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from pybaselines.utils import gaussian
 from pybaselines.whittaker import asls, aspls
 

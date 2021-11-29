@@ -2,6 +2,7 @@
 """
 `lam` vs data size
 ------------------
+
 When publishing new Whittaker-smoothing-based algorithms in literature, the `lam` value
 used by the researchers is usually reported as a single value or a range of values.
 However, these values are deceptive since the `lam` value required for a particular
@@ -22,6 +23,7 @@ from itertools import cycle
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from pybaselines import whittaker
 
 # local import with setup code

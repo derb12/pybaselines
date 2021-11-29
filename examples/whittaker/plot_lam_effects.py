@@ -16,6 +16,7 @@ well in the presence of noise.
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from pybaselines.utils import gaussian
 from pybaselines.whittaker import arpls
 

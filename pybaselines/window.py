@@ -6,8 +6,8 @@ Created on March 7, 2021
 
 """
 
-import warnings
 from functools import wraps
+import warnings
 
 from . import smooth
 

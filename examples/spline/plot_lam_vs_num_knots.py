@@ -2,6 +2,7 @@
 """
 `lam` vs number of knots
 ------------------------
+
 This example will examine the effects of `lam` for fitting a penalized spline baseline
 while varying both the number of knots for the spline, `num_knots`, and the number of
 data points. The function :func:`.mixture_model` is used for all calculations.
@@ -19,6 +20,7 @@ from itertools import cycle
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from pybaselines.spline import mixture_model
 
 # local import with setup code
@@ -40,7 +42,7 @@ print('Number of knots, intercept & slope of log(N) vs log(lam) fit')
 print('-' * 60)
 
 show_plots = False  # for debugging
-num_knots = (10, 50, 200, 500)
+num_knots = (20, 50, 200, 500)
 _, ax = plt.subplots()
 legend = [[], []]
 num_points = np.logspace(np.log10(500), np.log10(20000), 6, dtype=int)
@@ -78,5 +80,5 @@ ax.set_ylabel('Optimal lam Value')
 
 # %%
 # The results shown above show two findings: the slope of the `lam` vs data
-# size best fit line only slightly decreases as the number of knots increases,
-# and the intercept of the best fit lines increase as the number of knots increases.
+# size best fit line only slightly changes with the number of knots, and
+# the intercept of the best fit lines increase as the number of knots increases.

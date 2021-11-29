@@ -13,7 +13,7 @@ from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
-from ._compat import jit, _pentapy_solve
+from ._compat import _pentapy_solve, jit
 
 
 # Note: the triple quotes are for including the attributes within the documentation

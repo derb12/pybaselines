@@ -24,8 +24,11 @@ of the rolling standard deviation distribution.
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pybaselines.classification import fastchrom, _padded_rolling_std
+
+from pybaselines.classification import _padded_rolling_std, fastchrom
 from pybaselines.utils import gaussian
+
+
 try:
     from skimage.filters import threshold_triangle as custom_threshold
 except ImportError:

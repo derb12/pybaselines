@@ -17,7 +17,7 @@ from . import _weighting
 from ._algorithm_setup import _setup_splines
 from ._compat import jit
 from ._spline_utils import _solve_pspline
-from .utils import ParameterWarning, _MIN_FLOAT, gaussian, relative_difference
+from .utils import _MIN_FLOAT, ParameterWarning, gaussian, relative_difference
 
 
 @jit(nopython=True, cache=True)

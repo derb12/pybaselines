@@ -14,8 +14,8 @@ from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _get_vander, _setup_smooth, _yx_arrays
 from .utils import (
-    _check_scalar, _get_edges, _inverted_sort, ParameterWarning, gaussian, gaussian_kernel,
-    optimize_window, padded_convolve, pad_edges, relative_difference
+    ParameterWarning, _check_scalar, _get_edges, _inverted_sort, gaussian, gaussian_kernel,
+    optimize_window, pad_edges, padded_convolve, relative_difference
 )
 
 

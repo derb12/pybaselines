@@ -49,6 +49,7 @@ from scipy.sparse import csc_matrix, csr_matrix, spdiags
 
 from ._compat import _HAS_NUMBA, jit
 
+
 try:
     from scipy.interpolate import _bspl
     _scipy_btb_bty = _bspl._norm_eq_lsq

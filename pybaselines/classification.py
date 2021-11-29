@@ -11,7 +11,7 @@ import warnings
 
 import numpy as np
 from scipy.ndimage import (
-    binary_dilation, binary_erosion, grey_dilation, grey_erosion, uniform_filter1d, binary_opening
+    binary_dilation, binary_erosion, binary_opening, grey_dilation, grey_erosion, uniform_filter1d
 )
 from scipy.optimize import curve_fit
 from scipy.signal import cwt, ricker

@@ -21,7 +21,7 @@ from scipy.linalg import solveh_banded
 from ._compat import _HAS_PENTAPY
 from ._spline_utils import _spline_basis, _spline_knots
 from .utils import (
-    _check_scalar, _pentapy_solver, ParameterWarning, difference_matrix, optimize_window, pad_edges
+    ParameterWarning, _check_scalar, _pentapy_solver, difference_matrix, optimize_window, pad_edges
 )
 
 
