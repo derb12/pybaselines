@@ -15,7 +15,7 @@ from scipy.optimize import curve_fit
 
 from . import _weighting
 from ._algorithm_setup import _setup_splines
-from ._compat import jit
+from ._compat import _HAS_NUMBA, jit
 from ._spline_utils import _solve_pspline
 from .utils import _MIN_FLOAT, ParameterWarning, gaussian, relative_difference
 
@@ -63,9 +63,9 @@ def _assign_weights(bin_mapping, posterior_prob, residual):
 
 
 @jit(nopython=True, cache=True)
-def __mapped_histogram(data, num_bins, histogram):
+def _numba_mapped_histogram(data, num_bins, histogram):
     """
-    Creates a normalized histogram of the data and a mapping of the indices.
+    Creates a normalized histogram of the data and a mapping of the indices, using one pass.
 
     Parameters
     ----------
@@ -135,12 +135,23 @@ def _mapped_histogram(data, num_bins):
     bin_mapping : numpy.ndarray, shape (N,)
         An array of integers that maps each item in `data` to its index within `histogram`.
 
+    Notes
+    -----
+    If numba is installed, the histogram and bin mapping can both be created in
+    one pass, which is faster.
+
     """
-    # create zeros array outside of numba function since numba's implementation
-    # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259);
-    # TODO once that numba issue is fixed, merge this with __mapped_histogram
-    histogram = np.zeros(num_bins)
-    bins, bin_mapping = __mapped_histogram(data, num_bins, histogram)
+    if _HAS_NUMBA:
+        # create zeros array outside of numba function since numba's implementation
+        # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259)
+        histogram = np.zeros(num_bins)
+        bins, bin_mapping = _numba_mapped_histogram(data, num_bins, histogram)
+    else:
+        histogram, bins = np.histogram(data, num_bins, density=True)
+        # leave out last bin edge to account for extra index; leave out first
+        # bin edge since np.searchsorted finds indices where bin[i-1] <= val < bin[i]
+        # while the desired indices are bin[i] <= val < bin[i + 1]
+        bin_mapping = np.searchsorted(bins[1:-1], data, 'right')
 
     return histogram, bins, bin_mapping
 

@@ -17,15 +17,36 @@ from pybaselines import spline, utils, whittaker
 from .conftest import AlgorithmTester, get_data
 
 
-@pytest.mark.parametrize('rng_seed', (0, 1, 2, 3, 4))
+@pytest.mark.parametrize('use_numba', (True, False))
+def test_mapped_histogram_simple(use_numba):
+    """Compares the output with numpy and the bin_mapping, testing corner cases."""
+    num_bins = 10
+    values = np.array([0, 0.01, 1, 1.5, 8, 9, 9.1, 10])
+    expected_bin_edges = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=float)
+    expected_bin_mapping = np.array([0, 0, 1, 1, 8, 9, 9, 9], dtype=np.intp)
+
+    np_histogram, np_bin_edges = np.histogram(values, num_bins, density=True)
+    assert_allclose(np_bin_edges, expected_bin_edges, rtol=0, atol=1e-12)
+
+    with mock.patch.object(spline, '_HAS_NUMBA', use_numba):
+        histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
+
+    assert_allclose(histogram, np_histogram)
+    assert_allclose(bin_edges, np_bin_edges)
+    assert_array_equal(bin_mapping, expected_bin_mapping)
+
+
+@pytest.mark.parametrize('rng_seed', (0, 1))
 @pytest.mark.parametrize('num_bins', (10, 100, 1000))
-def test_mapped_histogram(rng_seed, num_bins):
+@pytest.mark.parametrize('use_numba', (True, False))
+def test_mapped_histogram(rng_seed, num_bins, use_numba):
     """Compares the output with numpy and the bin_mapping with a nieve version."""
     # TODO replace with np.random.default_rng when min numpy version is >= 1.17
     rng = np.random.RandomState(rng_seed)
     values = rng.normal(0, 20, 1000)
     np_histogram, np_bin_edges = np.histogram(values, num_bins, density=True)
-    histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
+    with mock.patch.object(spline, '_HAS_NUMBA', use_numba):
+        histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
 
     assert_allclose(histogram, np_histogram)
     assert_allclose(bin_edges, np_bin_edges)

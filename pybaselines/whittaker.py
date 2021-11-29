@@ -928,7 +928,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
             baseline = solveh_banded(
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False, lower=True
             )
-        new_weights = _weighting._psalsa(y, baseline, p, k, num_y, partial_weights)
+        new_weights = _weighting._derpsalsa(y, baseline, p, k, num_y, partial_weights)
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i] = calc_difference
         if calc_difference < tol:
