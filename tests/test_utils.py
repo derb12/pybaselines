@@ -7,7 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.sparse import identity
 
@@ -45,7 +45,7 @@ def test_gaussian_kernel(window_size, sigma):
 
     assert kernel.size == window_size
     assert kernel.shape == (window_size,)
-    assert_almost_equal(np.sum(kernel), 1)
+    assert_allclose(np.sum(kernel), 1)
 
 
 def test_gaussian_kernel_0_windowsize(data_fixture):
@@ -59,7 +59,7 @@ def test_gaussian_kernel_0_windowsize(data_fixture):
     assert kernel.size == 1
     assert kernel.shape == (1,)
     assert_array_equal(kernel, 1)
-    assert_almost_equal(np.sum(kernel), 1)
+    assert_allclose(np.sum(kernel), 1)
 
     x, y = data_fixture
     out = utils.padded_convolve(y, kernel)
@@ -71,7 +71,7 @@ def test_relative_difference_scalar(sign):
     """Tests relative_difference to ensure it uses abs for scalars."""
     old = 3.0 * sign
     new = 4
-    assert_almost_equal(utils.relative_difference(old, new), abs((old - new) / old))
+    assert_allclose(utils.relative_difference(old, new), abs((old - new) / old))
 
 
 def test_relative_difference_array():
@@ -81,7 +81,7 @@ def test_relative_difference_array():
     norm_ab = np.sqrt(((a - b)**2).sum())
     norm_a = np.sqrt(((a)**2).sum())
 
-    assert_almost_equal(utils.relative_difference(a, b), norm_ab / norm_a)
+    assert_allclose(utils.relative_difference(a, b), norm_ab / norm_a)
 
 
 def test_relative_difference_array_l1():
@@ -91,7 +91,7 @@ def test_relative_difference_array_l1():
     norm_ab = np.abs(a - b).sum()
     norm_a = np.abs(a).sum()
 
-    assert_almost_equal(utils.relative_difference(a, b, 1), norm_ab / norm_a)
+    assert_allclose(utils.relative_difference(a, b, 1), norm_ab / norm_a)
 
 
 def test_relative_difference_zero():
@@ -100,61 +100,7 @@ def test_relative_difference_zero():
     b = np.array([4, 5, 6])
     norm_ab = np.sqrt(((a - b)**2).sum())
 
-    assert_almost_equal(utils.relative_difference(a, b), norm_ab / np.finfo(float).eps)
-
-
-def test_safe_std():
-    """Checks that the calculated standard deviation is correct."""
-    array = np.array((1, 2, 3))
-    calc_std = utils._safe_std(array)
-
-    assert_almost_equal(calc_std, np.std(array))
-
-
-def test_safe_std_kwargs():
-    """Checks that kwargs given to _safe_std are passed to numpy.std."""
-    array = np.array((1, 2, 3))
-    calc_std = utils._safe_std(array, ddof=1)
-
-    assert_almost_equal(calc_std, np.std(array, ddof=1))
-
-
-def test_safe_std_empty():
-    """Checks that the returned standard deviation of an empty array is not nan."""
-    calc_std = utils._safe_std(np.array(()))
-    assert_almost_equal(calc_std, utils._MIN_FLOAT)
-
-
-def test_safe_std_single():
-    """Checks that the returned standard deviation of an array with a single value is not 0."""
-    calc_std = utils._safe_std(np.array((1,)))
-    assert_almost_equal(calc_std, utils._MIN_FLOAT)
-
-
-def test_safe_std_zero():
-    """Checks that the returned standard deviation is not 0."""
-    calc_std = utils._safe_std(np.array((1, 1, 1)))
-    assert_almost_equal(calc_std, utils._MIN_FLOAT)
-
-
-# ignore the RuntimeWarning when using inf
-@pytest.mark.filterwarnings('ignore::RuntimeWarning')
-@pytest.mark.parametrize('run_enum', (0, 1))
-def test_safe_std_allow_nan(run_enum):
-    """
-    Ensures that the standard deviation is allowed to be nan under certain conditions.
-
-    _safe_std should allow the calculated standard deviation to be nan if there is
-    more than one item in the array, since that would indicate that nan or inf is
-    in the array and nan propogation would not want to be stopped in those cases.
-
-    """
-    if run_enum:
-        array = np.array((1, 2, np.nan))
-    else:
-        array = np.array((1, 2, np.inf))
-
-    assert np.isnan(utils._safe_std(array))
+    assert_allclose(utils.relative_difference(a, b), norm_ab / np.finfo(float).eps)
 
 
 def test_interp_inplace():
@@ -229,23 +175,6 @@ def test_convert_coef(x, coefs):
     converted_coefs = utils._convert_coef(fit_coefs, original_domain)
 
     assert_allclose(converted_coefs, coefs, atol=1e-10)
-
-
-@pytest.mark.parametrize('quantile', np.linspace(0, 1, 21))
-def test_quantile_loss(quantile):
-    """Ensures the quantile loss calculation is correct."""
-    y = np.linspace(-1, 1)
-    fit = np.zeros(y.shape[0])
-    residual = y - fit
-    eps = 1e-10
-    calc_loss = utils._quantile_loss(y, fit, quantile, eps)
-
-    numerator = np.where(residual > 0, quantile, 1 - quantile)
-    denominator = np.sqrt(residual**2 + eps)
-
-    expected_loss = numerator / denominator
-
-    assert_allclose(calc_loss, expected_loss)
 
 
 @pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))

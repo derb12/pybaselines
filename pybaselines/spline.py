@@ -13,10 +13,11 @@ import warnings
 import numpy as np
 from scipy.optimize import curve_fit
 
+from . import _weighting
 from ._algorithm_setup import _setup_splines
 from ._compat import jit
 from ._spline_utils import _solve_pspline
-from .utils import _MIN_FLOAT, _quantile_loss, ParameterWarning, gaussian, relative_difference
+from .utils import ParameterWarning, _MIN_FLOAT, gaussian, relative_difference
 
 
 @jit(nopython=True, cache=True)
@@ -223,8 +224,8 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         Default is 1e5.
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
-        than the baseline will be given p weight, and values less than the baseline
-        will be given p-1 weight. Used to set the initial weights before performing
+        than the baseline will be given `p` weight, and values less than the baseline
+        will be given `p - 1` weight. Used to set the initial weights before performing
         expectation-maximization. Default is 1e-2.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
@@ -305,8 +306,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         for _ in range(2):
             coef = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
             baseline = basis @ coef
-            mask = y > baseline
-            weight_array = mask * p + (~mask) * (1 - p)
+            weight_array = _weighting._asls(y, baseline, p)
 
     # now perform the expectation-maximization
     # TODO not sure if there is a better way to do this than transforming
@@ -463,7 +463,7 @@ def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_ord
         if calc_difference < tol:
             break
         old_coef = coef
-        weight_array = _quantile_loss(y, baseline, quantile, eps)
+        weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
     params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
@@ -772,8 +772,7 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
     for i in range(max_iter + 1):
         coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
         baseline = basis @ coeffs
-        mask = y > baseline
-        new_weights = p * mask + (1 - p) * (~mask)
+        new_weights = _weighting._asls(y, baseline, p)
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i] = calc_difference
         if calc_difference < tol:
