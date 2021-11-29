@@ -17,7 +17,10 @@ from . import _weighting
 from ._algorithm_setup import _setup_splines
 from ._compat import _HAS_NUMBA, jit
 from ._spline_utils import _solve_pspline
-from .utils import _MIN_FLOAT, ParameterWarning, gaussian, relative_difference
+from .utils import (
+    _MIN_FLOAT, _mollifier_kernel, ParameterWarning, gaussian, pad_edges, padded_convolve,
+    relative_difference
+)
 
 
 @jit(nopython=True, cache=True)
@@ -760,7 +763,11 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
     Raises
     ------
     ValueError
-        Raised if p is not between 0 and 1.
+        Raised if `p` is not between 0 and 1.
+
+    See Also
+    --------
+    whittaker.asls
 
     References
     ----------
@@ -784,6 +791,498 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
         coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
         baseline = basis @ coeffs
         new_weights = _weighting._asls(y, baseline, p)
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
+        weight_array = new_weights
+
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+
+    return baseline, params
+
+
+def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
+                   max_iter=50, tol=1e-3, weights=None):
+    """
+    A penalized spline version of the airPLS algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e3.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+
+    See Also
+    --------
+    whittaker.airpls
+
+    References
+    ----------
+    Zhang, Z.M., et al. Baseline correction using adaptive iteratively
+    reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
+        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+    )
+
+    y_l1_norm = np.abs(y).sum()
+    tol_history = np.empty(max_iter + 1)
+    for i in range(1, max_iter + 2):
+        try:
+            coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        except np.linalg.LinAlgError:
+            warnings.warn(
+                ('error occurred during fitting, indicating that "tol"'
+                 ' is too low, "max_iter" is too high, or "lam" is too high'),
+                ParameterWarning
+            )
+            i -= 1  # reduce i so that output tol_history indexing is correct
+            break
+
+        baseline = basis @ coeffs
+        residual = y - baseline
+        neg_mask = residual < 0
+        neg_residual = residual[neg_mask]
+        if len(neg_residual) < 2:
+            # exit if there are < 2 negative residuals since all points or all but one
+            # point would get a weight of 0, which fails the solver
+            warnings.warn(
+                ('almost all baseline points are below the data, indicating that "tol"'
+                 ' is too low and/or "max_iter" is too high'), ParameterWarning
+            )
+            i -= 1  # reduce i so that output tol_history indexing is correct
+            break
+
+        residual_l1_norm = abs(neg_residual.sum())
+        calc_difference = residual_l1_norm / y_l1_norm
+        tol_history[i - 1] = calc_difference
+        if calc_difference < tol:
+            break
+        # only use negative residual in exp to avoid exponential overflow warnings
+        # and accidently creating a weight of nan (inf * 0 = nan)
+        weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
+        weight_array[~neg_mask] = 0
+
+    params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+
+    return baseline, params
+
+
+def pspline_arpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
+                  max_iter=50, tol=1e-3, weights=None):
+    """
+    A penalized spline version of the arPLS algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e3.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+
+    See Also
+    --------
+    whittaker.arpls
+
+    References
+    ----------
+    Baek, S.J., et al. Baseline correction using asymmetrically reweighted
+    penalized least squares smoothing. Analyst, 2015, 140, 250-257.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
+        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+    )
+
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coeffs
+        new_weights = _weighting._arpls(y, baseline)
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
+        weight_array = new_weights
+
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+
+    return baseline, params
+
+
+def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
+                   max_iter=50, tol=1e-3, weights=None):
+    """
+    A penalized spline version of the IarPLS algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e3.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+
+    See Also
+    --------
+    whittaker.iarpls
+
+    References
+    ----------
+    Ye, J., et al. Baseline correction method based on improved asymmetrically
+    reweighted penalized least squares for Raman spectrum. Applied Optics, 2020,
+    59, 10933-10943.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
+        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+    )
+
+    tol_history = np.empty(max_iter + 1)
+    for i in range(1, max_iter + 2):
+        coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coeffs
+        new_weights = _weighting._iarpls(y, baseline, i)
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i - 1] = calc_difference
+        if not np.isfinite(calc_difference):
+            # catches nan, inf and -inf due to exp(i) being too high or if there
+            # are too few negative residuals; no way to catch both conditions before
+            # new_weights calculation since it is hard to estimate if
+            # (exp(i) / std) * residual will overflow; check calc_difference rather
+            # than checking new_weights since non-finite values rarely occur and
+            # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
+            warnings.warn(
+                ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
+                 '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+            )
+            break
+        elif calc_difference < tol:
+            break
+        weight_array = new_weights
+
+    params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+
+    return baseline, params
+
+
+def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
+                   diff_order=2, max_iter=50, tol=1e-3, weights=None):
+    """
+    A penalized spline version of the psalsa algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e3.
+    p : float, optional
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given `p` weight, and values less than the baseline
+        will be given `p - 1` weight. Default is 0.5.
+    k : float, optional
+        A factor that controls the exponential decay of the weights for baseline
+        values greater than the data. Should be approximately the height at which
+        a value could be considered a peak. Default is None, which sets `k` to
+        one-tenth of the standard deviation of the input data. A large k value
+        will produce similar results to :func:`.asls`.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+
+    Raises
+    ------
+    ValueError
+        Raised if `p` is not between 0 and 1.
+
+    See Also
+    --------
+    whittaker.psalsa
+
+    References
+    ----------
+    Oller-Moreno, S., et al. Adaptive Asymmetric Least Squares baseline estimation
+    for analytical instruments. 2014 IEEE 11th International Multi-Conference on
+    Systems, Signals, and Devices, 2014, 1-5.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+    if not 0 < p < 1:
+        raise ValueError('p must be between 0 and 1')
+
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
+        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+    )
+    if k is None:
+        k = np.std(y) / 10
+    num_y = len(y)
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coeffs
+        new_weights = _weighting._psalsa(y, baseline, p, k, num_y)
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
+        weight_array = new_weights
+
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+
+    return baseline, params
+
+
+def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degree=3,
+                      diff_order=2, max_iter=50, tol=1e-3, weights=None,
+                      smooth_half_window=None, num_smooths=16, **pad_kwargs):
+    """
+    A penalized spline version of the derpsalsa algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e2.
+    p : float, optional
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given `p` weight, and values less than the baseline
+        will be given `p - 1` weight. Default is 1e-2.
+    k : float, optional
+        A factor that controls the exponential decay of the weights for baseline
+        values greater than the data. Should be approximately the height at which
+        a value could be considered a peak. Default is None, which sets `k` to
+        one-tenth of the standard deviation of the input data. A large k value
+        will produce similar results to :func:`.asls`.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+    smooth_half_window : int, optional
+        The half-window to use for smoothing the data before computing the first
+        and second derivatives. Default is None, which will use ``len(data) / 200``.
+    num_smooths : int, optional
+        The number of times to smooth the data before computing the first
+        and second derivatives. Default is 16.
+    **pad_kwargs
+        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+
+    Raises
+    ------
+    ValueError
+        Raised if `p` is not between 0 and 1.
+
+    See Also
+    --------
+    whittaker.derpsalsa
+
+    References
+    ----------
+    Korepanov, V. Asymmetric least-squares baseline algorithm with peak screening for
+    automatic processing of the Raman spectra. Journal of Raman Spectroscopy. 2020,
+    51(10), 2061-2065.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+    if not 0 < p < 1:
+        raise ValueError('p must be between 0 and 1')
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
+        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+    )
+    if k is None:
+        k = np.std(y) / 10
+    num_y = len(y)
+    if smooth_half_window is None:
+        smooth_half_window = num_y // 200
+    # could pad the data every iteration, but it is ~2-3 times slower and only affects
+    # the edges, so it's not worth it
+    y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs)
+    if smooth_half_window > 0:
+        smooth_kernel = _mollifier_kernel(smooth_half_window)
+        for _ in range(num_smooths):
+            y_smooth = padded_convolve(y_smooth, smooth_kernel)
+    y_smooth = y_smooth[smooth_half_window:num_y + smooth_half_window]
+
+    diff_y_1 = np.gradient(y_smooth)
+    diff_y_2 = np.gradient(diff_y_1)
+    # x.dot(x) is same as (x**2).sum() but faster
+    rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / num_y)
+    rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / num_y)
+
+    diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
+    diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
+    partial_weights = diff_1_weights * diff_2_weights
+
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coeffs
+        new_weights = _weighting._derpsalsa(y, baseline, p, k, num_y, partial_weights)
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i] = calc_difference
         if calc_difference < tol:

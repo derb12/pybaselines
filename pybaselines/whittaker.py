@@ -112,7 +112,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     Raises
     ------
     ValueError
-        Raised if p is not between 0 and 1.
+        Raised if `p` is not between 0 and 1.
 
     References
     ----------
@@ -200,7 +200,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     Raises
     ------
     ValueError
-        Raised if p is not between 0 and 1.
+        Raised if `p` is not between 0 and 1.
 
     References
     ----------
@@ -594,7 +594,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
             baseline = solveh_banded(
                 diagonals, weight_array * y, overwrite_b=True, check_finite=False, lower=True
             )
-        new_weights = _weighting._drpls(y, baseline, i)
+        new_weights = _weighting._iarpls(y, baseline, i)
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i - 1] = calc_difference
         if not np.isfinite(calc_difference):
@@ -768,7 +768,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3, we
     Raises
     ------
     ValueError
-        Raised if p is not between 0 and 1.
+        Raised if `p` is not between 0 and 1.
 
     Notes
     -----
@@ -878,7 +878,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
     Raises
     ------
     ValueError
-        Raised if p is not between 0 and 1.
+        Raised if `p` is not between 0 and 1.
 
     References
     ----------
