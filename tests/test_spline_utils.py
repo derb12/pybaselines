@@ -86,6 +86,9 @@ def test_spline_knots(data_fixture, num_knots, spline_degree, penalized):
         ))
 
     assert_allclose(knots, expected_knots, 1e-10)
+    assert np.all(x >= knots[spline_degree])
+    assert np.all(x <= knots[len(knots) - 1 - spline_degree])
+    assert np.all(np.diff(knots) >= 0)
 
 
 @pytest.mark.parametrize('num_knots', (2, 20, 1001))
@@ -250,3 +253,73 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order):
                 _spline_utils._solve_pspline(x, y, weights, basis, penalty, knots, spline_degree),
                 expected_coeffs, 1e-10, 1e-12
             )
+
+
+def test_add_diagonals_simple():
+    """Basis example for _add_diagonals."""
+    a = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [1, 2, 3, 4]
+    ])
+    b = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8]
+    ])
+    expected_output = np.array([
+        [2, 4, 6, 8],
+        [10, 12, 14, 16],
+        [1, 2, 3, 4]
+    ])
+    output = _spline_utils._add_diagonals(a, b)
+
+    assert_array_equal(output, expected_output)
+
+
+@pytest.mark.parametrize('diff_order_1', (1, 2, 3, 4))
+@pytest.mark.parametrize('diff_order_2', (1, 2, 3, 4))
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_add_diagonals(diff_order_1, diff_order_2, lower_only):
+    """Ensure _add_diagonals works for a broad range of matrices."""
+    points = 100
+    a = _algorithm_setup.diff_penalty_diagonals(points, diff_order_1, lower_only)
+    b = _algorithm_setup.diff_penalty_diagonals(points, diff_order_2, lower_only)
+
+    output = _spline_utils._add_diagonals(a, b, lower_only)
+
+    a_offsets = np.arange(diff_order_1, -diff_order_1 - 1, -1)
+    b_offsets = np.arange(diff_order_2, -diff_order_2 - 1, -1)
+    a_matrix = spdiags(
+        _algorithm_setup.diff_penalty_diagonals(points, diff_order_1, False),
+        a_offsets, points, points, 'csr'
+    )
+    b_matrix = spdiags(
+        _algorithm_setup.diff_penalty_diagonals(points, diff_order_2, False),
+        b_offsets, points, points, 'csr'
+    )
+    expected_output = (a_matrix + b_matrix).todia().data[::-1]
+    if lower_only:
+        expected_output = expected_output[len(expected_output) // 2:]
+
+    assert_allclose(output, expected_output, 0, 1e-10)
+
+
+def test_add_diagonals_fails():
+    """Ensure _add_diagonals properly raises errors."""
+    a = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [1, 2, 3, 4]
+    ])
+    b = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8]
+    ])
+
+    # row mismatch is not a multiple of 2 when lower_only=False
+    with pytest.raises(ValueError):
+        _spline_utils._add_diagonals(a, b, lower_only=False)
+
+    # mismatched number of columns
+    with pytest.raises(ValueError):
+        _spline_utils._add_diagonals(a[:, 1:], b)

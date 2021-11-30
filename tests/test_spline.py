@@ -315,6 +315,49 @@ class TestPsplineAsLS(AlgorithmTester):
         compare_pspline_whittaker(self, whittaker.asls, self.y, lam=lam, p=p)
 
 
+class TestPsplineIAsLS(AlgorithmTester):
+    """Class for testing pspline_iasls baseline."""
+
+    func = spline.pspline_iasls
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, x, y, x)
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    @pytest.mark.parametrize('p', (0.01, 0.1))
+    def test_whittaker_comparison(self, lam, p):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.iasls, self.y, lam=lam, p=p)
+
+
 class TestPsplineAirPLS(AlgorithmTester):
     """Class for testing pspline_airpls baseline."""
 

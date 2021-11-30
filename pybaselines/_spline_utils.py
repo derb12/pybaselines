@@ -467,8 +467,70 @@ def _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data):
             rhs[row] += work_val * y_val * weight_val
 
 
+def _add_diagonals(a, b, lower_only=True):
+    """
+    Adds two arrays containing the diagonals of banded matrices.
+
+    The array with the least rows is padded with zeros to allow the sum of the two arrays.
+
+    Parameters
+    ----------
+    a : numpy.ndarray, shape (A, N)
+        An array to add.
+    b : numpy.ndarray, shape (B, N)
+        An array to add.
+    lower_only : bool, optional
+        If True (default), will only add zero padding to the bottom of the smaller
+        array. If False, will add half of the zero padding to both the top and bottom
+        of the smaller array.
+
+    Returns
+    -------
+    summed_diagonals : numpy.ndarray, shape (`max(A, B)`, N)
+        The addition of `a` and `b` after adding the correct zero padding.
+
+    Raises
+    ------
+    ValueError
+        Raised if `a.shape[1]` and `b.shape[1]` are not equal or if `lower` is False
+        and `abs(a.shape[0] - b.shape[0])` is not even.
+
+    """
+    a_shape = a.shape
+    b_shape = b.shape
+    if a_shape[1] != b_shape[1]:
+        raise ValueError((
+            f'the diagonal arrays have a dimension mismatch; {a_shape[1]} and {b_shape[1]}'
+            ' should be equal'
+        ))
+    row_mismatch = a_shape[0] - b_shape[0]
+    if row_mismatch == 0:
+        summed_diagonals = a + b
+    else:
+        abs_mismatch = abs(row_mismatch)
+        if lower_only:
+            padding = np.zeros((abs_mismatch, a_shape[1]))
+            if row_mismatch > 0:
+                summed_diagonals = a + np.concatenate((b, padding))
+            else:
+                summed_diagonals = np.concatenate((a, padding)) + b
+        else:
+            if abs_mismatch % 2:
+                raise ValueError(
+                    'row mismatch between the arrays must be even if lower_only=False, '
+                    f'instead got {abs_mismatch}'
+                )
+            padding = np.zeros((abs_mismatch // 2, a_shape[1]))
+            if row_mismatch > 0:
+                summed_diagonals = a + np.concatenate((padding, b, padding))
+            else:
+                summed_diagonals = np.concatenate((padding, a, padding)) + b
+
+    return summed_diagonals
+
+
 # adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above
-def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree):
+def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extra=None):
     """
     Solves the coefficients for a weighted penalized spline.
 
@@ -495,6 +557,9 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree):
         `spline_degree` extra knots.
     spline_degree : int
         The degree of the spline.
+    rhs_extra : float or numpy.ndarray, shape (N,), optional
+        If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
+        of the equation before solving. Default is None, which adds nothing.
 
     Returns
     -------
@@ -554,20 +619,9 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree):
         ab = ab[len(ab) // 2:]
         rhs = basis.T @ (weights * y)
 
-    ab_shape = ab.shape
-    penalty_shape = penalty.shape
-    if ab_shape[1] != penalty_shape[1]:
-        raise ValueError('penalty matrix and basis.T @ W @ basis have a dimension mismatch')
-    lhs_row_mismatch = ab_shape[0] - penalty_shape[0]
-    if lhs_row_mismatch == 0:
-        lhs = ab + penalty
-    else:
-        # TODO could probably just use indexing rather than padding
-        padding = np.zeros((abs(lhs_row_mismatch), penalty_shape[1]))
-        if lhs_row_mismatch > 0:
-            lhs = ab + np.concatenate((penalty, padding))
-        else:
-            lhs = np.concatenate((ab, padding)) + penalty
+    lhs = _add_diagonals(ab, penalty)
+    if rhs_extra is not None:
+        rhs = rhs + rhs_extra
 
     coeffs = solveh_banded(
         lhs, rhs, overwrite_ab=True, overwrite_b=True, lower=True, check_finite=False

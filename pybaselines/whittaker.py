@@ -173,7 +173,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
         than the baseline will be given `p` weight, and values less than the baseline
         will be given `p - 1` weight. Default is 1e-2.
     lam_1 : float, optional
-        The smoothing parameter for the first derivative. Default is 1e-4.
+        The smoothing parameter for the first derivative of the residual. Default is 1e-4.
     max_iter : int, optional
         The max number of fit iterations. Default is 50.
     tol : float, optional

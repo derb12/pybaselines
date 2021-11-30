@@ -12,11 +12,12 @@ import warnings
 
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy.sparse import spdiags
 
 from . import _weighting
-from ._algorithm_setup import _setup_splines
+from ._algorithm_setup import _check_lam, _setup_splines, _yx_arrays, diff_penalty_diagonals
 from ._compat import _HAS_NUMBA, jit
-from ._spline_utils import _solve_pspline
+from ._spline_utils import _add_diagonals, _solve_pspline
 from .utils import (
     _MIN_FLOAT, _mollifier_kernel, ParameterWarning, gaussian, pad_edges, padded_convolve,
     relative_difference
@@ -767,7 +768,7 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
 
     See Also
     --------
-    whittaker.asls
+    pybaselines.whittaker.asls
 
     References
     ----------
@@ -789,6 +790,116 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
         coeffs = _solve_pspline(x, y, weight_array, basis, penalty, knots, spline_degree)
+        baseline = basis @ coeffs
+        new_weights = _weighting._asls(y, baseline, p)
+        calc_difference = relative_difference(weight_array, new_weights)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
+        weight_array = new_weights
+
+    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+
+    return baseline, params
+
+
+def pspline_iasls(data, x_data=None, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
+                  spline_degree=3, max_iter=50, tol=1e-3, weights=None):
+    """
+    A penalized spline version of the IAsLS algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e1.
+    p : float, optional
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given `p` weight, and values less than the baseline
+        will be given `p - 1` weight. Default is 1e-2.
+    lam_1 : float, optional
+        The smoothing parameter for the first derivative of the residual. Default is 1e-4.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+
+    Raises
+    ------
+    ValueError
+        Raised if `p` is not between 0 and 1.
+
+    See Also
+    --------
+    pybaselines.whittaker.iasls
+
+    References
+    ----------
+    He, S., et al. Baseline correction for raman spectra using an improved
+    asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+    if not 0 < p < 1:
+        raise ValueError('p must be between 0 and 1')
+
+    if weights is None:
+        y, x = _yx_arrays(data, x_data)
+        baseline = np.polynomial.Polynomial.fit(x, y, 2)(x)
+        weights = _weighting._asls(y, baseline, p)
+
+        _, x, weight_array, basis, knots, penalty = _setup_splines(
+            y, None, weights, spline_degree, num_knots, True, 2, lam
+        )
+    else:
+        y, x, weight_array, basis, knots, penalty = _setup_splines(
+            data, None, weights, spline_degree, num_knots, True, 2, lam
+        )
+
+    len_y = len(y)
+    # B.T @ D_1.T @ D_1 @ B and B.T @ D_1.T @ D_1 @ y
+    d1_penalty = _check_lam(lam_1) * diff_penalty_diagonals(len_y, 1, lower_only=False)
+    d1_penalty = basis.T @ spdiags(d1_penalty, np.array([1, 0, -1]), len_y, len_y, 'csr')
+    partial_rhs = d1_penalty @ y
+    d1_penalty = (d1_penalty @ basis).todia().data[::-1]
+    d1_penalty = d1_penalty[len(d1_penalty) // 2:]
+    penalty = _add_diagonals(penalty, d1_penalty)
+
+    tol_history = np.empty(max_iter + 1)
+    for i in range(max_iter + 1):
+        coeffs = _solve_pspline(
+            x, y, weight_array**2, basis, penalty, knots, spline_degree, partial_rhs
+        )
         baseline = basis @ coeffs
         new_weights = _weighting._asls(y, baseline, p)
         calc_difference = relative_difference(weight_array, new_weights)
@@ -847,7 +958,7 @@ def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
     See Also
     --------
-    whittaker.airpls
+    pybaselines.whittaker.airpls
 
     References
     ----------
@@ -950,7 +1061,7 @@ def pspline_arpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
     See Also
     --------
-    whittaker.arpls
+    pybaselines.whittaker.arpls
 
     References
     ----------
@@ -1026,7 +1137,7 @@ def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
     See Also
     --------
-    whittaker.iarpls
+    pybaselines.whittaker.iarpls
 
     References
     ----------
@@ -1130,7 +1241,7 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
 
     See Also
     --------
-    whittaker.psalsa
+    pybaselines.whittaker.psalsa
 
     References
     ----------
@@ -1237,7 +1348,7 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
 
     See Also
     --------
-    whittaker.derpsalsa
+    pybaselines.whittaker.derpsalsa
 
     References
     ----------
