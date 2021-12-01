@@ -66,6 +66,53 @@ def _yx_arrays(data, x_data=None, x_min=-1., x_max=1., check_finite=False):
     return y, x
 
 
+def _shift_rows(matrix, diagonals=2):
+    """
+    Shifts the rows of a matrix with equal number of upper and lower off-diagonals.
+
+    Parameters
+    ----------
+    matrix : numpy.ndarray
+        The matrix to be shifted. Note that all modifications are done in-place.
+    diagonals : int
+        The number of upper or lower (same for symmetric matrix) diagonals, not
+        including the main diagonal. For example, a matrix with five diagonal rows
+        would use a `diagonals` of 2.
+
+    Returns
+    -------
+    matrix : numpy.ndarray
+        The shifted matrix.
+
+    Notes
+    -----
+    Necessary to match the diagonal matrix format required by SciPy's solve_banded
+    function.
+
+    Performs the following transformation (left is input, right is output):
+
+        [[a b c ... d 0 0]        [[0 0 a ... b c d]
+         [e f g ... h i 0]         [0 e f ... g h i]
+         [j k l ... m n o]   -->   [j k l ... m n o]
+         [0 p q ... r s t]         [p q r ... s t 0]
+         [0 0 u ... v w x]]        [u v w ... x 0 0]]
+
+    The right matrix would be directly obtained when using SciPy's sparse diagonal
+    matrices, but when using multiplication with NumPy arrays, the result is the
+    left matrix, which has to be shifted to match the desired format.
+
+    """
+    for row, shift in enumerate(range(-diagonals, 0)):
+        matrix[row, -shift:] = matrix[row, :shift]
+        matrix[row, :-shift] = 0
+
+    for row, shift in enumerate(range(1, diagonals + 1), diagonals + 1):
+        matrix[row, :-shift] = matrix[row, shift:]
+        matrix[row, -shift:] = 0
+
+    return matrix
+
+
 def _diff_2_diags(data_size, lower_only=True):
     """
     Creates the the diagonals of the square of a second-order finite-difference matrix.
@@ -766,7 +813,8 @@ def _setup_classification(data, x_data=None, weights=None):
 
 
 def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=10,
-                   penalized=True, diff_order=3, lam=1, make_basis=True):
+                   penalized=True, diff_order=3, lam=1, make_basis=True, lower_only=True,
+                   reverse_diags=False):
     """
     Sets the starting parameters for doing spline fitting.
 
@@ -796,6 +844,12 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         Default is 1.
     make_basis : bool, optional
         If True (default), will create the matrix containing the spline basis functions.
+    lower_only : boolean, optional
+        If True (default), will include only the lower non-zero diagonals of
+        the squared difference matrix. If False, will include all non-zero diagonals.
+    reverse_diags : boolean, optional
+        If True, will reverse the order of the diagonals of the penalty matrix.
+        Default is False.
 
     Returns
     -------
@@ -810,11 +864,12 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     knots : numpy.ndarray, shape (``num_knots + 2 * spline_degree``,)
         The array of knots for the spline, properly padded on each side. Only
         return if `make_basis` if True.
-    penalty_diagonals : numpy.ndarray, shape (`diff_order` + 1, N)
-        The finite difference penalty matrix, in LAPACK's lower banded format (see
-        :func:`scipy.linalg.solveh_banded`).
-        The penalty matrix for the spline. Only returned if both `penalized`
-        and `make_basis` are True.
+    penalty_diagonals : numpy.ndarray, shape (`diff_order` + 1 or ``diff_order * 2 + 1``, N)
+        The finite difference penalty matrix, in LAPACK's banded format (see
+        :func:`scipy.linalg.solveh_banded` and :func:`scipy.linalg.solve_banded`).
+        Only returned if both `penalized` and `make_basis` are True. Has a shape of
+        (`diff_order` + 1, N) if `lower_only` is True, otherwise
+        (``diff_order * 2 + 1``, N).
 
     Raises
     ------
@@ -876,8 +931,10 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         )
 
     penalty_diagonals = _check_lam(lam) * diff_penalty_diagonals(
-        num_bases, diff_order, padding=spline_degree - diff_order
+        num_bases, diff_order, lower_only, padding=spline_degree - diff_order
     )
+    if reverse_diags:
+        penalty_diagonals = penalty_diagonals[::-1]
 
     return y, x, weight_array, basis, knots, penalty_diagonals
 

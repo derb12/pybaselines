@@ -681,3 +681,45 @@ def test_setup_optimizer_kwargs_warns(data_fixture):
     x, y = data_fixture
     with pytest.warns(DeprecationWarning):
         _algorithm_setup._setup_optimizer(y, 'asls', [whittaker], None, True, x_data=x)
+
+
+def test_shift_rows_2_diags():
+    """Ensures rows are correctly shifted for a matrix with two off-diagonals on either side."""
+    matrix = np.array([
+        [1, 2, 9, 0, 0],
+        [1, 2, 3, 4, 0],
+        [1, 2, 3, 4, 5],
+        [0, 1, 2, 3, 8],
+        [0, 0, 1, 2, 3]
+    ])
+    expected = np.array([
+        [0, 0, 1, 2, 9],
+        [0, 1, 2, 3, 4],
+        [1, 2, 3, 4, 5],
+        [1, 2, 3, 8, 0],
+        [1, 2, 3, 0, 0]
+    ])
+    output = whittaker._shift_rows(matrix, 2)
+
+    assert_array_equal(expected, output)
+    # matrix should also be shifted since the changes are done in-place
+    assert_array_equal(expected, matrix)
+
+
+def test_shift_rows_1_diag():
+    """Ensures rows are correctly shifted for a matrix with one off-diagonal on either side."""
+    matrix = np.array([
+        [1, 2, 3, 8, 0],
+        [1, 2, 3, 4, 5],
+        [0, 1, 2, 3, 4],
+    ])
+    expected = np.array([
+        [0, 1, 2, 3, 8],
+        [1, 2, 3, 4, 5],
+        [1, 2, 3, 4, 0],
+    ])
+    output = whittaker._shift_rows(matrix, 1)
+
+    assert_array_equal(expected, output)
+    # matrix should also be shifted since the changes are done in-place
+    assert_array_equal(expected, matrix)

@@ -12,59 +12,14 @@ import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
 
 from . import _weighting
-from ._algorithm_setup import _check_lam, _setup_whittaker, _yx_arrays, diff_penalty_diagonals
+from ._algorithm_setup import (
+    _check_lam, _setup_whittaker, _shift_rows, _yx_arrays, diff_penalty_diagonals
+)
 from ._compat import _HAS_PENTAPY
 from .utils import (
     ParameterWarning, _mollifier_kernel, _pentapy_solver, pad_edges, padded_convolve,
     relative_difference
 )
-
-
-def _shift_rows(matrix, diagonals=2):
-    """
-    Shifts the rows of a matrix with equal number of upper and lower off-diagonals.
-
-    Parameters
-    ----------
-    matrix : numpy.ndarray
-        The matrix to be shifted. Note that all modifications are done in-place.
-    diagonals : int
-        The number of upper or lower (same for symmetric matrix) diagonals, not
-        including the main diagonal. For example, a matrix with five diagonal rows
-        would use a `diagonals` of 2.
-
-    Returns
-    -------
-    matrix : numpy.ndarray
-        The shifted matrix.
-
-    Notes
-    -----
-    Necessary to match the diagonal matrix format required by SciPy's solve_banded
-    function.
-
-    Performs the following transformation (left is input, right is output):
-
-        [[a b c ... d 0 0]        [[0 0 a ... b c d]
-         [e f g ... h i 0]         [0 e f ... g h i]
-         [j k l ... m n o]   -->   [j k l ... m n o]
-         [0 p q ... r s t]         [p q r ... s t 0]
-         [0 0 u ... v w x]]        [u v w ... x 0 0]]
-
-    The right matrix would be directly obtained when using SciPy's sparse diagonal
-    matrices, but when using multiplication with NumPy arrays, the result is the
-    left matrix, which has to be shifted to match the desired format.
-
-    """
-    for row, shift in enumerate(range(-diagonals, 0)):
-        matrix[row, -shift:] = matrix[row, :shift]
-        matrix[row, :-shift] = 0
-
-    for row, shift in enumerate(range(1, diagonals + 1), diagonals + 1):
-        matrix[row, :-shift] = matrix[row, shift:]
-        matrix[row, -shift:] = 0
-
-    return matrix
 
 
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
