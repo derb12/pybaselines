@@ -667,6 +667,13 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
     ValueError
         Raised if `alpha` and `data` do not have the same shape.
 
+    Notes
+    -----
+    The weighting uses an asymmetric coefficient (`k` in the asPLS paper) of 0.5 instead
+    of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
+    matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
+    factor of 2 and fits noisy data much better.
+
     References
     ----------
     Zhang, F., et al. Baseline correction for infrared spectra using

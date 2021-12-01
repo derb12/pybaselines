@@ -195,6 +195,13 @@ def _aspls(y, baseline):
     residual : numpy.ndarray, shape (N,)
         The residual, ``y - baseline``.
 
+    Notes
+    -----
+    The weighting uses an asymmetric coefficient (`k` in the asPLS paper) of 0.5 instead
+    of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
+    matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
+    factor of 2 and fits noisy data much better.
+
     References
     ----------
     Zhang, F., et al. Baseline correction for infrared spectra using adaptive smoothness
@@ -204,7 +211,7 @@ def _aspls(y, baseline):
     residual = y - baseline
     std = _safe_std(residual[residual < 0], ddof=1)  # use dof=1 since sampling a subset
     # add a negative sign since expit performs 1/(1+exp(-input))
-    weights = expit(-(2 / std) * (residual - std))
+    weights = expit(-(0.5 / std) * (residual - std))
     return weights, residual
 
 

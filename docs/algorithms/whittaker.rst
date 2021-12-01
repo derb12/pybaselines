@@ -475,11 +475,15 @@ Weighting:
     w_i = \frac
         {1}
         {1 + exp{\left[
-            2(r_i - \sigma^-) / \sigma^-
+            0.5 (r_i - \sigma^-) / \sigma^-
         \right]}}
 
 where :math:`r_i = y_i - z_i`  and :math:`\sigma^-` is the standard deviation
-of the negative values in the residual vector :math:`\mathbf r`.
+of the negative values in the residual vector :math:`\mathbf r`. (Note that the
+:math:`0.5 (r_i - \sigma^-) / \sigma^-` term is different than the published
+version of the asPLS, which used :math:`2 (r_i - \sigma^-) / \sigma^-`. pybaselines
+uses the factor of 0.5 since it matches the results in Table 2 and Figure 5
+of the asPLS paper closer than the factor of 2 and fits noisy data much better).
 
 
 .. plot::

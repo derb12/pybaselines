@@ -44,7 +44,7 @@ y = signal + baseline + noise
 
 lam = 5e6
 tol = 1e-3
-max_iter = 50
+max_iter = 20
 fit_1, params_1 = asls(y, lam=lam, tol=tol, max_iter=max_iter)
 fit_2, params_2 = aspls(y, lam=lam, tol=tol, max_iter=max_iter)
 
