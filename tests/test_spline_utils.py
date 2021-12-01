@@ -198,7 +198,8 @@ def test_scipy_btb_bty(data_fixture):
 @pytest.mark.parametrize('num_knots', (100, 1000))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
-def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order):
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lower_only):
     """
     Tests the accuracy of the penalized spline solvers.
 
@@ -222,7 +223,7 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order):
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
     num_bases = basis.shape[1]
-    penalty = _algorithm_setup.diff_penalty_diagonals(num_bases, diff_order)
+    penalty = _algorithm_setup.diff_penalty_diagonals(num_bases, diff_order, lower_only)
     penalty_matrix = spdiags(
         _algorithm_setup.diff_penalty_diagonals(num_bases, diff_order, False),
         np.arange(diff_order, -(diff_order + 1), -1), num_bases, num_bases, 'csr'
@@ -233,26 +234,59 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order):
         basis.T @ (weights * y)
     )
 
+    with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
+        # mock that the scipy import failed, so should use sparse calculation; tested
+        # first since it should be most stable
+        with mock.patch.object(_spline_utils, '_scipy_btb_bty', None):
+            assert_allclose(
+                _spline_utils._solve_pspline(
+                    x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
+                ),
+                expected_coeffs, 1e-10, 1e-12
+            )
+
+        # should use the scipy calculation
+        assert_allclose(
+            _spline_utils._solve_pspline(
+                x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
+            ),
+            expected_coeffs, 1e-10, 1e-12
+        )
+
     with mock.patch.object(_spline_utils, '_HAS_NUMBA', True):
         # should use the numba calculation
         assert_allclose(
-            _spline_utils._solve_pspline(x, y, weights, basis, penalty, knots, spline_degree),
+            _spline_utils._solve_pspline(
+                x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
+            ),
             expected_coeffs, 1e-10, 1e-12
         )
 
-    with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
-        # should use the scipy calculation
-        assert_allclose(
-            _spline_utils._solve_pspline(x, y, weights, basis, penalty, knots, spline_degree),
-            expected_coeffs, 1e-10, 1e-12
-        )
 
-        # mock that the scipy import failed; should use sparse calculation
-        with mock.patch.object(_spline_utils, '_scipy_btb_bty', None):
-            assert_allclose(
-                _spline_utils._solve_pspline(x, y, weights, basis, penalty, knots, spline_degree),
-                expected_coeffs, 1e-10, 1e-12
-            )
+@pytest.mark.parametrize('num_knots', (100, 1000))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
+def test_lower_to_full(data_fixture, num_knots, spline_degree):
+    """
+    Ensures _lower_to_full correctly makes a full banded matrix from a lower banded matrix.
+
+    Use ``B.T @ W @ B`` since most of the diagonals are different, so any issue in the
+    calculation should show.
+
+    """
+    x, y = data_fixture
+    # ensure x is a float
+    x = x.astype(float, copy=False)
+    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
+    weights = np.random.RandomState(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1)
+
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+
+    BTWB_full = (basis.T @ diags(weights, format='csr') @ basis).todia().data[::-1]
+    BTWB_lower = BTWB_full[len(BTWB_full) // 2:]
+
+    assert_allclose(_spline_utils._lower_to_full(BTWB_lower), BTWB_full, 1e-10, 1e-14)
 
 
 def test_add_diagonals_simple():

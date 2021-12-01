@@ -687,7 +687,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
 
     lower_upper = (diff_order, diff_order)
     tol_history = np.empty(max_iter + 1)
-    for i in range(1, max_iter + 2):
+    for i in range(max_iter + 1):
         alpha_diagonals = diagonals * alpha_array
         alpha_diagonals[diff_order] = alpha_diagonals[diff_order] + weight_array
         if using_pentapy:
@@ -699,7 +699,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
             )
         new_weights, residual = _weighting._aspls(y, baseline)
         calc_difference = relative_difference(weight_array, new_weights)
-        tol_history[i - 1] = calc_difference
+        tol_history[i] = calc_difference
         if calc_difference < tol:
             break
         weight_array = new_weights
@@ -707,7 +707,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None, alp
         alpha_array = abs_d / abs_d.max()
 
     params = {
-        'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i]
+        'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1]
     }
 
     return baseline, params
