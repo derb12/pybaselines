@@ -432,6 +432,7 @@ class TestPsplineArPLS(AlgorithmTester):
 
         assert params['tol_history'].size == max_iter + 1
 
+    @pytest.mark.skip(reason='need to decide how to handle arpls weighting for no negatives')
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
         """
         Ensures no warning is emitted for exponential overflow.
