@@ -27,48 +27,6 @@ from .utils import (
 
 
 @jit(nopython=True, cache=True)
-def _assign_weights(bin_mapping, posterior_prob, residual):
-    """
-    Creates weights based on residual values within a posterior probabilty.
-
-    Parameters
-    ----------
-    bin_mapping : numpy.ndarray, shape (N,)
-        An array of integers that maps each item in `residual` to the corresponding
-        bin index in `posterior_prob`.
-    posterior_prob : numpy.ndarray, shape (M,)
-        The array of the posterior probability that each value belongs to the
-        gaussian distribution of the noise.
-    residual : numpy.ndarray, shape (N,)
-        The array of residuals.
-
-    Returns
-    -------
-    weights : numpy.ndarray, shape (N,)
-        The weighting based on the residuals and their position in the posterior
-        probability.
-
-    Notes
-    -----
-    The code is not given by the reference; however, the reference describes the posterior
-    probability and helps to understand how this weighting scheme is derived.
-
-    References
-    ----------
-    de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
-    Intelligent Laboratory Systems, 2012, 117, 56-60.
-
-    """
-    num_data = residual.shape[0]
-    weights = np.empty(num_data)
-    # TODO this seems like it would work in parallel, but it instead slows down
-    for i in range(num_data):
-        weights[i] = posterior_prob[bin_mapping[i]]
-
-    return weights
-
-
-@jit(nopython=True, cache=True)
 def _numba_mapped_histogram(data, num_bins, histogram):
     """
     Creates a normalized histogram of the data and a mapping of the indices, using one pass.
@@ -379,7 +337,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         # need to clip since a bad initial start can erroneously set the sum of the fractions
         # of each distribution to > 1
         np.clip(posterior_prob, 0, 1, out=posterior_prob)
-        new_weights = _assign_weights(bin_mapping, posterior_prob, residual)
+        new_weights = posterior_prob[bin_mapping]
 
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i] = calc_difference

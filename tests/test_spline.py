@@ -60,25 +60,6 @@ def test_mapped_histogram(rng_seed, num_bins, use_numba):
     assert_array_equal(bin_mapping, expected_bin_mapping)
 
 
-@pytest.mark.parametrize('num_bins', (10, 100, 1000))
-def test_assign_weights(num_bins):
-    """Ensures weights are correctly mapped from the posterior probability."""
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    rng = np.random.RandomState(0)
-    values = rng.normal(0, 20, 1000)
-    histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
-    posterior_prob = rng.normal(5, 1, num_bins)
-    weights = spline._assign_weights(bin_mapping, posterior_prob, values)
-
-    expected_weights = np.zeros_like(values)
-    for i, left_bin in enumerate(bin_edges[:-1]):
-        mask = (values >= left_bin) & (values < bin_edges[i + 1])
-        expected_weights[mask] = posterior_prob[i]
-    expected_weights[values >= bin_edges[-1]] = posterior_prob[-1]
-
-    assert_allclose(weights, expected_weights)
-
-
 @pytest.mark.parametrize('fraction_pos', (0, 0.4))
 @pytest.mark.parametrize('fraction_neg', (0, 0.3))
 def test_mixture_pdf(fraction_pos, fraction_neg):
