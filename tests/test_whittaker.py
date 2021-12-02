@@ -9,55 +9,13 @@ Created on March 20, 2021
 from unittest import mock
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_equal
+from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import whittaker
 from pybaselines.utils import ParameterWarning
 
 from .conftest import AlgorithmTester, get_data, has_pentapy
-
-
-def test_shift_rows_2_diags():
-    """Ensures rows are correctly shifted for a matrix with two off-diagonals on either side."""
-    matrix = np.array([
-        [1, 2, 9, 0, 0],
-        [1, 2, 3, 4, 0],
-        [1, 2, 3, 4, 5],
-        [0, 1, 2, 3, 8],
-        [0, 0, 1, 2, 3]
-    ])
-    expected = np.array([
-        [0, 0, 1, 2, 9],
-        [0, 1, 2, 3, 4],
-        [1, 2, 3, 4, 5],
-        [1, 2, 3, 8, 0],
-        [1, 2, 3, 0, 0]
-    ])
-    output = whittaker._shift_rows(matrix, 2)
-
-    assert_array_equal(expected, output)
-    # matrix should also be shifted since the changes are done in-place
-    assert_array_equal(expected, matrix)
-
-
-def test_shift_rows_1_diag():
-    """Ensures rows are correctly shifted for a matrix with one off-diagonal on either side."""
-    matrix = np.array([
-        [1, 2, 3, 8, 0],
-        [1, 2, 3, 4, 5],
-        [0, 1, 2, 3, 4],
-    ])
-    expected = np.array([
-        [0, 1, 2, 3, 8],
-        [1, 2, 3, 4, 5],
-        [1, 2, 3, 4, 0],
-    ])
-    output = whittaker._shift_rows(matrix, 1)
-
-    assert_array_equal(expected, output)
-    # matrix should also be shifted since the changes are done in-place
-    assert_array_equal(expected, matrix)
 
 
 class TestAsLS(AlgorithmTester):

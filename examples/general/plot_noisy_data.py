@@ -2,6 +2,7 @@
 """
 Fitting noisy data
 ------------------
+
 Many baseline correction algorithms were created without considering noise
 in the experimental data, which can lead to an underestimation of the baseline.
 This example will show how to reduce this issue by simply smoothing the data
@@ -16,9 +17,10 @@ created specifically to address noise.
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pybaselines.utils import gaussian
-from pybaselines.polynomial import imodpoly, modpoly
 from scipy.ndimage import uniform_filter1d
+
+from pybaselines.polynomial import imodpoly, modpoly
+from pybaselines.utils import gaussian
 
 
 x = np.linspace(0, 1000, 1000)

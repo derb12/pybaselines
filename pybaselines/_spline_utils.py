@@ -44,10 +44,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as np
 from scipy.interpolate import BSpline, splev
-from scipy.linalg import solveh_banded
+from scipy.linalg import solve_banded, solveh_banded
 from scipy.sparse import csc_matrix, csr_matrix, spdiags
 
 from ._compat import _HAS_NUMBA, jit
+
 
 try:
     from scipy.interpolate import _bspl
@@ -466,8 +467,72 @@ def _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data):
             rhs[row] += work_val * y_val * weight_val
 
 
+def _add_diagonals(array_1, array_2, lower_only=True):
+    """
+    Adds two arrays containing the diagonals of banded matrices.
+
+    The array with the least rows is padded with zeros to allow the sum of the two arrays.
+
+    Parameters
+    ----------
+    array_1 : numpy.ndarray, shape (A, N)
+        An array to add.
+    array_2 : numpy.ndarray, shape (B, N)
+        An array to add.
+    lower_only : bool, optional
+        If True (default), will only add zero padding to the bottom of the smaller
+        array. If False, will add half of the zero padding to both the top and bottom
+        of the smaller array.
+
+    Returns
+    -------
+    summed_diagonals : numpy.ndarray, shape (`max(A, B)`, N)
+        The addition of `a` and `b` after adding the correct zero padding.
+
+    Raises
+    ------
+    ValueError
+        Raised if `a.shape[1]` and `b.shape[1]` are not equal or if `lower` is False
+        and `abs(a.shape[0] - b.shape[0])` is not even.
+
+    """
+    a, b = np.atleast_2d(array_1, array_2)
+    a_shape = a.shape
+    b_shape = b.shape
+    if a_shape[1] != b_shape[1]:
+        raise ValueError((
+            f'the diagonal arrays have a dimension mismatch; {a_shape[1]} and {b_shape[1]}'
+            ' should be equal'
+        ))
+    row_mismatch = a_shape[0] - b_shape[0]
+    if row_mismatch == 0:
+        summed_diagonals = a + b
+    else:
+        abs_mismatch = abs(row_mismatch)
+        if lower_only:
+            padding = np.zeros((abs_mismatch, a_shape[1]))
+            if row_mismatch > 0:
+                summed_diagonals = a + np.concatenate((b, padding))
+            else:
+                summed_diagonals = np.concatenate((a, padding)) + b
+        else:
+            if abs_mismatch % 2:
+                raise ValueError(
+                    'row mismatch between the arrays must be even if lower_only=False, '
+                    f'instead got {abs_mismatch}'
+                )
+            padding = np.zeros((abs_mismatch // 2, a_shape[1]))
+            if row_mismatch > 0:
+                summed_diagonals = a + np.concatenate((padding, b, padding))
+            else:
+                summed_diagonals = np.concatenate((padding, a, padding)) + b
+
+    return summed_diagonals
+
+
 # adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above
-def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree):
+def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extra=None,
+                   lower_only=True):
     """
     Solves the coefficients for a weighted penalized spline.
 
@@ -488,12 +553,22 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree):
         The sparse spline basis matrix. CSR format is preferred.
     penalty : numpy.ndarray, shape (D, N)
         The finite difference penalty matrix, in LAPACK's lower banded format (see
-        :func:`scipy.linalg.solveh_banded`).
+        :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
+        format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
     knots : numpy.ndarray, shape (K,)
         The array of knots for the spline. Should be padded on each end with
         `spline_degree` extra knots.
     spline_degree : int
         The degree of the spline.
+    rhs_extra : float or numpy.ndarray, shape (N,), optional
+        If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
+        of the equation before solving. Default is None, which adds nothing.
+    lower_only : boolean, optional
+        If True (default), will include only the lower non-zero diagonals of
+        ``B.T @ W @ B`` and use :func:`scipy.linalg.solveh_banded` to solve the equation.
+        If False, will use all of the non-zero diagonals and use
+        :func:`scipy.linalg.solve_banded` for solving. `penalty` is not modified, so it
+        must be in the correct lower or full format before passing to this function.
 
     Returns
     -------
@@ -533,6 +608,10 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree):
             ab = np.zeros((spline_degree + 1, num_bases), order='F')
             rhs = np.zeros(num_bases)
             _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data)
+            # TODO can probably make the full matrix directly within the numba
+            # btb calculation
+            if not lower_only:
+                ab = _lower_to_full(ab)
             use_backup = False
 
     if use_backup and _scipy_btb_bty is not None:
@@ -540,36 +619,64 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree):
         rhs = np.zeros((num_bases, 1), order='F')
         _scipy_btb_bty(x, knots, spline_degree, y.reshape(-1, 1), np.sqrt(weights), ab, rhs)
         rhs = rhs.reshape(-1)
+        if not lower_only:
+            ab = _lower_to_full(ab)
         use_backup = False
+
     if use_backup:
         # worst case scenario; have to convert weights to a sparse diagonal matrix,
         # do B.T @ W @ B, and convert back to lower banded
         len_y = len(y)
         full_matrix = basis.T @ spdiags(weights, 0, len_y, len_y, 'csr') @ basis
+        rhs = basis.T @ (weights * y)
         ab = full_matrix.todia().data[::-1]
         # take only the lower diagonals of the symmetric ab; cannot just do
         # ab[spline_degree:] since some diagonals become fully 0 and are truncated from
         # the data attribute, so have to calculate the number of bands first
-        ab = ab[len(ab) // 2:]
-        rhs = basis.T @ (weights * y)
+        if lower_only:
+            ab = ab[len(ab) // 2:]
 
-    ab_shape = ab.shape
-    penalty_shape = penalty.shape
-    if ab_shape[1] != penalty_shape[1]:
-        raise ValueError('penalty matrix and basis.T @ W @ basis have a dimension mismatch')
-    lhs_row_mismatch = ab_shape[0] - penalty_shape[0]
-    if lhs_row_mismatch == 0:
-        lhs = ab + penalty
+    lhs = _add_diagonals(ab, penalty, lower_only)
+    if rhs_extra is not None:
+        rhs = rhs + rhs_extra
+
+    if lower_only:
+        coeffs = solveh_banded(
+            lhs, rhs, overwrite_ab=True, overwrite_b=True, lower=True,
+            check_finite=False
+        )
     else:
-        # TODO could probably just use indexing rather than padding
-        padding = np.zeros((abs(lhs_row_mismatch), penalty_shape[1]))
-        if lhs_row_mismatch > 0:
-            lhs = ab + np.concatenate((penalty, padding))
-        else:
-            lhs = np.concatenate((ab, padding)) + penalty
-
-    coeffs = solveh_banded(
-        lhs, rhs, overwrite_ab=True, overwrite_b=True, lower=True, check_finite=False
-    )
+        bands = len(lhs) // 2
+        coeffs = solve_banded(
+            (bands, bands), lhs, rhs, overwrite_ab=True, overwrite_b=True,
+            check_finite=False
+        )
 
     return coeffs
+
+
+def _lower_to_full(ab):
+    """
+    Converts a lower banded array to a symmetric banded array.
+
+    The lower bands are flipped and then shifted to make the upper bands.
+
+    Parameters
+    ----------
+    ab : numpy.ndarray, shape (N, M)
+        The lower banded array.
+
+    Returns
+    -------
+    ab_full : numpy.ndarray, shape (``2 * N + 1``, M)
+        The full, symmetric banded array.
+
+    """
+    ab_rows, ab_columns = ab.shape
+    ab_full = np.concatenate((np.zeros((ab_rows - 1, ab_columns)), ab))
+    ab_full[:ab_rows - 1] = ab[1:][::-1]
+    for row, shift in enumerate(range(-(ab_rows - 1), 0)):
+        ab_full[row, -shift:] = ab_full[row, :shift]
+        ab_full[row, :-shift] = 0
+
+    return ab_full

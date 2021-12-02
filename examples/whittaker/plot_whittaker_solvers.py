@@ -22,12 +22,13 @@ the computation time by about an order of magnitude.
 import time
 import warnings
 
-import numpy as np
 import matplotlib.pyplot as plt
-from pybaselines.utils import gaussian, relative_difference, difference_matrix
-from pybaselines import whittaker
+import numpy as np
 from scipy.sparse import spdiags
 from scipy.sparse.linalg import spsolve
+
+from pybaselines import whittaker
+from pybaselines.utils import difference_matrix, gaussian, relative_difference
 
 
 def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):

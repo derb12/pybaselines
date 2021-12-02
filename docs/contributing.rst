@@ -44,7 +44,9 @@ To clone the GitHub repository and install the necessary libraries for developme
 .. code-block:: console
 
     git clone https://github.com/derb12/pybaselines.git
-    pip install -r pybaselines/requirements/requirements-development.txt
+    cd pybaselines
+    pip install -r requirements/requirements-development.txt
+    pip install -e .
 
 All sections below assume the above commands were ran.
 

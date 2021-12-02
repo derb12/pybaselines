@@ -9,6 +9,7 @@ not need to clutter the output of the example programs in the documentation.
 import warnings
 
 import numpy as np
+
 from pybaselines.utils import gaussian
 
 

@@ -21,6 +21,7 @@ parameter each iteration that controls the local stiffness of the baseline.
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from pybaselines.utils import gaussian
 from pybaselines.whittaker import asls, aspls
 
@@ -43,7 +44,7 @@ y = signal + baseline + noise
 
 lam = 5e6
 tol = 1e-3
-max_iter = 50
+max_iter = 20
 fit_1, params_1 = asls(y, lam=lam, tol=tol, max_iter=max_iter)
 fit_2, params_2 = aspls(y, lam=lam, tol=tol, max_iter=max_iter)
 
@@ -59,8 +60,10 @@ plt.legend()
 # and erratically due to its more complicated updating.
 
 plt.figure()
-plt.plot(params_1['tol_history'], label='asls')
-plt.plot(params_2['tol_history'], '--', label='aspls')
+plt.plot(np.arange(1, len(params_1['tol_history']) + 1), params_1['tol_history'], label='asls')
+plt.plot(
+    np.arange(1, len(params_2['tol_history']) + 1), params_2['tol_history'], '--', label='aspls'
+)
 plt.axhline(tol, ls=':', color='k', label='tolerance')
 plt.gca().set_yscale('log')
 plt.xlabel('Iteration')
@@ -92,8 +95,10 @@ plt.plot(fit_4, label='aspls')
 plt.legend()
 
 plt.figure()
-plt.plot(params_3['tol_history'], label='asls')
-plt.plot(params_4['tol_history'], '--', label='aspls')
+plt.plot(np.arange(1, len(params_3['tol_history']) + 1), params_3['tol_history'], label='asls')
+plt.plot(
+    np.arange(1, len(params_4['tol_history']) + 1), params_4['tol_history'], '--', label='aspls'
+)
 plt.axhline(tol, ls=':', color='k', label='tolerance')
 plt.gca().set_yscale('log')
 plt.xlabel('Iteration')

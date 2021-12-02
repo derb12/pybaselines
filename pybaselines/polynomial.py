@@ -78,10 +78,11 @@ import warnings
 
 import numpy as np
 
+from . import _weighting
 from ._algorithm_setup import _get_vander, _setup_polynomial
 from ._compat import jit, prange
 from .utils import (
-    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, _inverted_sort, _quantile_irls,
+    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, _inverted_sort,
     relative_difference
 )
 
@@ -1423,11 +1424,23 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter
     y, x, weight_array, original_domain, vander = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True
     )
+    # estimate first iteration using least squares
+    coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
+    baseline = vander @ coef
+    tol_history = np.empty(max_iter)
+    for i in range(max_iter):
+        baseline_old = baseline
+        weight_array = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+        coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
+        baseline = vander @ coef
+        # relative_difference(baseline_old, baseline, 1) gives nearly same result and
+        # the l2 norm is faster to calculate, so use that instead of l1 norm
+        calc_difference = relative_difference(baseline_old, baseline)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
 
-    baseline, weight_array, tol_history, coef = _quantile_irls(
-        y, vander, weight_array, quantile, max_iter, tol, eps
-    )
-    params = {'weights': weight_array, 'tol_history': tol_history}
+    params = {'weights': weight_array**2, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 

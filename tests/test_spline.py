@@ -17,15 +17,36 @@ from pybaselines import spline, utils, whittaker
 from .conftest import AlgorithmTester, get_data
 
 
-@pytest.mark.parametrize('rng_seed', (0, 1, 2, 3, 4))
+@pytest.mark.parametrize('use_numba', (True, False))
+def test_mapped_histogram_simple(use_numba):
+    """Compares the output with numpy and the bin_mapping, testing corner cases."""
+    num_bins = 10
+    values = np.array([0, 0.01, 1, 1.5, 8, 9, 9.1, 10])
+    expected_bin_edges = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=float)
+    expected_bin_mapping = np.array([0, 0, 1, 1, 8, 9, 9, 9], dtype=np.intp)
+
+    np_histogram, np_bin_edges = np.histogram(values, num_bins, density=True)
+    assert_allclose(np_bin_edges, expected_bin_edges, rtol=0, atol=1e-12)
+
+    with mock.patch.object(spline, '_HAS_NUMBA', use_numba):
+        histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
+
+    assert_allclose(histogram, np_histogram)
+    assert_allclose(bin_edges, np_bin_edges)
+    assert_array_equal(bin_mapping, expected_bin_mapping)
+
+
+@pytest.mark.parametrize('rng_seed', (0, 1))
 @pytest.mark.parametrize('num_bins', (10, 100, 1000))
-def test_mapped_histogram(rng_seed, num_bins):
+@pytest.mark.parametrize('use_numba', (True, False))
+def test_mapped_histogram(rng_seed, num_bins, use_numba):
     """Compares the output with numpy and the bin_mapping with a nieve version."""
     # TODO replace with np.random.default_rng when min numpy version is >= 1.17
     rng = np.random.RandomState(rng_seed)
     values = rng.normal(0, 20, 1000)
     np_histogram, np_bin_edges = np.histogram(values, num_bins, density=True)
-    histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
+    with mock.patch.object(spline, '_HAS_NUMBA', use_numba):
+        histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
 
     assert_allclose(histogram, np_histogram)
     assert_allclose(bin_edges, np_bin_edges)
@@ -37,25 +58,6 @@ def test_mapped_histogram(rng_seed, num_bins):
     expected_bin_mapping[values >= bin_edges[-1]] = num_bins - 1
 
     assert_array_equal(bin_mapping, expected_bin_mapping)
-
-
-@pytest.mark.parametrize('num_bins', (10, 100, 1000))
-def test_assign_weights(num_bins):
-    """Ensures weights are correctly mapped from the posterior probability."""
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    rng = np.random.RandomState(0)
-    values = rng.normal(0, 20, 1000)
-    histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
-    posterior_prob = rng.normal(5, 1, num_bins)
-    weights = spline._assign_weights(bin_mapping, posterior_prob, values)
-
-    expected_weights = np.zeros_like(values)
-    for i, left_bin in enumerate(bin_edges[:-1]):
-        mask = (values >= left_bin) & (values < bin_edges[i + 1])
-        expected_weights[mask] = posterior_prob[i]
-    expected_weights[values >= bin_edges[-1]] = posterior_prob[-1]
-
-    assert_allclose(weights, expected_weights)
 
 
 @pytest.mark.parametrize('fraction_pos', (0, 0.4))
@@ -292,3 +294,453 @@ class TestPsplineAsLS(AlgorithmTester):
     def test_whittaker_comparison(self, lam, p):
         """Ensures the P-spline version is the same as the Whittaker version."""
         compare_pspline_whittaker(self, whittaker.asls, self.y, lam=lam, p=p)
+
+
+class TestPsplineIAsLS(AlgorithmTester):
+    """Class for testing pspline_iasls baseline."""
+
+    func = spline.pspline_iasls
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, x, y, x)
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    @pytest.mark.parametrize('p', (0.01, 0.1))
+    def test_whittaker_comparison(self, lam, p):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.iasls, self.y, lam=lam, p=p)
+
+
+class TestPsplineAirPLS(AlgorithmTester):
+    """Class for testing pspline_airpls baseline."""
+
+    func = spline.pspline_airpls
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e3, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures that the function gracefully exits when errors occur.
+
+        When there are no negative residuals, which occurs when a low tol value is used with
+        a high max_iter value, the weighting function would produce values all ~0, which
+        can fail the solvers. The returned baseline should be the last iteration that was
+        successful, and thus should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(utils.ParameterWarning):
+            baseline = self._call_func(y, tol=-1, max_iter=7000)[0]
+        assert np.isfinite(baseline.dot(baseline))
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    def test_whittaker_comparison(self, lam):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.airpls, self.y, lam=lam)
+
+
+class TestPsplineArPLS(AlgorithmTester):
+    """Class for testing pspline_arpls baseline."""
+
+    func = spline.pspline_arpls
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.skip(reason='need to decide how to handle arpls weighting for no negatives')
+    def test_avoid_overflow_warning(self, no_noise_data_fixture):
+        """
+        Ensures no warning is emitted for exponential overflow.
+
+        The weighting is 1 / (1 + exp(values)), so if values is too high,
+        exp(values) is inf, which should usually emit an overflow warning.
+        However, the resulting weight is 0, which is fine, so the warning is
+        not needed and should be avoided. This test ensures the overflow warning
+        is not emitted, and also ensures that the output is all finite, just in
+        case the weighting was not actually stable.
+
+        """
+        y, x = no_noise_data_fixture
+        with np.errstate(over='raise'):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    def test_whittaker_comparison(self, lam):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.arpls, self.y, lam=lam)
+
+
+class TestPsplineDrPLS(AlgorithmTester):
+    """Class for testing pspline_drpls baseline."""
+
+    func = spline.pspline_drpls
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures that the function gracefully exits when non-finite weights are created.
+
+        When there are no negative residuals or exp(iterations) / std is very high, both
+        of which occur when a low tol value is used with a high max_iter value, the
+        weighting function would produce non-finite values. The returned baseline should
+        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(utils.ParameterWarning):
+            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
+
+        assert np.isfinite(baseline.dot(baseline))
+        # ensure last tolerence calculation was non-finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert not np.isfinite(params['tol_history'][-1])
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    @pytest.mark.parametrize('eta', (0.2, 0.8))
+    def test_whittaker_comparison(self, lam, eta):
+        """
+        Ensures the P-spline version is the same as the Whittaker version.
+
+        Have to use a larger tolerance since pspline_drpls uses interpolation to
+        get the weight at the coefficients' x-values.
+        """
+        compare_pspline_whittaker(self, whittaker.drpls, self.y, lam=lam, eta=eta, test_rtol=5e-3)
+
+
+class TestPsplineIArPLS(AlgorithmTester):
+    """Class for testing pspline_iarpls baseline."""
+
+    func = spline.pspline_iarpls
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    # ignore the RuntimeWarning that occurs from using +/- inf or nan
+    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures that the function gracefully exits when non-finite weights are created.
+
+        When there are no negative residuals or exp(iterations) / std is very high, both
+        of which occur when a low tol value is used with a high max_iter value, the
+        weighting function would produce non-finite values. The returned baseline should
+        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        y, x = no_noise_data_fixture
+        with pytest.warns(utils.ParameterWarning):
+            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
+
+        assert np.isfinite(baseline.dot(baseline))
+        # ensure last tolerence calculation was non-finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert not np.isfinite(params['tol_history'][-1])
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    def test_whittaker_comparison(self, lam):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.iarpls, self.y, lam=lam)
+
+
+class TestPsplineAsPLS(AlgorithmTester):
+    """Class for testing pspline_aspls baseline."""
+
+    func = spline.pspline_aspls
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(
+            self.y, self.y, checked_keys=('weights', 'alpha', 'tol_history')
+        )
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    def test_wrong_alpha_shape(self):
+        """Ensures that an exception is raised if input alpha and data are different shapes."""
+        alpha = np.ones(self.y.shape[0] + 1)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, alpha=alpha)
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e4, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    def test_avoid_overflow_warning(self, no_noise_data_fixture):
+        """
+        Ensures no warning is emitted for exponential overflow.
+
+        The weighting is 1 / (1 + exp(values)), so if values is too high,
+        exp(values) is inf, which should usually emit an overflow warning.
+        However, the resulting weight is 0, which is fine, so the warning is
+        not needed and should be avoided. This test ensures the overflow warning
+        is not emitted, and also ensures that the output is all finite, just in
+        case the weighting was not actually stable.
+
+        """
+        y, x = no_noise_data_fixture
+        with np.errstate(over='raise'):
+            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+
+        assert np.isfinite(baseline.dot(baseline))
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    def test_whittaker_comparison(self, lam):
+        """
+        Ensures the P-spline version is the same as the Whittaker version.
+
+        Have to use a larger tolerance since pspline_aspls uses interpolation to
+        get the alpha values at the coefficients' x-values.
+        """
+        compare_pspline_whittaker(self, whittaker.aspls, self.y, lam=lam, test_rtol=5e-3)
+
+
+class TestPsplinePsalsa(AlgorithmTester):
+    """Class for testing pspline_psalsa baseline."""
+
+    func = spline.pspline_psalsa
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    @pytest.mark.parametrize('p', (0.01, 0.1))
+    def test_whittaker_comparison(self, lam, p):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.psalsa, self.y, lam=lam, p=p)
+
+
+class TestPsplineDerpsalsa(AlgorithmTester):
+    """Class for testing pspline_derpsalsa baseline."""
+
+    func = spline.pspline_derpsalsa
+
+    def test_unchanged_data(self, data_fixture):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        self._test_unchanged_data(data_fixture, y, None, y)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        y_list = self.y.tolist()
+        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, p=p)
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    @pytest.mark.parametrize('p', (0.01, 0.1))
+    def test_whittaker_comparison(self, lam, p):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.derpsalsa, self.y, lam=lam, p=p)

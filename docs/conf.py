@@ -142,6 +142,7 @@ suppress_warnings = ['autoapi.python_import_resolution']
 
 from sphinx_gallery.sorting import ExplicitOrder, FileNameSortKey
 
+
 # specifies the order of the example galleries
 gallery_section_order = [
     '../examples/general',
