@@ -60,8 +60,10 @@ plt.legend()
 # and erratically due to its more complicated updating.
 
 plt.figure()
-plt.plot(params_1['tol_history'], label='asls')
-plt.plot(params_2['tol_history'], '--', label='aspls')
+plt.plot(np.arange(1, len(params_1['tol_history']) + 1), params_1['tol_history'], label='asls')
+plt.plot(
+    np.arange(1, len(params_2['tol_history']) + 1), params_2['tol_history'], '--', label='aspls'
+)
 plt.axhline(tol, ls=':', color='k', label='tolerance')
 plt.gca().set_yscale('log')
 plt.xlabel('Iteration')
@@ -93,8 +95,10 @@ plt.plot(fit_4, label='aspls')
 plt.legend()
 
 plt.figure()
-plt.plot(params_3['tol_history'], label='asls')
-plt.plot(params_4['tol_history'], '--', label='aspls')
+plt.plot(np.arange(1, len(params_3['tol_history']) + 1), params_3['tol_history'], label='asls')
+plt.plot(
+    np.arange(1, len(params_4['tol_history']) + 1), params_4['tol_history'], '--', label='aspls'
+)
 plt.axhline(tol, ls=':', color='k', label='tolerance')
 plt.gca().set_yscale('log')
 plt.xlabel('Iteration')
