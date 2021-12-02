@@ -285,7 +285,6 @@ Weighting:
 where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the l1-norm of the negative
 values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z_i < 0} |y_i - z_i|`.
 
-
 .. plot::
    :align: center
    :context: close-figs
@@ -327,7 +326,6 @@ Weighting:
 
 where :math:`r_i = y_i - z_i` and :math:`\mu^-` and :math:`\sigma^-` are the mean and standard
 deviation, respectively, of the negative values in the residual vector :math:`\mathbf r`.
-
 
 .. plot::
    :align: center
@@ -381,7 +379,6 @@ where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
 :math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
 respectively, of the negative values in the residual vector :math:`\mathbf r`.
 
-
 .. plot::
    :align: center
    :context: close-figs
@@ -430,7 +427,6 @@ where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
 :math:`\sigma^-` is the standard deviation of the negative values in
 the residual vector :math:`\mathbf r`.
 
-
 .. plot::
    :align: center
    :context: close-figs
@@ -474,9 +470,10 @@ Weighting:
 
     w_i = \frac
         {1}
-        {1 + exp{\left[
-            0.5 (r_i - \sigma^-) / \sigma^-
-        \right]}}
+        {1 + exp{\left(\frac
+            {0.5 (r_i - \sigma^-)}
+            {\sigma^-}
+        \right)}}
 
 where :math:`r_i = y_i - z_i`  and :math:`\sigma^-` is the standard deviation
 of the negative values in the residual vector :math:`\mathbf r`. (Note that the
@@ -484,7 +481,6 @@ of the negative values in the residual vector :math:`\mathbf r`. (Note that the
 version of the asPLS, which used :math:`2 (r_i - \sigma^-) / \sigma^-`. pybaselines
 uses the factor of 0.5 since it matches the results in Table 2 and Figure 5
 of the asPLS paper closer than the factor of 2 and fits noisy data much better).
-
 
 .. plot::
    :align: center
@@ -561,8 +557,6 @@ Linear system:
     (W + \lambda D_d^{\top} D_d) z = W y
 
 Weighting:
-
-The total weighting is given by:
 
 .. math::
 
