@@ -488,8 +488,11 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
     y = _setup_smooth(data, window_size, **pad_kwargs)
     y0 = y
     data_slice = slice(window_size, -window_size)
-    if original_criteria and not (roi is None or isinstance(roi, slice)):
-        roi = np.asarray(roi)
+    if original_criteria:
+        if roi is None:
+            roi = slice(None)
+        elif not isinstance(roi, slice):
+            roi = np.asarray(roi)
 
     if tol is None:
         if original_criteria:
