@@ -828,7 +828,7 @@ def _fill_skips(x, baseline, skips):
         window = skips[i]
         left = window[0]
         right = window[1]
-        _interp_inplace(x[left:right], baseline[left:right])
+        _interp_inplace(x[left:right], baseline[left:right], baseline[left], baseline[right - 1])
 
 
 # adapted from (https://gist.github.com/agramfort/850437); see license above
@@ -1199,8 +1199,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         use linear interpolation to calculate the fit for those x-values (same behavior as in
         statsmodels [14]_ and Cleveland's original Fortran lowess implementation [15]_).
         Fits all x-values if `delta` is <= 0. Default is 0.0. Note that `x_data` is scaled to
-        fit in the range (-1, 1), so `delta` should likewise be scaled. For example, if the
-        desired `delta` value was ``0.01 * (max(x_values) - min(x_values))``, then the
+        fit in the range [-1, 1], so `delta` should likewise be scaled. For example, if the
+        desired `delta` value was ``0.01 * (max(x_data) - min(x_data))``, then the
         correctly scaled `delta` would be 0.02 (ie. ``0.01 * (1 - (-1))``).
 
     Returns

@@ -174,9 +174,84 @@ def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
 
 # adapted from bandmat (bandmat/tensor.pyx/dot_mm_plus_equals and dot_mm); see license above
 @jit(nopython=True, cache=True)
+def _numba_banded_dot_banded(a, b, c, a_lower, a_upper, b_lower, b_upper, c_upper,
+                             diag_length, lower_bound):
+    """
+    Calculates the matrix multiplication, ``C = A @ B``, with `a`, `b`, and `c` in banded forms.
+
+    `a` and `b` must be square matrices in their full form or else this calculation
+    may be incorrect.
+
+    Parameters
+    ----------
+    a : array-like, shape (`a_lu[0]` + `a_lu[1]` + 1, N)
+        A banded matrix.
+    b : array-like, shape (`b_lu[0]` + `b_lu[1]` + 1, N)
+        The second banded matrix.
+    c : numpy.ndarray, shape (D, N)
+        The preallocated output matrix. Should be zeroed before passing to this function.
+        Will be modified inplace.
+    a_lower : int
+        The number of lower diagonals in `a`.
+    a_upper : int
+        The number of upper diagonals in `a`.
+    b_lower : int
+        The number of lower diagonals in `b`.
+    b_upper : int
+        The number of upper diagonals in `b`.
+    c_upper : int
+        The number of upper diagonals in `c`.
+    diag_length : int
+        The length of the diagonal in the full matrix. Equal to `N`.
+    lower_bound : int
+        The lowest diagonal to compute in `c`. Either 0 if `c` is symmetric and only
+        the upper diagonals need computed, or ``a_lower + b_lower`` to compute all bands.
+
+    Returns
+    -------
+    c : numpy.ndarray
+        The matrix multiplication of `a` and `b`. The number of lower diagonals is the
+        minimum of `a_lu[0]` + `b_lu[0]` and `a_full_shape[0]` - 1, the number of upper
+        diagonals is the minimum of `a_lu[1]` + `b_lu[1]` and `b_full_shape[1]` - 1, and
+        the total shape is (lower diagonals + upper diagonals + 1, N).
+
+    Raises
+    ------
+    ValueError
+        Raised if `a` and `b` do not have the same number of rows or if `a_full_shape[1]`
+        and `b_full_shape[0]` are not equal.
+
+    Notes
+    -----
+    Derived from bandmat (https://github.com/MattShannon/bandmat/blob/master/bandmat/tensor.pyx)
+    function `dot_mm`, licensed under the BSD-3-Clause.
+
+    """
+    # TODO need to revisit this later and use a different implementation than bandmat's
+    # so that a and b don't have to be square matrices;
+    # see https://github.com/JuliaMatrices/BandedMatrices.jl and
+    # https://www.netlib.org/utk/lsi/pcwLSI/text/node153.html for other implementations
+
+    # TODO could be done in parallel, but does it speed up at all?
+    for o_c in range(-(a_upper + b_upper), lower_bound + 1):
+        for o_a in range(-min(a_upper, b_lower - o_c), min(a_lower, b_upper + o_c) + 1):
+            o_b = o_c - o_a
+            row_a = a_upper + o_a
+            row_b = b_upper + o_b
+            row_c = c_upper + o_c
+            d_a = 0
+            d_b = -o_b
+            d_c = -o_b
+            for frame in range(max(0, -o_a, o_b), max(0, diag_length + min(0, -o_a, o_b))):
+                c[row_c, frame + d_c] += a[row_a, frame + d_a] * b[row_b, frame + d_b]
+
+    return c
+
+
+# adapted from bandmat (bandmat/tensor.pyx/dot_mm_plus_equals and dot_mm); see license above
 def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_output=False):
     """
-    Calculates the matrix multiplication of `a` and `b` in banded forms.
+    Calculates the matrix multiplication, ``C = A @ B``, with `a` and `b` in banded forms.
 
     `a` and `b` must be square matrices in their full form or else this calculation
     may be incorrect.
@@ -218,16 +293,11 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
 
     Notes
     -----
-    Derived from bandmat (https://github.com/MattShannon/bandmat/blob/master/bandmat/tensor.pyx)
-    function `dot_mm`, licensed under the BSD-3-Clause.
+    Derived from bandmat (https://github.com/MattShannon/bandmat/blob/master/bandmat/tensor.pyx),
+    licensed under the BSD-3-Clause.
 
     """
-    # TODO need to revisit this later and use a different implementation than bandmat's
-    # so that a and b don't have to be square matrices;
-    # see https://github.com/JuliaMatrices/BandedMatrices.jl and
-    # https://www.netlib.org/utk/lsi/pcwLSI/text/node153.html for other implementations
-    #
-    # also need to check cases where a_lower + b_lower is > a_full_shape[0] - 1
+    # TODO also need to check cases where a_lower + b_lower is > a_full_shape[0] - 1
     # and/or a_upper + b_upper is > b_full_shape[1] - 1 and see if the loops need to change at all
     if a_full_shape[1] != b_full_shape[0]:
         raise ValueError('dimension mismatch; a_full_shape[0] and b_full_shape[1] must be equal')
@@ -243,26 +313,16 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
     b_lower, b_upper = b_lu
     c_upper = min(a_upper + b_upper, b_full_shape[1] - 1)
     c_lower = min(a_lower + b_lower, a_full_shape[0] - 1)
-    # TODO create output matrix outside of this function since numba's implementation
-    # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259)
-    output = np.zeros((c_lower + c_upper + 1, diag_length))
-
     if symmetric_output:
         lower_bound = 0  # only fills upper bands
     else:
         lower_bound = a_lower + b_lower
-    # TODO could be done in parallel, but does it speed up at all?
-    for o_c in range(-(a_upper + b_upper), lower_bound + 1):
-        for o_a in range(-min(a_upper, b_lower - o_c), min(a_lower, b_upper + o_c) + 1):
-            o_b = o_c - o_a
-            row_a = a_upper + o_a
-            row_b = b_upper + o_b
-            row_c = c_upper + o_c
-            d_a = 0
-            d_b = -o_b
-            d_c = -o_b
-            for frame in range(max(0, -o_a, o_b), max(0, diag_length + min(0, -o_a, o_b))):
-                output[row_c, frame + d_c] += a[row_a, frame + d_a] * b[row_b, frame + d_b]
+    # create output matrix outside of this function since numba's implementation
+    # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259)
+    output = np.zeros((c_lower + c_upper + 1, diag_length))
+    _numba_banded_dot_banded(
+        a, b, output, a_lower, a_upper, b_lower, b_upper, c_upper, diag_length, lower_bound
+    )
 
     if symmetric_output:
         for row in range(1, a_lower + b_lower + 1):

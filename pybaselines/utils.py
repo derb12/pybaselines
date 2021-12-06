@@ -340,7 +340,7 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
 
 
 @jit(nopython=True, cache=True)
-def _interp_inplace(x, y, y_start=None, y_end=None):
+def _interp_inplace(x, y, y_start, y_end):
     """
     Interpolates values inplace between the two ends of an array.
 
@@ -352,11 +352,9 @@ def _interp_inplace(x, y, y_start=None, y_end=None):
         The y-values. The two endpoints, y[0] and y[-1] are assumed to be valid,
         and all values inbetween (ie. y[1:-1]) will be replaced by interpolation.
     y_start : float, optional
-        The initial y-value for interpolation. Default is None, which will use the
-        first item in `y`.
+        The initial y-value for interpolation.
     y_end : float, optional
-        The end y-value for interpolation. Default is None, which will use the
-        last item in `y`.
+        The end y-value for interpolation.
 
     Returns
     -------
@@ -364,10 +362,6 @@ def _interp_inplace(x, y, y_start=None, y_end=None):
         The input `y` array, with the interpolation performed inplace.
 
     """
-    if y_start is None:
-        y_start = y[0]
-    if y_end is None:
-        y_end = y[-1]
     y[1:-1] = y_start + (x[1:-1] - x[0]) * ((y_end - y_start) / (x[-1] - x[0]))
 
     return y
