@@ -1178,8 +1178,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         y-values given by `data` [13]_. Only used if `use_threshold` is True.
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then will be an array with
-        size equal to N and all values set to 1. Only used for the first iteration
-        if `use_threshold` is True.
+        size equal to N and all values set to 1.
     return_coef : bool, optional
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input x_data and return them in the params dictionary.
@@ -1299,20 +1298,21 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     baseline = y
     coefs = np.zeros((num_x, poly_order + 1))
     tol_history = np.empty(max_iter + 1)
+    sqrt_w = np.sqrt(weight_array)
     # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
     for i in range(max_iter + 1):
         baseline_old = baseline
         if conserve_memory:
             baseline = _loess_low_memory(
-                x, y, weight_array, coefs, vander, num_x, windows, fits
+                x, y, sqrt_w, coefs, vander, num_x, windows, fits
             )
         elif i == 0:
             kernels, baseline = _loess_first_loop(
-                x, y, weight_array, coefs, vander, total_points, num_x, windows, fits
+                x, y, sqrt_w, coefs, vander, total_points, num_x, windows, fits
             )
         else:
             baseline = _loess_nonfirst_loops(
-                y, weight_array, coefs, vander, kernels, windows, num_x, fits
+                y, sqrt_w, coefs, vander, kernels, windows, num_x, fits
             )
 
         _fill_skips(x, baseline, skips)
@@ -1326,18 +1326,15 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             y = np.minimum(
                 y0 if use_original else y, baseline + num_std * np.std(y - baseline)
             )
-            if i == 0:
-                # reset all weights to 1
-                weight_array = np.ones(num_x)
         else:
             residual = y - baseline
             # TODO median_absolute_value can be 0 if more than half of residuals are
             # 0 (perfect fit); can that ever really happen? if so, should prevent dividing by 0
-            weight_array = _tukey_square(
+            sqrt_w = _tukey_square(
                 residual / _median_absolute_value(residual), scale, symmetric_weights
             )
 
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+    params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         # TODO maybe leave out the coefficients from the rest of the calculations
         # since they are otherwise unused, and just fit x vs baseline here; would
