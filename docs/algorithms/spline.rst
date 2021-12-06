@@ -18,7 +18,7 @@ predominantly used in pybaselines. B-splines can be expressed as:
 
 where :math:`N` is the number of points in :math:`x`, :math:`M` is the number of spline
 basis functions, :math:`B_j(x_i)` is the j-th basis function evaluated at :math:`x_i`,
-and :math:`c_j` is the coefficient for the j-th basis (can also be considered as
+and :math:`c_j` is the coefficient for the j-th basis (which are analogous to
 the height of the j-th basis). In pybaselines, the number of spline basis functions,
 :math:`M`, is calculated as the number of knots, `num_knots`, plus the spline degree
 minus 1.

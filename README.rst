@@ -52,11 +52,11 @@ semi-unified API to allow quickly testing and comparing multiple baseline
 correction algorithms to find the best one for a set of data.
 
 pybaselines has 50+ baseline correction algorithms. These include popular algorithms,
-such as AsLS, airPLS, ModPoly, and SNIP, as well as lesser known algorithms. Most
+such as AsLS, airPLS, ModPoly, and SNIP, as well as many lesser known algorithms. Most
 algorithms are adapted directly from literature, although there are a few that are unique
 to pybaselines, such as penalized spline versions of Whittaker-smoothing-based algorithms.
 The full list of implemented algorithms can be found in the
-`pybaselines's documentation <https://pybaselines.readthedocs.io/en/latest/introduction.html>`_.
+`documentation <https://pybaselines.readthedocs.io/en/latest/introduction.html>`_.
 
 
 Installation
@@ -107,9 +107,9 @@ and the following libraries:
 All of the required libraries should be automatically installed when
 installing pybaselines using any of the installation methods above.
 
-The optional dependencies for pybaselines are listed in the
-`documentation <https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies>`_.
-To also install the optional dependencies when installing pybaselines with pip, run:
+The `optional dependencies <https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies>`_
+for pybaselines are listed in the documentation . To also install the optional
+dependencies when installing pybaselines with pip, run:
 
 .. code-block:: console
 

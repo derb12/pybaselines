@@ -41,8 +41,7 @@ def test_find_interval():
     # indices within knots such that knots[index] <= x_i < knots[index + 1]; last
     # knot is 11 rather than 12 since last index == number of basis functions
     expected_indices = [3, 4, 5, 6, 7, 8, 9, 10, 11, 11]
-    len_knots = len(knots)
-    num_bases = len_knots - spline_degree - 1
+    num_bases = len(knots) - spline_degree - 1
 
     left_indices = []
     right_indices = []
@@ -53,11 +52,18 @@ def test_find_interval():
         )
         # search starts at the right of the knot array
         right_indices.append(
-            _spline_utils._find_interval(knots, spline_degree, x_val, len_knots, num_bases)
+            _spline_utils._find_interval(knots, spline_degree, x_val, num_bases - 1, num_bases)
         )
 
     assert_array_equal(left_indices, expected_indices)
     assert_array_equal(right_indices, expected_indices)
+
+
+@pytest.mark.parametrize('num_knots', (0, 1))
+def test_spline_knots_too_few_knots(num_knots):
+    """Ensures an error is raised if the number of knots is less than 2."""
+    with pytest.raises(ValueError):
+        _spline_utils._spline_knots(np.arange(10), num_knots)
 
 
 @pytest.mark.parametrize('num_knots', (2, 20, 1001))

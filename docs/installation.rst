@@ -22,10 +22,6 @@ Optional Dependencies
 
 pybaselines has the following optional dependencies:
 
-* `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
-  provides a faster solver for banded pentadiagonal linear systems
-  (all functions in :mod:`pybaselines.whittaker` as well as
-  :func:`.mpls`, :func:`.jcbd`, and :func:`.fabc`)
 * `numba <https://github.com/numba/numba>`_ (>= 0.45):
   speeds up calculations used by the following functions:
 
@@ -35,7 +31,18 @@ pybaselines has the following optional dependencies:
     * :func:`.std_distribution`
     * :func:`.fastchrom`
     * :func:`.beads`
+    * :func:`.mpspline`
     * all functions in :mod:`pybaselines.spline`
+
+* `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
+  provides a faster solver for banded pentadiagonal linear systems, which are
+  used by the following functions (when ``diff_order=2``):
+
+    * all functions in :mod:`pybaselines.whittaker`
+    * :func:`.mpls`
+    * :func:`.jbcd`
+    * :func:`.fabc`
+
 
 Stable Release
 ~~~~~~~~~~~~~~

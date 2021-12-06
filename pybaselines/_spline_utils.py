@@ -304,6 +304,11 @@ def _spline_knots(x, num_knots=10, spline_degree=3, penalized=False):
     The knots are padded on each end with `spline_degree` extra knots to provide proper
     support for the outermost inner knots.
 
+    Raises
+    ------
+    ValueError
+        Raised if `num_knots` is less than 2.
+
     References
     ----------
     Eilers, P., et al. Twenty years of P-splines. SORT: Statistics and Operations Research
@@ -312,6 +317,9 @@ def _spline_knots(x, num_knots=10, spline_degree=3, penalized=False):
     Hastie, T., et al. The Elements of Statistical Learning. Springer, 2017. Chapter 5.
 
     """
+    if num_knots < 2:  # num_knots == 2 means the only knots are the two endpoints
+        raise ValueError('the number of knots must be at least 2')
+
     if penalized:
         x_min = x.min()
         x_max = x.max()
@@ -668,7 +676,7 @@ def _lower_to_full(ab):
 
     Returns
     -------
-    ab_full : numpy.ndarray, shape (``2 * N + 1``, M)
+    ab_full : numpy.ndarray, shape (``2 * N - 1``, M)
         The full, symmetric banded array.
 
     """

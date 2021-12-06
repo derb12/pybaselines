@@ -521,7 +521,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
 
     Warns
     -----
-    UserWarning
+    ParameterWarning
         Raised if `diff_order` is greater than 3.
 
     """
@@ -875,13 +875,13 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     ------
     ValueError
         Raised if `diff_order` is less than 1, if `weights` and `data` do not have
-        the same shape, if `num_knots` is less than 2, if the number of spline
-        basis functions (`num_knots` + `spline_degree` - 1) is <= `diff_order`, or
-        if `spline_degree` is less than 0.
+        the same shape, if the number of spline basis functions
+        (`num_knots` + `spline_degree` - 1) is <= `diff_order`, or if `spline_degree`
+        is less than 0.
 
     Warns
     -----
-    UserWarning
+    ParameterWarning
         Raised if `diff_order` is greater than 4.
 
     Notes
@@ -900,9 +900,7 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     if not make_basis:
         return y, x, weight_array
 
-    if num_knots < 2:  # num_knots == 2 means the only knots are the two endpoints
-        raise ValueError('the number of knots must be at least 2')
-    elif spline_degree < 0:
+    if spline_degree < 0:
         raise ValueError('spline degree must be >= 0')
     # explicitly cast x and y as floats since most scipy functions do so anyway, so
     # can just do it once
