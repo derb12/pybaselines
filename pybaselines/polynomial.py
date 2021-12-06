@@ -1342,7 +1342,11 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         params['coef'] = np.array([_convert_coef(coef, original_domain) for coef in coefs])
 
     if sort_x:
-        baseline = baseline[_inverted_sort(sort_order)]
+        inverted_order = _inverted_sort(sort_order)
+        baseline = baseline[inverted_order]
+        params['weights'] = params['weights'][inverted_order]
+        if return_coef:
+            params['coef'] = params['coef'][inverted_order]
 
     return baseline, params
 

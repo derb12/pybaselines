@@ -313,9 +313,16 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     params.update(
         {'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len)}
     )
-
+    if 'weights' in params:
+        # have to remove the added sections from weights
+        params['weights'] = params['weights'][
+            0 if side == 'right' else added_window:None if side == 'left' else -added_window
+        ]
     if sort_x:
-        baseline = baseline[_inverted_sort(sort_order)]
+        inverted_order = _inverted_sort(sort_order)
+        baseline = baseline[inverted_order]
+        if 'weights' in params:
+            params['weights'] = params['weights'][inverted_order]
 
     return baseline, params
 

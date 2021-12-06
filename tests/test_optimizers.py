@@ -151,10 +151,12 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         else:
             kwargs = {}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
-        self._call_func(
+        output = self._call_func(
             self.y, self.x, method=method, height_scale=0.1,
             pad_kwargs={'extrapolate_window': 100}, **kwargs
         )
+        if 'weights' in output[1]:
+            assert self.y.shape == output[1]['weights'].shape, 'weights must have same shape as y'
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
