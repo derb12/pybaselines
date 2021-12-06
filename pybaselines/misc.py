@@ -172,6 +172,7 @@ def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
     return output
 
 
+# adapted from bandmat (bandmat/tensor.pyx/dot_mm_plus_equals and dot_mm); see license above
 @jit(nopython=True, cache=True)
 def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_output=False):
     """
@@ -327,6 +328,7 @@ def _parabola(data):
     return A + B * x + C * x**2
 
 
+# adapted from MATLAB beads version; see license above
 def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=False):
     """
     Creates the banded matrices A and B such that B(A^-1) is a high pass filter.
@@ -395,6 +397,7 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     return A, B
 
 
+# adapted from MATLAB beads version; see license above
 def _beads_theta(x, asymmetry=6, eps_0=1e-6):
     """
     The cost function for the pure signal `x`.
@@ -450,6 +453,7 @@ def _beads_theta(x, asymmetry=6, eps_0=1e-6):
     return abs_x, large_mask, theta
 
 
+# adapted from MATLAB beads version; see license above
 def _beads_loss(x, use_v2=True, eps_1=1e-6):
     """
     Approximates the absolute loss cost function.
@@ -489,6 +493,7 @@ def _beads_loss(x, use_v2=True, eps_1=1e-6):
     return loss
 
 
+# adapted from MATLAB beads version; see license above
 def _beads_weighting(x, use_v2=True, eps_1=1e-6):
     """
     Approximates the weighting from absolute loss.
@@ -565,6 +570,7 @@ def _abs_diff(x, smooth_half_window=0):
     return d1_x, d2_x
 
 
+# adapted from MATLAB beads version; see license above
 def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
                   filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
                   eps_1=1e-6, smooth_half_window=0):
@@ -706,6 +712,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     return baseline, {'signal': x, 'tol_history': tol_history[:i + 1]}
 
 
+# adapted from MATLAB beads version; see license above
 def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
                   filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
                   eps_1=1e-6, smooth_half_window=0):

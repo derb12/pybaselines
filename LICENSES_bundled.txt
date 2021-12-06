@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 Source: https://gist.github.com/agramfort/850437 (last accessed March 25, 2021)
-Function: pybaselines.polynomial.loess and all related functions
+Functions: pybaselines.polynomial._loess_low_memory and pybaselines.polynomial._loess_first_loop
 License: 3-clause BSD
 
 # Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
@@ -163,7 +163,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 
 Source: SciPy (https://github.com/scipy/scipy, last accessed November 6, 2021)
-File: pybaselines._splines.py
+File: pybaselines._spline_utils.py
 License: 3-clause BSD
 
 Copyright (c) 2001-2002 Enthought, Inc.  2003-2019, SciPy Developers.

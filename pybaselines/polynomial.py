@@ -347,6 +347,8 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
     return baseline, params
 
 
+# adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
+# see license above
 def _huber_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
     """
     The Huber non-quadratic cost function.
@@ -403,6 +405,8 @@ def _huber_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
     return weights
 
 
+# adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
+# see license above
 def _truncated_quadratic_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
     """
     The Truncated-Quadratic non-quadratic cost function.
@@ -546,6 +550,8 @@ def _identify_loss_method(loss_method):
     return symmetric, '_'.join(split_method)
 
 
+# adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
+# see license above
 def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
                    weights=None, cost_function='asymmetric_truncated_quadratic',
                    threshold=None, alpha_factor=0.99, return_coef=False):
@@ -825,6 +831,7 @@ def _fill_skips(x, baseline, skips):
         _interp_inplace(x[left:right], baseline[left:right])
 
 
+# adapted from (https://gist.github.com/agramfort/850437); see license above
 @jit(nopython=True, cache=True, parallel=True)
 def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     """
@@ -884,6 +891,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     return baseline
 
 
+# adapted from (https://gist.github.com/agramfort/850437); see license above
 @jit(nopython=True, cache=True, parallel=True)
 def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows, fits):
     """
