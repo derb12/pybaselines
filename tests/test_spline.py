@@ -159,6 +159,12 @@ class TestMixtureModel(AlgorithmTester):
             p = 0.01
         self._test_output(y, y, p=p, symmetric=symmetric, checked_keys=('weights', 'tol_history'))
 
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
+
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
@@ -197,6 +203,12 @@ class TestIRSQR(AlgorithmTester):
     def test_output(self):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -264,6 +276,12 @@ class TestPsplineAsLS(AlgorithmTester):
     def test_output(self):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -353,6 +371,12 @@ class TestPsplineAirPLS(AlgorithmTester):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
+
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
@@ -414,6 +438,12 @@ class TestPsplineArPLS(AlgorithmTester):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
+
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
@@ -470,6 +500,12 @@ class TestPsplineDrPLS(AlgorithmTester):
     def test_output(self):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
@@ -536,6 +572,12 @@ class TestPsplineIArPLS(AlgorithmTester):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
+
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
@@ -601,6 +643,12 @@ class TestPsplineAsPLS(AlgorithmTester):
         """Ensures that the output has the desired format."""
         self._test_output(
             self.y, self.y, checked_keys=('weights', 'alpha', 'tol_history')
+        )
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
         )
 
     def test_list_input(self):
@@ -670,6 +718,12 @@ class TestPsplinePsalsa(AlgorithmTester):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
 
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
+
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
@@ -714,6 +768,12 @@ class TestPsplineDerpsalsa(AlgorithmTester):
     def test_output(self):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""

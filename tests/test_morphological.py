@@ -248,6 +248,12 @@ class TestMpsline(AlgorithmTester):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'half_window'))
 
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
+
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()

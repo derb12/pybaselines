@@ -669,7 +669,8 @@ def tophat(data, half_window=None, **window_kwargs):
 
 
 def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=100,
-             spline_degree=3, diff_order=2, weights=None, pad_kwargs=None, **window_kwargs):
+             spline_degree=3, diff_order=2, weights=None, pad_kwargs=None, x_data=None,
+             **window_kwargs):
     """
     Morphology-based penalized spline baseline.
 
@@ -706,6 +707,9 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the weights will be
         calculated following the procedure in the reference.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
     **window_kwargs
         Values for setting the half window used for the morphology operations.
         Items include:
@@ -769,7 +773,7 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
         raise ValueError('p must be between 0 and 1')
 
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam_smooth
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam_smooth
     )
     # TODO should this use np.isclose instead?
     # TODO this overestimates the data when there is a lot of noise, leading to an

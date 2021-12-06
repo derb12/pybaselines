@@ -182,7 +182,8 @@ def _mixture_pdf(x, n, sigma, n_2=0, pos_uniform=None, neg_uniform=None):
 
 
 def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_order=3,
-                  max_iter=50, tol=1e-3, weights=None, symmetric=False, num_bins=None):
+                  max_iter=50, tol=1e-3, weights=None, symmetric=False, num_bins=None,
+                  x_data=None):
     """
     Considers the data as a mixture model composed of noise and peaks.
 
@@ -227,6 +228,9 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     num_bins : int, optional
         The number of bins to use when transforming the residuals into a probability
         density distribution. Default is None, which uses ``ceil(sqrt(N))``.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -258,7 +262,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         raise ValueError('p must be between 0 and 1')
 
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam
     )
     # scale y between -1 and 1 so that the residual fit is more numerically stable
     y_domain = np.polynomial.polyutils.getdomain(y)
@@ -360,7 +364,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
 
 
 def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_order=3,
-          max_iter=100, tol=1e-6, weights=None, eps=None):
+          max_iter=100, tol=1e-6, weights=None, eps=None, x_data=None):
     """
     Iterative Reweighted Spline Quantile Regression (IRSQR).
 
@@ -394,6 +398,9 @@ def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_ord
         A small value added to the square of the residual to prevent dividing by 0.
         Default is None, which uses the square of the maximum-absolute-value of the
         fit each iteration multiplied by 1e-6.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -426,7 +433,7 @@ def irsqr(data, lam=100, quantile=0.05, num_knots=100, spline_degree=3, diff_ord
         raise ValueError('quantile must be between 0 and 1')
 
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam
     )
     old_coef = np.zeros(basis.shape[1])
     tol_history = np.empty(max_iter + 1)
@@ -675,7 +682,7 @@ def corner_cutting(data, x_data=None, max_iter=100):
 
 
 def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_order=2,
-                 max_iter=50, tol=1e-3, weights=None):
+                 max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     A penalized spline version of the asymmetric least squares (AsLS) algorithm.
 
@@ -705,6 +712,9 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -745,7 +755,7 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
         raise ValueError('p must be between 0 and 1')
 
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam
     )
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
@@ -838,12 +848,12 @@ def pspline_iasls(data, x_data=None, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
         baseline = np.polynomial.Polynomial.fit(x, y, 2)(x)
         weights = _weighting._asls(y, baseline, p)
 
-        _, x, weight_array, basis, knots, penalty = _setup_splines(
-            y, None, weights, spline_degree, num_knots, True, 2, lam
+        _, _, weight_array, basis, knots, penalty = _setup_splines(
+            y, x, weights, spline_degree, num_knots, True, 2, lam
         )
     else:
         y, x, weight_array, basis, knots, penalty = _setup_splines(
-            data, None, weights, spline_degree, num_knots, True, 2, lam
+            data, x_data, weights, spline_degree, num_knots, True, 2, lam
         )
 
     len_y = len(y)
@@ -874,7 +884,7 @@ def pspline_iasls(data, x_data=None, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
 
 
 def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
-                   max_iter=50, tol=1e-3, weights=None):
+                   max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     A penalized spline version of the airPLS algorithm.
 
@@ -900,6 +910,9 @@ def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -930,7 +943,7 @@ def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
     """
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam
     )
 
     y_l1_norm = np.abs(y).sum()
@@ -977,7 +990,7 @@ def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
 
 def pspline_arpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
-                  max_iter=50, tol=1e-3, weights=None):
+                  max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     A penalized spline version of the arPLS algorithm.
 
@@ -1003,6 +1016,9 @@ def pspline_arpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -1033,7 +1049,7 @@ def pspline_arpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
     """
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam
     )
 
     tol_history = np.empty(max_iter + 1)
@@ -1053,7 +1069,7 @@ def pspline_arpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
 
 def pspline_drpls(data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3, diff_order=2,
-                  max_iter=50, tol=1e-3, weights=None):
+                  max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     A penalized spline version of the drPLS algorithm.
 
@@ -1083,6 +1099,9 @@ def pspline_drpls(data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3, diff_o
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -1113,7 +1132,7 @@ def pspline_drpls(data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3, diff_o
 
     """
     y, x, weight_array, basis, knots, d2_diagonals = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam,
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam,
         True, False
     )
     d1_d2_diagonals = _add_diagonals(
@@ -1163,7 +1182,7 @@ def pspline_drpls(data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3, diff_o
 
 
 def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
-                   max_iter=50, tol=1e-3, weights=None):
+                   max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     A penalized spline version of the IarPLS algorithm.
 
@@ -1189,6 +1208,9 @@ def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -1220,7 +1242,7 @@ def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
     """
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam
     )
 
     tol_history = np.empty(max_iter + 1)
@@ -1252,7 +1274,7 @@ def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
 
 def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
-                  max_iter=100, tol=1e-3, weights=None, alpha=None):
+                  max_iter=100, tol=1e-3, weights=None, alpha=None, x_data=None):
     """
     A penalized spline version of the asPLS algorithm.
 
@@ -1282,6 +1304,9 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
         An array of values that control the local value of `lam` to better
         fit peak and non-peak regions. If None (default), then the initial values
         will be an array with size equal to N and all values set to 1.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -1322,7 +1347,7 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
 
     """
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam, True,
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam, True,
         False, True
     )
     if alpha is None:
@@ -1365,7 +1390,7 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
 
 
 def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
-                   diff_order=2, max_iter=50, tol=1e-3, weights=None):
+                   diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     A penalized spline version of the psalsa algorithm.
 
@@ -1401,6 +1426,9 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
 
     Returns
     -------
@@ -1440,7 +1468,7 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
         raise ValueError('p must be between 0 and 1')
 
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam
     )
     if k is None:
         k = np.std(y) / 10
@@ -1463,7 +1491,7 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
 
 def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degree=3,
                       diff_order=2, max_iter=50, tol=1e-3, weights=None,
-                      smooth_half_window=None, num_smooths=16, **pad_kwargs):
+                      smooth_half_window=None, num_smooths=16, x_data=None, **pad_kwargs):
     """
     A penalized spline version of the derpsalsa algorithm.
 
@@ -1505,6 +1533,9 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
     num_smooths : int, optional
         The number of times to smooth the data before computing the first
         and second derivatives. Default is 16.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
     **pad_kwargs
         Additional keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data to prevent edge effects from smoothing.
@@ -1546,7 +1577,7 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
     if not 0 < p < 1:
         raise ValueError('p must be between 0 and 1')
     y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam
     )
     if k is None:
         k = np.std(y) / 10
