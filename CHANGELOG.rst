@@ -2,6 +2,84 @@
 Changelog
 =========
 
+Version 0.8.0 (2021-12-07)
+--------------------------
+
+This is a minor version with new features, bug fixes, deprecations,
+and documentation improvements.
+
+New Features
+~~~~~~~~~~~~
+
+* Added more efficient ways for creating the spline basis, and now solve penalized
+  spline equations as a banded system rather than as a sparse system. Compared to
+  version 0.7.0, spline.mixture_model, spline.irsqr, and morphological.mpspline are
+  ~60-90% faster when numba is installed and ~10-70% faster without numba.
+* Made several calculations in spline.mixture_model more efficient, further reducing the
+  time by ~60-70% compared to the timings above without numba. The total time reduction
+  from version 0.7.0 for spline.mixture_model without numba is ~50-90%.
+* Added penalized spline versions of all Whittaker-smoothing-based algorithms
+  (pspline_asls, pspline_iasls, pspline_airpls, pspline_arpls, pspline_drpls, pspline_iarpls,
+  pspline_aspls, pspline_psalsa, and pspline_derpsalsa) to pybaselines.spline.
+
+Bug Fixes
+~~~~~~~~~
+
+* Was not multiplying the penalty in whittaker.iasls by `lam_1`.
+* The output weights for polynomial.quant_reg and polynomial.loess are now squared
+  before returning since the square root of the weights are used internally.
+* The output weights and polynomial coefficients (if `return_coef` is True) for
+  polynomial.loess are now sorted to match the original order of the input x-values.
+* The output weights for optimizers.optimize_extended_range are now truncated and
+  sorted before returning to match the original order and length of the input x-values.
+* smooth.noise_median now works with a `smooth_half_window` value of 0 to give no smoothing.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Officially list Python 3.10 as supported.
+* pybaselines is now available to install using conda from the conda-forge channel.
+* Changed a factor in the weighting for whittaker.aspls to better match the
+  implementation in literature.
+* Allow inputting x-values for all penalized spline functions rather than assuming
+  evenly spaced measurements.
+* optimizers.adaptive_minmax now allows separate `constrained_fraction` and
+  `constrained_weight` values for for the left and right edges.
+* The error raised by optimizers.collab_pls if the input data is not 2-dimensional
+  is now more explicit.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* No longer allow negative or array-like values for the penalty multipliers in
+  Whittaker-smoothing-based functions, penalized spline functions, morphological.jbcd,
+  or misc.beads. Array-like penalty values are technically valid; however, they change the
+  symmetry of the banded linear system, so additional code will have to be added in a
+  later version to ensure the setup is correct before re-allowing array-like values.
+* Deprecated passing keyword arguments to all functions in pybaselines.optimizers.
+  Passing additional keyword arguments will raise an error starting in version 0.10.0
+  or 1.0.0, whichever comes first (the same deprecation for optimize_extended_range made
+  in version 0.7.0 is also pushed back to 0.10.0 or 1.0.0).
+* For spline algorithms, the min and max x-values are now included as inner knots when
+  creating the spline basis rather than counting them as the first outer knots. To match
+  the number of knots from previous versions, the `num_knots` parameter should add 2 to
+  the `num_knots` used in previous versions.
+* Formally deprecated pybaselines.window, which was replaced by pybaselines.smooth in
+  version 0.6.0. pybaselines.window will be removed in version 1.0.
+* Removed optimize_window from pybaselines.morphological, which was deprecated in
+  version 0.6.0
+* Removed the code for allowing array-like `half_window` or `smooth_half_window` values
+  for morphological.rolling_ball, which was deprecated in version 0.7.0.
+
+Documentation/Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Added more examples to the documentation for fitting noisy data and exploring
+  penalized spline parameters.
+* Added an introduction for the splines category in the algorithms section of the
+  documentation.
+
+
 Version 0.7.0 (2021-10-28)
 --------------------------
 

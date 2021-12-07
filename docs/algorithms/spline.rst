@@ -18,7 +18,7 @@ predominantly used in pybaselines. B-splines can be expressed as:
 
 where :math:`N` is the number of points in :math:`x`, :math:`M` is the number of spline
 basis functions, :math:`B_j(x_i)` is the j-th basis function evaluated at :math:`x_i`,
-and :math:`c_j` is the coefficient for the j-th basis (which are analogous to
+and :math:`c_j` is the coefficient for the j-th basis (which is analogous to
 the height of the j-th basis). In pybaselines, the number of spline basis functions,
 :math:`M`, is calculated as the number of knots, `num_knots`, plus the spline degree
 minus 1.
@@ -53,7 +53,7 @@ The resulting linear equation for solving the above minimization is:
 where :math:`W` is the diagaonal matrix of the weights, :math:`B` is the matrix
 containing all of the spline basis functions, and :math:`D_d` is the matrix
 version of :math:`\Delta^d` (same as :ref:`explained <difference-matrix-explanation>`
-for Whittaker-smoothing-based algorithms). P-splines are very similar to Whittaker
+for Whittaker-smoothing-based algorithms). P-splines have similarities with Whittaker
 smoothing; in fact, if the number of basis functions, :math:`M`, is set up to be equal
 to the number of data points, :math:`N`, and the spline degree is set to 0, then
 :math:`B` becomes the identity matrix and the above equation becomes identical
