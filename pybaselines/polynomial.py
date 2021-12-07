@@ -78,10 +78,11 @@ import warnings
 
 import numpy as np
 
+from . import _weighting
 from ._algorithm_setup import _get_vander, _setup_polynomial
 from ._compat import jit, prange
 from .utils import (
-    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, _quantile_irls,
+    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, _inverted_sort,
     relative_difference
 )
 
@@ -346,6 +347,8 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
     return baseline, params
 
 
+# adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
+# see license above
 def _huber_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
     """
     The Huber non-quadratic cost function.
@@ -402,6 +405,8 @@ def _huber_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
     return weights
 
 
+# adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
+# see license above
 def _truncated_quadratic_loss(residual, threshold=1.0, alpha_factor=0.99, symmetric=True):
     """
     The Truncated-Quadratic non-quadratic cost function.
@@ -545,6 +550,8 @@ def _identify_loss_method(loss_method):
     return symmetric, '_'.join(split_method)
 
 
+# adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
+# see license above
 def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
                    weights=None, cost_function='asymmetric_truncated_quadratic',
                    threshold=None, alpha_factor=0.99, return_coef=False):
@@ -821,9 +828,10 @@ def _fill_skips(x, baseline, skips):
         window = skips[i]
         left = window[0]
         right = window[1]
-        _interp_inplace(x[left:right], baseline[left:right])
+        _interp_inplace(x[left:right], baseline[left:right], baseline[left], baseline[right - 1])
 
 
+# adapted from (https://gist.github.com/agramfort/850437); see license above
 @jit(nopython=True, cache=True, parallel=True)
 def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     """
@@ -883,6 +891,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     return baseline
 
 
+# adapted from (https://gist.github.com/agramfort/850437); see license above
 @jit(nopython=True, cache=True, parallel=True)
 def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows, fits):
     """
@@ -999,7 +1008,7 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
     return baseline
 
 
-@jit(nopython=True, cache=True, fastmath=True)
+@jit(nopython=True, cache=True)
 def _determine_fits(x, num_x, total_points, delta):
     """
     Determines the x-values to fit and the left and right indices for each fit x-value.
@@ -1169,8 +1178,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         y-values given by `data` [13]_. Only used if `use_threshold` is True.
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then will be an array with
-        size equal to N and all values set to 1. Only used for the first iteration
-        if `use_threshold` is True.
+        size equal to N and all values set to 1.
     return_coef : bool, optional
         If True, will convert the polynomial coefficients for the fit baseline to
         a form that fits the input x_data and return them in the params dictionary.
@@ -1190,8 +1198,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         use linear interpolation to calculate the fit for those x-values (same behavior as in
         statsmodels [14]_ and Cleveland's original Fortran lowess implementation [15]_).
         Fits all x-values if `delta` is <= 0. Default is 0.0. Note that `x_data` is scaled to
-        fit in the range (-1, 1), so `delta` should likewise be scaled. For example, if the
-        desired `delta` value was ``0.01 * (max(x_values) - min(x_values))``, then the
+        fit in the range [-1, 1], so `delta` should likewise be scaled. For example, if the
+        desired `delta` value was ``0.01 * (max(x_data) - min(x_data))``, then the
         correctly scaled `delta` would be 0.02 (ie. ``0.01 * (1 - (-1))``).
 
     Returns
@@ -1290,20 +1298,21 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     baseline = y
     coefs = np.zeros((num_x, poly_order + 1))
     tol_history = np.empty(max_iter + 1)
+    sqrt_w = np.sqrt(weight_array)
     # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
     for i in range(max_iter + 1):
         baseline_old = baseline
         if conserve_memory:
             baseline = _loess_low_memory(
-                x, y, weight_array, coefs, vander, num_x, windows, fits
+                x, y, sqrt_w, coefs, vander, num_x, windows, fits
             )
         elif i == 0:
             kernels, baseline = _loess_first_loop(
-                x, y, weight_array, coefs, vander, total_points, num_x, windows, fits
+                x, y, sqrt_w, coefs, vander, total_points, num_x, windows, fits
             )
         else:
             baseline = _loess_nonfirst_loops(
-                y, weight_array, coefs, vander, kernels, windows, num_x, fits
+                y, sqrt_w, coefs, vander, kernels, windows, num_x, fits
             )
 
         _fill_skips(x, baseline, skips)
@@ -1317,18 +1326,15 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             y = np.minimum(
                 y0 if use_original else y, baseline + num_std * np.std(y - baseline)
             )
-            if i == 0:
-                # reset all weights to 1
-                weight_array = np.ones(num_x)
         else:
             residual = y - baseline
             # TODO median_absolute_value can be 0 if more than half of residuals are
             # 0 (perfect fit); can that ever really happen? if so, should prevent dividing by 0
-            weight_array = _tukey_square(
+            sqrt_w = _tukey_square(
                 residual / _median_absolute_value(residual), scale, symmetric_weights
             )
 
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+    params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         # TODO maybe leave out the coefficients from the rest of the calculations
         # since they are otherwise unused, and just fit x vs baseline here; would
@@ -1336,7 +1342,11 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         params['coef'] = np.array([_convert_coef(coef, original_domain) for coef in coefs])
 
     if sort_x:
-        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
+        inverted_order = _inverted_sort(sort_order)
+        baseline = baseline[inverted_order]
+        params['weights'] = params['weights'][inverted_order]
+        if return_coef:
+            params['coef'] = params['coef'][inverted_order]
 
     return baseline, params
 
@@ -1423,11 +1433,23 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter
     y, x, weight_array, original_domain, vander = _setup_polynomial(
         data, x_data, weights, poly_order, return_vander=True
     )
+    # estimate first iteration using least squares
+    coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
+    baseline = vander @ coef
+    tol_history = np.empty(max_iter)
+    for i in range(max_iter):
+        baseline_old = baseline
+        weight_array = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+        coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
+        baseline = vander @ coef
+        # relative_difference(baseline_old, baseline, 1) gives nearly same result and
+        # the l2 norm is faster to calculate, so use that instead of l1 norm
+        calc_difference = relative_difference(baseline_old, baseline)
+        tol_history[i] = calc_difference
+        if calc_difference < tol:
+            break
 
-    baseline, weight_array, tol_history, coef = _quantile_irls(
-        y, vander, weight_array, quantile, max_iter, tol, eps
-    )
-    params = {'weights': weight_array, 'tol_history': tol_history}
+    params = {'weights': weight_array**2, 'tol_history': tol_history[:i + 1]}
     if return_coef:
         params['coef'] = _convert_coef(coef, original_domain)
 

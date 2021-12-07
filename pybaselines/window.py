@@ -6,8 +6,8 @@ Created on March 7, 2021
 
 """
 
-# import warnings
 from functools import wraps
+import warnings
 
 from . import smooth
 
@@ -17,11 +17,10 @@ def _wrap_and_warn(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # TODO: in a later version, begin emitting the warning
-        # warnings.warn(
-        #    'pybaselines.window is deprecated and will be removed in version 1.0; '
-        #    'use pybaselines.smooth instead', DeprecationWarning, stacklevel=2
-        # )
+        warnings.warn(
+            ('pybaselines.window is deprecated and will be removed in version 1.0; '
+             'use pybaselines.smooth instead'), DeprecationWarning, stacklevel=2
+        )
         return func(*args, **kwargs)
 
     return wrapper

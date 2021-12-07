@@ -12,8 +12,9 @@ wrapper around :func:`numpy.pad` that also allows linear extrapolation.
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pybaselines.utils import pad_edges
 from scipy.ndimage import uniform_filter1d
+
+from pybaselines.utils import pad_edges
 
 
 half_window = 80  # for 161 point moving average window

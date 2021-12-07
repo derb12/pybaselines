@@ -7,9 +7,8 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_almost_equal, assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.ndimage import grey_opening
 from scipy.sparse import identity
 
 from pybaselines import utils
@@ -46,7 +45,25 @@ def test_gaussian_kernel(window_size, sigma):
 
     assert kernel.size == window_size
     assert kernel.shape == (window_size,)
-    assert_almost_equal(np.sum(kernel), 1)
+    assert_allclose(np.sum(kernel), 1)
+
+
+def test_gaussian_kernel_0_windowsize(data_fixture):
+    """
+    Ensures the gaussian kernel with 0 window size gives an array of [1].
+
+    Also ensures the convolution with the kernel gives the unchanged input.
+    """
+    kernel = utils.gaussian_kernel(0, 3)
+
+    assert kernel.size == 1
+    assert kernel.shape == (1,)
+    assert_array_equal(kernel, 1)
+    assert_allclose(np.sum(kernel), 1)
+
+    x, y = data_fixture
+    out = utils.padded_convolve(y, kernel)
+    assert_array_equal(y, out)
 
 
 @pytest.mark.parametrize('sign', (1, -1))
@@ -54,7 +71,7 @@ def test_relative_difference_scalar(sign):
     """Tests relative_difference to ensure it uses abs for scalars."""
     old = 3.0 * sign
     new = 4
-    assert_almost_equal(utils.relative_difference(old, new), abs((old - new) / old))
+    assert_allclose(utils.relative_difference(old, new), abs((old - new) / old))
 
 
 def test_relative_difference_array():
@@ -64,7 +81,7 @@ def test_relative_difference_array():
     norm_ab = np.sqrt(((a - b)**2).sum())
     norm_a = np.sqrt(((a)**2).sum())
 
-    assert_almost_equal(utils.relative_difference(a, b), norm_ab / norm_a)
+    assert_allclose(utils.relative_difference(a, b), norm_ab / norm_a)
 
 
 def test_relative_difference_array_l1():
@@ -74,7 +91,7 @@ def test_relative_difference_array_l1():
     norm_ab = np.abs(a - b).sum()
     norm_a = np.abs(a).sum()
 
-    assert_almost_equal(utils.relative_difference(a, b, 1), norm_ab / norm_a)
+    assert_allclose(utils.relative_difference(a, b, 1), norm_ab / norm_a)
 
 
 def test_relative_difference_zero():
@@ -83,61 +100,7 @@ def test_relative_difference_zero():
     b = np.array([4, 5, 6])
     norm_ab = np.sqrt(((a - b)**2).sum())
 
-    assert_almost_equal(utils.relative_difference(a, b), norm_ab / np.finfo(float).eps)
-
-
-def test_safe_std():
-    """Checks that the calculated standard deviation is correct."""
-    array = np.array((1, 2, 3))
-    calc_std = utils._safe_std(array)
-
-    assert_almost_equal(calc_std, np.std(array))
-
-
-def test_safe_std_kwargs():
-    """Checks that kwargs given to _safe_std are passed to numpy.std."""
-    array = np.array((1, 2, 3))
-    calc_std = utils._safe_std(array, ddof=1)
-
-    assert_almost_equal(calc_std, np.std(array, ddof=1))
-
-
-def test_safe_std_empty():
-    """Checks that the returned standard deviation of an empty array is not nan."""
-    calc_std = utils._safe_std(np.array(()))
-    assert_almost_equal(calc_std, utils._MIN_FLOAT)
-
-
-def test_safe_std_single():
-    """Checks that the returned standard deviation of an array with a single value is not 0."""
-    calc_std = utils._safe_std(np.array((1,)))
-    assert_almost_equal(calc_std, utils._MIN_FLOAT)
-
-
-def test_safe_std_zero():
-    """Checks that the returned standard deviation is not 0."""
-    calc_std = utils._safe_std(np.array((1, 1, 1)))
-    assert_almost_equal(calc_std, utils._MIN_FLOAT)
-
-
-# ignore the RuntimeWarning when using inf
-@pytest.mark.filterwarnings('ignore::RuntimeWarning')
-@pytest.mark.parametrize('run_enum', (0, 1))
-def test_safe_std_allow_nan(run_enum):
-    """
-    Ensures that the standard deviation is allowed to be nan under certain conditions.
-
-    _safe_std should allow the calculated standard deviation to be nan if there is
-    more than one item in the array, since that would indicate that nan or inf is
-    in the array and nan propogation would not want to be stopped in those cases.
-
-    """
-    if run_enum:
-        array = np.array((1, 2, np.nan))
-    else:
-        array = np.array((1, 2, np.inf))
-
-    assert np.isnan(utils._safe_std(array))
+    assert_allclose(utils.relative_difference(a, b), norm_ab / np.finfo(float).eps)
 
 
 def test_interp_inplace():
@@ -149,45 +112,12 @@ def test_interp_inplace():
     y_calc[0] = y_actual[0]
     y_calc[-1] = y_actual[-1]
 
-    output = utils._interp_inplace(x, y_calc)
+    output = utils._interp_inplace(x, y_calc, y_calc[0], y_calc[-1])
 
     # output should be the same object as the input y array
     assert output is y_calc
 
     assert_allclose(y_calc, y_actual, 1e-12)
-
-
-def test_interp_inplace_endpoints():
-    """Tests _interp_inplace when specifying the endpoint y-values."""
-    x = np.arange(10)
-    y_actual = 2 + 5 * x
-
-    # specify both the left and right points
-    y_calc = np.zeros_like(y_actual)
-    output = utils._interp_inplace(x, y_calc, y_actual[0], y_actual[-1])
-
-    # output should be the same object as the input y array
-    assert output is y_calc
-    assert_allclose(y_calc[1:-1], y_actual[1:-1], 1e-12)
-    # first and last values should still be 0
-    assert y_calc[0] == 0
-    assert y_calc[-1] == 0
-
-    # specify only the right point
-    y_calc = np.zeros_like(y_actual)
-    y_calc[0] = y_actual[0]
-    utils._interp_inplace(x, y_calc, None, y_actual[-1])
-
-    assert_allclose(y_calc[:-1], y_actual[:-1], 1e-12)
-    assert y_calc[-1] == 0
-
-    # specify only the left point
-    y_calc = np.zeros_like(y_actual)
-    y_calc[-1] = y_actual[-1]
-    utils._interp_inplace(x, y_calc, y_actual[0])
-
-    assert_allclose(y_calc[1:], y_actual[1:], 1e-12)
-    assert y_calc[0] == 0
 
 
 @pytest.mark.parametrize('x', (np.array([-5, -2, 0, 1, 8]), np.array([1, 2, 3, 4, 5])))
@@ -212,23 +142,6 @@ def test_convert_coef(x, coefs):
     converted_coefs = utils._convert_coef(fit_coefs, original_domain)
 
     assert_allclose(converted_coefs, coefs, atol=1e-10)
-
-
-@pytest.mark.parametrize('quantile', np.linspace(0, 1, 21))
-def test_quantile_loss(quantile):
-    """Ensures the quantile loss calculation is correct."""
-    y = np.linspace(-1, 1)
-    fit = np.zeros(y.shape[0])
-    residual = y - fit
-    eps = 1e-10
-    calc_loss = utils._quantile_loss(y, fit, quantile, eps)
-
-    numerator = np.where(residual > 0, quantile, 1 - quantile)
-    denominator = np.sqrt(residual**2 + eps)
-
-    expected_loss = numerator / denominator
-
-    assert_allclose(calc_loss, expected_loss)
 
 
 @pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))
@@ -309,17 +222,6 @@ def test_difference_matrix_formats(form):
     """
     assert utils.difference_matrix(10, 2, form).format == form
     assert utils.difference_matrix(10, 0, form).format == form
-
-
-def test_changing_pentapy_solver():
-    """Ensures a change to utils.PENTAPY_SOLVER is communicated by _pentapy_solver."""
-    original_solver = utils.PENTAPY_SOLVER
-    try:
-        for solver in range(5):
-            utils.PENTAPY_SOLVER = solver
-            assert utils._pentapy_solver() == solver
-    finally:
-        utils.PENTAPY_SOLVER = original_solver
 
 
 def pad_func(array, pad_width, axis, kwargs):
@@ -571,46 +473,15 @@ def test_check_scalar_asarray_kwargs():
         assert output.dtype == dtype
 
 
-def morphology_tester(data, half_window, operation):
-    """Convenience function for testing all morphology types."""
-    operations = {
-        'opening': (utils._grey_opening_1d, grey_opening),
-    }
-    pybaselines_func, scipy_func = operations[operation]
+@pytest.mark.parametrize('seed', (123, 98765))
+def test_invert_sort(seed):
+    """Ensures the inverted sort works."""
+    # TODO replace with np.random.default_rng once minimum numpy version is >= 1.17
+    values = np.random.RandomState(seed).normal(0, 10, 1000)
+    sort_order = values.argsort(kind='mergesort')
 
-    # ensure scalar half_window and array half_window give same result if array is
-    # all the same value
-    scalar_output = pybaselines_func(data, half_window)
-    array_output = pybaselines_func(data, np.full_like(data, half_window, type(half_window)))
+    expected_inverted_sort = sort_order.argsort(kind='mergesort')
+    inverted_order = utils._inverted_sort(sort_order)
 
-    assert_allclose(
-        array_output, scalar_output,
-        err_msg='array and scalar half-windows produce different results'
-    )
-
-    # also ensure both outputs are the same as output by scipy
-    if isinstance(half_window, (int, float)):
-        window = 2 * int(half_window) + 1
-    else:
-        window = 2 * int(half_window[0]) + 1
-    scipy_output = scipy_func(data, window)
-
-    assert_allclose(
-        array_output, scipy_output,
-        err_msg='scipy and array half-window produce different results'
-    )
-    assert_allclose(
-        scalar_output, scipy_output,
-        err_msg='scipy and scalar half-window produce different results'
-    )
-
-
-@pytest.mark.parametrize('half_window', (1, 5, 10, 11.2, [10]))
-@pytest.mark.parametrize('list_input', (False, True))
-def test_grey_opening_1d(half_window, list_input, data_fixture):
-    """Tests grey-opening."""
-    _, data = data_fixture
-    if list_input:
-        data = data.tolist()
-
-    morphology_tester(data, half_window, 'opening')
+    assert_array_equal(expected_inverted_sort, inverted_order)
+    assert_array_equal(values, values[sort_order][inverted_order])

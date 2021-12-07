@@ -19,7 +19,7 @@ where :math:`\beta` is the array of coefficients for the polynomial.
 For regular polynomial fitting, the polynomial coefficients that best fit data
 are gotten from minimizing the least-squares:
 
-.. math:: \sum\limits_{i = 1}^n w_i^2 (y_i - p(x_i))^2
+.. math:: \sum\limits_{i}^N w_i^2 (y_i - p(x_i))^2
 
 where :math:`y_i` and :math:`x_i` are the measured data, :math:`p(x_i)` is
 the polynomial estimate at :math:`x_i`, and :math:`w_i` is the weighting.

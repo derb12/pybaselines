@@ -1,12 +1,13 @@
 Introduction
 ============
 
-pybaselines provides many different baseline correction algorithms for fitting baselines
-to data from experimental techniques such as Raman, FTIR, NMR, XRD, PIXE, etc. The aim of
-the project is to provide a semi-unified API to allow quickly testing and comparing
-multiple baseline correction algorithms to find the best one for a set of data.
+pybaselines is a Python library that provides many different algorithms for
+performing baseline correction on data from experimental techniques such as
+Raman, FTIR, NMR, XRD, XRF, PIXE, etc. The aim of the project is to provide a
+semi-unified API to allow quickly testing and comparing multiple baseline
+correction algorithms to find the best one for a set of data.
 
-pybaselines has 45+ baseline correction algorithms. Whenever possible, the original
+pybaselines has 50+ baseline correction algorithms. Whenever possible, the original
 names of the algorithms were used. The algorithms are grouped accordingly:
 
 * Polynomial methods (:mod:`pybaselines.polynomial`)
@@ -44,6 +45,21 @@ names of the algorithms were used. The algorithms are grouped accordingly:
     * mpspline (Morphology-Based Penalized Spline)
     * jbcd (Joint Baseline Correction and Denoising)
 
+* Spline methods (:mod:`pybaselines.spline`)
+
+    * mixture_model (Mixture Model)
+    * irsqr (Iterative Reweighted Spline Quantile Regression)
+    * corner_cutting (Corner-Cutting Method)
+    * pspline_asls (Penalized Spline Version of asls)
+    * pspline_iasls (Penalized Spline Version of iasls)
+    * pspline_airpls (Penalized Spline Version of airpls)
+    * pspline_arpls (Penalized Spline Version of arpls)
+    * pspline_drpls (Penalized Spline Version of drpls)
+    * pspline_iarpls (Penalized Spline Version of iarpls)
+    * pspline_aspls (Penalized Spline Version of aspls)
+    * pspline_psalsa (Penalized Spline Version of psalsa)
+    * pspline_derpsalsa (Penalized Spline Version of derpsalsa)
+
 * Smoothing-based methods (:mod:`pybaselines.smooth`)
 
     * noise_median (Noise Median method)
@@ -51,12 +67,6 @@ names of the algorithms were used. The algorithms are grouped accordingly:
     * swima (Small-Window Moving Average)
     * ipsa (Iterative Polynomial Smoothing Algorithm)
     * ria (Range Independent Algorithm)
-
-* Spline methods (:mod:`pybaselines.spline`)
-
-    * mixture_model (Mixture Model)
-    * irsqr (Iterative Reweighted Spline Quantile Regression)
-    * corner_cutting (Corner-Cutting Method)
 
 * Baseline/Peak Classification methods (:mod:`pybaselines.classification`)
 

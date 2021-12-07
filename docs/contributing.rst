@@ -44,7 +44,9 @@ To clone the GitHub repository and install the necessary libraries for developme
 .. code-block:: console
 
     git clone https://github.com/derb12/pybaselines.git
-    pip -r install pybaselines/requirements/requirements-development.txt
+    cd pybaselines
+    pip install -r requirements/requirements-development.txt
+    pip install -e .
 
 All sections below assume the above commands were ran.
 
@@ -110,7 +112,8 @@ docs directory:
 and ensure that no warnings or errors are raised during building.
 
 If adding a new baseline algorithm, please add a short summary of the algorithm to the
-appropriate module in the :doc:`algorithms section </algorithms/index>`, and, if possible,
-add a plot showing how the algorithm fits different baselines using matplotlib's ``plot``
-directive. Look at the rst sources for any of the files in the ``pybaselines/docs/algorithms``
-folder for examples.
+appropriate module in the
+`algorithms section <https://pybaselines.readthedocs.io/en/latest/algorithms/index.html>`_,
+and, if possible, add a plot showing how the algorithm fits different baselines using
+matplotlib's ``plot`` directive. Look at the rst sources for any of the files in the
+``pybaselines/docs/algorithms`` folder for examples.

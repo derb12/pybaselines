@@ -6,33 +6,18 @@ Created on March 5, 2021
 
 """
 
-import warnings
-
 import numpy as np
 from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
-from scipy.sparse import diags
-from scipy.sparse.linalg import spsolve
 
 from ._algorithm_setup import (
-    _setup_morphology, _setup_splines, _setup_whittaker, _whittaker_smooth
+    _check_lam, _setup_morphology, _setup_splines, _whittaker_smooth, diff_penalty_diagonals
 )
-from ._compat import _HAS_PENTAPY, _pentapy_solve, jit, prange
+from ._compat import _HAS_PENTAPY
+from ._spline_utils import _solve_pspline
 from .utils import (
-    _check_scalar, _grey_opening_1d, _mollifier_kernel, _pentapy_solver,
-    optimize_window as _optimize_window, pad_edges, padded_convolve, relative_difference
+    _mollifier_kernel, _pentapy_solver, pad_edges, padded_convolve, relative_difference
 )
-
-
-# TODO remove in version 0.8.0
-def optimize_window(*args, **kwargs):  # noqa
-    warnings.warn(
-        (
-            'morphological.optimize_window is deprecated and will be removed in '
-            'version 0.8.0; use pybaselines.utils.optimize_window instead'
-        ), DeprecationWarning, stacklevel=2
-    )
-    return _optimize_window(*args, **kwargs)
 
 
 def _avg_opening(y, half_window, opening=None):
@@ -469,50 +454,6 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     return baseline[data_bounds], params
 
 
-@jit(nopython=True, cache=True, parallel=True)
-def _changing_smooth_window(rough_baseline, smooth_half_window):
-    """
-    Smooths an array with the rolling average and a changing window size.
-
-    Parameters
-    ----------
-    rough_baseline : numpy.ndarray, shape (N,)
-        The array of the baseline before smoothing, with N data points.
-    smooth_half_window : numpy.ndarray, shape (N,)
-        The array of half-windows to use for smoothing.
-
-    Returns
-    -------
-    baseline : numpy.ndarray, shape (N,)
-        The smoothed baseline array.
-
-    Raises
-    ------
-    ValueError
-        Raised if rough_baseline and smooth_half_window do not have the same length.
-
-    References
-    ----------
-    Kneen, M.A., et al. Algorithm for fitting XRF, SEM and PIXE X-ray spectra
-    backgrounds. Nuclear Instruments and Methods in Physics Research B, 1996,
-    109, 209-213.
-
-    """
-    num_y = len(rough_baseline)
-    if len(smooth_half_window) != num_y:
-        raise ValueError('smooth_half_window array must be the same size as the data array')
-
-    baseline = np.empty(num_y)
-    # TODO not sure if there is a more efficient method for moving average with changing
-    # window size
-    for i in prange(num_y):
-        half_win = smooth_half_window[i]
-        baseline_slice = rough_baseline[max(0, i - half_win):min(i + half_win + 1, num_y)]
-        baseline[i] = baseline_slice.sum() / baseline_slice.size
-
-    return baseline
-
-
 def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=None, **window_kwargs):
     """
     The rolling ball baseline algorithm.
@@ -582,27 +523,15 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
 
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    len_y = len(y)
     if smooth_half_window is None:
         smooth_half_window = half_wind
-    smooth_hw, scalar_smooth_hw = _check_scalar(smooth_half_window, len_y, dtype=int)
-    _, scalar_hw = _check_scalar(half_wind, len_y)
-    if not (scalar_hw and scalar_smooth_hw):
-        warnings.warn(
-            ('Using an array-like value for "half_window" or "smooth_half_window" is '
-             'deprecated, and support will be removed in version 0.8.0.'),
-            DeprecationWarning, stacklevel=2
-        )
 
-    rough_baseline = _grey_opening_1d(y, half_wind)
-    if scalar_smooth_hw:
-        pad_kws = pad_kwargs if pad_kwargs is not None else {}
-        baseline = uniform_filter1d(
-            pad_edges(rough_baseline, smooth_hw, **pad_kws),
-            2 * smooth_hw + 1
-        )[smooth_hw:len_y + smooth_hw]
-    else:
-        baseline = _changing_smooth_window(rough_baseline, smooth_hw)
+    rough_baseline = grey_opening(y, 2 * half_wind + 1)
+    pad_kws = pad_kwargs if pad_kwargs is not None else {}
+    baseline = uniform_filter1d(
+        pad_edges(rough_baseline, smooth_half_window, **pad_kws),
+        2 * smooth_half_window + 1
+    )[smooth_half_window:len(y) + smooth_half_window]
 
     return baseline, {'half_window': half_wind}
 
@@ -740,7 +669,8 @@ def tophat(data, half_window=None, **window_kwargs):
 
 
 def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=100,
-             spline_degree=3, diff_order=2, weights=None, pad_kwargs=None, **window_kwargs):
+             spline_degree=3, diff_order=2, weights=None, pad_kwargs=None, x_data=None,
+             **window_kwargs):
     """
     Morphology-based penalized spline baseline.
 
@@ -777,6 +707,9 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the weights will be
         calculated following the procedure in the reference.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
     **window_kwargs
         Values for setting the half window used for the morphology operations.
         Items include:
@@ -836,13 +769,11 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     """
     if half_window is not None and half_window < 1:
         raise ValueError('half-window must be greater than 0')
-    elif lam <= 0:
-        raise ValueError('lam must be greater than 0')
     elif not 0 <= p <= 1:
         raise ValueError('p must be between 0 and 1')
 
-    y, _, spl_basis, weight_array, penalty_matrix = _setup_splines(
-        data, None, weights, spline_degree, num_knots, True, diff_order, lam_smooth
+    y, x, weight_array, basis, knots, penalty = _setup_splines(
+        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam_smooth
     )
     # TODO should this use np.isclose instead?
     # TODO this overestimates the data when there is a lot of noise, leading to an
@@ -850,15 +781,11 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     # 0.5 * (grey_closing(y, 3) + grey_opening(y, 3)), which averages noisy data better;
     # could add it as a boolean parameter
     interp_weights = (y == grey_closing(y, 3)) * 1
-    weight_matrix = diags(interp_weights)
-    initial_coef = spsolve(
-        spl_basis.T * weight_matrix * spl_basis + penalty_matrix,
-        spl_basis.T * (interp_weights * y), permc_spec='NATURAL'
-    )
-    spline_fit = spl_basis * initial_coef
+    initial_coef = _solve_pspline(x, y, interp_weights, basis, penalty, knots, spline_degree)
+    spline_fit = basis @ initial_coef
+
     if weights is None:
-        if half_window is None:
-            half_window = _optimize_window(spline_fit, **window_kwargs)
+        _, half_window = _setup_morphology(spline_fit, half_window, **window_kwargs)
         full_window = 2 * half_window + 1
 
         pad_kws = pad_kwargs if pad_kwargs is not None else {}
@@ -875,12 +802,10 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
         weight_array[mask] = 1 - p
         weight_array[~mask] = p
 
-    weight_matrix.setdiag(weight_array)
-    optimal_coef = spsolve(
-        spl_basis.T * weight_matrix * spl_basis + (lam / lam_smooth) * penalty_matrix,
-        spl_basis.T * (weight_array * spline_fit), permc_spec='NATURAL'
+    coef = _solve_pspline(
+        x, y, weight_array, basis, (_check_lam(lam) / lam_smooth) * penalty, knots, spline_degree
     )
-    baseline = spl_basis * optimal_coef
+    baseline = basis @ coef
 
     return baseline, {'half_window': half_window, 'weights': weight_array}
 
@@ -972,10 +897,12 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
 
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    beta = _check_lam(beta)
+    gamma = _check_lam(gamma, allow_zero=True)
     using_pentapy = _HAS_PENTAPY and diff_order == 2
-    _, penalty_diagonals, _ = _setup_whittaker(
-        data, 1, diff_order, None, False, not using_pentapy, using_pentapy
-    )
+    penalty_diagonals = diff_penalty_diagonals(len(y), diff_order, not using_pentapy)
+    if using_pentapy:
+        penalty_diagonals = penalty_diagonals[::-1]
 
     opening = grey_opening(y, 2 * half_wind + 1)
     if robust_opening:
@@ -983,8 +910,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
 
     baseline_old = opening
     signal_old = y
-    main_diag_idx = diff_order if using_pentapy else -1
-    pentapy_solver = _pentapy_solver()
+    main_diag_idx = diff_order if using_pentapy else 0
     partial_rhs_2 = (2 * alpha) * opening
     tol_history = np.empty((max_iter + 1, 2))
     for i in range(max_iter + 1):
@@ -993,17 +919,16 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
         lhs_2 = (2 * beta) * penalty_diagonals
         lhs_2[main_diag_idx] += 1. + 2. * alpha
         if using_pentapy:
-            signal = _pentapy_solve(lhs_1, y - baseline_old, True, True, pentapy_solver)
-            baseline = _pentapy_solve(
-                lhs_2, y - signal + partial_rhs_2, True, True, pentapy_solver
-            )
+            signal = _pentapy_solver(lhs_1, y - baseline_old)
+            baseline = _pentapy_solver(lhs_2, y - signal + partial_rhs_2)
         else:
             signal = solveh_banded(
-                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True, check_finite=False
+                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True, lower=True,
+                check_finite=False
             )
             baseline = solveh_banded(
                 lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True,
-                check_finite=False
+                lower=True, check_finite=False
             )
 
         calc_tol_1 = relative_difference(signal_old, signal)

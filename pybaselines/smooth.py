@@ -14,8 +14,8 @@ from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _get_vander, _setup_smooth, _yx_arrays
 from .utils import (
-    _check_scalar, _get_edges, ParameterWarning, gaussian, gaussian_kernel, optimize_window,
-    padded_convolve, pad_edges, relative_difference
+    ParameterWarning, _check_scalar, _get_edges, _inverted_sort, gaussian, gaussian_kernel,
+    optimize_window, pad_edges, padded_convolve, relative_difference
 )
 
 
@@ -178,7 +178,7 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
         range_args = (1, max_of_half_windows + 1, 1)
 
     y = _setup_smooth(data, max_of_half_windows, **pad_kwargs)
-    num_y = y.shape[0]  # new num_y since y is now padded
+    num_y += 2 * max_of_half_windows  # new num_y since y is now padded
     smooth = smooth_half_window is not None and smooth_half_window > 0
     baseline = y.copy()
     for i in range(*range_args):
@@ -488,8 +488,11 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
     y = _setup_smooth(data, window_size, **pad_kwargs)
     y0 = y
     data_slice = slice(window_size, -window_size)
-    if original_criteria and not (roi is None or isinstance(roi, slice)):
-        roi = np.asarray(roi)
+    if original_criteria:
+        if roi is None:
+            roi = slice(None)
+        elif not isinstance(roi, slice):
+            roi = np.asarray(roi)
 
     if tol is None:
         if original_criteria:
@@ -660,6 +663,6 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
 
     baseline = smoother_array[data_slice][lower_bound:upper_max]
     if sort_x:
-        baseline = baseline[np.argsort(sort_order, kind='mergesort')]
+        baseline = baseline[_inverted_sort(sort_order)]
 
     return baseline, {'tol_history': tol_history[:i + 1]}

@@ -6,10 +6,6 @@ Created on March 20, 2021
 
 """
 
-# TODO for now, just test that pybaselines.window still works; in a later version
-# also test that each function emits a DeprecationWarning to use pybaselines.smooth
-# instead
-
 from numpy.testing import assert_allclose
 import pytest
 
@@ -19,15 +15,35 @@ from pybaselines.utils import ParameterWarning
 from .conftest import AlgorithmTester, get_data
 
 
+@pytest.mark.parametrize(
+    'func_and_args', (
+        [window.noise_median, (15,)],
+        [window.snip, (15,)],
+        [window.swima, ()],
+        [window.ipsa, ()],
+        [window.ria, ()],
+
+    )
+)
+def test_deprecations(func_and_args):
+    """Ensures deprecations are emitted for all functions in pybaselines.window."""
+    func, args = func_and_args
+    x, y = get_data()
+    with pytest.warns(DeprecationWarning, match='pybaselines.window is deprecated'):
+        func(y, *args)
+
+
+@pytest.mark.filterwarnings('ignore:pybaselines.window is deprecated')
 class TestNoiseMedian(AlgorithmTester):
     """Class for testing noise median baseline."""
 
     func = window.noise_median
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('smooth_hw', (None, 0, 2))
+    def test_unchanged_data(self, data_fixture, smooth_hw):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y, 15)
+        self._test_unchanged_data(data_fixture, y, None, y, 15, smooth_half_window=smooth_hw)
 
     def test_output(self):
         """Ensures that the output has the desired format."""
@@ -39,15 +55,20 @@ class TestNoiseMedian(AlgorithmTester):
         self._test_algorithm_list(array_args=(self.y, 15), list_args=(y_list, 15))
 
 
+@pytest.mark.filterwarnings('ignore:pybaselines.window is deprecated')
 class TestSNIP(AlgorithmTester):
     """Class for testing snip baseline."""
 
     func = window.snip
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('smooth_hw', (-1, 0, 2))
+    @pytest.mark.parametrize('decreasing', (True, False))
+    def test_unchanged_data(self, data_fixture, smooth_hw, decreasing):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y, 15)
+        self._test_unchanged_data(
+            data_fixture, y, None, y, 15, smooth_half_window=smooth_hw, decreasing=decreasing
+        )
 
     def test_output(self):
         """Ensures that the output has the desired format."""
@@ -86,6 +107,7 @@ class TestSNIP(AlgorithmTester):
             self._call_func(self.y, max_half_window)
 
 
+@pytest.mark.filterwarnings('ignore:pybaselines.window is deprecated')
 class TestSwima(AlgorithmTester):
     """Class for testing swima baseline."""
 
@@ -106,15 +128,17 @@ class TestSwima(AlgorithmTester):
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
+@pytest.mark.filterwarnings('ignore:pybaselines.window is deprecated')
 class TestIpsa(AlgorithmTester):
     """Class for testing ipsa baseline."""
 
     func = window.ipsa
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('original_criteria', (True, False))
+    def test_unchanged_data(self, data_fixture, original_criteria):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
+        self._test_unchanged_data(data_fixture, y, None, y, original_criteria=original_criteria)
 
     def test_output(self):
         """Ensures that the output has the desired format."""
@@ -126,6 +150,7 @@ class TestIpsa(AlgorithmTester):
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
 
+@pytest.mark.filterwarnings('ignore:pybaselines.window is deprecated')
 class TestRIA(AlgorithmTester):
     """Class for testing ria baseline."""
 
@@ -165,3 +190,30 @@ class TestRIA(AlgorithmTester):
         """Ensures function fails when the input side is not 'left', 'right', or 'both'."""
         with pytest.raises(ValueError):
             self._call_func(self.y, self.x, side='east')
+
+    def test_exit_conditions(self):
+        """
+        Tests the three exit conditions of the algorithm.
+
+        Can either exit due to reaching max iterations, reaching the desired tolerance,
+        or if the removed area exceeds the initial area of the extended portions.
+
+        """
+        high_max_iter = 500
+        low_max_iter = 5
+        high_tol = 1e-1
+        low_tol = -1
+        # set tol rather high so that it is guaranteed to be reached
+        regular_output = self._call_func(self.y, self.x, tol=high_tol, max_iter=high_max_iter)[1]
+        assert len(regular_output['tol_history']) < high_max_iter
+        assert regular_output['tol_history'][-1] < high_tol
+
+        # should reach maximum iterations before reaching tol
+        iter_output = self._call_func(self.y, self.x, tol=low_tol, max_iter=low_max_iter)[1]
+        assert len(iter_output['tol_history']) == low_max_iter
+        assert iter_output['tol_history'][-1] > low_tol
+
+        # removed area should be exceeded before maximum iterations or tolerance are reached
+        area_output = self._call_func(self.y, self.x, tol=low_tol, max_iter=high_max_iter)[1]
+        assert len(area_output['tol_history']) < high_max_iter
+        assert area_output['tol_history'][-1] > low_tol

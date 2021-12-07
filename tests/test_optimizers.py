@@ -10,38 +10,9 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import optimizers, polynomial, whittaker, utils
+from pybaselines import optimizers, polynomial, utils
 
 from .conftest import AlgorithmTester, get_data
-
-
-@pytest.mark.parametrize(
-    'method_and_outputs', (
-        ('collab_pls', optimizers.collab_pls, 'optimizers'),
-        ('COLLAB_pls', optimizers.collab_pls, 'optimizers'),
-        ('modpoly', polynomial.modpoly, 'polynomial'),
-        ('asls', whittaker.asls, 'whittaker')
-    )
-)
-def test_get_function(method_and_outputs):
-    """Ensures _get_function gets the correct method, regardless of case."""
-    method, expected_func, expected_module = method_and_outputs
-    tested_modules = [optimizers, polynomial, whittaker]
-    selected_func, module = optimizers._get_function(method, tested_modules)
-    assert selected_func is expected_func
-    assert module == expected_module
-
-
-def test_get_function_fails_wrong_method():
-    """Ensures _get_function fails when an no function with the input name is available."""
-    with pytest.raises(AttributeError):
-        optimizers._get_function('unknown function', [optimizers])
-
-
-def test_get_function_fails_no_module():
-    """Ensures _get_function fails when not given any modules to search."""
-    with pytest.raises(AttributeError):
-        optimizers._get_function('collab_pls', [])
 
 
 class TestCollabPLS(AlgorithmTester):
@@ -97,6 +68,11 @@ class TestCollabPLS(AlgorithmTester):
         """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):
             self._call_func(self._stack(self.y), method='unknown function')
+
+    def test_single_dataset_fails(self):
+        """Ensures an error is raised if the input has the shape (N,)."""
+        with pytest.raises(ValueError, match='the input data must'):
+            self._call_func(self.y)
 
 
 class TestOptimizeExtendedRange(AlgorithmTester):
@@ -175,10 +151,12 @@ class TestOptimizeExtendedRange(AlgorithmTester):
         else:
             kwargs = {}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
-        self._call_func(
+        output = self._call_func(
             self.y, self.x, method=method, height_scale=0.1,
             pad_kwargs={'extrapolate_window': 100}, **kwargs
         )
+        if 'weights' in output[1]:
+            assert self.y.shape == output[1]['weights'].shape, 'weights must have same shape as y'
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
@@ -293,7 +271,7 @@ class TestAdaptiveMinMax(AlgorithmTester):
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
-        with pytest.raises(KeyError):
+        with pytest.raises(AttributeError):
             self._test_output(self.y, self.y, method='unknown')
 
     @pytest.mark.parametrize('poly_order', (None, 0, [0], (0, 1)))
@@ -312,3 +290,31 @@ class TestAdaptiveMinMax(AlgorithmTester):
         """Ensures an error is raised if poly_order has more than two items."""
         with pytest.raises(ValueError):
             self._call_func(self.y, self.x, poly_order)
+
+    @pytest.mark.parametrize('constrained_fraction', (0.01, [0.01], (0, 0.01), [0.01, 1]))
+    def test_constrained_fraction_inputs(self, constrained_fraction):
+        """Tests valid inputs for constrained_fraction."""
+        self._test_output(self.y, self.y, self.x, constrained_fraction=constrained_fraction)
+
+    @pytest.mark.parametrize('constrained_fraction', ([0.01, 0.02, 0.02], (0.01, 0.01, 0.01, 0.01)))
+    def test_too_many_constrained_fraction(self, constrained_fraction):
+        """Ensures an error is raised if constrained_fraction has more than two items."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, constrained_fraction=constrained_fraction)
+
+    @pytest.mark.parametrize('constrained_fraction', (-0.5, [-0.01, 0.02], 1.1, [0.05, 1.1]))
+    def test_invalid_constrained_fraction(self, constrained_fraction):
+        """Ensures an error is raised if constrained_fraction is outside of [0, 1]."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, constrained_fraction=constrained_fraction)
+
+    @pytest.mark.parametrize('constrained_weight', (1e5, [1e5], (1e3, 1e5)))
+    def test_constrained_weight_inputs(self, constrained_weight):
+        """Tests valid inputs for constrained_weight."""
+        self._test_output(self.y, self.y, self.x, constrained_weight=constrained_weight)
+
+    @pytest.mark.parametrize('constrained_weight', ([1e4, 1e2, 1e5], (1e3, 1e3, 1e3, 1e3)))
+    def test_too_many_constrained_weight(self, constrained_weight):
+        """Ensures an error is raised if constrained_weight has more than two items."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, self.x, constrained_weight=constrained_weight)

@@ -68,7 +68,7 @@ author = "Donald Erb"
 # the built documents.
 #
 # The short X.Y version.
-version = '0.7.0'
+version = '0.8.0'
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -142,11 +142,13 @@ suppress_warnings = ['autoapi.python_import_resolution']
 
 from sphinx_gallery.sorting import ExplicitOrder, FileNameSortKey
 
+
 # specifies the order of the example galleries
 gallery_section_order = [
     '../examples/general',
     '../examples/whittaker',
     '../examples/morphological',
+    '../examples/spline',
     '../examples/classification',
 ]
 
@@ -168,7 +170,9 @@ sphinx_gallery_conf = {
     # disables trying to link variables to intersphinx
     'inspect_global_variables': False,
     # prevents getting repr of last item in cell; good for ignoring matplotlib objects
-    'capture_repr': ()
+    'capture_repr': (),
+    # ignore the example_helpers.py files that contain setup code for the examples
+    'ignore_pattern': r'example_helpers\.py',
 }
 
 

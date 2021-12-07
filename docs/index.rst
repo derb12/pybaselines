@@ -1,6 +1,11 @@
 pybaselines Documentation
 =========================
 
+.. image:: images/logo.png
+   :alt: Logo
+   :align: center
+
+
 pybaselines is a library of algorithms for the baseline correction of experimental data.
 
 * For Python 3.6+

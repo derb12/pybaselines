@@ -11,7 +11,7 @@ import warnings
 
 import numpy as np
 from scipy.ndimage import (
-    binary_dilation, binary_erosion, grey_dilation, grey_erosion, uniform_filter1d, binary_opening
+    binary_dilation, binary_erosion, binary_opening, grey_dilation, grey_erosion, uniform_filter1d
 )
 from scipy.optimize import curve_fit
 from scipy.signal import cwt, ricker
@@ -425,7 +425,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
 
 
 @jit(nopython=True, cache=True)
-def _rolling_std(data, half_window, ddof=0):
+def _rolling_std(data, half_window, ddof):
     """
     Computes the rolling standard deviation of an array.
 
@@ -437,8 +437,8 @@ def _rolling_std(data, half_window, ddof=0):
     half_window : int
         The half-window the rolling calculation. The full number of points for each
         window is ``half_window * 2 + 1``.
-    ddof : int, optional
-        The delta degrees of freedom for the calculation. Default is 0.
+    ddof : int
+        The delta degrees of freedom for the calculation. Usually 0 (numpy default) or 1.
 
     Returns
     -------

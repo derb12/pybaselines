@@ -17,13 +17,6 @@ from pybaselines import _algorithm_setup, morphological
 from .conftest import AlgorithmTester, get_data, has_pentapy
 
 
-def test_deprecated_optimize_window():
-    """Ensure calling optimize_window raises a DeprecationWarning."""
-    x, y = get_data()
-    with pytest.warns(DeprecationWarning):
-        morphological.optimize_window(y)
-
-
 class TestMPLS(AlgorithmTester):
     """Class for testing mpls baseline."""
 
@@ -171,14 +164,8 @@ class TestRollingBall(AlgorithmTester):
 
     func = morphological.rolling_ball
 
-    _y = AlgorithmTester.y
-
-    # TODO remove warning filter in version 0.8.0
-    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
-    @pytest.mark.parametrize('half_window', (None, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0]))
-    @pytest.mark.parametrize(
-        'smooth_half_window', (None, 0, 1, np.full(_y.shape[0], 1), [1] * _y.shape[0])
-    )
+    @pytest.mark.parametrize('half_window', (None, 10))
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 1))
     def test_unchanged_data(self, data_fixture, half_window, smooth_half_window):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
@@ -193,72 +180,7 @@ class TestRollingBall(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
-    def test_incorrect_half_window_fails(self):
-        """Ensures an exception is raised if half_window is an array with len != len(data)."""
-        with pytest.raises(ValueError):
-            self._call_func(self.y, np.array([1, 1]))
-
-    def test_incorrect_smooth_half_window_fails(self):
-        """Ensures exception is raised if smooth_half_window is an array with len != len(data)."""
-        with pytest.raises(ValueError):
-            self._call_func(self.y, 1, np.array([1, 1]))
-
-    def test_array_half_window_output(self):
-        """
-        Checks the array-based rolling ball versus the constant value implementation.
-
-        Ensures that both give the same answer if the array of half-window values
-        is the same value as the single half-window.
-        """
-        baseline_1 = self._call_func(self.y, 1, 1)[0]
-        with pytest.warns(DeprecationWarning):
-            baseline_2 = self._call_func(self.y, np.full(self.y.shape[0], 1), 1)[0]
-
-        assert_allclose(baseline_1, baseline_2)
-
-    def test_array_smooth_half_window_output(self):
-        """
-        Checks the smoothing array-based rolling ball versus the constant value implementation.
-
-        Ensures that both give the same answer if the array of smooth-half-window
-        values is the same value as the single smooth-half-window.
-        """
-        baseline_1 = self._call_func(self.y, 1, 1)[0]
-        with pytest.warns(DeprecationWarning):
-            baseline_2 = self._call_func(self.y, 1, np.full(self.y.shape[0], 1))[0]
-
-        # avoid the edges since the two smoothing techniques will give slighly
-        # different  results on the edges
-        data_slice = slice(1, -1)
-        assert_allclose(baseline_1[data_slice], baseline_2[data_slice])
-
-    def test_different_array_half_window_output(self):
-        """Ensures that the output is different when using changing window sizes."""
-        baseline_1 = self._call_func(self.y, 1, 1)[0]
-
-        half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        with pytest.warns(DeprecationWarning):
-            baseline_2 = self._call_func(self.y, half_windows, 1)[0]
-
-        assert not np.allclose(baseline_1, baseline_2)
-
-    def test_different_array_smooth_half_window_output(self):
-        """Ensures that the output is different when using changing smoothing window sizes."""
-        baseline_1 = self._call_func(self.y, 1, 1)[0]
-
-        smooth_half_windows = 1 + np.linspace(0, 5, self.y.shape[0], dtype=int)
-        with pytest.warns(DeprecationWarning):
-            baseline_2 = self._call_func(self.y, 1, smooth_half_windows)[0]
-
-        # avoid the edges since the two smoothing techniques will give slighly
-        # different  results on the edges and want to ensure the rest of the
-        # data is also non-equal
-        data_slice = slice(max(smooth_half_windows), -max(smooth_half_windows))
-        assert not np.allclose(baseline_1[data_slice], baseline_2[data_slice])
-
-    # TODO remove warning filter in version 0.8.0
-    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
-    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10, np.zeros(_y.shape[0])))
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10))
     def test_smooth_half_windows(self, smooth_half_window):
         """Ensures smooth-half-window is correctly processed."""
         output = self._call_func(self.y, smooth_half_window=smooth_half_window)
@@ -327,6 +249,12 @@ class TestMpsline(AlgorithmTester):
         """Ensures that the output has the desired format."""
         self._test_output(self.y, self.y, checked_keys=('weights', 'half_window'))
 
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        self._test_algorithm_no_x(
+            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
+        )
+
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
         y_list = self.y.tolist()
@@ -385,3 +313,20 @@ class TestJBCD(AlgorithmTester):
         pentapy_output = self._call_func(self.y, diff_order=2)[0]
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    def test_zero_gamma_passes(self):
+        """Ensures gamma can be 0, which just does baseline correction without denoising."""
+        self._call_func(self.y, gamma=0)
+
+    def test_zero_beta_fails(self):
+        """Ensures a beta equal to 0 raises an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, beta=0)
+
+    def test_array_beta_gamma_fails(self):
+        """Ensures array-like beta or gamma values raise an exception."""
+        array_vals = np.ones_like(self.y)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, beta=array_vals)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, gamma=array_vals)

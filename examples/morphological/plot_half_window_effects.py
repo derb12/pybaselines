@@ -14,8 +14,9 @@ robust baseline algorithm.
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pybaselines.utils import gaussian
+
 from pybaselines.morphological import mor
+from pybaselines.utils import gaussian
 
 
 x = np.linspace(0, 1000, 2000)

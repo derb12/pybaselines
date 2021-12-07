@@ -16,6 +16,7 @@ belonging to the baseline and False otherwise.
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from pybaselines.classification import std_distribution
 from pybaselines.utils import gaussian
 

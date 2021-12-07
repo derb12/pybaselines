@@ -21,8 +21,8 @@ reference listing for any algorithm.
    polynomial
    whittaker
    morphological
-   smooth
    spline
+   smooth
    classification
    optimizers
    misc

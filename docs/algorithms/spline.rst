@@ -8,7 +8,56 @@ splines to the baseline.
 Introduction
 ------------
 
-To be added...
+A spline is a piecewise joining of individual curves. There are different types of
+splines, but only basis splines (B-splines) will be discussed since they are
+predominantly used in pybaselines. B-splines can be expressed as:
+
+.. math::
+
+    z(x) = \sum\limits_{i}^N \sum\limits_{j}^M {B_j(x_i) c_j}
+
+where :math:`N` is the number of points in :math:`x`, :math:`M` is the number of spline
+basis functions, :math:`B_j(x_i)` is the j-th basis function evaluated at :math:`x_i`,
+and :math:`c_j` is the coefficient for the j-th basis (which is analogous to
+the height of the j-th basis). In pybaselines, the number of spline basis functions,
+:math:`M`, is calculated as the number of knots, `num_knots`, plus the spline degree
+minus 1.
+
+For regular B-spline fitting, the spline coefficients that best fit the data
+are gotten from minimizing the least-squares:
+
+.. math:: \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+
+where :math:`y_i` and :math:`x_i` are the measured data, and :math:`w_i` is
+the weighting. In order to control the smoothness of the fitting spline, a penalty
+on the finite-difference between spline coefficients is added, resulting in penalized
+B-splines called P-splines (several `good <https://doi.org/10.1214/ss/1038425655>`_
+`papers <https://doi.org/10.1002/wics.125>`_ exist for an introduction to P-splines).
+The minimized function for P-splines is thus:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+where :math:`\lambda` is the penalty scale factor, and
+:math:`\Delta^d` is the finite-difference operator of order d. Note that P-splines
+use uniformly spaced knots so that the finite-difference is easy to calculate.
+
+The resulting linear equation for solving the above minimization is:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+where :math:`W` is the diagaonal matrix of the weights, :math:`B` is the matrix
+containing all of the spline basis functions, and :math:`D_d` is the matrix
+version of :math:`\Delta^d` (same as :ref:`explained <difference-matrix-explanation>`
+for Whittaker-smoothing-based algorithms). P-splines have similarities with Whittaker
+smoothing; in fact, if the number of basis functions, :math:`M`, is set up to be equal
+to the number of data points, :math:`N`, and the spline degree is set to 0, then
+:math:`B` becomes the identity matrix and the above equation becomes identical
+to the equation used for Whittaker smoothing.
 
 
 Algorithms
@@ -168,4 +217,465 @@ between all but the first and last non-corner points.
             max_iter = 100
 
         baseline = spline.corner_cutting(y, max_iter=max_iter)
+        ax.plot(baseline[0], 'g--')
+
+
+pspline_asls (Penalized Spline Asymmetric Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_asls` is a penalized spline version of :func:`.asls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \left\{\begin{array}{cr}
+        p & y_i > z_i \\
+        1 - p & y_i \le z_i
+    \end{array}\right.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            lam = 1e4
+            p = 0.01
+        elif i == 4:
+            lam = 1e6
+            p = 0.5
+        else:
+            lam = 1e3
+            p = 0.01
+        baseline = spline.pspline_asls(y, lam=lam, p=p)
+        ax.plot(baseline[0], 'g--')
+
+
+
+pspline_iasls (Penalized Spline Asymmetric Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_iasls` is a penalized spline version of :func:`.iasls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N (w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j}))^2
+    + \lambda \sum\limits_{i}^{M - 2} (\Delta^2 c_i)^2
+    + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - \sum\limits_{j}^M {B_j(x_i) c_j}))^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1 B + \lambda D_2^{\top} D_2) c
+    = (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1) y
+
+Weighting:
+
+.. math::
+
+    w_i = \left\{\begin{array}{cr}
+        p & y_i > z_i \\
+        1 - p & y_i \le z_i
+    \end{array}\right.
+
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 0:
+            lam = 1e3
+            p = 0.1
+        elif i == 1:
+            lam = 1e2
+            p = 0.01
+        elif i == 4:
+            lam = 1e5
+            p = 0.5
+        else:
+            lam = 1e1
+            p = 0.01
+        baseline = spline.pspline_iasls(y, lam=lam, p=p)
+        ax.plot(baseline[0], 'g--')
+
+
+pspline_airpls (Penalized Spline Asymmetric Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_airpls` is a penalized spline version of :func:`.airpls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \left\{\begin{array}{cr}
+        0 & y_i \ge z_i \\
+        exp{\left(\frac{t (y_i - z_i)}{|\mathbf{r}^-|}\right)} & y_i < z_i
+    \end{array}\right.
+
+where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the l1-norm of the negative
+values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z_i < 0} |y_i - z_i|`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            lam = 1e4
+        elif i == 4:
+            lam = 1e6
+        else:
+            lam = 1e3
+        baseline = spline.pspline_airpls(y, lam=lam)
+        ax.plot(baseline[0], 'g--')
+
+
+pspline_arpls (Penalized Spline Asymmetrically Reweighted Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_arpls` is a penalized spline version of :func:`.arpls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \frac
+        {1}
+        {1 + exp{\left(\frac
+            {2(r_i - (-\mu^- + 2 \sigma^-))}
+            {\sigma^-}
+        \right)}}
+
+where :math:`r_i = y_i - z_i` and :math:`\mu^-` and
+:math:`\sigma^-` are the mean and standard deviation, respectively, of the negative
+values in the residual vector :math:`\mathbf r`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for ax, y in zip(*create_data()):
+        baseline = spline.pspline_arpls(y)
+        ax.plot(baseline[0], 'g--')
+
+
+pspline_drpls (Penalized Spline Asymmetric Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_drpls` is a penalized spline version of :func:`.drpls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - 2}(1 - \eta w_{i,intp}) (\Delta^2 c_i)^2
+    + \sum\limits_{i}^{M - 1} (\Delta^1 (c_i))^2
+
+where :math:`\eta` is a value between 0 and 1 that controls the
+effective value of :math:`\lambda`. :math:`w_{intp}` are the weights, :math:`w`,
+after interpolating using :math:`x` and the basis midpoints in order to map the
+weights from length :math:`N` to length :math:`M`.
+
+Linear system:
+
+.. math::
+
+    (B^{\top}W B + D_1^{\top} D_1 + \lambda (I - \eta W_{intp}) D_2^{\top} D_2) c = B^{\top} W y
+
+where :math:`I` is the identity matrix.
+
+Weighting:
+
+.. math::
+
+    w_i = \frac{1}{2}\left(
+        1 -
+        \frac
+            {exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
+            {1 + abs[exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
+    \right)
+
+where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+:math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
+respectively, of the negative values in the residual vector :math:`\mathbf r`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 3:
+            lam = 1e2
+        else:
+            lam = 1e3
+        baseline = spline.pspline_drpls(y, lam=lam)
+        ax.plot(baseline[0], 'g--')
+
+
+pspline_iarpls (Penalized Spline Asymmetric Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_iarpls` is a penalized spline version of :func:`.iarpls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \frac{1}{2}\left(
+        1 -
+        \frac
+            {exp(t)(r_i - 2 \sigma^-)/\sigma^-}
+            {\sqrt{1 + [exp(t)(r_i - 2 \sigma^-)/\sigma^-]^2}}
+    \right)
+
+where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+:math:`\sigma^-` is the standard deviation of the negative values in
+the residual vector :math:`\mathbf r`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 3:
+            lam = 1e2
+        else:
+            lam = 1e3
+        baseline = spline.pspline_iarpls(y, lam=lam)
+        ax.plot(baseline[0], 'g--')
+
+
+pspline_aspls (Penalized Spline Asymmetric Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_aspls` is a penalized spline version of :func:`.aspls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} \alpha_{i,intp} (\Delta^d c_i)^2
+
+where
+
+.. math::
+
+    \alpha_i = \frac
+        {abs(r_i)}
+        {max(abs(\mathbf r))}
+
+and :math:`\alpha_{intp}` is the :math:`\alpha` array after interpolating using
+:math:`x` and the basis midpoints in order to map :math:`\alpha` from length
+:math:`N` to length :math:`M`.
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda \alpha_{intp} D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \frac
+        {1}
+        {1 + exp{\left(\frac
+            {0.5 (r_i - \sigma^-)}
+            {\sigma^-}
+        \right)}}
+
+where :math:`r_i = y_i - z_i`  and :math:`\sigma^-` is the standard deviation
+of the negative values in the residual vector :math:`\mathbf r`. (Note that the
+:math:`0.5 (r_i - \sigma^-) / \sigma^-` term is different than the published
+version of the asPLS, which used :math:`2 (r_i - \sigma^-) / \sigma^-`. pybaselines
+uses the factor of 0.5 since it matches the results in Table 2 and Figure 5
+of the asPLS paper closer than the factor of 2 and fits noisy data much better).
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 1:
+            lam = 1e4
+        elif i == 3:
+            lam = 1e2
+        else:
+            lam = 1e3
+        baseline = spline.pspline_aspls(y, lam=lam)
+        ax.plot(baseline[0], 'g--')
+
+
+pspline_psalsa (Penalized Spline Asymmetric Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_psalsa` is a penalized spline version of :func:`.psalsa`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \left\{\begin{array}{cr}
+        p \cdot exp{\left(\frac{-(y_i - z_i)}{k}\right)} & y_i > z_i \\
+        1 - p & y_i \le z_i
+    \end{array}\right.
+
+where :math:`k` is a factor that controls the exponential decay of the weights for baseline
+values greater than the data and should be approximately the height at which a value could
+be considered a peak.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 0:
+            k = 2
+        else:
+            k = 0.5
+        baseline = spline.pspline_psalsa(y, lam=1e3, k=k)
+        ax.plot(baseline[0], 'g--')
+
+
+
+pspline_derpsalsa (Penalized Spline Asymmetric Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`.pspline_derpsalsa` is a penalized spline version of :func:`.derpsalsa`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = w_{0i} * w_{1i} * w_{2i}
+
+where:
+
+.. math::
+
+    w_{0i} = \left\{\begin{array}{cr}
+        p \cdot exp{\left(\frac{-[(y_i - z_i)/k]^2}{2}\right)} & y_i > z_i \\
+        1 - p & y_i \le z_i
+    \end{array}\right.
+
+.. math::
+
+    w_{1i} = exp{\left(\frac{-[y_{sm_i}' / rms(y_{sm}')]^2}{2}\right)}
+
+.. math::
+
+    w_{2i} = exp{\left(\frac{-[y_{sm_i}'' / rms(y_{sm}'')]^2}{2}\right)}
+
+:math:`k` is a factor that controls the exponential decay of the weights for baseline
+values greater than the data and should be approximately the height at which a value could
+be considered a peak, :math:`y_{sm}'` and :math:`y_{sm}''` are the first and second derivatives,
+respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the root-mean-square operator.
+:math:`w_1` and :math:`w_2` are precomputed, while :math:`w_0` is updated each iteration.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    for i, (ax, y) in enumerate(zip(*create_data())):
+        if i == 0:
+            k = 2
+        else:
+            k = 0.5
+        baseline = spline.pspline_derpsalsa(y, lam=1e2, k=k)
         ax.plot(baseline[0], 'g--')

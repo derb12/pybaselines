@@ -11,7 +11,8 @@ over the padding.
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pybaselines.utils import gaussian, pad_edges, _check_scalar
+
+from pybaselines.utils import _check_scalar, gaussian, pad_edges
 
 
 num_points = 1000

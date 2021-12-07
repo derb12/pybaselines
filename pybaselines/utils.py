@@ -13,7 +13,7 @@ from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
-from ._compat import jit, prange
+from ._compat import _pentapy_solve, jit
 
 
 # Note: the triple quotes are for including the attributes within the documentation
@@ -25,17 +25,28 @@ or 1. See :func:`pentapy.core.solve` for more details.
 """
 
 
-def _pentapy_solver():
+def _pentapy_solver(ab, y):
     """
-    Convenience function for getting the current pentapy solver.
+    Convenience function for calling pentapy's solver with defaults already set.
+
+    Solves the linear system :math:`A @ x = y` for `x`, given the matrix `A` in
+    banded format, `ab`. The default settings of :func`:pentapy.solve` are
+    already set for the fastest configuration.
+
+    Parameters
+    ----------
+    ab : array-like
+        The matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
+    y : array-like
+        The right hand side of the equation.
 
     Returns
     -------
-    PENTAPY_SOLVER : str or int
-        The currently specified solver for pentapy.
+    numpy.ndarray
+        The solution to the linear system.
 
     """
-    return PENTAPY_SOLVER
+    return _pentapy_solve(ab, y, is_flat=True, index_row_wise=True, solver=PENTAPY_SOLVER)
 
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
@@ -130,7 +141,8 @@ def gaussian_kernel(window_size, sigma=1.0):
 
     """
     # centers distribution from -half_window to half_window
-    x = np.arange(0, window_size) - (window_size - 1) / 2
+    window_size = max(1, window_size)
+    x = np.arange(window_size) - (window_size - 1) / 2
     gaus = gaussian(x, 1, 0, sigma)
     return gaus / np.sum(gaus)
 
@@ -327,46 +339,8 @@ def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
     return convolution[padding:-padding]
 
 
-def _safe_std(array, **kwargs):
-    """
-    Calculates the standard deviation and protects against nan and 0.
-
-    Used to prevent propogating nan or dividing by 0.
-
-    Parameters
-    ----------
-    array : numpy.ndarray
-        The array of values for calculating the standard deviation.
-    **kwargs
-        Additional keyword arguments to pass to :func:`numpy.std`.
-
-    Returns
-    -------
-    std : float
-        The standard deviation of the array, or `_MIN_FLOAT` if the
-        calculated standard deviation was 0 or if `array` was empty.
-
-    Notes
-    -----
-    Does not protect against the calculated standard deviation of a non-empty
-    array being nan because that would indicate that nan or inf was within the
-    array, which should not be protected.
-
-    """
-    # std would be 0 for an array with size of 1 and inf if size <= ddof; only
-    # internally use ddof=1, so the second condition is already covered
-    if array.size < 2:
-        std = _MIN_FLOAT
-    else:
-        std = array.std(**kwargs)
-        if std == 0:
-            std = _MIN_FLOAT
-
-    return std
-
-
 @jit(nopython=True, cache=True)
-def _interp_inplace(x, y, y_start=None, y_end=None):
+def _interp_inplace(x, y, y_start, y_end):
     """
     Interpolates values inplace between the two ends of an array.
 
@@ -378,11 +352,9 @@ def _interp_inplace(x, y, y_start=None, y_end=None):
         The y-values. The two endpoints, y[0] and y[-1] are assumed to be valid,
         and all values inbetween (ie. y[1:-1]) will be replaced by interpolation.
     y_start : float, optional
-        The initial y-value for interpolation. Default is None, which will use the
-        first item in `y`.
+        The initial y-value for interpolation.
     y_end : float, optional
-        The end y-value for interpolation. Default is None, which will use the
-        last item in `y`.
+        The end y-value for interpolation.
 
     Returns
     -------
@@ -390,10 +362,6 @@ def _interp_inplace(x, y, y_start=None, y_end=None):
         The input `y` array, with the interpolation performed inplace.
 
     """
-    if y_start is None:
-        y_start = y[0]
-    if y_end is None:
-        y_end = y[-1]
     y[1:-1] = y_start + (x[1:-1] - x[0]) * ((y_end - y_start) / (x[-1] - x[0]))
 
     return y
@@ -437,118 +405,6 @@ def _convert_coef(coef, original_domain):
     return output_coefs
 
 
-def _quantile_loss(y, fit, quantile, eps=None):
-    r"""
-    An approximation of quantile loss.
-
-    The loss is defined as :math:`\rho(r) / |r|`, where r is the residual, `y - fit`,
-    and the function :math:`\rho(r)` is `quantile` for `r` > 0 and 1 - `quantile`
-    for `r` < 0. Rather than using `|r|` as the denominator, which is non-differentiable
-    and causes issues when `r` = 0, the denominator is approximated as
-    :math:`\sqrt{r^2 + eps}` where `eps` is a small number.
-
-    Parameters
-    ----------
-    y : numpy.ndarray
-        The values of the raw data.
-    fit : numpy.ndarray
-        The fit values.
-    quantile : float
-        The quantile value.
-    eps : float, optional
-        A small value added to the square of `residual` to prevent dividing by 0.
-        Default is None, which uses `(1e-6 * max(abs(fit)))**2`.
-
-    Returns
-    -------
-    numpy.ndarray
-        The calculated loss, which can be used as weighting when performing iteratively
-        reweighted least squares (IRLS)
-
-    References
-    ----------
-    Schnabel, S., et al. Simultaneous estimation of quantile curves using quantile
-    sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
-
-    """
-    if eps is None:
-        # 1e-6 seems to work better than the 1e-4 in Schnabel, et al
-        eps = (np.abs(fit).max() * 1e-6)**2
-    residual = y - fit
-    numerator = np.where(residual > 0, quantile, 1 - quantile)
-    # use max(eps, _MIN_FLOAT) to ensure that eps + 0 > 0
-    denominator = np.sqrt(residual**2 + max(eps, _MIN_FLOAT))  # approximates abs(residual)
-
-    return numerator / denominator
-
-
-def _quantile_irls(y, basis, weights, quantile=0.05, max_iter=250, tol=1e-6, eps=None):
-    """
-    An iteratively reweighted least squares (irls) version of quantile regression.
-
-    Parameters
-    ----------
-    y : numpy.ndarray, shape (N,)
-        The array of data values.
-    basis : numpy.ndarray, shape (N, M)
-        The basis matrix for the calculation. For example, if fitting a polynomial,
-        `basis` would be the Vandermonde matrix.
-    weights : numpy.ndarray, shape (N,)
-        The array of initial weights.
-    quantile : float, optional
-        The quantile at which to fit the baseline. Default is 0.05.
-    max_iter : int, optional
-        The maximum number of iterations. Default is 250.
-    tol : float, optional
-        The exit criteria. Default is 1e-6.
-    eps : float, optional
-        A small value added to the square of the residual to prevent dividing by 0.
-        Default is None, which uses the square of the maximum-absolute-value of the
-        fit each iteration multiplied by 1e-6.
-
-    Returns
-    -------
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
-    weights : numpy.ndarray, shape (N,)
-        The weight array used for fitting the data.
-    tol_history : numpy.ndarray
-        An array containing the calculated tolerance values for
-        each iteration. The length of the array is the number of iterations
-        completed. If the last value in the array is greater than the input
-        `tol` value, then the function did not converge.
-    coef : numpy.ndarray, shape (M,)
-        The array of coefficients used to create the best fit using `basis.dot(coef)`.
-
-    Notes
-    -----
-    This should not be called directly since it does no input validation.
-
-    References
-    ----------
-    Schnabel, S., et al. Simultaneous estimation of quantile curves using
-    quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
-
-    """
-    # estimate first iteration using least squares
-    coef = np.linalg.lstsq(basis * weights[:, None], y * weights, None)[0]
-    baseline = basis.dot(coef)
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        baseline_old = baseline
-        weights = np.sqrt(_quantile_loss(y, baseline, quantile, eps))
-        coef = np.linalg.lstsq(basis * weights[:, None], y * weights, None)[0]
-        baseline = basis.dot(coef)
-        # relative_difference(baseline_old, baseline, 1) gives nearly same result and
-        # the l2 norm is faster to calculate, so use that instead of l1 norm
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-    return baseline, weights, tol_history[:i + 1], coef
-
-
 def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
     Creates an n-order finite-difference matrix.
@@ -575,13 +431,16 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Notes
     -----
+    The resulting matrices are sparse versions of::
+
+        import numpy as np
+        np.diff(np.eye(data_size), diff_order, axis=0)
+
+    This implementation allows using the differential matrices are they
+    are written in various publications, ie. ``D.T @ D``.
+
     Most baseline algorithms use 2nd order differential matrices when
     doing penalized least squared fitting or Whittaker-smoothing-based fitting.
-
-    The resulting matrices are transposes of the result of
-    np.diff(np.eye(data_size), diff_order). This implementation allows using
-    the differential matrices are they are written in various publications,
-    ie. D.T * D.
 
     """
     if diff_order < 0:
@@ -730,94 +589,35 @@ def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
     return output, is_scalar
 
 
-@jit(nopython=True, cache=True, parallel=True)
-def _grey_erosion_1d_array(data, half_window):
+def _inverted_sort(sort_order):
     """
-    Computes the rolling minimum with an array of half-window values.
+    Finds the indices that invert a sorting.
+
+    Given an array `a`, and the indices that sort the array, `sort_order`, the
+    inverted sort is defined such that it gives the original index order of `a`,
+    ie. ``a == a[sort_order][inverted_order]``.
 
     Parameters
     ----------
-    data : numpy.ndarray, shape (N,)
-        The data to use for the calculation.
-    half_window : numpy.ndarray, shape (N,)
-        The array of half-windows to use for the rolling calculation.
+    sort_order : numpy.ndarray, shape (N,)
+        The original index array for sorting.
 
     Returns
     -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
+    inverted_order : numpy.ndarray, shape (N,)
+        The array that inverts the sort given by `sort_order`.
+
+    Notes
+    -----
+    This function is equivalent to doing::
+
+        inverted_order = sort_order.argsort()
+
+    but is faster for large arrays since no additional sorting is performed.
 
     """
-    num_points = len(data)
-    output = np.empty(num_points)
-    # TODO not sure if there is a better way to perform the rolling min/max with a changing
-    # window size
-    # TODO negative half-window values will give incorrect results; not sure how I want to
-    # handle
-    for i in prange(num_points):
-        half_win = abs(half_window[i])
-        output[i] = data[max(0, i - half_win):min(i + half_win + 1, num_points)].min()
+    num_points = len(sort_order)
+    inverted_order = np.empty(num_points, dtype=np.intp)
+    inverted_order[sort_order] = np.arange(num_points, dtype=np.intp)
 
-    return output
-
-
-@jit(nopython=True, cache=True, parallel=True)
-def _grey_dilation_1d_array(data, half_window):
-    """
-    Computes the rolling maximum with an array of half-window values.
-
-    Parameters
-    ----------
-    data : numpy.ndarray, shape (N,)
-        The data to use for the calculation.
-    half_window : numpy.ndarray, shape (N,)
-        The array of half-windows to use for the rolling calculation.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
-
-    """
-    num_points = len(data)
-    output = np.empty(num_points)
-    # TODO not sure if there is a better way to perform the rolling min/max with a changing
-    # window size
-    # TODO negative half-window values will give incorrect results; not sure how I want to
-    # handle
-    for i in prange(num_points):
-        half_win = half_window[i]
-        output[i] = data[max(0, i - half_win):min(i + half_win + 1, num_points)].max()
-
-    return output
-
-
-# TODO remove in version 0.8.0
-def _grey_opening_1d(data, half_window):
-    """
-    Computes the morphological opening with either a fixed or changing window size.
-
-    The opening operation is a rolling minimum followed by a rolling maximum.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The data to use for the calculation.
-    half_window : int or array-like(int), shape (N,)
-        An integer or an array of integers to use for the rolling calculation.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The output array.
-
-    """
-    half_windows, scalar_half_window = _check_scalar(half_window, len(data), dtype=int)
-    if scalar_half_window:
-        output = grey_opening(data, 2 * half_windows + 1)
-    else:
-        output = _grey_dilation_1d_array(
-            _grey_erosion_1d_array(np.asarray(data), half_windows), half_windows
-        )
-
-    return output
+    return inverted_order

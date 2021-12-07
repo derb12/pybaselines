@@ -536,32 +536,6 @@ class TestLoess(AlgorithmTester):
         else:  # no warning should be emitted
             self._call_func(self.y, self.x, poly_order=poly_order)
 
-    @pytest.mark.parametrize('conserve_memory', (True, False))
-    def test_use_threshold_weights_reset(self, conserve_memory):
-        """Ensures weights are reset to 1 after first iteration if use_threshold is True."""
-        weights = np.arange(self.y.shape[0])
-        one_weights = np.ones(self.y.shape[0])
-        # will exit fitting loop before weights are reset on first loop
-        _, params_first_iter = self._call_func(
-            self.y, self.x, weights=weights, conserve_memory=conserve_memory,
-            use_threshold=True, tol=1e10
-        )
-        assert_array_equal(weights, params_first_iter['weights'])
-
-        # will exit fitting loop after first iteration but after reassigning weights
-        _, params_second_iter = self._call_func(
-            self.y, self.x, weights=weights, conserve_memory=conserve_memory,
-            use_threshold=True, tol=-1, max_iter=1
-        )
-        # will exit fitting loop after second iteration
-        _, params_third_iter = self._call_func(
-            self.y, self.x, weights=weights, conserve_memory=conserve_memory,
-            use_threshold=True, tol=-1, max_iter=2
-        )
-
-        assert_array_equal(one_weights, params_second_iter['weights'])
-        assert_array_equal(one_weights, params_third_iter['weights'])
-
     @pytest.mark.parametrize('poly_order', (1, 2))
     @pytest.mark.parametrize('delta', (0, 0.01))
     def test_output_coefs(self, poly_order, delta):
