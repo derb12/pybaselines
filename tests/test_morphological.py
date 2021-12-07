@@ -8,6 +8,7 @@ Created on March 20, 2021
 
 from unittest import mock
 
+import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
@@ -312,3 +313,20 @@ class TestJBCD(AlgorithmTester):
         pentapy_output = self._call_func(self.y, diff_order=2)[0]
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    def test_zero_gamma_passes(self):
+        """Ensures gamma can be 0, which just does baseline correction without denoising."""
+        self._call_func(self.y, gamma=0)
+
+    def test_zero_beta_fails(self):
+        """Ensures a beta equal to 0 raises an exception."""
+        with pytest.raises(ValueError):
+            self._call_func(self.y, beta=0)
+
+    def test_array_beta_gamma_fails(self):
+        """Ensures array-like beta or gamma values raise an exception."""
+        array_vals = np.ones_like(self.y)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, beta=array_vals)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, gamma=array_vals)

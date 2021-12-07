@@ -897,6 +897,8 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
 
     """
     y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+    beta = _check_lam(beta)
+    gamma = _check_lam(gamma, allow_zero=True)
     using_pentapy = _HAS_PENTAPY and diff_order == 2
     penalty_diagonals = diff_penalty_diagonals(len(y), diff_order, not using_pentapy)
     if using_pentapy:

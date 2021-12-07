@@ -541,3 +541,13 @@ class TestBeads(AlgorithmTester):
         lams = [1, 1, 1]
         lams[zero_lam] = 0
         self._call_func(self.y, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
+
+    def test_array_lam_fails(self):
+        """Ensures array-like lam_[0, 1, 2] values raise an exception."""
+        array_vals = np.ones_like(self.y)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, lam_0=array_vals)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, lam_1=array_vals)
+        with pytest.raises(ValueError):
+            self._call_func(self.y, lam_2=array_vals)
