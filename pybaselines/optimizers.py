@@ -63,7 +63,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, **
     """
     dataset, fit_func, _, method_kws = _setup_optimizer(
         data, method, (whittaker, morphological, classification, spline), method_kwargs,
-        True, **kwargs
+        True, False, **kwargs
     )
     if dataset.ndim < 2:
         raise ValueError((

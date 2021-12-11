@@ -18,458 +18,21 @@ import warnings
 import numpy as np
 from scipy.linalg import solveh_banded
 
+from ._banded_utils import _pentapy_solver, PenalizedSystem, diff_penalty_diagonals
 from ._compat import _HAS_PENTAPY
 from ._spline_utils import _spline_basis, _spline_knots
-from .utils import (
-    ParameterWarning, _check_scalar, _pentapy_solver, difference_matrix, optimize_window, pad_edges
+from .utils import ParameterWarning, _inverted_sort, optimize_window, pad_edges
+from ._validation import (
+    _check_array, _check_half_window, _check_lam, _check_sized_array, _yx_arrays
 )
 
 
-def _yx_arrays(data, x_data=None, x_min=-1., x_max=1., check_finite=False):
     """
-    Converts input data into numpy arrays and provides x data if none is given.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The y-values of the measured data, with N data points.
-    x_data : array-like, shape (N,), optional
-        The x-values of the measured data. Default is None, which will create an
-        array from -1. to 1. with N points.
-    x_min : float, optional
-        The minimum x-value if `x_data` is None. Default is -1.
-    x_max : float, optional
-        The maximum x-value if `x_data` is None. Default is 1.
-
-    Returns
-    -------
-    y : numpy.ndarray, shape (N,)
-        A numpy array of the y-values of the measured data.
-    x : numpy.ndarray, shape (N,)
-        A numpy array of the x-values of the measured data, or a created array.
-
-    Notes
-    -----
-    Does not change the scale/domain of the input `x_data` if it is given, only
-    converts it to an array.
-
     """
-    if check_finite:
-        y = np.asarray_chkfinite(data)
-    else:
-        y = np.asarray(data)
-    if x_data is None:
-        x = np.linspace(x_min, x_max, y.shape[0])
-    else:
-        x = np.asarray(x_data)
 
-    return y, x
-
-
-def _shift_rows(matrix, diagonals=2):
-    """
-    Shifts the rows of a matrix with equal number of upper and lower off-diagonals.
-
-    Parameters
-    ----------
-    matrix : numpy.ndarray
-        The matrix to be shifted. Note that all modifications are done in-place.
-    diagonals : int
-        The number of upper or lower (same for symmetric matrix) diagonals, not
-        including the main diagonal. For example, a matrix with five diagonal rows
-        would use a `diagonals` of 2.
-
-    Returns
-    -------
-    matrix : numpy.ndarray
-        The shifted matrix.
-
-    Notes
-    -----
-    Necessary to match the diagonal matrix format required by SciPy's solve_banded
-    function.
-
-    Performs the following transformation (left is input, right is output):
-
-        [[a b c ... d 0 0]        [[0 0 a ... b c d]
-         [e f g ... h i 0]         [0 e f ... g h i]
-         [j k l ... m n o]   -->   [j k l ... m n o]
-         [0 p q ... r s t]         [p q r ... s t 0]
-         [0 0 u ... v w x]]        [u v w ... x 0 0]]
-
-    The right matrix would be directly obtained when using SciPy's sparse diagonal
-    matrices, but when using multiplication with NumPy arrays, the result is the
-    left matrix, which has to be shifted to match the desired format.
-
-    """
-    for row, shift in enumerate(range(-diagonals, 0)):
-        matrix[row, -shift:] = matrix[row, :shift]
-        matrix[row, :-shift] = 0
-
-    for row, shift in enumerate(range(1, diagonals + 1), diagonals + 1):
-        matrix[row, :-shift] = matrix[row, shift:]
-        matrix[row, -shift:] = 0
-
-    return matrix
-
-
-def _diff_2_diags(data_size, lower_only=True):
-    """
-    Creates the the diagonals of the square of a second-order finite-difference matrix.
-
-    Parameters
-    ----------
-    data_size : int
-        The number of data points.
-    lower_only : bool, optional
-        If True (default), will return only the lower diagonals of the
-        matrix. If False, will include all diagonals of the matrix.
-
-    Returns
-    -------
-    output : numpy.ndarray
-        The array containing the diagonal data. Has a shape of (3, `data_size`)
-        if `lower_only` is True, otherwise (5, `data_size`).
-
-    Notes
-    -----
-    Equivalent to calling::
-
-        from pybaselines.utils import difference_matrix
-        diff_matrix = difference_matrix(data_size, 2)
-        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
-        if lower_only:
-            output = output[2:]
-
-    but is several orders of magnitude times faster.
-
-    The data is output in the banded format required by SciPy's solve_banded
-    and solveh_banded.
-
-    """
-    output = np.ones((3 if lower_only else 5, data_size))
-
-    output[-1, -1] = output[-1, -2] = output[-2, -1] = 0
-    output[-2, 0] = output[-2, -2] = -2
-    output[-2, 1:-2] = -4
-    output[-3, 1] = output[-3, -2] = 5
-    output[-3, 2:-2] = 6
-
-    if not lower_only:
-        output[0, 0] = output[1, 0] = output[0, 1] = 0
-        output[1, 1] = output[1, -1] = -2
-        output[1, 2:-1] = -4
-
-    return output
-
-
-def _diff_1_diags(data_size, lower_only=True):
-    """
-    Creates the the diagonals of the square of a first-order finite-difference matrix.
-
-    Parameters
-    ----------
-    data_size : int
-        The number of data points.
-    lower_only : bool, optional
-        If True (default), will return only the lower diagonals of the
-        matrix. If False, will include all diagonals of the matrix.
-
-    Returns
-    -------
-    output : numpy.ndarray
-        The array containing the diagonal data. Has a shape of (2, `data_size`)
-        if `lower_only` is True, otherwise (3, `data_size`).
-
-    Notes
-    -----
-    Equivalent to calling::
-
-        from pybaselines.utils import difference_matrix
-        diff_matrix = difference_matrix(data_size, 1)
-        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
-        if lower_only:
-            output = output[1:]
-
-    but is several orders of magnitude times faster.
-
-    The data is output in the banded format required by SciPy's solve_banded
-    and solveh_banded.
-
-    """
-    output = np.full((2 if lower_only else 3, data_size), -1.)
-
-    output[-1, -1] = 0
-    output[-2, 0] = output[-2, -1] = 1
-    output[-2, 1:-1] = 2
-
-    if not lower_only:
-        output[0, 0] = 0
-
-    return output
-
-
-def _diff_3_diags(data_size, lower_only=True):
-    """
-    Creates the the diagonals of the square of a third-order finite-difference matrix.
-
-    Parameters
-    ----------
-    data_size : int
-        The number of data points.
-    lower_only : bool, optional
-        If True (default), will return only the lower diagonals of the
-        matrix. If False, will include all diagonals of the matrix.
-
-    Returns
-    -------
-    output : numpy.ndarray
-        The array containing the diagonal data. Has a shape of (4, `data_size`)
-        if `lower_only` is True, otherwise (7, `data_size`).
-
-    Notes
-    -----
-    Equivalent to calling::
-
-        from pybaselines.utils import difference_matrix
-        diff_matrix = difference_matrix(data_size, 3)
-        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
-        if lower_only:
-            output = output[3:]
-
-    but is several orders of magnitude times faster.
-
-    The data is output in the banded format required by SciPy's solve_banded
-    and solveh_banded.
-
-    """
-    output = np.full((4 if lower_only else 7, data_size), -1.)
-
-    for row in range(-1, -4, -1):
-        output[row, -4 - row:] = 0
-
-    output[-2, 0] = output[-2, -3] = 3
-    output[-2, 1:-3] = 6
-    output[-3, 0] = output[-3, -2] = -3
-    output[-3, 1] = output[-3, -3] = -12
-    output[-3, 2:-3] = -15
-    output[-4, 0] = output[-4, -1] = 1
-    output[-4, 1] = output[-4, -2] = 10
-    output[-4, 2] = output[-4, -3] = 19
-    output[-4, 3:-3] = 20
-
-    if not lower_only:
-        for row in range(3):
-            output[row, :3 - row] = 0
-
-        output[1, 2] = output[1, -1] = 3
-        output[1, 3:-1] = 6
-        output[2, 1] = output[2, -1] = -3
-        output[2, 2] = output[2, -2] = -12
-        output[2, 3:-2] = -15
-
-    return output
-
-
-def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
-    """
-    Creates the diagonals of the finite difference penalty matrix.
-
-    If `D` is the finite difference matrix, then the finite difference penalty
-    matrix is defined as ``D.T @ D``. The penalty matrix is banded and symmetric, so
-    the non-zero diagonal bands can be computed efficiently.
-
-    Parameters
-    ----------
-    data_size : int
-        The number of data points.
-    diff_order : int, optional
-        The integer differential order; must be >= 0. Default is 2.
-    lower_only : bool, optional
-        If True (default), will return only the lower diagonals of the
-        matrix. If False, will include all diagonals of the matrix.
-    padding : int, optional
-        The number of extra layers of zeros to add to the bottom and top, if
-        `lower_only` is True. Useful if working with other diagonal arrays with
-        a different number of rows. Default is 0, which adds no extra layers.
-        Negative `padding` is treated as equivalent to 0.
-
-    Returns
-    -------
-    diagonals : numpy.ndarray
-        The diagonals of the finite difference penalty matrix.
-
-    Raises
-    ------
-    ValueError
-        Raised if `diff_order` is negative or if `data_size` less than 1.
-
-    Notes
-    -----
-    Equivalent to calling::
-
-        from pybaselines.utils import difference_matrix
-        diff_matrix = difference_matrix(data_size, diff_order)
-        output = (diff_matrix.T @ diff_matrix).todia().data[::-1]
-        if lower_only:
-            output = output[diff_order:]
-
-    but is several orders of magnitude times faster.
-
-    The data is output in the banded format required by SciPy's solve_banded
-    and solveh_banded functions.
-
-    """
-    if diff_order < 0:
-        raise ValueError('the difference order must be >= 0')
-    elif data_size <= 0:
-        raise ValueError('data size must be > 0')
-
-    # the fast, hard-coded values require that data_size > 2 * diff_order + 1,
-    # otherwise, the band structure has to actually be calculated
-    if diff_order == 0:
-        diagonals = np.ones((1, data_size))
-    elif data_size < 2 * diff_order + 1 or diff_order > 3:
-        diff_matrix = difference_matrix(data_size, diff_order, 'csc')
-        # scipy's diag_matrix stores the diagonals in opposite order of
-        # the typical LAPACK banded structure
-        diagonals = (diff_matrix.T @ diff_matrix).todia().data[::-1]
-        if lower_only:
-            diagonals = diagonals[diff_order:]
-    else:
-        diag_func = {1: _diff_1_diags, 2: _diff_2_diags, 3: _diff_3_diags}[diff_order]
-        diagonals = diag_func(data_size, lower_only)
-
-    if padding > 0:
-        pad_layers = np.zeros((padding, data_size))
-        if lower_only:
-            diagonals = np.concatenate((diagonals, pad_layers))
         else:
-            diagonals = np.concatenate((pad_layers, diagonals, pad_layers))
-
-    return diagonals
 
 
-def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarray_kwargs):
-    """
-    Ensures the input is a scalar value.
-
-    Parameters
-    ----------
-    value : float or array-like
-        The value to check.
-    allow_zero : bool, optional
-        If False (default), only allows `value` > 0. If True, allows `value` >= 0.
-    variable_name : str, optional
-        The name displayed if an error occurs. Default is 'lam'.
-    **asarray_kwargs : dict
-        Additional keyword arguments to pass to :func:`numpy.asarray`.
-
-    Returns
-    -------
-    output : float
-        The verified scalar value.
-
-    Raises
-    ------
-    ValueError
-        Raised if `value` is less than or equal to 0 if `allow_zero` is False or
-        less than 0 if `allow_zero` is True.
-
-    """
-    output = _check_scalar(value, 1, **asarray_kwargs)[0]
-    if allow_zero:
-        operation = operator.lt
-        text = 'greater than or equal to'
-    else:
-        operation = operator.le
-        text = 'greater than'
-    if np.any(operation(output, 0)):
-        raise ValueError(f'{variable_name} must be {text} 0')
-
-    # use an empty tuple to get the single scalar value; that way, if the input
-    # is a single item in an array, it is converted to a single scalar
-    return output[()]
-
-
-def _check_lam(lam, allow_zero=False):
-    """
-    Ensures the regularization parameter `lam` is a scalar greater than 0.
-
-    Parameters
-    ----------
-    lam : float or array-like
-        The regularization parameter, lambda, used in Whittaker smoothing and
-        penalized splines.
-    allow_zero : bool
-        If False (default), only allows `lam` values > 0. If True, allows `lam` >= 0.
-
-    Returns
-    -------
-    float
-        The scalar `lam` value.
-
-    Raises
-    ------
-    ValueError
-        Raised if `lam` is less than or equal to 0.
-
-    Notes
-    -----
-    Array-like `lam` values could be permitted, but they require using the full
-    banded penalty matrix. Many functions use only half of the penalty matrix due
-    to its symmetry; that symmetry is broken when using an array for `lam`, so allowing
-    an array `lam` would change how the system is solved. Further, array-like `lam`
-    values with large changes in scale cause some instability and/or discontinuities
-    when using Whittaker smoothing or penalized splines. Thus, it is easier and better
-    to only allow scalar `lam` values.
-
-    TODO will maybe change this in the future to allow array-like `lam`, and the
-    solver will be determined based on that; however, until then, want to ensure users
-    don't unknowingly use an array-like `lam` when it doesn't work.
-    NOTE for future: if multiplying an array `lam` with the penalties in banded format,
-    do not reverse the order (ie. keep it like the output of sparse.dia.data), multiply
-    by the array, and then shift the rows based on the difference order (same procedure
-    as done for aspls). That will give the same output as
-    ``(diags(lam) @ D.T @ D).todia().data[::-1]``.
-
-    """
-    return _check_scalar_variable(lam, allow_zero)
-
-
-def _check_half_window(half_window, allow_zero=False):
-    """
-    Ensures the half-window is an integer and has an appropriate value.
-
-    Parameters
-    ----------
-    half_window : int, optional
-        The half-window used for the smoothing functions. Used
-        to pad the left and right edges of the data to reduce edge
-        effects. Default is 0, which provides no padding.
-    allow_zero : bool, optional
-        If True, allows `half_window` to be 0; otherwise, `half_window`
-        must be at least 1. Default is False.
-
-    Returns
-    -------
-    output_half_window : int
-        The verified half-window value.
-
-    Raises
-    ------
-    TypeError
-        Raised if the integer converted `half_window` is not equal to the input
-        `half_window`.
-
-    """
-    output_half_window = _check_scalar_variable(
-        half_window, allow_zero, 'half_window', dtype=np.intp
-    )
-    if output_half_window != half_window:
-        raise TypeError('half_window must be an integer')
-
-    return output_half_window
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
@@ -525,7 +88,7 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
         Raised if `diff_order` is greater than 3.
 
     """
-    y = np.asarray_chkfinite(data)
+    y = _check_array(data, check_finite=True)
     if diff_order < 1:
         raise ValueError(
             'the differential order must be > 0 for Whittaker-smoothing-based methods'
@@ -536,16 +99,15 @@ def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
              ' consider using a differential order of 2 or 1 instead'),
             ParameterWarning
         )
-    num_y = y.shape[0]
+    num_y = len(y)
     if weights is None:
         weight_array = np.ones(num_y)
     else:
-        weight_array = np.asarray(weights)
+        weight_array = _check_sized_array(
+            weights, num_y, check_finite=True, ensure_1d=True
+        )
         if copy_weights:
             weight_array = weight_array.copy()
-
-        if weight_array.shape != y.shape:
-            raise ValueError('weights must have the same shape as the input data')
 
     diagonal_data = diff_penalty_diagonals(num_y, diff_order, lower_only)
     if reverse_diags:
@@ -652,22 +214,21 @@ def _setup_polynomial(data, x_data=None, weights=None, poly_order=2, return_vand
     otherwise cause difficulty when doing least squares minimization.
 
     """
-    y, x = _yx_arrays(data, x_data)
+    y, x = _yx_arrays(data, x_data, check_finite=True)
+    len_y = len(y)
+    if weights is None:
+        weight_array = np.ones(len_y)
+    else:
+        weight_array = _check_sized_array(
+            weights, len_y, check_finite=True, ensure_1d=True
+        )
+        if copy_weights:
+            weight_array = weight_array.copy()
     if x_data is None:
         original_domain = np.array([-1., 1.])
     else:
         original_domain = np.polynomial.polyutils.getdomain(x)
         x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1., 1.]))
-
-    if weights is None:
-        weight_array = np.ones(len(y))
-    else:
-        weight_array = np.asarray(weights)
-        if copy_weights:
-            weight_array = weight_array.copy()
-
-        if weight_array.shape != y.shape:
-            raise ValueError('weights must have the same shape as the input data')
 
     output = [y, x, weight_array, original_domain]
     if return_vander:
@@ -727,7 +288,7 @@ def _setup_morphology(data, half_window=None, **window_kwargs):
     usage. SciPy morphology operations deal with full window sizes.
 
     """
-    y = np.asarray(data)
+    y = _check_array(data, ensure_1d=True)
     if half_window is not None:
         output_half_window = _check_half_window(half_window)
     else:
@@ -761,8 +322,9 @@ def _setup_smooth(data, half_window=0, allow_zero=True, **pad_kwargs):
         The padded array of data.
 
     """
+    y = _check_array(data, ensure_1d=True)
     hw = _check_half_window(half_window, allow_zero)
-    return pad_edges(data, hw, **pad_kwargs)
+    return pad_edges(y, hw, **pad_kwargs)
 
 
 def _setup_classification(data, x_data=None, weights=None):
@@ -796,7 +358,14 @@ def _setup_classification(data, x_data=None, weights=None):
         for the original x_data.
 
     """
-    y, x = _yx_arrays(data, x_data)
+    y, x = _yx_arrays(data, x_data, check_finite=True)
+    len_y = len(y)
+    if weights is None:
+        weight_array = np.ones(len_y)
+    else:
+        weight_array = _check_sized_array(
+            weights, len_y, dtype=bool, check_finite=True, ensure_1d=True
+        )
     # TODO should remove the x-scaling here since most methods don't need it; can
     # make a separate function for it, which _setup_polynomial could also use
     if x_data is None:
@@ -804,10 +373,6 @@ def _setup_classification(data, x_data=None, weights=None):
     else:
         original_domain = np.polynomial.polyutils.getdomain(x)
         x = np.polynomial.polyutils.mapdomain(x, original_domain, np.array([-1., 1.]))
-    if weights is not None:
-        weight_array = np.asarray(weights, bool)
-    else:
-        weight_array = np.ones(y.shape[0], bool)
 
     return y, x, weight_array, original_domain
 
@@ -890,22 +455,20 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
     is defined by convention as `degree` + 1.
 
     """
-    y, x = _yx_arrays(data, x_data, check_finite=True)
-    if weights is not None:
-        weight_array = np.asarray(weights)
-        if weight_array.shape != y.shape:
-            raise ValueError('weights must have the same shape as the input data')
+    y, x = _yx_arrays(data, x_data, check_finite=True, dtype=float, order='C')
+    len_y = len(y)
+    if weights is None:
+        weight_array = np.ones(len_y)
     else:
-        weight_array = np.ones(y.shape[0])
+        weight_array = _check_sized_array(
+            weights, len_y, check_finite=True, dtype=float, order='C', ensure_1d=True
+        )
     if not make_basis:
         return y, x, weight_array
 
     if spline_degree < 0:
         raise ValueError('spline degree must be >= 0')
-    # explicitly cast x and y as floats since most scipy functions do so anyway, so
-    # can just do it once
-    x = x.astype(float, copy=False)
-    y = y.astype(float, copy=False)
+
     knots = _spline_knots(x, num_knots, spline_degree, penalized)
     basis = _spline_basis(x, knots, spline_degree)
     if not penalized:
@@ -1021,7 +584,8 @@ def _get_function(method, modules):
     return func, func_module
 
 
-def _setup_optimizer(data, method, modules, method_kwargs=None, copy_kwargs=True, **kwargs):
+def _setup_optimizer(data, method, modules, method_kwargs=None, copy_kwargs=True,
+                     ensure_1d=True, **kwargs):
     """
     Sets the starting parameters for doing optimizer algorithms.
 
@@ -1039,6 +603,8 @@ def _setup_optimizer(data, method, modules, method_kwargs=None, copy_kwargs=True
     copy_kwargs : bool, optional
         If True (default), will copy the input `method_kwargs` so that the input
         dictionary is not modified within the function.
+    ensure_1d : bool, optional
+        If True (default), will ensure the input `data` is one dimensional.
     **kwargs
         Deprecated in version 0.8.0 and will be removed in version 0.10 or 1.0. Pass any
         keyword arguments for the fitting function in the `method_kwargs` dictionary.
@@ -1060,7 +626,7 @@ def _setup_optimizer(data, method, modules, method_kwargs=None, copy_kwargs=True
         Passed if `kwargs` is not empty.
 
     """
-    y = np.asarray(data)
+    y = _check_array(data, ensure_1d=ensure_1d)
     fit_func, func_module = _get_function(method, modules)
     if method_kwargs is None:
         method_kws = {}

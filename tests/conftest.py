@@ -84,6 +84,12 @@ def get_data(include_noise=True, num_points=1000):
     return x_data, y_data
 
 
+@pytest.fixture
+def small_data():
+    """A small array of data for testing."""
+    return np.arange(10, dtype=float)
+
+
 @pytest.fixture()
 def data_fixture():
     """Test fixture for creating x- and y-data for testing."""

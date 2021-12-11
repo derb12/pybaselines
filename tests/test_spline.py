@@ -512,6 +512,12 @@ class TestPsplineDrPLS(AlgorithmTester):
         y_list = self.y.tolist()
         self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self._call_func(self.y, lam=lam, diff_order=diff_order)
+
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):

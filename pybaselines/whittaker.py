@@ -12,13 +12,12 @@ import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
 
 from . import _weighting
-from ._algorithm_setup import (
-    _check_lam, _setup_whittaker, _shift_rows, _yx_arrays, diff_penalty_diagonals
-)
+from ._algorithm_setup import _setup_whittaker
+from ._banded_utils import _pentapy_solver, _shift_rows, diff_penalty_diagonals
 from ._compat import _HAS_PENTAPY
+from ._validation import _check_lam, _yx_arrays
 from .utils import (
-    ParameterWarning, _mollifier_kernel, _pentapy_solver, pad_edges, padded_convolve,
-    relative_difference
+    ParameterWarning, _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 )
 
 

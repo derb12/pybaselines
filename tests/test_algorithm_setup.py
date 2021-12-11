@@ -16,102 +16,6 @@ from pybaselines import _algorithm_setup, optimizers, polynomial, utils, whittak
 from pybaselines.utils import ParameterWarning
 
 
-@pytest.mark.parametrize('data_size', (10, 1001))
-@pytest.mark.parametrize('lower_only', (True, False))
-def test_diff_2_diags(data_size, lower_only):
-    """Ensures the output of _diff_2_diags is the correct shape and values."""
-    diagonal_data = _algorithm_setup._diff_2_diags(data_size, lower_only)
-
-    diff_matrix = utils.difference_matrix(data_size, 2)
-    diag_matrix = (diff_matrix.T @ diff_matrix).todia()
-    actual_diagonal_data = diag_matrix.data[::-1]
-    if lower_only:
-        actual_diagonal_data = actual_diagonal_data[2:]
-
-    assert_array_equal(diagonal_data, actual_diagonal_data)
-
-
-@pytest.mark.parametrize('data_size', (10, 1001))
-@pytest.mark.parametrize('lower_only', (True, False))
-def test_diff_1_diags(data_size, lower_only):
-    """Ensures the output of _diff_1_diags is the correct shape and values."""
-    diagonal_data = _algorithm_setup._diff_1_diags(data_size, lower_only)
-
-    diff_matrix = utils.difference_matrix(data_size, 1)
-    diag_matrix = (diff_matrix.T @ diff_matrix).todia()
-    actual_diagonal_data = diag_matrix.data[::-1]
-    if lower_only:
-        actual_diagonal_data = actual_diagonal_data[1:]
-
-    assert_array_equal(diagonal_data, actual_diagonal_data)
-
-
-@pytest.mark.parametrize('data_size', (10, 1001))
-@pytest.mark.parametrize('lower_only', (True, False))
-def test_diff_3_diags(data_size, lower_only):
-    """Ensures the output of _diff_3_diags is the correct shape and values."""
-    diagonal_data = _algorithm_setup._diff_3_diags(data_size, lower_only)
-
-    diff_matrix = utils.difference_matrix(data_size, 3)
-    diag_matrix = (diff_matrix.T @ diff_matrix).todia()
-    actual_diagonal_data = diag_matrix.data[::-1]
-    if lower_only:
-        actual_diagonal_data = actual_diagonal_data[3:]
-
-    assert_array_equal(diagonal_data, actual_diagonal_data)
-
-
-@pytest.mark.parametrize('data_size', (10, 1001))
-@pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5, 6, 7, 8))
-@pytest.mark.parametrize('lower_only', (True, False))
-@pytest.mark.parametrize('padding', (-1, 0, 1, 2))
-def test_diff_penalty_diagonals(data_size, diff_order, lower_only, padding):
-    """
-    Ensures the penalty matrix (squared finite difference matrix) diagonals are correct.
-
-    Also tests the condition for when `data_size` < 2 * `diff_order` + 1 to ensure
-    the slower, sparse route is taken.
-
-    """
-    diagonal_data = _algorithm_setup.diff_penalty_diagonals(
-        data_size, diff_order, lower_only, padding
-    )
-
-    diff_matrix = utils.difference_matrix(data_size, diff_order)
-    diag_matrix = (diff_matrix.T @ diff_matrix).todia()
-    actual_diagonal_data = diag_matrix.data[::-1]
-    if lower_only:
-        actual_diagonal_data = actual_diagonal_data[diff_order:]
-    if padding > 0:
-        pad_layers = np.repeat(np.zeros((1, data_size)), padding, axis=0)
-        if lower_only:
-            actual_diagonal_data = np.concatenate((actual_diagonal_data, pad_layers))
-        else:
-            actual_diagonal_data = np.concatenate((pad_layers, actual_diagonal_data, pad_layers))
-
-    assert_array_equal(diagonal_data, actual_diagonal_data)
-
-
-def test_diff_penalty_diagonals_order_neg():
-    """Ensures penalty matrix fails for negative order."""
-    with pytest.raises(ValueError):
-        _algorithm_setup.diff_penalty_diagonals(10, -1)
-
-
-def test_diff_penalty_diagonals_datasize_too_small():
-    """Ensures penalty matrix fails for data size <= 0."""
-    with pytest.raises(ValueError):
-        _algorithm_setup.diff_penalty_diagonals(0)
-    with pytest.raises(ValueError):
-        _algorithm_setup.diff_penalty_diagonals(-1)
-
-
-@pytest.fixture
-def small_data():
-    """A small array of data for testing."""
-    return np.arange(10, dtype=float)
-
-
 @pytest.mark.parametrize('array_enum', (0, 1))
 def test_setup_whittaker_y_array(small_data, array_enum):
     """Ensures output y is always a numpy array."""
@@ -215,30 +119,6 @@ def test_setup_whittaker_array_lam(small_data):
     _algorithm_setup._setup_whittaker(small_data, [1])
     with pytest.raises(ValueError):
         _algorithm_setup._setup_whittaker(small_data, [1, 2])
-
-
-@pytest.mark.parametrize('array_enum', (0, 1))
-def test_yx_arrays_output_array(small_data, array_enum):
-    """Ensures output y and x are always numpy arrays and that x is not scaled."""
-    if array_enum == 1:
-        small_data = small_data.tolist()
-    x_data = small_data.copy()
-    y, x = _algorithm_setup._yx_arrays(small_data, x_data)
-
-    actual_array = np.asarray(small_data)
-
-    assert isinstance(y, np.ndarray)
-    assert_array_equal(y, actual_array)
-    assert isinstance(x, np.ndarray)
-    assert_array_equal(x, actual_array)
-
-
-def test_yx_arrays_no_x(small_data):
-    """Ensures an x array is created if None is input."""
-    y, x = _algorithm_setup._yx_arrays(small_data)
-
-    assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
 
 
 @pytest.mark.parametrize('array_enum', (0, 1))
@@ -681,45 +561,3 @@ def test_setup_optimizer_kwargs_warns(data_fixture):
     x, y = data_fixture
     with pytest.warns(DeprecationWarning):
         _algorithm_setup._setup_optimizer(y, 'asls', [whittaker], None, True, x_data=x)
-
-
-def test_shift_rows_2_diags():
-    """Ensures rows are correctly shifted for a matrix with two off-diagonals on either side."""
-    matrix = np.array([
-        [1, 2, 9, 0, 0],
-        [1, 2, 3, 4, 0],
-        [1, 2, 3, 4, 5],
-        [0, 1, 2, 3, 8],
-        [0, 0, 1, 2, 3]
-    ])
-    expected = np.array([
-        [0, 0, 1, 2, 9],
-        [0, 1, 2, 3, 4],
-        [1, 2, 3, 4, 5],
-        [1, 2, 3, 8, 0],
-        [1, 2, 3, 0, 0]
-    ])
-    output = whittaker._shift_rows(matrix, 2)
-
-    assert_array_equal(expected, output)
-    # matrix should also be shifted since the changes are done in-place
-    assert_array_equal(expected, matrix)
-
-
-def test_shift_rows_1_diag():
-    """Ensures rows are correctly shifted for a matrix with one off-diagonal on either side."""
-    matrix = np.array([
-        [1, 2, 3, 8, 0],
-        [1, 2, 3, 4, 5],
-        [0, 1, 2, 3, 4],
-    ])
-    expected = np.array([
-        [0, 1, 2, 3, 8],
-        [1, 2, 3, 4, 5],
-        [1, 2, 3, 4, 0],
-    ])
-    output = whittaker._shift_rows(matrix, 1)
-
-    assert_array_equal(expected, output)
-    # matrix should also be shifted since the changes are done in-place
-    assert_array_equal(expected, matrix)

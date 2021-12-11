@@ -47,7 +47,9 @@ from scipy.interpolate import BSpline, splev
 from scipy.linalg import solve_banded, solveh_banded
 from scipy.sparse import csc_matrix, csr_matrix, spdiags
 
+from ._banded_utils import _add_diagonals, _lower_to_full, PenalizedSystem
 from ._compat import _HAS_NUMBA, jit
+from ._validation import _check_array
 
 
 try:
@@ -475,69 +477,6 @@ def _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data):
             rhs[row] += work_val * y_val * weight_val
 
 
-def _add_diagonals(array_1, array_2, lower_only=True):
-    """
-    Adds two arrays containing the diagonals of banded matrices.
-
-    The array with the least rows is padded with zeros to allow the sum of the two arrays.
-
-    Parameters
-    ----------
-    array_1 : numpy.ndarray, shape (A, N)
-        An array to add.
-    array_2 : numpy.ndarray, shape (B, N)
-        An array to add.
-    lower_only : bool, optional
-        If True (default), will only add zero padding to the bottom of the smaller
-        array. If False, will add half of the zero padding to both the top and bottom
-        of the smaller array.
-
-    Returns
-    -------
-    summed_diagonals : numpy.ndarray, shape (`max(A, B)`, N)
-        The addition of `a` and `b` after adding the correct zero padding.
-
-    Raises
-    ------
-    ValueError
-        Raised if `a.shape[1]` and `b.shape[1]` are not equal or if `lower` is False
-        and `abs(a.shape[0] - b.shape[0])` is not even.
-
-    """
-    a, b = np.atleast_2d(array_1, array_2)
-    a_shape = a.shape
-    b_shape = b.shape
-    if a_shape[1] != b_shape[1]:
-        raise ValueError((
-            f'the diagonal arrays have a dimension mismatch; {a_shape[1]} and {b_shape[1]}'
-            ' should be equal'
-        ))
-    row_mismatch = a_shape[0] - b_shape[0]
-    if row_mismatch == 0:
-        summed_diagonals = a + b
-    else:
-        abs_mismatch = abs(row_mismatch)
-        if lower_only:
-            padding = np.zeros((abs_mismatch, a_shape[1]))
-            if row_mismatch > 0:
-                summed_diagonals = a + np.concatenate((b, padding))
-            else:
-                summed_diagonals = np.concatenate((a, padding)) + b
-        else:
-            if abs_mismatch % 2:
-                raise ValueError(
-                    'row mismatch between the arrays must be even if lower_only=False, '
-                    f'instead got {abs_mismatch}'
-                )
-            padding = np.zeros((abs_mismatch // 2, a_shape[1]))
-            if row_mismatch > 0:
-                summed_diagonals = a + np.concatenate((padding, b, padding))
-            else:
-                summed_diagonals = np.concatenate((padding, a, padding)) + b
-
-    return summed_diagonals
-
-
 # adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above
 def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extra=None,
                    lower_only=True):
@@ -663,28 +602,7 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extr
     return coeffs
 
 
-def _lower_to_full(ab):
-    """
-    Converts a lower banded array to a symmetric banded array.
 
-    The lower bands are flipped and then shifted to make the upper bands.
 
-    Parameters
-    ----------
-    ab : numpy.ndarray, shape (N, M)
-        The lower banded array.
 
-    Returns
-    -------
-    ab_full : numpy.ndarray, shape (``2 * N - 1``, M)
-        The full, symmetric banded array.
 
-    """
-    ab_rows, ab_columns = ab.shape
-    ab_full = np.concatenate((np.zeros((ab_rows - 1, ab_columns)), ab))
-    ab_full[:ab_rows - 1] = ab[1:][::-1]
-    for row, shift in enumerate(range(-(ab_rows - 1), 0)):
-        ab_full[row, -shift:] = ab_full[row, :shift]
-        ab_full[row, :-shift] = 0
-
-    return ab_full

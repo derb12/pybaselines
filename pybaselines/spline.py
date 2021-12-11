@@ -15,11 +15,11 @@ from scipy.optimize import curve_fit
 from scipy.sparse import spdiags
 
 from . import _weighting
-from ._algorithm_setup import (
-    _check_lam, _setup_splines, _shift_rows, _yx_arrays, diff_penalty_diagonals
-)
+from ._algorithm_setup import _setup_splines
+from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
 from ._compat import _HAS_NUMBA, jit
-from ._spline_utils import _add_diagonals, _solve_pspline
+from ._spline_utils import _solve_pspline
+from ._validation import _check_lam, _yx_arrays
 from .utils import (
     _MIN_FLOAT, _mollifier_kernel, ParameterWarning, gaussian, pad_edges, padded_convolve,
     relative_difference
@@ -1153,7 +1153,8 @@ def pspline_drpls(data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3, diff_o
     for i in range(1, max_iter + 2):
         d2_w_diagonals = d2_diagonals * np.interp(pts, x, weight_array)
         coeffs = _solve_pspline(
-            x, y, weight_array, basis, d1_d2_diagonals + _shift_rows(d2_w_diagonals, penalty_bands),
+            x, y, weight_array, basis,
+            d1_d2_diagonals + _shift_rows(d2_w_diagonals, penalty_bands),
             knots, spline_degree, lower_only=False
         )
         baseline = basis @ coeffs

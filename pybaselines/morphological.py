@@ -13,11 +13,10 @@ from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_openin
 from ._algorithm_setup import (
     _check_lam, _setup_morphology, _setup_splines, _whittaker_smooth, diff_penalty_diagonals
 )
+from ._banded_utils import _pentapy_solver
 from ._compat import _HAS_PENTAPY
 from ._spline_utils import _solve_pspline
-from .utils import (
-    _mollifier_kernel, _pentapy_solver, pad_edges, padded_convolve, relative_difference
-)
+from .utils import _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 
 
 def _avg_opening(y, half_window, opening=None):

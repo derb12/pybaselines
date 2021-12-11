@@ -13,7 +13,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.sparse import dia_matrix, diags, spdiags, vstack
 
-from pybaselines import _algorithm_setup, misc
+from pybaselines import _banded_utils, misc
 
 from .conftest import AlgorithmTester, get_data
 
@@ -298,8 +298,8 @@ def test_beads_diff_matrix_calculation(beads_data, filter_type, freq_cutoff):
     lam_12_array = np.concatenate((
         np.full(num_points - 1, lam_1), np.full(num_points - 2, lam_2)
     ))
-    diff_1_matrix = _algorithm_setup.difference_matrix(num_points, 1)
-    diff_2_matrix = _algorithm_setup.difference_matrix(num_points, 2)
+    diff_1_matrix = _banded_utils.difference_matrix(num_points, 1)
+    diff_2_matrix = _banded_utils.difference_matrix(num_points, 2)
     d1_y = abs(np.diff(y))
     d2_y = abs(np.diff(y, 2))
     d_y = np.concatenate((d1_y, d2_y))
