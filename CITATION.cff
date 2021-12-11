@@ -1,0 +1,27 @@
+abstract: "A Python library of algorithms for the baseline correction of experimental data."
+authors:
+  - family-names: Erb
+    given-names: Donald
+cff-version: 1.2.0
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.5608581
+    description: "Persistent DOI for all versions of pybaselines"
+  - type: url
+    value: https://github.com/derb12/pybaselines
+    description: "URL for the pybaselines source code repository"
+  - type: url
+    value: https://pypi.org/project/pybaselines
+    description: "URL for the PyPI upload of pybaselines"
+keywords:
+  - "baseline correction"
+  - "materials characterization"
+  - spectroscopy
+  - Python
+license: BSD-3-Clause
+message: "If citing this software, consider using this metadata."
+repository-artifact: https://pypi.org/project/pybaselines
+repository-code: https://github.com/derb12/pybaselines
+title: pybaselines
+type: software
+version: 0.8.0
