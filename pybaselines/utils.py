@@ -13,40 +13,7 @@ from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.sparse import diags, identity
 
-from ._compat import _pentapy_solve, jit
-
-
-# Note: the triple quotes are for including the attributes within the documentation
-PENTAPY_SOLVER = 2
-"""An integer designating the solver to use if pentapy is installed.
-pentapy's solver can be used for solving pentadiagonal linear systems, such
-as those used for the Whittaker-smoothing-based algorithms. Should be 2 (default)
-or 1. See :func:`pentapy.core.solve` for more details.
-"""
-
-
-def _pentapy_solver(ab, y):
-    """
-    Convenience function for calling pentapy's solver with defaults already set.
-
-    Solves the linear system :math:`A @ x = y` for `x`, given the matrix `A` in
-    banded format, `ab`. The default settings of :func`:pentapy.solve` are
-    already set for the fastest configuration.
-
-    Parameters
-    ----------
-    ab : array-like
-        The matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
-    y : array-like
-        The right hand side of the equation.
-
-    Returns
-    -------
-    numpy.ndarray
-        The solution to the linear system.
-
-    """
-    return _pentapy_solve(ab, y, is_flat=True, index_row_wise=True, solver=PENTAPY_SOLVER)
+from ._compat import jit
 
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
