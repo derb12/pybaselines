@@ -416,63 +416,6 @@ def test_setup_splines_array_lam(small_data):
         _algorithm_setup._setup_splines(small_data, lam=[1, 2])
 
 
-@pytest.mark.parametrize('lam', (5, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]])))
-def test_check_lam(lam):
-    """Ensures scalar lam values are correctly processed."""
-    output_lam = _algorithm_setup._check_lam(lam)
-    assert output_lam == 5
-
-
-def test_check_lam_failures():
-    """Ensures array-like values or values < or <= 0 fail."""
-    # fails due to array of values
-    with pytest.raises(ValueError):
-        _algorithm_setup._check_lam([5, 10])
-
-    # fails for lam <= 0 when allow_zero is False
-    for lam in range(-5, 1):
-        with pytest.raises(ValueError):
-            _algorithm_setup._check_lam(lam)
-
-    # test that is allows zero if allow_zero is True
-    _algorithm_setup._check_lam(0, True)
-    for lam in range(-5, 0):
-        with pytest.raises(ValueError):
-            _algorithm_setup._check_lam(lam, True)
-
-
-@pytest.mark.parametrize(
-    'half_window', (5, 5.0, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]]))
-)
-def test_check_half_window(half_window):
-    """Ensures scalar half-window values are correctly processed."""
-    output_half_window = _algorithm_setup._check_half_window(half_window)
-    assert output_half_window == 5
-    assert isinstance(output_half_window, np.intp)
-
-
-def test_check_half_window_failures():
-    """Ensures array-like values, non-integer values, or values < or <= 0 fail."""
-    # fails due to array of values
-    with pytest.raises(ValueError):
-        _algorithm_setup._check_half_window([5, 10])
-
-    # fails for half_window <= 0 when allow_zero is False
-    for half_window in range(-5, 1):
-        with pytest.raises(ValueError):
-            _algorithm_setup._check_half_window(half_window)
-
-    # test that is allows zero if allow_zero is True
-    _algorithm_setup._check_half_window(0, True)
-    for half_window in range(-5, 0):
-        with pytest.raises(ValueError):
-            _algorithm_setup._check_half_window(half_window, True)
-
-    # fails due to non-integer input
-    with pytest.raises(TypeError):
-        _algorithm_setup._check_half_window(5.01)
-
-
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 def test_whittaker_smooth(data_fixture, diff_order):
     """Ensures the Whittaker smoothing function performs correctly."""

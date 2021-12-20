@@ -31,8 +31,8 @@ def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
 
     Returns
     -------
-    output : numpy.ndarray
-        The array of values with 0 or 1 dimensions depending on the input parameters.
+    output : numpy.ndarray or numpy.number
+        The array of values or the single array scalar, depending on the input parameters.
     is_scalar : bool
         True if the input was a scalar value or had a length of 1; otherwise, is False.
 
@@ -56,9 +56,13 @@ def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
         else:
             is_scalar = False
 
-    if is_scalar and fill_scalar:
-        output = np.full(desired_length, output)
-    elif not is_scalar and len_output != desired_length:
+    if is_scalar:
+        if fill_scalar:
+            output = np.full(desired_length, output)
+        else:
+            # index with an empty tuple to get the single scalar while maintaining the numpy dtype
+            output = output[()]
+    elif len_output != desired_length:
         raise ValueError(f'desired length was {desired_length} but instead got {len_output}')
 
     return output, is_scalar
@@ -91,7 +95,7 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarr
         less than 0 if `allow_zero` is True.
 
     """
-    output = _check_scalar(value, 1, **asarray_kwargs)[0]
+    output = _check_scalar(value, 1, fill_scalar=False, **asarray_kwargs)[0]
     if allow_zero:
         operation = np.less
         text = 'greater than or equal to'
@@ -102,35 +106,45 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarr
         raise ValueError(f'{variable_name} must be {text} 0')
 
     # use an empty tuple to get the single scalar value
-    return output[()]
+    return output
 
 
 def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=True):
     """
-    [summary]
+    Validates the shape and values of the input array and controls the output parameters.
 
     Parameters
     ----------
-    array : [type]
-        [description]
-    dtype : [type], optional
-        [description]. Default is None.
-    order : [type], optional
-        [description]. Default is None.
+    array : array-like
+        The input array to check.
+    dtype : type or np.dtype, optional
+        The dtype to cast the output array. Default is None, which uses the typing of `array`.
+    order : {None, 'C', 'F'}, optional
+        The order for the output array. Default is None, which will use the default array
+        ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
     check_finite : bool, optional
-        [description]. Default is False.
+        If True, will raise an error if any values if `array` are not finite. Default is False,
+        which skips the check.
     ensure_1d : bool, optional
-        [description]. Default is True.
+        If True (default), will raise an error if the shape of `array` is not a one dimensional
+        array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
 
     Returns
     -------
-    [type]
-        [description]
+    output : numpy.ndarray
+        The array after performing all validations.
 
     Raises
     ------
     ValueError
-        [description]
+        Raised if `ensure_1d` is True and `array` does not have a shape of (N,) or
+        (N, 1) or (1, N).
+
+    Notes
+    -----
+    If `ensure_1d` is True and `array` has a shape of (N, 1) or (1, N), it is reshaped to
+    (N,) for better compatibility for all functions.
+
     """
     if check_finite:
         array_func = np.asarray_chkfinite
@@ -148,45 +162,51 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
     return output
 
 
-def _check_sized_array(array, size, dtype=None, order=None, check_finite=False,
+def _check_sized_array(array, length, dtype=None, order=None, check_finite=False,
                        ensure_1d=True, axis=0, name='weights'):
     """
-    [summary]
+    Validates the input array and ensures its length is correct.
 
     Parameters
     ----------
-    array : [type]
-        [description]
-    size : [type]
-        [description]
-    dtype : [type], optional
-        [description]. Default is None.
-    order : [type], optional
-        [description]. Default is None.
+    array : array-like
+        The input array to check.
+    length : int
+        The length that the input should have on the specified `axis`.
+    dtype : type or np.dtype, optional
+        The dtype to cast the output array. Default is None, which uses the typing of `array`.
+    order : {None, 'C', 'F'}, optional
+        The order for the output array. Default is None, which will use the default array
+        ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
     check_finite : bool, optional
-        [description]. Default is False.
+        If True, will raise an error if any values if `array` are not finite. Default is False,
+        which skips the check.
     ensure_1d : bool, optional
-        [description]. Default is True.
+        If True (default), will raise an error if the shape of `array` is not a one dimensional
+        array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
     axis : int, optional
-        [description]. Default is 0.
+        The axis of the input on which to check its length. Default is 0.
     name : str, optional
-        [description]. Default is 'weights'.
+        The name for the variable if an exception is raised. Default is 'weights'.
 
     Returns
     -------
-    [type]
-        [description]
+    output : numpy.ndarray
+        The array after performing all validations.
 
     Raises
     ------
     ValueError
-        [description]
+        Raised if `array` does not match `length` on the given `axis`.
+
     """
     output = _check_array(
         array, dtype=dtype, order=order, check_finite=check_finite, ensure_1d=ensure_1d
     )
-    if output.shape[axis] != size:
-        raise ValueError(f'size mismatch for {name}; expected {size} but got {output.shape[axis]}')
+    if output.shape[axis] != length:
+        raise ValueError(
+            f'length mismatch for {name}; expected {length} but got {output.shape[axis]}'
+        )
     return output
 
 
