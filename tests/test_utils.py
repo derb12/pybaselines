@@ -232,7 +232,7 @@ def pad_func(array, pad_width, axis, kwargs):
         array[-pad_width[1]:] = pad_val
 
 
-@pytest.mark.parametrize('kernel_size', (1, 10, 31, 1000, 2000, 4000))
+@pytest.mark.parametrize('kernel_size', (1, 10, 31, 1000, 4000))
 @pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate', pad_func))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_padded_convolve(kernel_size, pad_mode, list_input, data_fixture):
@@ -267,7 +267,7 @@ def test_padded_convolve_empty_kernel():
 @pytest.mark.parametrize(
     'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
 )
-@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 4000))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_pad_edges(pad_mode, pad_length, list_input, data_fixture):
     """Tests various inputs for utils.pad_edges."""
@@ -292,7 +292,7 @@ def test_pad_edges(pad_mode, pad_length, list_input, data_fixture):
         assert_allclose(output, expected_output)
 
 
-@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 4000))
 @pytest.mark.parametrize('extrapolate_window', (None, 1, 2, 10, 1001, (10, 20), (1, 1)))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_pad_edges_extrapolate(pad_length, list_input, extrapolate_window, data_fixture):
@@ -370,7 +370,7 @@ def test_get_edges_custom_pad_func():
 @pytest.mark.parametrize(
     'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
 )
-@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 4000))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_get_edges(pad_mode, pad_length, list_input, data_fixture):
     """Tests various inputs for utils._get_edges."""

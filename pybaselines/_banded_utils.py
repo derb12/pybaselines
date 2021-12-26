@@ -93,6 +93,28 @@ def _lower_to_full(ab):
 
 
 def _pad_diagonals(diagonals, padding, lower_only=True):
+    """
+    Pads the diagonals of a banded matrix with zeros.
+
+    Parameters
+    ----------
+    diagonals : numpy.ndarray, shape (A, N)
+        The diagonals of the banded matrix with `A` bands.
+    padding : int
+        The number of rows of zeros to pad the input with. If `padding` is less than
+        or equal to 0, then no padding is applied.
+    lower_only : bool, optional
+        If True (default), will only add the padding rows to the bottom on the
+        input array. If False, will add the padding to both the top and bottom
+        of the input.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The padded diagonals. Has a shape of (``A + padding``, N) if `lower_only` is
+        True, otherwise (``A + 2 * padding``, N).
+
+    """
     if padding > 0:
         pad_layers = np.zeros((padding, diagonals.shape[1]))
         if lower_only:

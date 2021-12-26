@@ -7,11 +7,11 @@ Created on Dec. 11, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import identity
+from scipy.sparse import diags, identity, spdiags
 
-from pybaselines import _banded_utils
+from pybaselines import _banded_utils, _spline_utils
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))
@@ -60,7 +60,7 @@ def test_diff_3_diags(data_size, lower_only):
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))
-@pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5, 6, 7, 8))
+@pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('lower_only', (True, False))
 @pytest.mark.parametrize('padding', (-1, 0, 1, 2))
 def test_diff_penalty_diagonals(data_size, diff_order, lower_only, padding):
@@ -144,6 +144,166 @@ def test_shift_rows_1_diag():
     assert_array_equal(expected, output)
     # matrix should also be shifted since the changes are done in-place
     assert_array_equal(expected, matrix)
+
+
+def test_shift_rows_2_1_diags():
+    """Tests shifting 2 upper diagonals and 1 lower diagonal."""
+    matrix = np.array([
+        [1, 2, 9, 0, 0],
+        [1, 2, 3, 4, 0],
+        [1, 2, 3, 4, 5],
+        [0, 1, 2, 3, 8],
+        [0, 0, 1, 2, 3]
+    ])
+    expected = np.array([
+        [0, 0, 1, 2, 9],
+        [0, 1, 2, 3, 4],
+        [1, 2, 3, 4, 5],
+        [0, 1, 2, 3, 8],
+        [0, 1, 2, 3, 0]
+    ])
+    output = _banded_utils._shift_rows(matrix, 2, 1)
+
+    assert_array_equal(expected, output)
+    # matrix should also be shifted since the changes are done in-place
+    assert_array_equal(expected, matrix)
+
+
+def test_lower_to_full_simple():
+    """Simple test for _lower_to_full."""
+    lower = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 0],
+        [8, 9, 0, 0]
+    ])
+    expected_full = np.array([
+        [0, 0, 8, 9],
+        [0, 5, 6, 7],
+        [1, 2, 3, 4],
+        [5, 6, 7, 0],
+        [8, 9, 0, 0]
+    ])
+
+    output = _banded_utils._lower_to_full(lower)
+
+    assert_array_equal(expected_full, output)
+
+
+@pytest.mark.parametrize('num_knots', (100, 1000))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
+def test_lower_to_full(data_fixture, num_knots, spline_degree):
+    """
+    Ensures _lower_to_full correctly makes a full banded matrix from a lower banded matrix.
+
+    Use ``B.T @ W @ B`` since most of the diagonals are different, so any issue in the
+    calculation should show.
+
+    """
+    x, y = data_fixture
+    # ensure x is a float
+    x = x.astype(float, copy=False)
+    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
+    weights = np.random.RandomState(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1)
+
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+
+    BTWB_full = (basis.T @ diags(weights, format='csr') @ basis).todia().data[::-1]
+    BTWB_lower = BTWB_full[len(BTWB_full) // 2:]
+
+    assert_allclose(_banded_utils._lower_to_full(BTWB_lower), BTWB_full, 1e-10, 1e-14)
+
+
+@pytest.mark.parametrize('padding', (-1, 0, 1, 2))
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_pad_diagonals(padding, lower_only):
+    """Ensures padding is correctly applied to banded matrices."""
+    array = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 0],
+        [8, 9, 0, 0]
+    ])
+    output = _banded_utils._pad_diagonals(array, padding=padding, lower_only=lower_only)
+    if padding < 1:
+        expected_output = array
+    else:
+        layers = np.zeros((padding, array.shape[1]))
+        if lower_only:
+            expected_output = np.concatenate((array, layers))
+        else:
+            expected_output = np.concatenate((layers, array, layers))
+    assert_array_equal(output, expected_output)
+
+
+def test_add_diagonals_simple():
+    """Basis example for _add_diagonals."""
+    a = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [1, 2, 3, 4]
+    ])
+    b = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8]
+    ])
+    expected_output = np.array([
+        [2, 4, 6, 8],
+        [10, 12, 14, 16],
+        [1, 2, 3, 4]
+    ])
+    output = _banded_utils._add_diagonals(a, b)
+
+    assert_array_equal(output, expected_output)
+
+
+@pytest.mark.parametrize('diff_order_1', (0, 1, 2, 3, 4))
+@pytest.mark.parametrize('diff_order_2', (0, 1, 2, 3, 4))
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_add_diagonals(diff_order_1, diff_order_2, lower_only):
+    """Ensure _add_diagonals works for a broad range of matrices."""
+    points = 100
+    a = _banded_utils.diff_penalty_diagonals(points, diff_order_1, lower_only)
+    b = _banded_utils.diff_penalty_diagonals(points, diff_order_2, lower_only)
+
+    output = _banded_utils._add_diagonals(a, b, lower_only)
+
+    a_offsets = np.arange(diff_order_1, -diff_order_1 - 1, -1)
+    b_offsets = np.arange(diff_order_2, -diff_order_2 - 1, -1)
+    a_matrix = spdiags(
+        _banded_utils.diff_penalty_diagonals(points, diff_order_1, False),
+        a_offsets, points, points, 'csr'
+    )
+    b_matrix = spdiags(
+        _banded_utils.diff_penalty_diagonals(points, diff_order_2, False),
+        b_offsets, points, points, 'csr'
+    )
+    expected_output = (a_matrix + b_matrix).todia().data[::-1]
+    if lower_only:
+        expected_output = expected_output[len(expected_output) // 2:]
+
+    assert_allclose(output, expected_output, 0, 1e-10)
+
+
+def test_add_diagonals_fails():
+    """Ensure _add_diagonals properly raises errors."""
+    a = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [1, 2, 3, 4]
+    ])
+    b = np.array([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8]
+    ])
+
+    # row mismatch is not a multiple of 2 when lower_only=False
+    with pytest.raises(ValueError):
+        _banded_utils._add_diagonals(a, b, lower_only=False)
+
+    # mismatched number of columns
+    with pytest.raises(ValueError):
+        _banded_utils._add_diagonals(a[:, 1:], b)
 
 
 @pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))
