@@ -179,7 +179,7 @@ def _add_diagonals(array_1, array_2, lower_only=True):
             if abs_mismatch % 2:
                 raise ValueError(
                     'row mismatch between the arrays must be even if lower_only=False, '
-                    f'instead got {abs_mismatch}'
+                    f'but instead was {abs_mismatch}'
                 )
             padding = np.zeros((abs_mismatch // 2, a_shape[1]))
             if row_mismatch > 0:
@@ -495,14 +495,18 @@ def _pentapy_solver(ab, y, check_output=False):
 
     Parameters
     ----------
-    ab : array-like
+    ab : array-like, shape (M, N)
         The matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
-    y : array-like
-        The right hand side of the equation.
+    y : array-like, shape (N,)
+        The right-hand side of the equation.
+    check_output : bool, optional
+        If True, will check the output solution for non-finite values, which can often
+        occur without warning from the solver when all values are close to zero.
+        Default is False.
 
     Returns
     -------
-    numpy.ndarray
+    numpy.ndarray, shape (N,)
         The solution to the linear system.
 
     """
@@ -511,6 +515,226 @@ def _pentapy_solver(ab, y, check_output=False):
         raise np.linalg.LinAlgError('non-finite value encountered in pentapy solver output')
 
     return output
+
+
+class PenalizedSystem:
+    """
+    An object for setting up and solving banded penalized least squares linear systems.
+
+    Attributes
+    ----------
+    diff_order : int
+        The difference order of the penalty.
+    lower : bool
+        If True, the penalty uses only the lower bands of the symmetric banded penalty. Will
+        use :func:`scipy.linalg.solveh_banded` for solving. If False, contains both the upper
+        and lower bands of the penalty and will use either :func:`scipy.linalg.solve_banded`
+        (if `using_pentapy` is False) or :func:`._pentapy_solver` when solving.
+    main_diagonal_index : int
+        The index of the main diagonal for `penalty`. Is updated when adding additional matrices
+        to the penalty, and takes into account whether the penalty is only the lower bands or
+        the total bands.
+    num_bands : int
+        The number of bands in the penalty. The number of bands is assumbed to be symmetric,
+        so the number of upper and lower bands should both be equal to `num_bands`.
+    original_diagonals : numpy.ndarray
+        The original penalty diagonals before multiplying by `lam` or adding any padding.
+        Maintained so that repeated computations with different `lam` values can be quickly
+        set up. `original_diagonals` can be either the full or lower bands of the penalty,
+        and may be reveresed, it depends on the set up. Reset by calling
+        :meth:`.reset_diagonals`.
+    penalty : numpy.ndarray
+        The current penalty. Originally is `original_diagonals` after multiplying by `lam`
+        and applying padding, but can also be changed by calling :meth:`.add_penalty`.
+        Reset by calling :meth:`.reset_diagonals`.
+    reversed : bool
+        If True, the penalty is reversed of the typical LAPACK banded format. Useful if
+        multiplying the penalty with an array since the rows get shifted, or if using pentapy's
+        solver.
+    using_pentapy : bool
+        If True, will use pentapy's solver when solving.
+
+    """
+
+    def __init__(self, data_size, lam=1, diff_order=2, allow_lower=True,
+                 reverse_diags=None, allow_pentapy=True, padding=0):
+        """
+        Initializes the banded system.
+
+        Parameters
+        ----------
+        data_size : int
+            The number of data points for the system.
+        lam : float, optional
+            The penalty factor applied to the difference matrix. Larger values produce
+            smoother results. Must be greater than 0. Default is 1.
+        diff_order : int, optional
+            The difference order of the penalty. Default is 2 (second order difference).
+        allow_lower : bool, optional
+            If True (default), will allow only using the lower bands of the penalty matrix,
+            which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
+            slower :func:`scipy.linalg.solve_banded`.
+        reverse_diags : {None, False, True}, optional
+            If True, will reverse the order of the diagonals of the squared difference
+            matrix. If False, will never reverse the diagonals. If None (default), will
+            only reverse the diagonals if using pentapy's solver.
+        allow_pentapy : bool, optional
+            If True (default), will allow using pentapy's solver if `diff_order` is 2
+            and pentapy is installed. pentapy's solver is faster than scipy's banded solvers.
+        padding : int, optional
+            The number of extra layers of zeros to add to the bottom and potentially
+            the top if the full bands are used. Default is 0, which adds no extra
+            layers. Negative `padding` is treated as equivalent to 0.
+
+        """
+        self._len = data_size
+        self.original_diagonals = None
+
+        self.reset_diagonals(
+            lam, diff_order, allow_lower, reverse_diags, allow_pentapy, padding=padding
+        )
+
+    def add_penalty(self, penalty):
+        """
+        Updates `self.penalty` with an additional penalty and updates the bands.
+
+        Parameters
+        ----------
+        penalty : array-like
+            The additional penalty to add to `self.penalty`.
+
+        Returns
+        -------
+        numpy.ndarray
+            The updated `self.penalty`.
+
+        """
+        self.penalty = _add_diagonals(self.penalty, penalty, lower_only=self.lower)
+        self._update_bands()
+        return self.penalty
+
+    def _update_bands(self):
+        """Updates the number of bands and the index of the main diagonal in `self.penalty`."""
+        if self.lower:
+            self.num_bands = len(self.penalty) - 1
+        else:
+            self.num_bands = len(self.penalty) // 2
+        self.main_diagonal_index = 0 if self.lower else self.num_bands
+
+    def reset_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=None,
+                        allow_pentapy=True, padding=0):
+        """
+        Resets the diagonals of the system and all of the attributes.
+
+        Useful for reusing the penalized system for a different `lam` value.
+
+        Parameters
+        ----------
+        lam : float, optional
+            The penalty factor applied to the difference matrix. Larger values produce
+            smoother results. Must be greater than 0. Default is 1.
+        diff_order : int, optional
+            The difference order of the penalty. Default is 2 (second order difference).
+        allow_lower : bool, optional
+            If True (default), will allow only using the lower bands of the penalty matrix,
+            which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
+            slower :func:`scipy.linalg.solve_banded`.
+        reverse_diags : {None, False, True}, optional
+            If True, will reverse the order of the diagonals of the squared difference
+            matrix. If False, will never reverse the diagonals. If None (default), will
+            only reverse the diagonals if using pentapy's solver.
+        allow_pentapy : bool, optional
+            If True (default), will allow using pentapy's solver if `diff_order` is 2
+            and pentapy is installed. pentapy's solver is faster than scipy's banded solvers.
+        padding : int, optional
+            The number of extra layers of zeros to add to the bottom and potentially
+            the top if the full bands are used. Default is 0, which adds no extra
+            layers. Negative `padding` is treated as equivalent to 0.
+
+        """
+        using_pentapy = allow_pentapy and _HAS_PENTAPY and diff_order == 2
+        if allow_lower and not using_pentapy:
+            lower_only = True
+        else:
+            lower_only = False
+        if reverse_diags or (using_pentapy and reverse_diags is None):
+            needs_reversed = True
+        else:
+            needs_reversed = False
+
+        if self.original_diagonals is None or self.diff_order != diff_order:
+            diagonal_data = diff_penalty_diagonals(self._len, diff_order, lower_only)
+            if needs_reversed:
+                diagonal_data = diagonal_data[::-1]
+            self.original_diagonals = diagonal_data
+        else:
+            if self.lower and not lower_only:
+                self.original_diagonals = _lower_to_full(self.original_diagonals)
+            if (self.reversed and not needs_reversed) or (not self.reversed and needs_reversed):
+                self.original_diagonals = self.original_diagonals[::-1]
+            if not self.lower and lower_only:
+                self.original_diagonals = self.original_diagonals[self.diff_order:]
+
+        self.diff_order = diff_order
+        self.lower = lower_only
+        self.using_pentapy = using_pentapy
+        self.reversed = needs_reversed
+
+        self.lam = _check_lam(lam, allow_zero=False)
+        self.penalty = self.lam * _pad_diagonals(self.original_diagonals, padding, self.lower)
+        self._update_bands()
+
+    def solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False,
+              check_finite=False, l_and_u=None, check_output=False):
+        """
+        Solves the equation ``A @ x = rhs``, given `A` in banded format as `lhs`.
+
+        Parameters
+        ----------
+        lhs : array-like, shape (M, N)
+            The left-hand side of the equation, in banded format. `lhs` is assumed to be
+            some slight modification of `self.penalty` in the same format (reversed, lower,
+            number of bands, etc. are all the same).
+        rhs : array-like, shape (N,)
+            The right-hand side of the equation.
+        overwrite_ab : bool, optional
+            Whether to overwrite `lhs` when using :func:`scipy.linalg.solveh_banded` or
+            :func:`scipy.linalg.solve_banded`. Default is False.
+        overwrite_b : bool, optional
+            Whether to overwrite `rhs` when using :func:`scipy.linalg.solveh_banded` or
+            :func:`scipy.linalg.solve_banded`. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite when using
+            :func:`scipy.linalg.solveh_banded` or :func:`scipy.linalg.solve_banded`.
+            Default is False.
+        l_and_u : Container(int, int), optional
+            The number of lower and upper bands in `lhs` when using
+            :func:`scipy.linalg.solve_banded`. Default is None, which uses
+            (``len(lhs) // 2``, ``len(lhs) // 2``).
+        check_output : bool, optional
+            If True, will check the output for non-finite values when using
+            :func:`._pentapy_solver`. Default is False.
+
+        Returns
+        -------
+        output : numpy.ndarray, shape (N,)
+            The solution to the linear system, `x`.
+
+        """
+        if self.using_pentapy:
+            output = _pentapy_solver(lhs, rhs, check_output=check_output)
+        elif self.lower:
+            output = solveh_banded(
+                lhs, rhs, overwrite_ab=overwrite_ab,
+                overwrite_b=overwrite_b, lower=True, check_finite=check_finite
+            )
+        else:
+            if l_and_u is None:
+                num_bands = len(lhs) // 2
+                l_and_u = (num_bands, num_bands)
+            output = solve_banded(
+                l_and_u, lhs, rhs, overwrite_ab=overwrite_ab,
+                overwrite_b=overwrite_b, check_finite=check_finite
             )
 
         return output
