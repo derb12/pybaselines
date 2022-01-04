@@ -15,6 +15,8 @@ from scipy.sparse.linalg import spsolve
 from pybaselines import _algorithm_setup, optimizers, polynomial, utils, whittaker
 from pybaselines.utils import ParameterWarning
 
+from .conftest import get_data
+
 
 @pytest.mark.parametrize('array_enum', (0, 1))
 def test_setup_whittaker_y_array(small_data, array_enum):
@@ -504,3 +506,157 @@ def test_setup_optimizer_kwargs_warns(data_fixture):
     x, y = data_fixture
     with pytest.warns(DeprecationWarning):
         _algorithm_setup._setup_optimizer(y, 'asls', [whittaker], None, True, x_data=x)
+
+
+@pytest.mark.parametrize('input_x', (True, False))
+@pytest.mark.parametrize('check_finite', (True, False))
+@pytest.mark.parametrize('assume_sorted', (True, False))
+@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
+@pytest.mark.parametrize('change_order', (True, False))
+def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype, change_order):
+    """Tests the initialization of _Algorithm objects."""
+    sort_order = slice(0, 10)
+    if input_x:
+        x, _ = get_data()
+        expected_x = x.copy()
+        if change_order:
+            x[sort_order] = x[sort_order][::-1]
+            if assume_sorted:
+                expected_x[sort_order] = expected_x[sort_order][::-1]
+    else:
+        x = None
+        expected_x = None
+
+    algorithm = _algorithm_setup._Algorithm(
+        x, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
+    )
+    assert_array_equal(algorithm.x, expected_x)
+    assert algorithm._check_finite == check_finite
+    assert algorithm._dtype == output_dtype
+
+    if input_x:
+        assert algorithm._len == len(x)
+    else:
+        assert algorithm._len is None
+
+    if not assume_sorted and input_x:
+        order = np.arange(len(x))
+        if change_order:
+            order[sort_order] = order[sort_order][::-1]
+        assert_array_equal(algorithm._sort_order, order)
+        assert_array_equal(algorithm._inverted_order, order.argsort())
+    else:
+        assert algorithm._sort_order is None
+        assert algorithm._inverted_order is None
+
+    # ensure attributes are correctly initialized
+    assert algorithm.poly_order == -1
+    assert algorithm.pspline is None
+    assert algorithm.whittaker_system is None
+    assert algorithm.vandermonde is None
+
+
+@pytest.mark.parametrize('assume_sorted', (True, False))
+@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
+@pytest.mark.parametrize('change_order', (True, False))
+def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
+    """Ensures the _return_results method returns the correctly sorted outputs."""
+    x, _ = get_data()
+    baseline = np.arange(len(x))
+    # 'a' values will be sorted and 'b' values will be kept the same
+    params = {
+        'a': np.arange(len(x)),
+        'b': np.arange(len(x))
+    }
+    sort_indices = slice(0, 100)
+    params['b'][sort_indices] = params['b'][sort_indices]
+    if change_order:
+        x[sort_indices] = x[sort_indices][::-1]
+
+    expected_params = {
+        'a': np.arange(len(x)),
+        'b': np.arange(len(x))
+    }
+    expected_params['b'][sort_indices] = expected_params['b'][sort_indices]
+    expected_baseline = baseline.copy()
+    if change_order and not assume_sorted:
+        expected_baseline[sort_indices] = expected_baseline[sort_indices][::-1]
+        expected_params['a'][sort_indices] = expected_params['a'][sort_indices][::-1]
+
+    algorithm = _algorithm_setup._Algorithm(
+        x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
+    )
+    output, output_params = algorithm._return_results(
+        baseline, params, dtype=output_dtype, sort_keys=('a',)
+    )
+
+    assert_allclose(output, expected_baseline, 1e-16, 1e-16)
+    assert output.dtype == output_dtype
+    for key, value in expected_params.items():
+        assert_array_equal(value, output_params[key])
+
+
+@pytest.mark.parametrize('assume_sorted', (True, False))
+@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
+@pytest.mark.parametrize('change_order', (True, False))
+@pytest.mark.parametrize('list_input', (True, False))
+def test_algorithm_register(assume_sorted, output_dtype, change_order, list_input):
+    """
+    Ensures the _register wrapper method returns the correctly sorted outputs.
+
+    The input y-values within the wrapped function should be correctly sorted
+    if `assume_sorted` is False, while the output baseline should always match
+    the ordering of the input y-values. The output params should have an inverted
+    sort order to also match the ordering of the input y-values if `assume_sorted`
+    is False.
+
+    """
+    x, y = get_data()
+    sort_indices = slice(0, 100)
+
+    class SubClass(_algorithm_setup._Algorithm):
+        # 'a' values will be sorted and 'b' values will be kept the same
+        @_algorithm_setup._Algorithm._register(sort_keys=('a',))
+        def func(self, data, *args, **kwargs):
+            expected_input = y.copy()
+            if change_order and not assume_sorted:
+                expected_input[sort_indices] = expected_input[sort_indices][::-1]
+
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_input, 1e-16, 1e-16)
+
+            params = {
+                'a': np.arange(len(x)),
+                'b': np.arange(len(x))
+            }
+            return 1 * data, params
+
+    if change_order:
+        x[sort_indices] = x[sort_indices][::-1]
+        y[sort_indices] = y[sort_indices][::-1]
+    expected_baseline = (1 * y).astype(output_dtype)
+    if list_input:
+        x = x.tolist()
+        y = y.tolist()
+
+    expected_params = {
+        'a': np.arange(len(x)),
+        'b': np.arange(len(x))
+    }
+    if change_order and not assume_sorted:
+        # if assume_sorted is False, the param order should be inverted to match
+        # the input y-order
+        expected_params['a'][sort_indices] = expected_params['a'][sort_indices][::-1]
+
+    algorithm = SubClass(
+        x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
+    )
+    output, output_params = algorithm.func(y)
+
+    # baseline should always match y-order on the output; only sorted within the
+    # function
+    assert_allclose(output, expected_baseline, 1e-16, 1e-16)
+    assert isinstance(output, np.ndarray)
+    assert output.dtype == output_dtype
+    for key, value in expected_params.items():
+        assert_array_equal(value, output_params[key])

@@ -8,11 +8,12 @@ TODO: non-finite values (nan or inf) could be replaced for algorithms that use w
 by setting their values to arbitrary value (eg. 0) within the output y, set their weights
 to 0, and then back-fill after the calculation; something to consider, rather than just
 raising an exception when encountering a non-finite value; could also interpolate rather
-than just filling back in the nan or inf value.
+than just filling back in the nan or inf value. Could accomplish by setting check_finite
+to something like 'mask'.
 
 """
 
-import operator
+from functools import partial, wraps
 import warnings
 
 import numpy as np
@@ -20,18 +21,205 @@ from scipy.linalg import solveh_banded
 
 from ._banded_utils import _pentapy_solver, PenalizedSystem, diff_penalty_diagonals
 from ._compat import _HAS_PENTAPY
-from ._spline_utils import _spline_basis, _spline_knots
-from .utils import ParameterWarning, _inverted_sort, optimize_window, pad_edges
+from ._spline_utils import _spline_basis, _spline_knots, PSpline
 from ._validation import (
-    _check_array, _check_half_window, _check_lam, _check_sized_array, _yx_arrays
+    _check_array, _check_half_window, _check_lam, _check_optional_array, _check_sized_array,
+    _yx_arrays
 )
+from .utils import ParameterWarning, _inverted_sort, optimize_window, pad_edges
 
+
+class _Algorithm:
+    """
+    A base class for all algorithm types.
+
+    Contains setup methods for all algorithm types to make more complex algorithms
+    easier to set up.
+
+    Attributes
+    ----------
+    poly_order : int
+        The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
+        that no polynomial fitting has been performed.
+    pspline : PSpline or None
+        The PSpline object for setting up and solving penalized spline algorithms. Is None
+        if no penalized spline setup has been performed (typically done in :meth:`._setup_spline`).
+    vandermonde : numpy.ndarray or None
+        The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
+        setup has been performed (typically done in :meth:`._setup_polynomial`).
+    whittaker_system : PenalizedSystem or None
+        The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
+        algorithms. Is None if no Whittaker setup has been performed (typically done in
+        :meth:`_setup_whittaker`).
+    x : numpy.ndarray
+        The x-values for the object. If initialized with None, then `x` is initialized the
+        first function call to have the same length as the input `data` and has min and max
+        values of -1 and 1, respectively.
+    x_domain : numpy.ndarray
+        The minimum and maximum values of `x`. If `x` is None during initialization, then
+        set to numpy.ndarray([-1, 1]).
 
     """
-    """
 
+    def __init__(self, x_data=None, check_finite=True, assume_sorted=False,
+                 output_dtype=None):
+        """
+        Initializes the algorithm object.
+
+        Parameters
+        ----------
+        x_data : array-like, shape (N,), optional
+            The x-values of the measured data. Default is None, which will create an
+            array from -1 to 1 during the first function call with length equal to the
+            input data length.
+        check_finite : bool, optional
+            If True, will raise an error if any values if `array` are not finite.
+            Default is False, which skips the check. Note that errors may occur if
+            `check_finite` is False and the input data contains non-finite values.
+        assume_sorted : bool, optional
+            If False (default), will sort the input `x_data` values. Otherwise, the
+            input is assumed to be sorted. Note that some functions may raise an error
+            if `x_data` is not sorted.
+        output_dtype : type or np.dtype, optional
+            The dtype to cast the output array. Default is None, which uses the typing
+            of the input data.
+
+        """
+        if x_data is None:
+            self.x = None
+            self.x_domain = np.array([-1., 1.])
+            self._len = None
         else:
+            self.x = _check_array(x_data, check_finite=check_finite)
+            self._len = len(self.x)
+            self.x_domain = np.polynomial.polyutils.getdomain(self.x)
 
+        if x_data is None or assume_sorted:
+            self._sort_order = None
+            self._inverted_order = None
+        else:
+            self._sort_order = self.x.argsort(kind='mergesort')
+            self.x = self.x[self._sort_order]
+            self._inverted_order = _inverted_sort(self._sort_order)
+
+        self.whittaker_system = None
+        self.vandermonde = None
+        self.poly_order = -1
+        self.pspline = None
+        self._check_finite = check_finite
+        self._dtype = output_dtype
+
+    def _return_results(self, baseline, params, dtype, sort_keys=()):
+        """
+        Re-orders the input baseline and parameters based on the x ordering.
+
+        If `self._sort_order` is None, then no reordering is performed.
+
+        Parameters
+        ----------
+        baseline : numpy.ndarray, shape (N,)
+            The baseline output by the baseline function.
+        params : dict
+            The parameter dictionary output by the baseline function.
+        dtype : [type]
+            The desired output dtype for the baseline.
+        sort_keys : Iterable, optional
+            An iterable of keys corresponding to the values in `params` that need
+            re-ordering. Default is ().
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The input `baseline` after re-ordering and setting to the desired dtype.
+        params : dict
+            The input `params` after re-ordering the values for `sort_keys`.
+
+        """
+        if self._sort_order is not None:
+            for key in sort_keys:
+                if key in params:  # some parameters are conditionally output
+                    params[key] = params[key][self._inverted_order]
+            baseline = baseline[self._inverted_order]
+
+        baseline = baseline.astype(dtype, copy=False)
+
+        return baseline, params
+
+    @classmethod
+    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True, axis=-1):
+        """
+        Wraps a baseline function to validate inputs and correct outputs.
+
+        The input data is converted to a numpy array, validated to ensure the length is
+        consistent, and ordered to match the input x ordering. The outputs are corrected
+        to ensure proper inverted sort ordering and dtype.
+
+        Parameters
+        ----------
+        func : Callable, optional
+            The function that is being decorated. Default is None, which returns a partial function.
+        sort_keys : tuple, optional
+            The keys within the output parameter dictionary that will need sorting to match the
+            sort order of :attr:`.x`. Default is ().
+        dtype : type or np.dtype, optional
+            The dtype to cast the output array. Default is None, which uses the typing of `array`.
+        order : {None, 'C', 'F'}, optional
+            The order for the output array. Default is None, which will use the default array
+            ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
+        ensure_1d : bool, optional
+            If True (default), will raise an error if the shape of `array` is not a one dimensional
+            array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
+        axis : int, optional
+            The axis of the input on which to check its length. Default is -1.
+
+        Returns
+        -------
+        numpy.ndarray
+            The calculated baseline.
+        dict
+            A dictionary of parameters output by the baseline function.
+
+        """
+        if func is None:
+            return partial(
+                cls._register, sort_keys=sort_keys, dtype=dtype, order=order,
+                ensure_1d=ensure_1d, axis=axis
+            )
+
+        @wraps(func)
+        def inner(self, data, *args, **kwargs):
+            if self._len is None:
+                reset_x = False
+                y, self.x = _yx_arrays(
+                    data, check_finite=self._check_finite, dtype=dtype, order=order,
+                    ensure_1d=ensure_1d, axis=axis
+                )
+                self._len = y.shape[axis]
+            else:
+                reset_x = True
+                y = _check_sized_array(
+                    data, self._len, check_finite=self._check_finite, dtype=dtype, order=order,
+                    ensure_1d=ensure_1d, axis=axis, name='data'
+                )
+                # update self.x just to ensure dtype and order are correct
+                x_dtype = self.x.dtype
+                self.x = _check_array(
+                    self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
+                )
+            if self._sort_order is not None:
+                y = y[self._sort_order]
+            if self._dtype is None:
+                output_dtype = y.dtype
+            else:
+                output_dtype = self._dtype
+
+            baseline, params = func(self, y, *args, **kwargs)
+            if reset_x:
+                self.x = np.array(self.x, dtype=x_dtype, copy=False)
+
+            return self._return_results(baseline, params, output_dtype, sort_keys)
+
+        return inner
 
 
 

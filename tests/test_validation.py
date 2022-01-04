@@ -297,12 +297,12 @@ def test_check_sized_array_ensure_1d():
 
     # also ensure the shape is ignored when ensure_1d is False
     output = _validation._check_sized_array(
-        array.reshape(-1, 2), array.reshape(-1, 2).shape[0], ensure_1d=False
+        array.reshape(-1, 2), array.reshape(-1, 2).shape[-1], ensure_1d=False
     )
     assert output.shape == array.reshape(-1, 2).shape
 
     # also ensure shape check works without changing to 1d
-    output = _validation._check_sized_array(array.T, original_shape[1], ensure_1d=False)
+    output = _validation._check_sized_array(array.T, original_shape[0], ensure_1d=False)
     assert output.shape == original_shape[::-1]
 
 
@@ -326,7 +326,7 @@ def test_check_sized_array_check_finite():
 def test_check_sized_array_order():
     """Ensures the array order is correctly set in _check_sized_array."""
     array = np.ones((5, 2))
-    length = array.shape[0]
+    length = array.shape[-1]
     intial_c_contiguous = array.flags['C_CONTIGUOUS']
     intial_f_contiguous = array.flags['F_CONTIGUOUS']
 

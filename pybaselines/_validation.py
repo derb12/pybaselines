@@ -123,7 +123,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
         The order for the output array. Default is None, which will use the default array
         ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
     check_finite : bool, optional
-        If True, will raise an error if any values if `array` are not finite. Default is False,
+        If True, will raise an error if any values in `array` are not finite. Default is False,
         which skips the check.
     ensure_1d : bool, optional
         If True (default), will raise an error if the shape of `array` is not a one dimensional
@@ -163,7 +163,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
 
 
 def _check_sized_array(array, length, dtype=None, order=None, check_finite=False,
-                       ensure_1d=True, axis=0, name='weights'):
+                       ensure_1d=True, axis=-1, name='weights'):
     """
     Validates the input array and ensures its length is correct.
 
@@ -185,7 +185,7 @@ def _check_sized_array(array, length, dtype=None, order=None, check_finite=False
         If True (default), will raise an error if the shape of `array` is not a one dimensional
         array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
     axis : int, optional
-        The axis of the input on which to check its length. Default is 0.
+        The axis of the input on which to check its length. Default is -1.
     name : str, optional
         The name for the variable if an exception is raised. Default is 'weights'.
 
@@ -211,7 +211,7 @@ def _check_sized_array(array, length, dtype=None, order=None, check_finite=False
 
 
 def _yx_arrays(data, x_data=None, check_finite=False, dtype=None, order=None, ensure_1d=True,
-               axis=0):
+               axis=-1):
     """
     Converts input data into numpy arrays and provides x data if none is given.
 
@@ -222,6 +222,19 @@ def _yx_arrays(data, x_data=None, check_finite=False, dtype=None, order=None, en
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1. to 1. with N points.
+    check_finite : bool, optional
+        If True, will raise an error if any values if `array` are not finite. Default is False,
+        which skips the check.
+    dtype : type or np.dtype, optional
+        The dtype to cast the output array. Default is None, which uses the typing of `array`.
+    order : {None, 'C', 'F'}, optional
+        The order for the output array. Default is None, which will use the default array
+        ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
+    ensure_1d : bool, optional
+        If True (default), will raise an error if the shape of `array` is not a one dimensional
+        array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
+    axis : int, optional
+        The axis of the input on which to check its length. Default is -1.
 
     Returns
     -------
