@@ -199,10 +199,10 @@ class Whittaker(_Algorithm):
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
-        d1_diags = diff_penalty_diagonals(self._len, 1, self.whittaker_system.lower, 1)
+        diff_1_diags = diff_penalty_diagonals(self._len, 1, self.whittaker_system.lower, 1)
         if self.whittaker_system.using_pentapy:
-            d1_diags = d1_diags[::-1]
-        self.whittaker_system.add_penalty(lambda_1 * d1_diags)
+            diff_1_diags = diff_1_diags[::-1]
+        self.whittaker_system.add_penalty(lambda_1 * diff_1_diags)
         main_diag_idx = self.whittaker_system.main_diagonal_index
         main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
 
@@ -213,12 +213,11 @@ class Whittaker(_Algorithm):
         d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
-        tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             weight_squared = weight_array * weight_array
             self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_squared
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_squared * y, overwrite_b=True
+                self.whittaker_system.penalty, weight_squared * y + d1_y, overwrite_b=True
             )
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
