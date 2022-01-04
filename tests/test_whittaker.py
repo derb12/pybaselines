@@ -12,139 +12,90 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import whittaker
+from pybaselines import _banded_utils, whittaker
 from pybaselines.utils import ParameterWarning
 
-from .conftest import AlgorithmTester, get_data, has_pentapy
+from .conftest import BaseTester, has_pentapy
 
 
-class TestAsLS(AlgorithmTester):
+class WhittakerTester(BaseTester):
+    """Base testing class for whittaker functions."""
+
+    module = whittaker
+    algorithm_base = whittaker.Whittaker
+    checked_keys = ('weights', 'tol_history')
+
+    @has_pentapy
+    def test_pentapy_solver(self):
+        """Ensure pentapy solver gives similar result to SciPy's solver."""
+        with mock.patch.object(_banded_utils, '_HAS_PENTAPY', False):
+            scipy_output = self.class_func(self.y)[0]
+            assert not self.algorithm.whittaker_system.using_pentapy
+
+        pentapy_output = self.class_func(self.y)[0]
+        assert self.algorithm.whittaker_system.using_pentapy
+
+        assert_allclose(pentapy_output, scipy_output, 1e-4)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+
+class TestAsLS(WhittakerTester):
     """Class for testing asls baseline."""
 
-    func = whittaker.asls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'asls'
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
+            self.class_func(self.y, p=p)
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
-
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
 
-class TestIAsLS(AlgorithmTester):
+class TestIAsLS(WhittakerTester):
     """Class for testing iasls baseline."""
 
-    func = whittaker.iasls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'iasls'
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
+            self.class_func(self.y, p=p)
 
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {2: 1e6, 3: 1e10}[diff_order]
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+    def test_diff_order_one_fails(self):
+        """Ensure that a difference order of 1 raises an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, lam=1e2, diff_order=1)
 
 
-class TestAirPLS(AlgorithmTester):
+class TestAirPLS(WhittakerTester):
     """Class for testing airpls baseline."""
 
-    func = whittaker.airpls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'airpls'
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e3, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
-
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
@@ -166,58 +117,21 @@ class TestAirPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
-            baseline = self._call_func(y, tol=-1, max_iter=3000)[0]
+            baseline = self.class_func(y, tol=-1, max_iter=3000)[0]
 
         assert np.isfinite(baseline.dot(baseline))
 
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
 
-        assert params['tol_history'].size == max_iter + 1
-
-
-class TestArPLS(AlgorithmTester):
+class TestArPLS(WhittakerTester):
     """Class for testing arpls baseline."""
 
-    func = whittaker.arpls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'arpls'
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
-
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
         """
@@ -233,38 +147,32 @@ class TestArPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
         assert np.isfinite(baseline.dot(baseline))
 
 
-class TestDrPLS(AlgorithmTester):
+class TestDrPLS(WhittakerTester):
     """Class for testing drpls baseline."""
 
-    func = whittaker.drpls
+    func_name = 'drpls'
 
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
+    @pytest.mark.parametrize('eta', (-1, 2))
+    def test_outside_eta_fails(self, eta):
+        """Ensures eta values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, eta=eta)
 
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {2: 1e5, 3: 1e9}[diff_order]
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
-
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
-
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
+    def test_diff_order_one_fails(self):
+        """Ensure that a difference order of 1 raises an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, lam=1e2, diff_order=1)
 
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
@@ -286,54 +194,24 @@ class TestDrPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
-            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline.dot(baseline))
         # ensure last tolerence calculation was non-finite as a double-check that
         # this test is actually doing what it should be doing
         assert not np.isfinite(params['tol_history'][-1])
 
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
 
-        assert params['tol_history'].size == max_iter + 1
-
-
-class TestIArPLS(AlgorithmTester):
+class TestIArPLS(WhittakerTester):
     """Class for testing iarpls baseline."""
 
-    func = whittaker.iarpls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'iarpls'
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
-
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
@@ -355,69 +233,31 @@ class TestIArPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
-            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline.dot(baseline))
         # ensure last tolerence calculation was non-finite as a double-check that
         # this test is actually doing what it should be doing
         assert not np.isfinite(params['tol_history'][-1])
 
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
 
-        assert params['tol_history'].size == max_iter + 1
-
-
-class TestAsPLS(AlgorithmTester):
+class TestAsPLS(WhittakerTester):
     """Class for testing aspls baseline."""
 
-    func = whittaker.aspls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(
-            self.y, self.y, checked_keys=('weights', 'alpha', 'tol_history')
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
-
-    def test_wrong_alpha_shape(self):
-        """Ensures that an exception is raised if input alpha and data are different shapes."""
-        alpha = np.ones(self.y.shape[0] + 1)
-        with pytest.raises(ValueError):
-            self._call_func(self.y, alpha=alpha)
+    func_name = 'aspls'
+    checked_keys = ('weights', 'alpha', 'tol_history')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e4, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
-
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+    def test_wrong_alpha_shape(self):
+        """Ensures that an exception is raised if input alpha and data are different shapes."""
+        alpha = np.ones(self.y.shape[0] + 1)
+        with pytest.raises(ValueError):
+            self.class_func(self.y, alpha=alpha)
 
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
         """
@@ -431,104 +271,44 @@ class TestAsPLS(AlgorithmTester):
         case the weighting was not actually stable.
 
         """
-        y, x = no_noise_data_fixture
+        y, _ = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
         assert np.isfinite(baseline.dot(baseline))
 
 
-class TestPsalsa(AlgorithmTester):
+class TestPsalsa(WhittakerTester):
     """Class for testing psalsa baseline."""
 
-    func = whittaker.psalsa
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'psalsa'
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
+            self.class_func(self.y, p=p)
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
-
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
 
-class TestDerpsalsa(AlgorithmTester):
+class TestDerpsalsa(WhittakerTester):
     """Class for testing derpsalsa baseline."""
 
-    func = whittaker.derpsalsa
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'derpsalsa'
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
+            self.class_func(self.y, p=p)
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
-            scipy_output = self._call_func(self.y)[0]
-        pentapy_output = self._call_func(self.y)[0]
-
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)

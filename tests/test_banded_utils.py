@@ -590,3 +590,32 @@ def test_penalized_system_add_penalty(diff_order, allow_lower):
             expected_main_diag_index = expected_num_bands
         assert penalized_system.num_bands == expected_num_bands
         assert penalized_system.main_diagonal_index == expected_main_diag_index
+
+
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('reverse_diags', (True, False))
+def test_penalized_system_reverse_penalty(allow_lower, reverse_diags):
+    """
+    Ensures the reverse_penalty method performs as expected.
+
+    Should raise an exception if the penalty is lower only, otherwise should
+    work as expected. Using pentapy is set to False so that the penalized
+    system's lower attribute is the same as the input allow_lower value.
+
+    """
+    penalized_system = _banded_utils.PenalizedSystem(
+        10, allow_lower=allow_lower, reverse_diags=reverse_diags, allow_pentapy=False
+    )
+    if allow_lower:
+        with pytest.raises(ValueError):
+            penalized_system.reverse_penalty()
+    else:
+        original_diagonals = penalized_system.original_diagonals.copy()
+        original_penalty = penalized_system.penalty.copy()
+        original_reverse = penalized_system.reversed
+
+        penalized_system.reverse_penalty()
+
+        assert penalized_system.reversed == (not original_reverse)
+        assert_array_equal(penalized_system.original_diagonals, original_diagonals[::-1])
+        assert_array_equal(penalized_system.penalty, original_penalty[::-1])

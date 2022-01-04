@@ -221,6 +221,76 @@ class _Algorithm:
 
         return inner
 
+    def _setup_whittaker(self, y, lam, diff_order=2, weights=None, copy_weights=False,
+                         allow_lower=True, reverse_diags=None):
+        """
+        Sets the starting parameters for doing penalized least squares.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        lam : float
+            The smoothing parameter, lambda. Typical values are between 10 and
+            1e8, but it strongly depends on the penalized least square method
+            and the differential order.
+        diff_order : int, optional
+            The integer differential order; must be greater than 0. Default is 2.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            shape (N,) and all values set to 1.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+        allow_lower : boolean, optional
+            If True (default), will allow using only the lower non-zero diagonals of
+            the squared difference matrix. If False, will include all non-zero diagonals.
+        reverse_diags : {None, False, True}, optional
+            If True, will reverse the order of the diagonals of the squared difference
+            matrix. If False, will never reverse the diagonals. If None (default), will
+            only reverse the diagonals if using pentapy's solver.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,), optional
+            The weighting array.
+
+        Raises
+        ------
+        ValueError
+            Raised is `diff_order` is less than 1.
+
+        Warns
+        -----
+        ParameterWarning
+            Raised if `diff_order` is greater than 3.
+
+        """
+        if diff_order < 1:
+            raise ValueError(
+                'the difference order must be > 0 for Whittaker-smoothing-based methods'
+            )
+        elif diff_order > 3:
+            warnings.warn(
+                ('difference orders greater than 3 can have numerical issues;'
+                 ' consider using a difference order of 2 or 1 instead'),
+                ParameterWarning, stacklevel=2
+            )
+        weight_array = _check_optional_array(
+            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite
+        )
+        if self.whittaker_system is not None:
+            self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
+        else:
+            self.whittaker_system = PenalizedSystem(
+                self._len, lam, diff_order, allow_lower, reverse_diags
+            )
+
+        return y, weight_array
+
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,

@@ -738,3 +738,20 @@ class PenalizedSystem:
             )
 
         return output
+
+    def reverse_penalty(self):
+        """
+        Reverses the penalty and original diagonals for the system.
+
+        Raises
+        ------
+        ValueError
+            Raised if `self.lower` is True, since reversing the half diagonals does
+            not make physical sense.
+
+        """
+        if self.lower:
+            raise ValueError('cannot reverse diagonals when self.lower is True')
+        self.penalty = self.penalty[::-1]
+        self.original_diagonals = self.original_diagonals[::-1]
+        self.reversed = not self.reversed

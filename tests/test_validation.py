@@ -364,3 +364,25 @@ def test_check_sized_array_name():
     for name in ('weights', 'x-data', 'data'):
         with pytest.raises(ValueError, match=f'length mismatch for {name}'):
             _validation._check_sized_array(array, length + 1, name=name)
+
+
+@pytest.mark.parametrize('list_input', (True, False))
+def test_optional_array_output(small_data, list_input):
+    """Ensures output y and x are always numpy arrays and that x is not scaled."""
+    if list_input == 1:
+        small_data = small_data.tolist()
+    output = _validation._check_optional_array(len(small_data), small_data)
+
+    actual_array = np.asarray(small_data)
+
+    assert isinstance(output, np.ndarray)
+    assert_array_equal(output, actual_array)
+
+
+def test_optional_array_no_input():
+    """Ensures an array of ones is created if None is input."""
+    length = 10
+    output = _validation._check_optional_array(length, None)
+
+    assert isinstance(output, np.ndarray)
+    assert_array_equal(output, np.ones(length))

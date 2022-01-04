@@ -342,3 +342,47 @@ def _check_half_window(half_window, allow_zero=False):
         raise TypeError('half_window must be an integer')
 
     return output_half_window
+
+
+def _check_optional_array(data_size, array=None, dtype=None, order=None, check_finite=False,
+                          copy_input=False, name='weights'):
+    """
+    Validates the length of the input array or creates an array of ones if no input is given.
+
+    Parameters
+    ----------
+    data_size : int
+        The length that the input should have.
+    array : array-like, shape (`data_size`), optional
+        The array to validate. Default is None, which will create an array of ones with length
+        equal to `data_size`.
+    copy_input : bool, optional
+        If True, returns a copy of the input `array` if it is not None. Default is False.
+    dtype : type or np.dtype, optional
+        The dtype to cast the output array. Default is None, which uses the typing of `array`.
+    order : {None, 'C', 'F'}, optional
+        The order for the output array. Default is None, which will use the default array
+        ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
+    check_finite : bool, optional
+        If True, will raise an error if any values if `array` are not finite. Default is False,
+        which skips the check.
+    name : str, optional
+        The name for the variable if an exception is raised. Default is 'weights'.
+
+    Returns
+    -------
+    output_array : numpy.ndarray, shape (`data_size`)
+        The validated array or the new ones array.
+
+    """
+    if array is None:
+        output_array = np.ones(data_size)
+    else:
+        output_array = _check_sized_array(
+            array, data_size, dtype=dtype, order=order, check_finite=check_finite,
+            ensure_1d=True, name=name
+        )
+        if copy_input:
+            output_array = output_array.copy()
+
+    return output_array
