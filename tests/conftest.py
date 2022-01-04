@@ -6,6 +6,8 @@ Created on March 20, 2021
 
 """
 
+import inspect
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
@@ -121,7 +123,11 @@ class AlgorithmTester:
     """
 
     func = _raise_error
-    x, y = get_data()  # TODO remove this and make it a per-function call
+
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        """Sets the x and y attributes for each class."""
+        self.x, self.y = get_data()
 
     @classmethod
     def _test_output(cls, y, *args, checked_keys=None, **kwargs):
@@ -254,3 +260,190 @@ class AlgorithmTester:
         output = cls.func(*args, **kwargs)[0]
 
         assert_allclose(output, known_output, **assertion_kwargs)
+
+
+class DummyModule:
+    """A dummy object to serve as a fake module."""
+
+    @staticmethod
+    def func(*args, **kwargs):
+        """Dummy function."""
+        raise NotImplementedError('need to set func')
+
+
+class DummyAlgorithm:
+    """A dummy object to serve as a fake Algorithm subclass."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def func(self, *args, **kwargs):
+        """Dummy function."""
+        raise NotImplementedError('need to set func')
+
+
+class BaseTester:
+    """
+    A base class for testing all algorithms.
+
+    Ensure the functional and class-based algorithms are the same and that both do not
+    modify the inputs. After that, only the class-based call is used to potentially save
+    time from the setup.
+
+    Attributes
+    ----------
+    kwargs : dict
+        The keyword arguments that will be used as inputs for all default test cases.
+
+    """
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'func'
+    checked_keys = None
+    required_kwargs = None
+
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        """Sets the x and y attributes for each class."""
+        self.x, self.y = get_data()
+        self.func = getattr(self.module, self.func_name)
+        self.algorithm = self.algorithm_base(self.x)
+        self.class_func = getattr(self.algorithm, self.func_name)
+        self.kwargs = self.required_kwargs if self.required_kwargs is not None else {}
+        self.param_keys = self.checked_keys if self.checked_keys is not None else []
+
+    @pytest.mark.parametrize('use_class', (True, False))
+    def test_unchanged_data(self, use_class):
+        """Ensures that input data is unchanged by the function."""
+        x, y = get_data()
+        x2, y2 = get_data()
+        if use_class:
+            getattr(self.algorithm_base(x_data=x), self.func_name)(data=y, **self.kwargs)
+        else:
+            self.func(data=y, x_data=x, **self.kwargs)
+
+        assert_array_equal(y2, y, err_msg='the y-data was changed by the algorithm')
+        assert_array_equal(x2, x, err_msg='the x-data was changed by the algorithm')
+
+    def test_repeated_fits(self):
+        """Ensures the setup is properly reset when using class api."""
+        first_output = self.class_func(self.y, **self.kwargs)
+        second_output = self.class_func(self.y, **self.kwargs)
+
+        assert_allclose(first_output[0], second_output[0], 1e-14)
+
+    def test_functional_vs_class_output(self):
+        """Ensures the functional and class-based functions perform the same."""
+        class_output = self.class_func(self.y, **self.kwargs)
+        functional_output = self.func(self.y, **self.kwargs)
+
+        assert_allclose(class_output[0], functional_output[0])
+        for key in class_output[1]:
+            assert key in functional_output[1]
+
+    def test_functional_vs_class_parameters(self):
+        """
+        Ensures the args and kwargs for functional and class-based functions are the same.
+
+        Also ensures that both api have a `data` argument. The only difference between
+        the two signatures should be that the functional api has an `x_data` keyword.
+
+        """
+        class_parameters = inspect.signature(self.class_func).parameters
+        functional_parameters = inspect.signature(self.func).parameters
+
+        # should be the same except that functional signature has x_data
+        assert len(class_parameters) == len(functional_parameters) - 1
+        assert 'data' in class_parameters
+        assert 'x_data' in functional_parameters
+        for key in class_parameters:
+            assert key in functional_parameters
+
+    def test_list_input(self, **assertion_kwargs):
+        """Ensures that function works the same for both array and list inputs."""
+        output_array = self.class_func(self.y, **self.kwargs)
+        output_list = self.class_func(self.y.tolist(), **self.kwargs)
+
+        assert_allclose(
+            output_array[0], output_list[0],
+            err_msg='algorithm output is different for arrays vs lists', **assertion_kwargs
+        )
+        for key in output_array[1]:
+            assert key in output_list[1]
+
+    def test_no_x(self, **assertion_kwargs):
+        """
+        Ensures that function output is the same when no x is input.
+
+        Usually only valid for evenly spaced data, such as used for testing.
+
+        """
+        output_with = self.class_func(self.y, **self.kwargs)
+        output_without = getattr(self.algorithm_base(), self.func_name)(self.y, **self.kwargs)
+
+        assert_allclose(
+            output_with[0], output_without[0],
+            err_msg='algorithm output is different with no x-values',
+            **assertion_kwargs
+        )
+
+    def test_output(self, additional_keys=None, **kwargs):
+        """
+        Ensures that the output has the desired format.
+
+        Ensures that output has two elements, a numpy array and a param dictionary,
+        and that the output baseline is the same shape as the input y-data.
+
+        Parameters
+        ----------
+        additional_keys : Iterable(str, ...), optional
+            Additional keys to check for in the output parameter dictionary. Default is None.
+        **kwargs
+            Additional keyword arguments to pass to the function.
+
+        """
+        output = self.class_func(self.y, **self.kwargs, **kwargs)
+
+        assert len(output) == 2, 'algorithm output should have two items'
+        assert isinstance(output[0], np.ndarray), 'output[0] should be a numpy ndarray'
+        assert isinstance(output[1], dict), 'output[1] should be a dictionary'
+        assert self.y.shape == output[0].shape, 'output[0] must have same shape as y-data'
+
+        if additional_keys is not None:
+            total_keys = list(self.param_keys) + list(additional_keys)
+        else:
+            total_keys = self.param_keys
+        # check all entries in output param dictionary
+        for key in total_keys:
+            if key not in output[1]:
+                assert False, f'key "{key}" missing from param dictionary'
+            output[1].pop(key)
+        if output[1]:
+            assert False, f'unchecked keys in param dictionary: {output[1]}'
+
+
+class BasePolyTester(BaseTester):
+    """
+    A base class for testing polynomial algorithms.
+
+    Checks that the polynomial coefficients are correctly returned and that they correspond
+    to the polynomial used to create the baseline.
+
+    """
+
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        """Ensures the polynomial coefficients are output if `return_coef` is True."""
+        if return_coef:
+            additional_keys = ['coef']
+        else:
+            additional_keys = None
+        super().test_output(additional_keys=additional_keys, return_coef=return_coef)
+
+    def test_output_coefs(self):
+        """Ensures the output coefficients can correctly reproduce the baseline."""
+        baseline, params = self.class_func(self.y, **self.kwargs, return_coef=True)
+        recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
+
+        assert_allclose(baseline, recreated_poly)

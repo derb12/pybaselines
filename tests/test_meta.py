@@ -10,7 +10,7 @@ import numpy as np
 from numpy.testing import assert_array_equal
 import pytest
 
-from .conftest import AlgorithmTester, get_data
+from .conftest import AlgorithmTester, BaseTester, get_data
 
 
 def _change_y(data, x_data=None):
@@ -174,3 +174,42 @@ class TestAlgorithmTesterNoFunc(AlgorithmTester):
         """Ensures NotImplementedError is raised from AlgorithmTester's default func."""
         with pytest.raises(NotImplementedError):
             self._test_unchanged_data(data_fixture)
+
+
+class DummyModule:
+    """A dummy object to serve as a fake module."""
+
+    @staticmethod
+    def func(*args, **kwargs):
+        """Dummy function."""
+        if 'data' in kwargs:
+            output = kwargs['data']
+        else:
+            output = args[0]
+        return output, {'a': 1}
+
+
+class DummyAlgorithm:
+    """A dummy object to serve as a fake Algorithm subclass."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def func(self, *args, **kwargs):
+        """Dummy function."""
+        return DummyModule.func(*args, **kwargs)
+
+
+class TestBaseTesterWorks(BaseTester):
+    """Ensures a basic subclass of BaseTester works."""
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'func'
+    checked_keys = ['a']
+
+
+# use xfail rather than pytest.raises since raises does not seem to work for classes
+@pytest.mark.xfail(raises=NotImplementedError)
+class TestBaseTesterNoFunc(BaseTester):
+    """Ensures the BaseTester fails if not setup correctly."""
