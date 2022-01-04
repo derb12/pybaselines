@@ -266,7 +266,7 @@ class DummyModule:
     """A dummy object to serve as a fake module."""
 
     @staticmethod
-    def func(*args, **kwargs):
+    def func(*args, data=None, x_data=None, **kwargs):
         """Dummy function."""
         raise NotImplementedError('need to set func')
 
@@ -277,7 +277,7 @@ class DummyAlgorithm:
     def __init__(self, *args, **kwargs):
         pass
 
-    def func(self, *args, **kwargs):
+    def func(self, *args, data=None, **kwargs):
         """Dummy function."""
         raise NotImplementedError('need to set func')
 
@@ -328,15 +328,15 @@ class BaseTester:
 
     def test_repeated_fits(self):
         """Ensures the setup is properly reset when using class api."""
-        first_output = self.class_func(self.y, **self.kwargs)
-        second_output = self.class_func(self.y, **self.kwargs)
+        first_output = self.class_func(data=self.y, **self.kwargs)
+        second_output = self.class_func(data=self.y, **self.kwargs)
 
         assert_allclose(first_output[0], second_output[0], 1e-14)
 
     def test_functional_vs_class_output(self):
         """Ensures the functional and class-based functions perform the same."""
-        class_output = self.class_func(self.y, **self.kwargs)
-        functional_output = self.func(self.y, **self.kwargs)
+        class_output = self.class_func(data=self.y, **self.kwargs)
+        functional_output = self.func(data=self.y, **self.kwargs)
 
         assert_allclose(class_output[0], functional_output[0])
         for key in class_output[1]:
@@ -362,8 +362,8 @@ class BaseTester:
 
     def test_list_input(self, **assertion_kwargs):
         """Ensures that function works the same for both array and list inputs."""
-        output_array = self.class_func(self.y, **self.kwargs)
-        output_list = self.class_func(self.y.tolist(), **self.kwargs)
+        output_array = self.class_func(data=self.y, **self.kwargs)
+        output_list = self.class_func(data=self.y.tolist(), **self.kwargs)
 
         assert_allclose(
             output_array[0], output_list[0],
@@ -379,8 +379,10 @@ class BaseTester:
         Usually only valid for evenly spaced data, such as used for testing.
 
         """
-        output_with = self.class_func(self.y, **self.kwargs)
-        output_without = getattr(self.algorithm_base(), self.func_name)(self.y, **self.kwargs)
+        output_with = self.class_func(data=self.y, **self.kwargs)
+        output_without = getattr(self.algorithm_base(), self.func_name)(
+            data=self.y, **self.kwargs
+        )
 
         assert_allclose(
             output_with[0], output_without[0],
@@ -403,7 +405,7 @@ class BaseTester:
             Additional keyword arguments to pass to the function.
 
         """
-        output = self.class_func(self.y, **self.kwargs, **kwargs)
+        output = self.class_func(data=self.y, **self.kwargs, **kwargs)
 
         assert len(output) == 2, 'algorithm output should have two items'
         assert isinstance(output[0], np.ndarray), 'output[0] should be a numpy ndarray'
@@ -443,7 +445,7 @@ class BasePolyTester(BaseTester):
 
     def test_output_coefs(self):
         """Ensures the output coefficients can correctly reproduce the baseline."""
-        baseline, params = self.class_func(self.y, **self.kwargs, return_coef=True)
+        baseline, params = self.class_func(data=self.y, **self.kwargs, return_coef=True)
         recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
 
         assert_allclose(baseline, recreated_poly)

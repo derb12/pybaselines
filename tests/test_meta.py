@@ -180,13 +180,9 @@ class DummyModule:
     """A dummy object to serve as a fake module."""
 
     @staticmethod
-    def func(*args, **kwargs):
+    def func(data=None, x_data=None, **kwargs):
         """Dummy function."""
-        if 'data' in kwargs:
-            output = kwargs['data']
-        else:
-            output = args[0]
-        return output, {'a': 1}
+        return data, {'a': 1}
 
 
 class DummyAlgorithm:
@@ -195,9 +191,9 @@ class DummyAlgorithm:
     def __init__(self, *args, **kwargs):
         pass
 
-    def func(self, *args, **kwargs):
+    def func(self, data=None, **kwargs):
         """Dummy function."""
-        return DummyModule.func(*args, **kwargs)
+        return DummyModule.func(data=data, **kwargs)
 
 
 class TestBaseTesterWorks(BaseTester):
@@ -209,7 +205,44 @@ class TestBaseTesterWorks(BaseTester):
     checked_keys = ['a']
 
 
-# use xfail rather than pytest.raises since raises does not seem to work for classes
-@pytest.mark.xfail(raises=NotImplementedError)
 class TestBaseTesterNoFunc(BaseTester):
     """Ensures the BaseTester fails if not setup correctly."""
+
+    @pytest.mark.parametrize('use_class', (True, False))
+    def test_unchanged_data(self, use_class):
+        """Ensures that input data is unchanged by the function."""
+        with pytest.raises(NotImplementedError):
+            super().test_unchanged_data(use_class)
+
+    def test_repeated_fits(self):
+        """Ensures the setup is properly reset when using class api."""
+        with pytest.raises(NotImplementedError):
+            super().test_repeated_fits()
+
+    def test_functional_vs_class_output(self):
+        """Ensures the functional and class-based functions perform the same."""
+        with pytest.raises(NotImplementedError):
+            super().test_functional_vs_class_output()
+
+    def test_functional_vs_class_parameters(self):
+        """
+        Ensures the args and kwargs for functional and class-based functions are the same.
+
+        Only test that should actually pass if setup was done incorrectly.
+        """
+        super().test_functional_vs_class_parameters()
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        with pytest.raises(NotImplementedError):
+            super().test_list_input()
+
+    def test_no_x(self):
+        """Ensures that function output is the same when no x is input."""
+        with pytest.raises(NotImplementedError):
+            super().test_no_x()
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        with pytest.raises(NotImplementedError):
+            super().test_output()
