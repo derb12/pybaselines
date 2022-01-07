@@ -314,14 +314,16 @@ class BaseTester:
         self.param_keys = self.checked_keys if self.checked_keys is not None else []
 
     @pytest.mark.parametrize('use_class', (True, False))
-    def test_unchanged_data(self, use_class):
+    def test_unchanged_data(self, use_class, **kwargs):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
         x2, y2 = get_data()
         if use_class:
-            getattr(self.algorithm_base(x_data=x), self.func_name)(data=y, **self.kwargs)
+            getattr(self.algorithm_base(x_data=x), self.func_name)(
+                data=y, **self.kwargs, **kwargs
+            )
         else:
-            self.func(data=y, x_data=x, **self.kwargs)
+            self.func(data=y, x_data=x, **self.kwargs, **kwargs)
 
         assert_array_equal(y2, y, err_msg='the y-data was changed by the algorithm')
         assert_array_equal(x2, x, err_msg='the x-data was changed by the algorithm')

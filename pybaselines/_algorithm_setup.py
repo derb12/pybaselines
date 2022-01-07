@@ -188,7 +188,9 @@ class _Algorithm:
 
         @wraps(func)
         def inner(self, data, *args, **kwargs):
-            if self._len is None:
+            if self.x is None:
+                if data is None:
+                    raise ValueError('"data" and "x_data" cannot both be None')
                 reset_x = False
                 y, self.x = _yx_arrays(
                     data, check_finite=self._check_finite, dtype=dtype, order=order,
@@ -291,6 +293,79 @@ class _Algorithm:
 
         return y, weight_array
 
+    def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
+                          calc_pinv=False, copy_weights=False):
+        """
+        Sets the starting parameters for doing polynomial fitting.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        x_data : array-like, shape (N,), optional
+            The x-values of the measured data. Default is None, which will create an
+            array from -1 to 1 with N points.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+        poly_order : int, optional
+            The polynomial order. Default is 2.
+        calc_vander : bool, optional
+            If True, will calculate and the Vandermonde matrix. Default is False.
+        calc_pinv : bool, optional
+            If True, and if `return_vander` is True, will calculate and return the
+            pseudo-inverse of the Vandermonde matrix. Default is False.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for fitting a polynomial to the data.
+        pseudo_inverse : numpy.ndarray
+            Only returned if `calc_pinv` is True. The pseudo-inverse of the
+            Vandermonde matrix, calculated with singular value decomposition (SVD).
+
+        Raises
+        ------
+        ValueError
+            Raised if `calc_pinv` is True and `calc_vander` is False.
+
+        Notes
+        -----
+        If x_data is given, its domain is reduced from ``[min(x_data), max(x_data)]``
+        to [-1., 1.] to improve the numerical stability of calculations; since the
+        Vandermonde matrix goes from ``x**0`` to ``x^**poly_order``, large values of
+        x would otherwise cause difficulty when doing least squares minimization.
+
+        """
+        weight_array = _check_optional_array(
+            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite
+        )
+        if calc_vander:
+            if self.vandermonde is None or poly_order > self.poly_order:
+                mapped_x = np.polynomial.polyutils.mapdomain(
+                    self.x, self.x_domain, np.array([-1., 1.])
+                )
+                self.vandermonde = np.polynomial.polynomial.polyvander(mapped_x, poly_order)
+            elif poly_order < self.poly_order:
+                self.vandermonde = self.vandermonde[:, :poly_order + 1]
+        self.poly_order = poly_order
+
+        if not calc_pinv:
+            return y, weight_array
+        elif not calc_vander:
+            raise ValueError('if calc_pinv is True, then calc_vander must also be True')
+
+        if weights is None:
+            pseudo_inverse = np.linalg.pinv(self.vandermonde)
+        else:
+            pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
+
+        return y, weight_array, pseudo_inverse
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
