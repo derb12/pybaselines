@@ -6,6 +6,7 @@ Created on March 20, 2021
 
 """
 
+from functools import wraps
 import inspect
 
 import numpy as np
@@ -262,6 +263,14 @@ class AlgorithmTester:
         assert_allclose(output, known_output, **assertion_kwargs)
 
 
+def dummy_wrapper(func):
+    """A dummy wrapper to simulate using the _Algorithm._register wrapper function."""
+    @wraps(func)
+    def inner(*args, **kwargs):
+        return func(*args, **kwargs)
+    return inner
+
+
 class DummyModule:
     """A dummy object to serve as a fake module."""
 
@@ -277,6 +286,7 @@ class DummyAlgorithm:
     def __init__(self, *args, **kwargs):
         pass
 
+    @dummy_wrapper
     def func(self, *args, data=None, **kwargs):
         """Dummy function."""
         raise NotImplementedError('need to set func')
@@ -313,6 +323,10 @@ class BaseTester:
         self.kwargs = self.required_kwargs if self.required_kwargs is not None else {}
         self.param_keys = self.checked_keys if self.checked_keys is not None else []
 
+    def test_ensure_wrapped(self):
+        """Ensures the class method was wrapped using _Algorithm._register to control inputs."""
+        assert hasattr(self.class_func, '__wrapped__')
+
     @pytest.mark.parametrize('use_class', (True, False))
     def test_unchanged_data(self, use_class, **kwargs):
         """Ensures that input data is unchanged by the function."""
@@ -335,14 +349,14 @@ class BaseTester:
 
         assert_allclose(first_output[0], second_output[0], 1e-14)
 
-    def test_functional_vs_class_output(self):
+    def test_functional_vs_class_output(self, **assertion_kwargs):
         """Ensures the functional and class-based functions perform the same."""
-        class_output = self.class_func(data=self.y, **self.kwargs)
-        functional_output = self.func(data=self.y, **self.kwargs)
+        class_output, class_params = self.class_func(data=self.y, **self.kwargs)
+        func_output, func_params = self.func(data=self.y, x_data=self.x, **self.kwargs)
 
-        assert_allclose(class_output[0], functional_output[0])
-        for key in class_output[1]:
-            assert key in functional_output[1]
+        assert_allclose(class_output, func_output, **assertion_kwargs)
+        for key in class_params:
+            assert key in func_params
 
     def test_functional_vs_class_parameters(self):
         """

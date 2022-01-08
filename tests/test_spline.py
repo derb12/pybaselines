@@ -12,9 +12,9 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import spline, utils, whittaker
+from pybaselines import _banded_utils, spline, utils, whittaker
 
-from .conftest import AlgorithmTester, get_data
+from .conftest import BaseTester
 
 
 @pytest.mark.parametrize('use_numba', (True, False))
@@ -122,190 +122,132 @@ def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
 
     """
     # ensure the Whittaker functions use Scipy since that is what P-splines use
-    with mock.patch.object(whittaker, '_HAS_PENTAPY', False):
+    with mock.patch.object(_banded_utils, '_HAS_PENTAPY', False):
         whittaker_output = whittaker_func(data, lam=lam, **kwargs)[0]
 
-    spline_output = pspline_class._call_func(
-        data, lam=lam, num_knots=len(data) + 1, spline_degree=0, **kwargs
-    )[0]
+    if hasattr(pspline_class, 'class_func'):
+        spline_output = pspline_class.class_func(
+            data, lam=lam, num_knots=len(data) + 1, spline_degree=0, **kwargs
+        )[0]
+    else:
+        spline_output = pspline_class._call_func(
+            data, lam=lam, num_knots=len(data) + 1, spline_degree=0, **kwargs
+        )[0]
 
     assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
 
 
-class TestMixtureModel(AlgorithmTester):
+class SplineTester(BaseTester):
+    """Base testing class for spline functions."""
+
+    module = spline
+    algorithm_base = spline.Spline
+
+
+class IterativeSplineTester(SplineTester):
+    """Base testing class for iterative spline functions."""
+
+    checked_keys = ('weights', 'tol_history')
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+
+class TestMixtureModel(IterativeSplineTester):
     """Class for testing mixture_model baseline."""
 
-    func = spline.mixture_model
+    func_name = 'mixture_model'
 
+    @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('weight_bool', (True, False))
-    def test_unchanged_data(self, data_fixture, weight_bool):
+    def test_unchanged_data(self, use_class, weight_bool):
         """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
         if weight_bool:
-            weights = np.ones_like(y)
+            weights = np.ones_like(self.y)
         else:
             weights = None
-        self._test_unchanged_data(data_fixture, y, None, y, weights=weights)
+        super().test_unchanged_data(use_class, weights=weights)
 
     @pytest.mark.parametrize('symmetric', (False, True))
     def test_output(self, symmetric):
         """Ensures that the output has the desired format."""
-        if symmetric:
-            # make data with both positive and negative peaks; roll so peaks are not overlapping
-            y = np.roll(self.y, -50) - np.roll(self.y, 50)
-            p = 0.5
-        else:
-            y = self.y
-            p = 0.01
-        self._test_output(y, y, p=p, symmetric=symmetric, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        initial_y = self.y
+        try:
+            if symmetric:
+                # make data with both positive and negative peaks; roll so peaks are not overlapping
+                self.y = np.roll(self.y, -50) - np.roll(self.y, 50)
+                p = 0.5
+            else:
+                p = 0.01
+            super().test_output(p=p, symmetric=symmetric)
+        finally:
+            self.y = initial_y
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
+            self.class_func(self.y, p=p)
 
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
 
-class TestIRSQR(AlgorithmTester):
+class TestIRSQR(IterativeSplineTester):
     """Class for testing irsqr baseline."""
 
-    func = spline.irsqr
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'irsqr'
 
     @pytest.mark.parametrize('quantile', (-1, 2))
     def test_outside_p_fails(self, quantile):
         """Ensures quantile values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, quantile=quantile)
+            self.class_func(self.y, quantile=quantile)
 
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
 
-class TestCornerCutting(AlgorithmTester):
+class TestCornerCutting(SplineTester):
     """Class for testing corner_cutting baseline."""
 
-    func = spline.corner_cutting
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=())
+    func_name = 'corner_cutting'
 
     def test_no_x(self):
         """Ensures that function output is similar when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y, self.x), without_args=(self.y,), rtol=1e-3
-        )
+        super().test_no_x(rtol=1e-3)
 
     def test_list_input(self):
         """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(
-            array_args=(self.y,), list_args=(y_list,), assertion_kwargs={'rtol': 1e-5}
-        )
+        super().test_list_input(rtol=1e-5)
 
 
-class TestPsplineAsLS(AlgorithmTester):
+class TestPsplineAsLS(IterativeSplineTester):
     """Class for testing pspline_asls baseline."""
 
-    func = spline.pspline_asls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'pspline_asls'
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
+            self.class_func(self.y, p=p)
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('p', (0.01, 0.1))
@@ -314,41 +256,26 @@ class TestPsplineAsLS(AlgorithmTester):
         compare_pspline_whittaker(self, whittaker.asls, self.y, lam=lam, p=p)
 
 
-class TestPsplineIAsLS(AlgorithmTester):
+class TestPsplineIAsLS(IterativeSplineTester):
     """Class for testing pspline_iasls baseline."""
 
-    func = spline.pspline_iasls
+    func_name = 'pspline_iasls'
 
-    def test_unchanged_data(self, data_fixture):
+    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('weight_bool', (True, False))
+    def test_unchanged_data(self, use_class, weight_bool):
         """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(with_args=(self.y, self.x), without_args=(self.y,))
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        if weight_bool:
+            weights = np.ones_like(self.y)
+        else:
+            weights = None
+        super().test_unchanged_data(use_class, weights=weights)
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+            self.class_func(self.y, p=p)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('p', (0.01, 0.1))
@@ -357,36 +284,16 @@ class TestPsplineIAsLS(AlgorithmTester):
         compare_pspline_whittaker(self, whittaker.iasls, self.y, lam=lam, p=p)
 
 
-class TestPsplineAirPLS(AlgorithmTester):
+class TestPsplineAirPLS(IterativeSplineTester):
     """Class for testing pspline_airpls baseline."""
 
-    func = spline.pspline_airpls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'pspline_airpls'
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e3, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
@@ -408,15 +315,8 @@ class TestPsplineAirPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(utils.ParameterWarning):
-            baseline = self._call_func(y, tol=-1, max_iter=7000)[0]
+            baseline = self.class_func(y, tol=-1, max_iter=7000)[0]
         assert np.isfinite(baseline.dot(baseline))
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     def test_whittaker_comparison(self, lam):
@@ -424,43 +324,16 @@ class TestPsplineAirPLS(AlgorithmTester):
         compare_pspline_whittaker(self, whittaker.airpls, self.y, lam=lam)
 
 
-class TestPsplineArPLS(AlgorithmTester):
+class TestPsplineArPLS(IterativeSplineTester):
     """Class for testing pspline_arpls baseline."""
 
-    func = spline.pspline_arpls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'pspline_arpls'
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     @pytest.mark.skip(reason='need to decide how to handle arpls weighting for no negatives')
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
@@ -477,7 +350,7 @@ class TestPsplineArPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
         assert np.isfinite(baseline.dot(baseline))
 
@@ -487,36 +360,16 @@ class TestPsplineArPLS(AlgorithmTester):
         compare_pspline_whittaker(self, whittaker.arpls, self.y, lam=lam)
 
 
-class TestPsplineDrPLS(AlgorithmTester):
+class TestPsplineDrPLS(IterativeSplineTester):
     """Class for testing pspline_drpls baseline."""
 
-    func = spline.pspline_drpls
+    func_name = 'pspline_drpls'
 
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
-
-    @pytest.mark.parametrize('diff_order', (1, 3))
+    @pytest.mark.parametrize('diff_order', (2, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
+        lam = {2: 1e6, 3: 1e10}[diff_order]
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
@@ -538,19 +391,12 @@ class TestPsplineDrPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(utils.ParameterWarning):
-            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline.dot(baseline))
         # ensure last tolerence calculation was non-finite as a double-check that
         # this test is actually doing what it should be doing
         assert not np.isfinite(params['tol_history'][-1])
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('eta', (0.2, 0.8))
@@ -561,39 +407,25 @@ class TestPsplineDrPLS(AlgorithmTester):
         Have to use a larger tolerance since pspline_drpls uses interpolation to
         get the weight at the coefficients' x-values.
         """
-        compare_pspline_whittaker(self, whittaker.drpls, self.y, lam=lam, eta=eta, test_rtol=5e-3)
+        compare_pspline_whittaker(self, whittaker.drpls, self.y, lam=lam, eta=eta, test_rtol=2e-3)
+
+    @pytest.mark.parametrize('eta', (-1, 2))
+    def test_outside_eta_fails(self, eta):
+        """Ensures eta values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, eta=eta)
 
 
-class TestPsplineIArPLS(AlgorithmTester):
+class TestPsplineIArPLS(IterativeSplineTester):
     """Class for testing pspline_iarpls baseline."""
 
-    func = spline.pspline_iarpls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'pspline_iarpls'
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     # ignore the RuntimeWarning that occurs from using +/- inf or nan
     @pytest.mark.filterwarnings('ignore::RuntimeWarning')
@@ -615,19 +447,12 @@ class TestPsplineIArPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with pytest.warns(utils.ParameterWarning):
-            baseline, params = self._call_func(y, tol=-1, max_iter=1000)
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline.dot(baseline))
         # ensure last tolerence calculation was non-finite as a double-check that
         # this test is actually doing what it should be doing
         assert not np.isfinite(params['tol_history'][-1])
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     def test_whittaker_comparison(self, lam):
@@ -635,51 +460,23 @@ class TestPsplineIArPLS(AlgorithmTester):
         compare_pspline_whittaker(self, whittaker.iarpls, self.y, lam=lam)
 
 
-class TestPsplineAsPLS(AlgorithmTester):
+class TestPsplineAsPLS(IterativeSplineTester):
     """Class for testing pspline_aspls baseline."""
 
-    func = spline.pspline_aspls
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(
-            self.y, self.y, checked_keys=('weights', 'alpha', 'tol_history')
-        )
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'pspline_aspls'
+    checked_keys = ('weights', 'tol_history', 'alpha')
 
     def test_wrong_alpha_shape(self):
         """Ensures that an exception is raised if input alpha and data are different shapes."""
         alpha = np.ones(self.y.shape[0] + 1)
         with pytest.raises(ValueError):
-            self._call_func(self.y, alpha=alpha)
+            self.class_func(self.y, alpha=alpha)
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e4, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
         """
@@ -695,7 +492,7 @@ class TestPsplineAsPLS(AlgorithmTester):
         """
         y, x = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self._call_func(y, tol=-1, max_iter=1000)[0]
+            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
         assert np.isfinite(baseline.dot(baseline))
 
@@ -707,52 +504,25 @@ class TestPsplineAsPLS(AlgorithmTester):
         Have to use a larger tolerance since pspline_aspls uses interpolation to
         get the alpha values at the coefficients' x-values.
         """
-        compare_pspline_whittaker(self, whittaker.aspls, self.y, lam=lam, test_rtol=5e-3)
+        compare_pspline_whittaker(self, whittaker.aspls, self.y, lam=lam, test_rtol=2e-3)
 
 
-class TestPsplinePsalsa(AlgorithmTester):
+class TestPsplinePsalsa(IterativeSplineTester):
     """Class for testing pspline_psalsa baseline."""
 
-    func = spline.pspline_psalsa
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'pspline_psalsa'
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
+            self.class_func(self.y, p=p)
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('p', (0.01, 0.1))
@@ -761,49 +531,22 @@ class TestPsplinePsalsa(AlgorithmTester):
         compare_pspline_whittaker(self, whittaker.psalsa, self.y, lam=lam, p=p)
 
 
-class TestPsplineDerpsalsa(AlgorithmTester):
+class TestPsplineDerpsalsa(IterativeSplineTester):
     """Class for testing pspline_derpsalsa baseline."""
 
-    func = spline.pspline_derpsalsa
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('weights', 'tol_history'))
-
-    def test_no_x(self):
-        """Ensures that function output is the same when no x is input."""
-        self._test_algorithm_no_x(
-            with_args=(self.y,), without_args=(self.y,), with_kwargs={'x_data': self.x}
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'pspline_derpsalsa'
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
-            self._call_func(self.y, p=p)
+            self.class_func(self.y, p=p)
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 3: 1e10}[diff_order]
-        self._call_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_tol_history(self):
-        """Ensures the 'tol_history' item in the parameter output is correct."""
-        max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('p', (0.01, 0.1))

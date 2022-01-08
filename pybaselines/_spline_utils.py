@@ -603,6 +603,32 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extr
     return coeffs
 
 
+def _basis_midpoints(knots, spline_degree):
+    """
+    Calculates the midpoint x-values of spline basis functions assuming evenly spaced knots.
+
+    Parameters
+    ----------
+    knots : numpy.ndarray
+        The spline knots.
+    spline_degree : int
+        The degree of the spline.
+
+    Returns
+    -------
+    points : numpy.ndarray
+        The midpoints of the spline basis functions.
+
+    """
+    if spline_degree % 2:
+        points = knots[1 + spline_degree // 2:len(knots) - (spline_degree - spline_degree // 2)]
+    else:
+        midpoints = 0.5 * (knots[1:] + knots[:-1])
+        points = midpoints[spline_degree // 2: len(midpoints) - spline_degree // 2]
+
+    return points
+
+
 class PSpline(PenalizedSystem):
     """
     A P-Spline; a spline that penalizes the difference of the spline coefficients.
@@ -619,7 +645,7 @@ class PSpline(PenalizedSystem):
         The spline basis. Has a shape of (`N,` `M`), where `N` is the number of points
         in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots + spline_degree - 1``).
-    coeffs : None or numpy.ndarray, shape (M,)
+    coef : None or numpy.ndarray, shape (M,)
         The spline coefficients. Is None if :meth:`.solve_pspline` has not been called
         at least once.
     knots : numpy.ndarray, shape (K,)
@@ -699,7 +725,7 @@ class PSpline(PenalizedSystem):
         self.num_knots = num_knots
         self.basis = _spline_basis(self.x, self.knots, spline_degree)
         self._num_bases = self.basis.shape[1]
-        self.coeffs = None
+        self.coef = None
 
         if diff_order >= self._num_bases:
             raise ValueError((
@@ -859,8 +885,8 @@ class PSpline(PenalizedSystem):
         if rhs_extra is not None:
             rhs = rhs + rhs_extra
 
-        self.coeffs = self.solve(
+        self.coef = self.solve(
             lhs, rhs, overwrite_ab=True, overwrite_b=True, check_finite=False
         )
 
-        return self.basis @ self.coeffs
+        return self.basis @ self.coef

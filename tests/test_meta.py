@@ -10,7 +10,7 @@ import numpy as np
 from numpy.testing import assert_array_equal
 import pytest
 
-from .conftest import AlgorithmTester, BaseTester, get_data
+from .conftest import AlgorithmTester, BaseTester, dummy_wrapper, get_data
 
 
 def _change_y(data, x_data=None):
@@ -191,6 +191,7 @@ class DummyAlgorithm:
     def __init__(self, *args, **kwargs):
         pass
 
+    @dummy_wrapper
     def func(self, data=None, **kwargs):
         """Dummy function."""
         return DummyModule.func(data=data, **kwargs)

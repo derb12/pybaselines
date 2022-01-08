@@ -367,6 +367,91 @@ class _Algorithm:
 
         return y, weight_array, pseudo_inverse
 
+    def _setup_splines(self, y, weights=None, spline_degree=3, num_knots=10,
+                       penalized=True, diff_order=3, lam=1, make_basis=True, allow_lower=True,
+                       reverse_diags=None, copy_weights=False):
+        """
+        Sets the starting parameters for doing spline fitting.
+
+        Parameters
+        ----------
+        y : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        x_data : array-like, shape (N,), optional
+            The x-values of the measured data. Default is None, which will create an
+            array from -1 to 1 with N points.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+        spline_degree : int, optional
+            The degree of the spline. Default is 3, which is a cubic spline.
+        num_knots : int, optional
+            The number of interior knots for the splines. Default is 10.
+        penalized : bool, optional
+            Whether the basis matrix should be for a penalized spline or a regular
+            B-spline. Default is True, which creates the basis for a penalized spline.
+        diff_order : int, optional
+            The integer differential order for the spline penalty; must be greater than 0.
+            Default is 3. Only used if `penalized` is True.
+        lam : float, optional
+            The smoothing parameter, lambda. Typical values are between 10 and
+            1e8, but it strongly depends on the number of knots and the difference order.
+            Default is 1.
+        make_basis : bool, optional
+            If True (default), will create the matrix containing the spline basis functions.
+        allow_lower : boolean, optional
+            If True (default), will include only the lower non-zero diagonals of
+            the squared difference matrix. If False, will include all non-zero diagonals.
+        reverse_diags : boolean, optional
+            If True, will reverse the order of the diagonals of the penalty matrix.
+            Default is False.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for fitting the spline to the data.
+
+        Warns
+        -----
+        ParameterWarning
+            Raised if `diff_order` is greater than 4.
+
+        Notes
+        -----
+        `degree` is used instead of `order` like for polynomials since the order of a spline
+        is defined by convention as ``degree + 1``.
+
+        """
+        weight_array = _check_optional_array(
+            self._len, weights, dtype=float, order='C', copy_input=copy_weights,
+            check_finite=self._check_finite
+        )
+
+        if make_basis:
+            if diff_order > 4:
+                warnings.warn(
+                    ('differential orders greater than 4 can have numerical issues;'
+                     ' consider using a differential order of 2 or 3 instead'),
+                    ParameterWarning, stacklevel=2
+                )
+
+            if self.pspline is None or not self.pspline.same_basis(num_knots, spline_degree):
+                self.pspline = PSpline(
+                    self.x, num_knots, spline_degree, self._check_finite, lam, diff_order,
+                    allow_lower, reverse_diags
+                )
+            else:
+                self.pspline.reset_penalty_diagonals(
+                    lam, diff_order, allow_lower, reverse_diags
+                )
+
+        return y, weight_array
+
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
                      lower_only=True, reverse_diags=False):

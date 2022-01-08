@@ -291,7 +291,7 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.num_bands == diff_order + max(0, padding)
     assert penalized_system.num_knots == num_knots
     assert penalized_system.spline_degree == spline_degree
-    assert penalized_system.coeffs is None  # None since the solve method has not been called
+    assert penalized_system.coef is None  # None since the solve method has not been called
     assert penalized_system.basis.shape == (data_size, num_knots + spline_degree - 1)
     assert penalized_system._num_bases == num_knots + spline_degree - 1
     assert penalized_system.knots.shape == (num_knots + 2 * spline_degree,)
