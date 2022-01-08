@@ -2425,7 +2425,7 @@ def pspline_drpls(data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3, diff_o
         True, False
     )
     d1_d2_diagonals = _add_diagonals(
-        d2_diagonals, diff_penalty_diagonals(basis.shape[1], 1, False)
+        d2_diagonals, diff_penalty_diagonals(basis.shape[1], 1, False), lower_only=False
     )
     # -eta * D_2.T @ D_2; overwrite d2_diagonals since it's no longer needed;
     # reversed to match the original diagonal structure of the D_2.T @ D_2 sparse matrix
