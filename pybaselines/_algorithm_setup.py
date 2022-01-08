@@ -303,11 +303,9 @@ class _Algorithm:
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -381,11 +379,9 @@ class _Algorithm:
 
         Parameters
         ----------
-        y : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -460,6 +456,35 @@ class _Algorithm:
 
         return y, weight_array
 
+
+    def _setup_smooth(self, y, half_window=0, allow_zero=True, **pad_kwargs):
+        """
+        Sets the starting parameters for doing smoothing-based algorithms.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        half_window : int, optional
+            The half-window used for the smoothing functions. Used
+            to pad the left and right edges of the data to reduce edge
+            effects. Default is 0, which provides no padding.
+        allow_zero : bool, optional
+            If True (default), allows `half_window` to be 0; otherwise, `half_window`
+            must be at least 1.
+        **pad_kwargs
+            Additional keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing.
+
+        Returns
+        -------
+        numpy.ndarray, shape (``N + 2 * half_window``,)
+            The padded array of data.
+
+        """
+        hw = _check_half_window(half_window, allow_zero)
+        return pad_edges(y, hw, **pad_kwargs)
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
                      lower_only=True, reverse_diags=False):

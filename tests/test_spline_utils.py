@@ -386,3 +386,20 @@ def test_pspline_negative_spline_degree_fails(data_fixture, spline_degree):
     else:
         with pytest.raises(ValueError):
             _spline_utils.PSpline(x, spline_degree=spline_degree)
+
+
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4))
+def test_basis_midpoints(spline_degree):
+    """Tests the _basis_midpoints function."""
+    knots = np.arange(20)
+    if spline_degree % 2:
+        expected_points = knots[
+            1 + spline_degree // 2:len(knots) - (spline_degree - spline_degree // 2)
+        ]
+    else:
+        midpoints = 0.5 * (knots[1:] + knots[:-1])
+        expected_points = midpoints[spline_degree // 2: len(midpoints) - spline_degree // 2]
+
+    output_midpoints = _spline_utils._basis_midpoints(knots, spline_degree)
+
+    assert_allclose(expected_points, output_midpoints, rtol=1e-10, atol=1e-12)
