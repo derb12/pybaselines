@@ -284,6 +284,9 @@ class _Algorithm:
         weight_array = _check_optional_array(
             self._len, weights, copy_input=copy_weights, check_finite=self._check_finite
         )
+        if self._sort_order is not None and weights is not None:
+            weight_array = weight_array[self._sort_order]
+
         if self.whittaker_system is not None:
             self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
         else:
@@ -345,6 +348,9 @@ class _Algorithm:
         weight_array = _check_optional_array(
             self._len, weights, copy_input=copy_weights, check_finite=self._check_finite
         )
+        if self._sort_order is not None and weights is not None:
+            weight_array = weight_array[self._sort_order]
+
         if calc_vander:
             if self.vandermonde is None or poly_order > self.poly_order:
                 mapped_x = np.polynomial.polyutils.mapdomain(
@@ -431,6 +437,8 @@ class _Algorithm:
             self._len, weights, dtype=float, order='C', copy_input=copy_weights,
             check_finite=self._check_finite
         )
+        if self._sort_order is not None and weights is not None:
+            weight_array = weight_array[self._sort_order]
 
         if make_basis:
             if diff_order > 4:

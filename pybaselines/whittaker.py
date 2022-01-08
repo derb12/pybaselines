@@ -45,13 +45,6 @@ class Whittaker(_Algorithm):
 
     """
 
-    def __init__(self, x_data=None, check_finite=True, assume_sorted=False,
-                 output_dtype=None):
-        super().__init__(
-            x_data, check_finite=check_finite, assume_sorted=assume_sorted,
-            output_dtype=output_dtype
-        )
-
     @_Algorithm._register(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -193,8 +186,12 @@ class Whittaker(_Algorithm):
             raise ValueError('p must be between 0 and 1')
         elif diff_order < 2:
             raise ValueError('diff_order must be 2 or greater')
+
         if weights is None:
-            baseline = np.polynomial.Polynomial.fit(self.x, data, 2)(self.x)
+            _, _, pseudo_inverse = self._setup_polynomial(
+                data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
+            )
+            baseline = self.vandermonde @ (pseudo_inverse @ data)
             weights = _weighting._asls(data, baseline, p)
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
@@ -644,6 +641,9 @@ class Whittaker(_Algorithm):
         alpha_array = _check_optional_array(
             self._len, alpha, check_finite=self._check_finite, name='alpha'
         )
+        if self._sort_order is not None and alpha is not None:
+            alpha_array = alpha_array[self._sort_order]
+
         main_diag_idx = self.whittaker_system.main_diagonal_index
         lower_upper_bands = (diff_order, diff_order)
         tol_history = np.empty(max_iter + 1)
