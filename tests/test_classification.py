@@ -15,7 +15,7 @@ from scipy.signal import cwt
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning
 
-from .conftest import AlgorithmTester, get_data
+from .conftest import BaseTester
 from .data import PYWAVELETS_HAAR
 
 
@@ -280,60 +280,42 @@ def test_haar_cwt_comparison_to_pywavelets(scale):
         assert_allclose(haar_cwt, PYWAVELETS_HAAR[scale], 0, 1e-14)
 
 
-class TestGolotvin(AlgorithmTester):
+class ClassificationTester(BaseTester):
+    """Base testing class for classification functions."""
+
+    module = classification
+    algorithm_base = classification.Classification
+    checked_keys = ('mask',)
+
+
+class TestGolotvin(ClassificationTester):
     """Class for testing golotvin baseline."""
 
-    func = classification.golotvin
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x, 15, 6)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, self.x, 15, 6, checked_keys=('mask',))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        x_list = self.x.tolist()
-        self._test_algorithm_list(
-            array_args=(self.y, self.x, 15, 6), list_args=(y_list, x_list, 15, 6)
-        )
+    func_name = 'golotvin'
+    required_kwargs = {'half_window': 15, 'num_std': 6}
 
 
-class TestDietrich(AlgorithmTester):
+class TestDietrich(ClassificationTester):
     """Class for testing dietrich baseline."""
 
-    func = classification.dietrich
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
+    func_name = 'dietrich'
 
     @pytest.mark.parametrize('return_coef', (True, False))
     @pytest.mark.parametrize('max_iter', (0, 1, 2))
     def test_output(self, return_coef, max_iter):
         """Ensures that the output has the desired format."""
-        param_keys = ['mask']
+        additional_keys = []
         if return_coef and max_iter > 0:
-            param_keys.append('coef')
+            additional_keys.append('coef')
         if max_iter > 1:
-            param_keys.append('tol_history')
-        self._test_output(
-            self.y, self.y, checked_keys=param_keys, return_coef=return_coef, max_iter=max_iter
+            additional_keys.append('tol_history')
+        super().test_output(
+            additional_keys=additional_keys, return_coef=return_coef, max_iter=max_iter
         )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
 
     def test_output_coefs(self):
         """Ensures the output coefficients can correctly reproduce the baseline."""
-        baseline, params = self._call_func(self.y, self.x, return_coef=True)
+        baseline, params = self.class_func(data=self.y, **self.kwargs, return_coef=True)
         recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
 
         assert_allclose(baseline, recreated_poly)
@@ -341,94 +323,42 @@ class TestDietrich(AlgorithmTester):
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
         max_iter = 5
-        _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
+        _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter - 1
 
 
-class TestStdDistribution(AlgorithmTester):
+class TestStdDistribution(ClassificationTester):
     """Class for testing std_distribution baseline."""
 
-    func = classification.std_distribution
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('mask',))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'std_distribution'
 
 
-class TestFastChrom(AlgorithmTester):
+class TestFastChrom(ClassificationTester):
     """Class for testing fastchrom baseline."""
 
-    func = classification.fastchrom
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('mask',))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'fastchrom'
 
     @pytest.mark.parametrize('threshold', (None, 1, lambda std: np.mean(std)))
     def test_threshold_inputs(self, threshold):
         """Ensures a callable threshold value works."""
-        self._call_func(self.y, self.x, half_window=20, threshold=threshold)
+        self.class_func(self.y, half_window=20, threshold=threshold)
 
 
-class TestCwtBR(AlgorithmTester):
+class TestCwtBR(ClassificationTester):
     """Class for testing cwt_br baseline."""
 
-    func = classification.cwt_br
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, x, y, x)
+    func_name = 'cwt_br'
+    checked_keys = ('mask', 'tol_history', 'best_scale')
 
     @pytest.mark.parametrize('scales', (None, np.arange(3, 20)))
     def test_output(self, scales):
         """Ensures that the output has the desired format."""
-        self._test_output(
-            self.y, self.y, scales=scales, checked_keys=('mask', 'tol_history', 'best_scale')
-        )
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+        super().test_output(scales=scales)
 
 
-class TestFabc(AlgorithmTester):
+class TestFabc(ClassificationTester):
     """Class for testing fabc baseline."""
 
-    func = classification.fabc
-
-    def test_unchanged_data(self, data_fixture):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(data_fixture, y, None, y)
-
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.y, self.y, checked_keys=('mask', 'weights'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
+    func_name = 'fabc'
+    checked_keys = ('mask', 'weights')

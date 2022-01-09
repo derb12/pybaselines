@@ -14,7 +14,7 @@ from math import ceil
 import numpy as np
 
 from . import classification, morphological, polynomial, spline, whittaker
-from ._algorithm_setup import _setup_optimizer, _setup_polynomial, _whittaker_smooth, _yx_arrays
+from ._algorithm_setup import _setup_optimizer, _setup_polynomial, _yx_arrays
 from .utils import _check_scalar, _get_edges, _inverted_sort, gaussian
 
 
@@ -85,17 +85,11 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, **
     params = {'average_weights': method_kws['weights']}
     method = method.lower()
     if method == 'fabc':
-        # have to handle differently since weights for fabc is the mask for
-        # classification rather than weights for fitting
-        fit_func = _whittaker_smooth
-        for key in list(method_kws.keys()):
-            if key not in {'weights', 'lam', 'diff_order'}:
-                method_kws.pop(key)
+        # set weights as mask so it just fits the data
+        method_kws['weights_as_mask'] = True
 
     for i, entry in enumerate(dataset):
         baselines[i], param = fit_func(entry, **method_kws)
-        if method == 'fabc':
-            param = {'weights': param}
         for key, value in param.items():
             if key in params:
                 params[key].append(value)

@@ -486,6 +486,35 @@ class _Algorithm:
         hw = _check_half_window(half_window, allow_zero)
         return pad_edges(y, hw, **pad_kwargs)
 
+    def _setup_classification(self, y, weights=None):
+        """
+        Sets the starting parameters for doing classification algorithms.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for the data, with boolean dtype.
+
+        """
+        weight_array = _check_optional_array(
+            self._len, weights, dtype=bool, check_finite=self._check_finite
+        )
+        if self._sort_order is not None and weights is not None:
+            weight_array = weight_array[self._sort_order]
+
+        return y, weight_array
+
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
                      lower_only=True, reverse_diags=False):
     """
