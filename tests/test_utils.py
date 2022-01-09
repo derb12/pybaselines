@@ -10,6 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.sparse import identity
+from scipy.sparse.linalg import spsolve
 
 from pybaselines import utils
 
@@ -418,3 +419,23 @@ def test_invert_sort(seed):
 
     assert_array_equal(expected_inverted_sort, inverted_order)
     assert_array_equal(values, values[sort_order][inverted_order])
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+def test_whittaker_smooth(data_fixture, diff_order):
+    """Ensures the Whittaker smoothing function performs correctly."""
+    x, y = data_fixture
+    lam = 1
+    output = utils.whittaker_smooth(y, lam, diff_order)
+
+    assert isinstance(output, np.ndarray)
+
+    # construct the sparse solution and compare
+    len_y = len(y)
+    diff_matrix = utils.difference_matrix(len_y, diff_order, 'csc')
+    penalty = lam * (diff_matrix.T @ diff_matrix)
+
+    # solve the simple case for all weights are 1
+    expected_output = spsolve(identity(len_y) + penalty, y)
+
+    assert_allclose(output, expected_output, 1e-6)

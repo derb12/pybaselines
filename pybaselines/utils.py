@@ -12,9 +12,9 @@ import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 
-from ._banded_utils import difference_matrix as _difference_matrix
+from ._banded_utils import PenalizedSystem, difference_matrix as _difference_matrix
 from ._compat import jit
-from ._validation import _check_scalar
+from ._validation import _check_array, _check_scalar, _check_optional_array
 
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
@@ -515,3 +515,62 @@ def _inverted_sort(sort_order):
     inverted_order[sort_order] = np.arange(num_points, dtype=np.intp)
 
     return inverted_order
+
+
+def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=True,
+                     penalized_system=None):
+    """
+    Smooths the input data using Whittaker smoothing.
+
+    The input is smoothed by solving the equation ``(W + lam * D.T @ D) y_smooth = W @ y``,
+    where `W` is a matrix with `weights` on the diagonals and `D` is the finite difference
+    matrix.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e6.
+    diff_order : int, optional
+        The order of the finite difference matrix. Must be greater than or equal to 0.
+        Default is 2 (second order differential matrix). Typical values are 2 or 1.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    check_finite : bool, optional
+        If True, will raise an error if any values if `data` or `weights` are not finite.
+        Default is False, which skips the check.
+    penalized_system : pybaselines._banded_utils.PenalizedSystem, optional
+        If None (default), will create a new PenalizedSystem object for solving the equation.
+        If not None, will use the object's `reset_diagonals` method and then solve.
+
+    Returns
+    -------
+    smooth_y : numpy.ndarray, shape (N,)
+        The smoothed data.
+
+    References
+    ----------
+    Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+    """
+    y = _check_array(data, check_finite=check_finite, ensure_1d=True)
+    len_y = len(y)
+    if penalized_system is not None:
+        penalized_system.reset_diagonals(lam=lam, diff_order=diff_order)
+    else:
+        penalized_system = PenalizedSystem(len_y, lam=lam, diff_order=diff_order)
+    weight_array = _check_optional_array(len_y, weights, check_finite=check_finite)
+
+    penalized_system.penalty[penalized_system.main_diagonal_index] = (
+        penalized_system.penalty[penalized_system.main_diagonal_index] + weight_array
+    )
+    smooth_y = penalized_system.solve(
+        penalized_system.penalty, weight_array * y, overwrite_ab=True, overwrite_b=True
+    )
+
+    return smooth_y
