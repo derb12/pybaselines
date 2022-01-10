@@ -456,6 +456,60 @@ class _Algorithm:
 
         return y, weight_array
 
+    def _setup_morphology(self, y, half_window=None, **window_kwargs):
+        """
+        Sets the starting parameters for morphology-based methods.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        half_window : int, optional
+            The half-window used for the morphology functions. If a value is input,
+            then that value will be used. Default is None, which will optimize the
+            half-window size using pybaselines.morphological.optimize_window.
+        **window_kwargs
+            Keyword arguments to pass to :func:`.optimize_window`.
+            Possible items are:
+
+                * 'increment': int
+                    The step size for iterating half windows. Default is 1.
+                * 'max_hits': int
+                    The number of consecutive half windows that must produce the same
+                    morphological opening before accepting the half window as the
+                    optimum value. Default is 3.
+                * 'window_tol': float
+                    The tolerance value for considering two morphological openings as
+                    equivalent. Default is 1e-6.
+                * 'max_half_window': int
+                    The maximum allowable half-window size. If None (default), will be
+                    set to (len(data) - 1) / 2.
+                * 'min_half_window': int
+                    The minimum half-window size. If None (default), will be set to 1.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        output_half_window : int
+            The accepted half window size.
+
+        Notes
+        -----
+        Ensures that window size is odd since morphological operations operate in
+        the range [-output_half_window, ..., output_half_window].
+
+        Half windows are dealt with rather than full window sizes to clarify their
+        usage. SciPy morphology operations deal with full window sizes.
+
+        """
+        if half_window is not None:
+            output_half_window = _check_half_window(half_window)
+        else:
+            output_half_window = optimize_window(y, **window_kwargs)
+
+        return y, output_half_window
 
     def _setup_smooth(self, y, half_window=0, allow_zero=True, **pad_kwargs):
         """
