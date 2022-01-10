@@ -11,12 +11,12 @@ from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import (
-    _Algorithm, _check_lam, _setup_morphology, _setup_splines, _whittaker_smooth,
-    diff_penalty_diagonals
+    _Algorithm, _check_lam, _setup_morphology, _setup_splines, diff_penalty_diagonals
 )
 from ._banded_utils import _pentapy_solver
 from ._compat import _HAS_PENTAPY
 from ._spline_utils import _solve_pspline
+from ._validation import _check_optional_array
 from .utils import (
     _mollifier_kernel, pad_edges, padded_convolve, relative_difference, whittaker_smooth
 )
@@ -1070,7 +1070,10 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
             index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
             w[index] = 1 - p
 
-    baseline, weight_array = _whittaker_smooth(y, lam, diff_order, w)
+    weight_array = _check_optional_array(len(y), w, check_finite=True)
+    baseline = whittaker_smooth(
+        y, lam=lam, diff_order=diff_order, weights=weight_array, check_finite=False
+    )
 
     params = {'weights': weight_array, 'half_window': half_wind}
     return baseline, params

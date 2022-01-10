@@ -17,10 +17,8 @@ from functools import partial, wraps
 import warnings
 
 import numpy as np
-from scipy.linalg import solveh_banded
 
-from ._banded_utils import _pentapy_solver, PenalizedSystem, diff_penalty_diagonals
-from ._compat import _HAS_PENTAPY
+from ._banded_utils import PenalizedSystem, diff_penalty_diagonals
 from ._spline_utils import _spline_basis, _spline_knots, PSpline
 from ._validation import (
     _check_array, _check_half_window, _check_lam, _check_optional_array, _check_sized_array,
@@ -1032,54 +1030,6 @@ def _setup_splines(data, x_data=None, weights=None, spline_degree=3, num_knots=1
         penalty_diagonals = penalty_diagonals[::-1]
 
     return y, x, weight_array, basis, knots, penalty_diagonals
-
-
-def _whittaker_smooth(data, lam=1e6, diff_order=2, weights=None):
-    """
-    Performs Whittaker smoothing on the input data.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The y-values of the measured data, with N data points. Must not
-        contain missing data (NaN) or Inf.
-    lam : float, optional
-        The smoothing parameter. Larger values will create smoother fits.
-        Default is 1e6.
-    diff_order : int, optional
-        The order of the differential matrix. Must be greater than 0. Default is 2
-        (second order differential matrix). Typical values are 2 or 1.
-    weights : array-like, shape (N,), optional
-        The weighting array. If None (default), then the weights will be an array
-        with size equal to N and all values set to 1.
-
-    Returns
-    -------
-    smooth_y : numpy.ndarray, shape (N,)
-        The smoothed data.
-    weight_array : numpy.ndarray, shape (N,)
-        The weights used for fitting the data.
-
-    References
-    ----------
-    Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
-
-    """
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    y, diagonals, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
-    )
-    main_diag_idx = diff_order if using_pentapy else 0
-    diagonals[main_diag_idx] = diagonals[main_diag_idx] + weight_array
-    if using_pentapy:
-        smooth_y = _pentapy_solver(diagonals, weight_array * y)
-    else:
-        smooth_y = solveh_banded(
-            diagonals, weight_array * y, overwrite_ab=True, overwrite_b=True, check_finite=False,
-            lower=True
-        )
-
-    return smooth_y, weight_array
 
 
 def _get_function(method, modules):

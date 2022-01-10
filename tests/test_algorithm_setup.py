@@ -9,10 +9,9 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import dia_matrix, identity
-from scipy.sparse.linalg import spsolve
+from scipy.sparse import dia_matrix
 
-from pybaselines import _algorithm_setup, optimizers, polynomial, utils, whittaker
+from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines.utils import ParameterWarning
 
 from .conftest import get_data
@@ -416,27 +415,6 @@ def test_setup_splines_array_lam(small_data):
     _algorithm_setup._setup_whittaker(small_data, lam=[1])
     with pytest.raises(ValueError):
         _algorithm_setup._setup_splines(small_data, lam=[1, 2])
-
-
-@pytest.mark.parametrize('diff_order', (1, 2, 3))
-def test_whittaker_smooth(data_fixture, diff_order):
-    """Ensures the Whittaker smoothing function performs correctly."""
-    x, y = data_fixture
-    lam = 1
-    output = _algorithm_setup._whittaker_smooth(y, lam, diff_order)
-
-    assert isinstance(output[0], np.ndarray)
-    assert isinstance(output[1], np.ndarray)
-
-    # construct the sparse solution and compare
-    len_y = len(y)
-    diff_matrix = utils.difference_matrix(len_y, diff_order, 'csc')
-    penalty = lam * (diff_matrix.T @ diff_matrix)
-
-    # solve the simple case for all weights are 1
-    expected_output = spsolve(identity(len_y) + penalty, y)
-
-    assert_allclose(output[0], expected_output, 1e-6)
 
 
 @pytest.mark.parametrize(
