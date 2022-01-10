@@ -313,15 +313,27 @@ class BaseTester:
     checked_keys = None
     required_kwargs = None
 
-    @pytest.fixture(autouse=True)
-    def setup_class(self):
-        """Sets the x and y attributes for each class."""
-        self.x, self.y = get_data()
-        self.func = getattr(self.module, self.func_name)
-        self.algorithm = self.algorithm_base(self.x)
-        self.class_func = getattr(self.algorithm, self.func_name)
-        self.kwargs = self.required_kwargs if self.required_kwargs is not None else {}
-        self.param_keys = self.checked_keys if self.checked_keys is not None else []
+    @classmethod
+    def setup_class(cls):
+        """Sets up the class for testing."""
+        cls.x, cls.y = get_data()
+        func = getattr(cls.module, cls.func_name)
+        cls.func = lambda self, *args, **kws: func(*args, **kws)
+        cls.algorithm = cls.algorithm_base(cls.x, check_finite=False, assume_sorted=True)
+        cls.class_func = getattr(cls.algorithm, cls.func_name)
+        cls.kwargs = cls.required_kwargs if cls.required_kwargs is not None else {}
+        cls.param_keys = cls.checked_keys if cls.checked_keys is not None else []
+
+    @classmethod
+    def teardown_class(cls):
+        """Resets class attributes after testing."""
+        cls.x = None
+        cls.y = None
+        cls.func = None
+        cls.algorithm = None
+        cls.class_func = None
+        cls.kwargs = None
+        cls.param_keys = None
 
     def test_ensure_wrapped(self):
         """Ensures the class method was wrapped using _Algorithm._register to control inputs."""
@@ -367,7 +379,9 @@ class BaseTester:
 
         """
         class_parameters = inspect.signature(self.class_func).parameters
-        functional_parameters = inspect.signature(self.func).parameters
+        functional_parameters = inspect.signature(
+            getattr(self.module, self.func_name)
+        ).parameters
 
         # should be the same except that functional signature has x_data
         assert len(class_parameters) == len(functional_parameters) - 1
