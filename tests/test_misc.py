@@ -15,33 +15,148 @@ from scipy.sparse import dia_matrix, diags, spdiags, vstack
 
 from pybaselines import _banded_utils, misc
 
-from .conftest import AlgorithmTester, get_data
+from .conftest import BaseTester, get_data
 
 
-class TestInterpPts(AlgorithmTester):
+class MiscTester(BaseTester):
+    """Base testing class for miscellaneous functions."""
+
+    module = misc
+    algorithm_base = misc.Misc
+
+
+class TestInterpPts(MiscTester):
     """Class for testing interp_pts baseline."""
 
-    func = misc.interp_pts
-    points = ((5, 10), (10, 20), (90, 100))
+    func_name = 'interp_pts'
+    required_kwargs = {'baseline_points': ((5, 10), (10, 20), (90, 100))}
 
+    @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('interp_method', ('linear', 'slinear', 'quadratic'))
-    def test_unchanged_data(self, data_fixture, interp_method):
+    def test_unchanged_data(self, use_class, interp_method):
         """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(
-            data_fixture, None, x, x, self.points, interp_method=interp_method
+        super().test_unchanged_data(
+            use_class, interp_method=interp_method
         )
 
-    def test_output(self):
-        """Ensures that the output has the desired format."""
-        self._test_output(self.x, self.x, self.points, checked_keys=())
+    def test_no_x(self):
+        """
+        Ensures that function output is the same when no x is input.
 
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        x_list = self.x.tolist()
-        self._test_algorithm_list(
-            array_args=(self.x, self.points), list_args=(x_list, self.points)
+        Since `interp_pts` depends heavily on x, this test just ensures that
+        the function call works without an x-input as long as `data` is input.
+
+        """
+        self.class_func(data=self.y, **self.kwargs)
+        getattr(self.algorithm_base(), self.func_name)(data=self.y, **self.kwargs)
+
+    @pytest.mark.parametrize('points', ([], [1], [[1], [1]], [1, 2, 3]))
+    def test_non_2d_baseline_points_fails(self, points):
+        """Ensures an error is raised if there are less than two x-y baseline points."""
+        with pytest.raises(ValueError):
+            self.class_func(baseline_points=points)
+
+    def test_no_y(self):
+        """Ensures the function works when no y-values are input."""
+        self.class_func(**self.kwargs)
+        self.func(x_data=self.x, **self.kwargs)
+
+    def test_no_y_no_x_fails(self):
+        """Ensures an error is raised when both x and y are not input."""
+        with pytest.raises(TypeError):
+            getattr(self.algorithm_base(), self.func_name)(**self.kwargs)
+        with pytest.raises(TypeError):
+            self.func(**self.kwargs)
+
+
+class TestBeads(MiscTester):
+    """Class for testing beads baseline."""
+
+    func_name = 'beads'
+    checked_keys = ('signal', 'tol_history')
+
+    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('cost_function', (1, 2, 'l1_v1', 'l1_v2', 'L1_V1'))
+    @pytest.mark.parametrize('smooth_hw', (None, 0, 5))
+    @pytest.mark.parametrize('fit_parabola', (True, False))
+    def test_unchanged_data(self, use_class, cost_function, smooth_hw, fit_parabola):
+        """Ensures that input data is unchanged by the function."""
+        super().test_unchanged_data(
+            use_class, cost_function=cost_function,
+            smooth_half_window=smooth_hw, fit_parabola=fit_parabola
         )
+
+    @pytest.mark.parametrize('use_banded', (True, False))
+    def test_output(self, use_banded):
+        """
+        Ensures that the output has the desired format.
+
+        Tests both beads implementations.
+
+        """
+        with mock.patch.object(misc, '_HAS_NUMBA', use_banded):
+            super().test_output()
+
+    @pytest.mark.parametrize('cost_function', (1, 2))
+    def test_beads_algorithms(self, cost_function):
+        """Ensure the sparse and banded forms for beads give similar results."""
+        # banded beads function always works, just is slower when numba is not installed
+        with mock.patch.object(misc, '_HAS_NUMBA', not misc._HAS_NUMBA):
+            output_1 = self.class_func(self.y, cost_function=cost_function)[0]
+        output_2 = self.class_func(self.y, cost_function=cost_function)[0]
+
+        assert_allclose(output_1, output_2, 5e-6)
+
+    @pytest.mark.parametrize('asymmetry', (0, -1))
+    def test_bad_asymmetry_fails(self, asymmetry):
+        """Ensure an asymmetry value < 1 raises a ValueError."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, asymmetry=asymmetry)
+
+    @pytest.mark.parametrize('cost_function', (0, 3, 'l2_v2'))
+    def test_unknown_cost_function_fails(self, cost_function):
+        """Ensure an non-covered cost function raises a KeyError."""
+        with pytest.raises(KeyError):
+            self.class_func(self.y, cost_function=cost_function)
+
+    @pytest.mark.parametrize('use_banded', (True, False))
+    def test_tol_history(self, use_banded):
+        """
+        Ensures the 'tol_history' item in the parameter output is correct.
+
+        Tests both beads implementations.
+
+        """
+        max_iter = 5
+        with mock.patch.object(misc, '_HAS_NUMBA', use_banded):
+            _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
+
+        assert params['tol_history'].size == max_iter + 1
+
+    @pytest.mark.parametrize('negative_lam', [0, 1, 2])
+    def test_negative_lam_fails(self, negative_lam):
+        """Ensures that a negative regularization parameter fails."""
+        lams = [1, 1, 1]
+        lams[negative_lam] *= -1
+        with pytest.raises(ValueError):
+            self.class_func(self.y, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
+
+    @pytest.mark.parametrize('zero_lam', [0, 1, 2])
+    def test_zero_lam_passes(self, zero_lam):
+        """Ensures that a zero-valued regularization parameter passes."""
+        lams = [1, 1, 1]
+        lams[zero_lam] = 0
+        self.class_func(self.y, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
+
+    def test_array_lam_fails(self):
+        """Ensures array-like lam_[0, 1, 2] values raise an exception."""
+        array_vals = np.ones_like(self.y)
+        with pytest.raises(ValueError):
+            self.class_func(self.y, lam_0=array_vals)
+        with pytest.raises(ValueError):
+            self.class_func(self.y, lam_1=array_vals)
+        with pytest.raises(ValueError):
+            self.class_func(self.y, lam_2=array_vals)
 
 
 def test_banded_dot_vector():
@@ -459,95 +574,3 @@ def test_beads_ATb(beads_data, filter_type, freq_cutoff):
 
     # use rtol=1.5e-7 since values are very small for d=2 and small freq_cutoff
     assert_allclose(lam_ATb_actual, lam_ATb_banded, rtol=1.5e-7)
-
-
-class TestBeads(AlgorithmTester):
-    """Class for testing beads baseline."""
-
-    func = misc.beads
-
-    @pytest.mark.parametrize('cost_function', (1, 2, 'l1_v1', 'l1_v2', 'L1_V1'))
-    @pytest.mark.parametrize('smooth_hw', (0, 5))
-    @pytest.mark.parametrize('fit_parabola', (True, False))
-    def test_unchanged_data(self, data_fixture, cost_function, smooth_hw, fit_parabola):
-        """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        self._test_unchanged_data(
-            data_fixture, y, None, y, cost_function=cost_function, smooth_half_window=smooth_hw,
-            fit_parabola=fit_parabola
-        )
-
-    @pytest.mark.parametrize('use_banded', (True, False))
-    def test_output(self, use_banded):
-        """
-        Ensures that the output has the desired format.
-
-        Tests both beads implementations.
-        """
-        with mock.patch.object(misc, '_HAS_NUMBA', use_banded):
-            self._test_output(self.y, self.y, checked_keys=('signal', 'tol_history'))
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        y_list = self.y.tolist()
-        self._test_algorithm_list(array_args=(self.y,), list_args=(y_list,))
-
-    @pytest.mark.parametrize('cost_function', (1, 2))
-    def test_beads_algorithms(self, cost_function):
-        """Ensure the sparse and banded forms for beads give similar results."""
-        # banded beads function always works, just is slower when numba is not installed
-        with mock.patch.object(misc, '_HAS_NUMBA', not misc._HAS_NUMBA):
-            output_1 = self._call_func(self.y, cost_function=cost_function)[0]
-        output_2 = self._call_func(self.y, cost_function=cost_function)[0]
-
-        assert_allclose(output_1, output_2, 5e-6)
-
-    @pytest.mark.parametrize('asymmetry', (0, -1))
-    def test_bad_asymmetry_fails(self, asymmetry):
-        """Ensure an asymmetry value < 1 raises a ValueError."""
-        with pytest.raises(ValueError):
-            self._call_func(self.y, asymmetry=asymmetry)
-
-    @pytest.mark.parametrize('cost_function', (0, 3, 'l2_v2'))
-    def test_unknown_cost_function_fails(self, cost_function):
-        """Ensure an non-covered cost function raises a KeyError."""
-        with pytest.raises(KeyError):
-            self._call_func(self.y, cost_function=cost_function)
-
-    @pytest.mark.parametrize('use_banded', (True, False))
-    def test_tol_history(self, use_banded):
-        """
-        Ensures the 'tol_history' item in the parameter output is correct.
-
-        Tests both beads implementations.
-        """
-        max_iter = 5
-        with mock.patch.object(misc, '_HAS_NUMBA', use_banded):
-            _, params = self._call_func(self.y, max_iter=max_iter, tol=-1)
-
-        assert params['tol_history'].size == max_iter + 1
-
-    @pytest.mark.parametrize('negative_lam', [0, 1, 2])
-    def test_negative_lam_fails(self, negative_lam):
-        """Ensures that a negative regularization parameter fails."""
-        lams = [1, 1, 1]
-        lams[negative_lam] *= -1
-        with pytest.raises(ValueError):
-            self._call_func(self.y, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
-
-    @pytest.mark.parametrize('zero_lam', [0, 1, 2])
-    def test_zero_lam_passes(self, zero_lam):
-        """Ensures that a zero-valued regularization parameter passes."""
-        lams = [1, 1, 1]
-        lams[zero_lam] = 0
-        self._call_func(self.y, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
-
-    def test_array_lam_fails(self):
-        """Ensures array-like lam_[0, 1, 2] values raise an exception."""
-        array_vals = np.ones_like(self.y)
-        with pytest.raises(ValueError):
-            self._call_func(self.y, lam_0=array_vals)
-        with pytest.raises(ValueError):
-            self._call_func(self.y, lam_1=array_vals)
-        with pytest.raises(ValueError):
-            self._call_func(self.y, lam_2=array_vals)

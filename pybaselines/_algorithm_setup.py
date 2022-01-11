@@ -185,11 +185,12 @@ class _Algorithm:
             )
 
         @wraps(func)
-        def inner(self, data, *args, **kwargs):
+        def inner(self, data=None, *args, **kwargs):
             if self.x is None:
                 if data is None:
-                    raise ValueError('"data" and "x_data" cannot both be None')
+                    raise TypeError('"data" and "x_data" cannot both be None')
                 reset_x = False
+                input_y = True
                 y, self.x = _yx_arrays(
                     data, check_finite=self._check_finite, dtype=dtype, order=order,
                     ensure_1d=ensure_1d, axis=axis
@@ -197,18 +198,31 @@ class _Algorithm:
                 self._len = y.shape[axis]
             else:
                 reset_x = True
-                y = _check_sized_array(
-                    data, self._len, check_finite=self._check_finite, dtype=dtype, order=order,
-                    ensure_1d=ensure_1d, axis=axis, name='data'
-                )
+                if data is not None:
+                    input_y = True
+                    y = _check_sized_array(
+                        data, self._len, check_finite=self._check_finite, dtype=dtype, order=order,
+                        ensure_1d=ensure_1d, axis=axis, name='data'
+                    )
+                else:
+                    y = data
+                    input_y = False
                 # update self.x just to ensure dtype and order are correct
                 x_dtype = self.x.dtype
                 self.x = _check_array(
                     self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
-            if self._sort_order is not None:
-                y = y[self._sort_order]
-            if self._dtype is None:
+            if input_y and self._sort_order is not None:
+                y_dims = y.ndim
+                if y_dims == 1:
+                    y = y[self._sort_order]
+                elif y_dims == 2:
+                    axes = [..., ...]
+                    axes[axis] = self._sort_order
+                    y = y[tuple(axes)]
+                else:
+                    raise ValueError('too many dimensions to sort the input data')
+            if input_y and self._dtype is None:
                 output_dtype = y.dtype
             else:
                 output_dtype = self._dtype
@@ -566,6 +580,30 @@ class _Algorithm:
             weight_array = weight_array[self._sort_order]
 
         return y, weight_array
+
+    def _setup_misc(self, y):
+        """
+        Sets the starting parameters for doing miscellaneous algorithms.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+
+        Notes
+        -----
+        Since the miscellaneous functions are not related, the only use of this
+        function is for aliasing the input `data` to `y`.
+
+        """
+        return y
+
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
                      lower_only=True, reverse_diags=False):
