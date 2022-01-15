@@ -66,12 +66,13 @@ jobs:
 
     - name: Install optional dependencies
       id: install-optional
-      # skip optional depedencies for python 3.10 until numba is available
-      if: matrix.python-version != '3.10'
+      # uncomment below in case this step ever needs skipped again
+      # if: matrix.python-version != '3.11'
       run: python -m pip install "pentapy>=1.0" "numba>=0.45"
 
     - name: Test with optional dependencies
-      if: steps.install-optional.outcome == 'success'
+      # uncomment below in case this step ever needs skipped again
+      # if: steps.install-optional.outcome == 'success'
       run: pytest .
 
 
