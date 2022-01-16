@@ -287,7 +287,7 @@ class DummyAlgorithm:
         pass
 
     @dummy_wrapper
-    def func(self, *args, data=None, **kwargs):
+    def func(self, data=None, *args, **kwargs):
         """Dummy function."""
         raise NotImplementedError('need to set func')
 
@@ -312,11 +312,14 @@ class BaseTester:
     func_name = 'func'
     checked_keys = None
     required_kwargs = None
+    two_d = False
 
     @classmethod
     def setup_class(cls):
         """Sets up the class for testing."""
         cls.x, cls.y = get_data()
+        if cls.two_d:
+            cls.y = np.vstack((cls.y, cls.y))
         func = getattr(cls.module, cls.func_name)
         cls.func = lambda self, *args, **kws: func(*args, **kws)
         cls.algorithm = cls.algorithm_base(cls.x, check_finite=False, assume_sorted=True)
@@ -344,6 +347,10 @@ class BaseTester:
         """Ensures that input data is unchanged by the function."""
         x, y = get_data()
         x2, y2 = get_data()
+        if self.two_d:
+            y = np.vstack((y, y))
+            y2 = np.vstack((y2, y2))
+
         if use_class:
             getattr(self.algorithm_base(x_data=x), self.func_name)(
                 data=y, **self.kwargs, **kwargs
@@ -387,6 +394,8 @@ class BaseTester:
         assert len(class_parameters) == len(functional_parameters) - 1
         assert 'data' in class_parameters
         assert 'x_data' in functional_parameters
+        # also ensure 'data' is first argument for class api
+        assert list(class_parameters.keys())[0] == 'data'
         for key in class_parameters:
             assert key in functional_parameters
 
@@ -454,6 +463,33 @@ class BaseTester:
         if output[1]:
             assert False, f'unchecked keys in param dictionary: {output[1]}'
 
+    def test_x_ordering(self, assertion_kwargs=None, **kwargs):
+        """Ensures arrays are correctly sorted within the function."""
+        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
+
+        regular_inputs_result = self.class_func(data=self.y, **self.kwargs, **kwargs)[0]
+        reverse_inputs_result = getattr(reverse_fitter, self.func_name)(
+            data=self.reverse_array(self.y), **self.kwargs, **kwargs
+        )[0]
+
+        if assertion_kwargs is None:
+            assertion_kwargs = {}
+        if 'rtol' not in assertion_kwargs:
+            assertion_kwargs['rtol'] = 1e-10
+
+        assert_allclose(
+            regular_inputs_result, self.reverse_array(reverse_inputs_result), **assertion_kwargs
+        )
+
+    def reverse_array(self, array):
+        """Reverses the input along the last dimension."""
+        if self.two_d:
+            reversed_array = array[..., ::-1]
+        else:
+            reversed_array = array[::-1]
+
+        return reversed_array
+
 
 class BasePolyTester(BaseTester):
     """
@@ -479,3 +515,47 @@ class BasePolyTester(BaseTester):
         recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
 
         assert_allclose(baseline, recreated_poly)
+
+
+class InputWeightsMixin:
+    """A mixin for BaseTester for ensuring input weights are correctly sorted."""
+
+    weight_keys = ('weights',)
+
+    def test_input_weights(self, assertion_kwargs=None, **kwargs):
+        """
+        Ensures arrays are correctly sorted within the function.
+
+        Returns the output for further testing.
+
+        """
+        # TODO replace with np.random.default_rng when min numpy version is >= 1.17
+        weights = np.random.RandomState(0).normal(0.8, 0.05, len(self.x))
+        weights = np.clip(weights, 0, 1).astype(float, copy=False)
+
+        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
+
+        regular_output, regular_output_params = self.class_func(
+            data=self.y, weights=weights, **self.kwargs, **kwargs
+        )
+        reverse_output, reverse_output_params = getattr(reverse_fitter, self.func_name)(
+            data=self.reverse_array(self.y), weights=weights[::-1], **self.kwargs, **kwargs
+        )
+
+        if assertion_kwargs is None:
+            assertion_kwargs = {}
+        if 'rtol' not in assertion_kwargs:
+            assertion_kwargs['rtol'] = 1e-10
+        if 'atol' not in assertion_kwargs:
+            assertion_kwargs['atol'] = 1e-14
+
+        for key in self.weight_keys:
+            assert_allclose(
+                regular_output_params[key], reverse_output_params[key][::-1],
+                **assertion_kwargs
+            )
+        assert_allclose(
+            regular_output, self.reverse_array(reverse_output), **assertion_kwargs
+        )
+
+        return regular_output, regular_output_params, reverse_output, reverse_output_params

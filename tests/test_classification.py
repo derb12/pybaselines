@@ -15,7 +15,7 @@ from scipy.signal import cwt
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BaseTester
+from .conftest import BaseTester, InputWeightsMixin
 from .data import PYWAVELETS_HAAR
 
 
@@ -280,12 +280,13 @@ def test_haar_cwt_comparison_to_pywavelets(scale):
         assert_allclose(haar_cwt, PYWAVELETS_HAAR[scale], 0, 1e-14)
 
 
-class ClassificationTester(BaseTester):
+class ClassificationTester(BaseTester, InputWeightsMixin):
     """Base testing class for classification functions."""
 
     module = classification
     algorithm_base = classification.Classification
     checked_keys = ('mask',)
+    weight_keys = ('mask',)
 
 
 class TestGolotvin(ClassificationTester):
@@ -362,3 +363,9 @@ class TestFabc(ClassificationTester):
 
     func_name = 'fabc'
     checked_keys = ('mask', 'weights')
+    weight_keys = ('mask', 'weights')
+
+    @pytest.mark.parametrize('weights_as_mask', (True, False))
+    def test_input_weights(self, weights_as_mask):
+        """Tests input weights as both a mask and as weights."""
+        super().test_input_weights(weights_as_mask=weights_as_mask)

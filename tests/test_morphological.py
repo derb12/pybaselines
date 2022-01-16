@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines import _banded_utils, morphological
 
-from .conftest import BaseTester, has_pentapy
+from .conftest import BaseTester, InputWeightsMixin, has_pentapy
 
 
 class MorphologicalTester(BaseTester):
@@ -38,7 +38,7 @@ class IterativeMorphologicalTester(MorphologicalTester):
         assert params['tol_history'].size == max_iter + 1
 
 
-class TestMPLS(MorphologicalTester):
+class TestMPLS(MorphologicalTester, InputWeightsMixin):
     """Class for testing mpls baseline."""
 
     func_name = 'mpls'
@@ -134,7 +134,7 @@ class TestTophat(MorphologicalTester):
     func_name = 'tophat'
 
 
-class TestMpsline(MorphologicalTester):
+class TestMpsline(MorphologicalTester, InputWeightsMixin):
     """Class for testing mpspline baseline."""
 
     func_name = 'mpspline'

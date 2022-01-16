@@ -15,10 +15,10 @@ import pytest
 from pybaselines import _banded_utils, whittaker
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BaseTester, has_pentapy
+from .conftest import BaseTester, InputWeightsMixin, has_pentapy
 
 
-class WhittakerTester(BaseTester):
+class WhittakerTester(BaseTester, InputWeightsMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
@@ -246,6 +246,7 @@ class TestAsPLS(WhittakerTester):
 
     func_name = 'aspls'
     checked_keys = ('weights', 'alpha', 'tol_history')
+    weight_keys = ('weights', 'alpha')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):

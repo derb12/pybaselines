@@ -247,3 +247,8 @@ class TestBaseTesterNoFunc(BaseTester):
         """Ensures that the output has the desired format."""
         with pytest.raises(NotImplementedError):
             super().test_output()
+
+    def test_x_ordering(self):
+        """Ensures arrays are correctly sorted within the function."""
+        with pytest.raises(NotImplementedError):
+            super().test_x_ordering()

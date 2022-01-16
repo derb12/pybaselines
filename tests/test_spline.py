@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines import _banded_utils, spline, utils, whittaker
 
-from .conftest import BaseTester
+from .conftest import BaseTester, InputWeightsMixin
 
 
 @pytest.mark.parametrize('use_numba', (True, False))
@@ -144,7 +144,7 @@ class SplineTester(BaseTester):
     algorithm_base = spline.Spline
 
 
-class IterativeSplineTester(SplineTester):
+class IterativeSplineTester(SplineTester, InputWeightsMixin):
     """Base testing class for iterative spline functions."""
 
     checked_keys = ('weights', 'tol_history')
@@ -219,7 +219,12 @@ class TestIRSQR(IterativeSplineTester):
 
 
 class TestCornerCutting(SplineTester):
-    """Class for testing corner_cutting baseline."""
+    """
+    Class for testing corner_cutting baseline.
+
+    Has lower tolerance values for some tests since it is not currently perfectly repeatable.
+
+    """
 
     func_name = 'corner_cutting'
 
@@ -465,6 +470,7 @@ class TestPsplineAsPLS(IterativeSplineTester):
 
     func_name = 'pspline_aspls'
     checked_keys = ('weights', 'tol_history', 'alpha')
+    weight_keys = ('weights', 'alpha')
 
     def test_wrong_alpha_shape(self):
         """Ensures that an exception is raised if input alpha and data are different shapes."""

@@ -15,14 +15,14 @@ import pytest
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BasePolyTester, get_data
+from .conftest import BasePolyTester, InputWeightsMixin, get_data
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
     STATSMODELS_QUANTILES
 )
 
 
-class PolynomialTester(BasePolyTester):
+class PolynomialTester(BasePolyTester, InputWeightsMixin):
     """Base testing class for polynomial functions."""
 
     module = polynomial
@@ -216,31 +216,10 @@ class TestLoess(IterativePolynomialTester):
         )
 
     @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_x_ordering(self, use_threshold):
+    @pytest.mark.parametrize('use_original', (True, False))
+    def test_x_ordering(self, use_threshold, use_original):
         """Ensures arrays are correctly sorted within the function."""
-        reverse_x = self.x[::-1]
-        reverse_y = self.y[::-1]
-
-        reverse_fitter = self.algorithm_base(reverse_x, assume_sorted=False)
-
-        # test both True and False for use_original
-        regular_inputs_result = self.class_func(
-            self.y, use_threshold=use_threshold, use_original=False
-        )[0]
-        reverse_inputs_result = reverse_fitter.loess(
-            reverse_y, use_threshold=use_threshold, use_original=False
-        )[0]
-
-        assert_allclose(regular_inputs_result, reverse_inputs_result[::-1], 1e-10)
-
-        regular_inputs_result = self.class_func(
-            self.y, use_threshold=use_threshold, use_original=True
-        )[0]
-        reverse_inputs_result = reverse_fitter.loess(
-            reverse_y, use_threshold=use_threshold, use_original=True
-        )[0]
-
-        assert_allclose(regular_inputs_result, reverse_inputs_result[::-1], 1e-10)
+        super().test_x_ordering(use_threshold=use_threshold, use_original=use_original)
 
     @pytest.mark.parametrize('fraction', (-0.1, 1.1, 5))
     def test_wrong_fraction_fails(self, fraction):
@@ -389,6 +368,11 @@ class TestLoess(IterativePolynomialTester):
         )
 
         assert_allclose(output[0], STATSMODELS_LOESS_DELTA[delta])
+
+    @pytest.mark.parametrize('use_threshold', (True, False))
+    def test_input_weights(self, use_threshold):
+        """Ensures the input weights are sorted correctly."""
+        super().test_input_weights(use_threshold=use_threshold)
 
 
 class TestQuantReg(IterativePolynomialTester):
