@@ -212,16 +212,10 @@ class _Algorithm:
                 self.x = _check_array(
                     self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
-            if input_y and self._sort_order is not None:
-                y_dims = y.ndim
-                if y_dims == 1:
-                    y = y[self._sort_order]
-                elif y_dims == 2:
-                    axes = [..., ...]
-                    axes[axis] = self._sort_order
-                    y = y[tuple(axes)]
-                else:
-                    raise ValueError('too many dimensions to sort the input data')
+
+            if input_y:
+                y = _sort_array(y, sort_order=self._sort_order, axis=axis)
+
             if input_y and self._dtype is None:
                 output_dtype = y.dtype
             else:
@@ -603,6 +597,47 @@ class _Algorithm:
 
         """
         return y
+
+
+def _sort_array(array, sort_order=None, axis=-1):
+    """
+    Sorts the input array only if given a non-None sorting order.
+
+    Parameters
+    ----------
+    array : numpy.ndarray
+        The array to sort.
+    sort_order : numpy.ndarray, optional
+        The array defining the sort order for the input array. Default is None, which
+        will not sort the input.
+    axis : int, optional
+        The axis of the input which defines each unique set of data. Default is -1.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The input array after optionally sorting.
+
+    Raises
+    ------
+    ValueError
+        Raised if the input array has more than two dimensions.
+
+    """
+    if sort_order is None:
+        output = array
+    else:
+        n_dims = array.ndim
+        if n_dims == 1:
+            output = array[sort_order]
+        elif n_dims == 2:
+            axes = [..., ...]
+            axes[axis] = sort_order
+            output = array[tuple(axes)]
+        else:
+            raise ValueError('too many dimensions to sort the data')
+
+    return output
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,

@@ -11,7 +11,7 @@ from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import (
-    _Algorithm, _check_lam, _setup_morphology, _setup_splines, diff_penalty_diagonals
+    _Algorithm, _check_lam, _setup_morphology, _setup_splines, _sort_array, diff_penalty_diagonals
 )
 from ._banded_utils import _pentapy_solver
 from ._compat import _HAS_PENTAPY
@@ -142,6 +142,10 @@ class Morphological(_Algorithm):
             for previous_segment, next_segment in zip(indices[1::2], indices[2::2]):
                 index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
                 w[index] = 1 - p
+
+            # have to invert the weight ordering the matching the original input y ordering
+            # since it will be sorted within _setup_whittaker
+            w = _sort_array(w, self._inverted_order)
 
         _, weight_array = self._setup_whittaker(y, lam, diff_order, w)
         baseline = whittaker_smooth(

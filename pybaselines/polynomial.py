@@ -663,8 +663,6 @@ class Polynomial(_Algorithm):
             )
 
         y, weight_array = self._setup_polynomial(data, weights, poly_order, calc_vander=True)
-        if self._sort_order is not None:
-            weight_array = weight_array[self._sort_order]
         if use_original:
             y0 = y
 
