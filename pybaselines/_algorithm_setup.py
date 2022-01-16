@@ -13,6 +13,7 @@ to something like 'mask'.
 
 """
 
+from contextlib import contextmanager
 from functools import partial, wraps
 import warnings
 
@@ -107,7 +108,7 @@ class _Algorithm:
         self._check_finite = check_finite
         self._dtype = output_dtype
 
-    def _return_results(self, baseline, params, dtype, sort_keys=()):
+    def _return_results(self, baseline, params, dtype, sort_keys=(), axis=-1):
         """
         Re-orders the input baseline and parameters based on the x ordering.
 
@@ -124,6 +125,8 @@ class _Algorithm:
         sort_keys : Iterable, optional
             An iterable of keys corresponding to the values in `params` that need
             re-ordering. Default is ().
+        axis : int, optional
+            The axis of the input which defines each unique set of data. Default is -1.
 
         Returns
         -------
@@ -136,15 +139,17 @@ class _Algorithm:
         if self._sort_order is not None:
             for key in sort_keys:
                 if key in params:  # some parameters are conditionally output
+                    # assumes params all all just one dimensional arrays
                     params[key] = params[key][self._inverted_order]
-            baseline = baseline[self._inverted_order]
+            baseline = _sort_array(baseline, sort_order=self._inverted_order, axis=axis)
 
         baseline = baseline.astype(dtype, copy=False)
 
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True, axis=-1):
+    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True,
+                  axis=-1):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -225,9 +230,55 @@ class _Algorithm:
             if reset_x:
                 self.x = np.array(self.x, dtype=x_dtype, copy=False)
 
-            return self._return_results(baseline, params, output_dtype, sort_keys)
+            return self._return_results(
+                baseline, params, output_dtype, sort_keys, axis
+            )
 
         return inner
+
+    @contextmanager
+    def _override_x(self, new_x, new_sort_order=None):
+        """
+        Temporarily sets the x-values for the object to a different array.
+
+        Useful when fitting extensions of the x attribute.
+
+        Parameters
+        ----------
+        new_x : numpy.ndarray
+            The x values to temporarily use.
+        new_sort_order : [type], optional
+            The sort order for the new x values. Default is None, which will not sort.
+
+        Yields
+        ------
+        pybaselines._algorithm_setup._Algorithm
+            The _Algorithm object with the new x attribute.
+
+        """
+        old_x = self.x
+        old_len = self._len
+        old_x_domain = self.x_domain
+        old_sort_order = self._sort_order
+        old_inverted_order = self._inverted_order
+        try:
+            self.x = _check_array(new_x, check_finite=self._check_finite)
+            self._len = len(self.x)
+            self.x_domain = np.polynomial.polyutils.getdomain(self.x)
+            self._sort_order = new_sort_order
+            if self._sort_order is not None:
+                self._inverted_order = _inverted_sort(self._sort_order)
+            else:
+                self._inverted_order = None
+
+            yield self
+
+        finally:
+            self.x = old_x
+            self._len = old_len
+            self.x_domain = old_x_domain
+            self._sort_order = old_sort_order
+            self._inverted_order = old_inverted_order
 
     def _setup_whittaker(self, y, lam, diff_order=2, weights=None, copy_weights=False,
                          allow_lower=True, reverse_diags=None):
@@ -574,6 +625,124 @@ class _Algorithm:
             weight_array = weight_array[self._sort_order]
 
         return y, weight_array
+
+    def _get_function(self, method, modules):
+        """
+        Tries to retrieve the indicated function from a list of modules.
+
+        Parameters
+        ----------
+        method : str
+            The string name of the desired function. Case does not matter.
+        modules : Sequence
+            A sequence of modules in which to look for the method.
+
+        Returns
+        -------
+        func : Callable
+            The corresponding function.
+        func_module : str
+            The module that `func` belongs to.
+
+        Raises
+        ------
+        AttributeError
+            Raised if no matching function is found within the modules.
+
+        """
+        function_string = method.lower()
+        for module in modules:
+            if hasattr(module, function_string):
+                func_module = module.__name__.split('.')[-1]
+                # if self is a Baseline class, can just use its method
+                if hasattr(self, function_string):
+                    func = getattr(self, function_string)
+                    class_object = self
+                else:
+                    # have to reset x ordering so that all outputs and parameters are
+                    # correctly sorted
+                    if self._sort_order is not None:
+                        x = self.x[self._inverted_order]
+                        assume_sorted = False
+                    else:
+                        x = self.x
+                        assume_sorted = True
+                    class_object = getattr(module, func_module.capitalize())(
+                        x, check_finite=self._check_finite, assume_sorted=assume_sorted,
+                        output_dtype=self._dtype
+                    )
+                    func = getattr(class_object, function_string)
+                break
+        else:  # in case no break
+            mod_names = [module.__name__ for module in modules]
+            raise AttributeError((
+                f'unknown method "{method}" or method is not within the allowed '
+                f'modules: {mod_names}'
+            ))
+
+        return func, func_module, class_object
+
+    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True, **kwargs):
+        """
+        Sets the starting parameters for doing optimizer algorithms.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        method : str
+            The string name of the desired function, like 'asls'. Case does not matter.
+        modules : Sequence(module, ...)
+            The modules to search for the indicated `method` function.
+        method_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to the fitting function. Default
+            is None, which uses an emtpy dictionary.
+        copy_kwargs : bool, optional
+            If True (default), will copy the input `method_kwargs` so that the input
+            dictionary is not modified within the function.
+        **kwargs
+            Deprecated in version 0.8.0 and will be removed in version 0.10 or 1.0. Pass any
+            keyword arguments for the fitting function in the `method_kwargs` dictionary.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        fit_func : Callable
+            The function for fitting the baseline.
+        func_module : str
+            The string name of the module that contained `fit_func`.
+        method_kws : dict
+            A dictionary of keyword arguments to pass to `fit_func`.
+
+        Warns
+        -----
+        DeprecationWarning
+            Passed if `kwargs` is not empty.
+
+        """
+        fit_func, func_module, class_object = self._get_function(method, modules)
+        if method_kwargs is None:
+            method_kws = {}
+        elif copy_kwargs:
+            method_kws = method_kwargs.copy()
+        else:
+            method_kws = method_kwargs
+
+        if 'x_data' in method_kws:
+            raise KeyError('"x_data" should not be within the method keyword arguments')
+
+        if kwargs:  # TODO remove in version 0.10 or 1.0
+            warnings.warn(
+                ('Passing additional keyword arguments directly to optimizer functions is '
+                 'deprecated and will be removed in version 0.10.0 or version 1.0. Place all '
+                 'keyword arguments into the method_kwargs dictionary instead.'),
+                DeprecationWarning, stacklevel=2
+            )
+            method_kws.update(kwargs)
+
+        return _sort_array(y, self._inverted_order), fit_func, func_module, method_kws, class_object
 
     def _setup_misc(self, y):
         """
@@ -1136,7 +1305,10 @@ def _get_function(method, modules):
             func_module = module.__name__.split('.')[-1]
             break
     else:  # in case no break
-        raise AttributeError(f'unknown method {method}')
+        mod_names = [module.__name__ for module in modules]
+        raise AttributeError(
+            f'unknown method "{method}" or method is not within the allowed modules: {mod_names}'
+        )
 
     return func, func_module
 
