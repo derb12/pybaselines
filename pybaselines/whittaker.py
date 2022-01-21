@@ -9,12 +9,10 @@ Created on Sept. 13, 2019
 import warnings
 
 import numpy as np
-from scipy.linalg import solve_banded, solveh_banded
 
 from . import _weighting
-from ._algorithm_setup import _Algorithm, _setup_whittaker
-from ._banded_utils import _pentapy_solver, _shift_rows, diff_penalty_diagonals
-from ._compat import _HAS_PENTAPY
+from ._algorithm_setup import _Algorithm, _class_wrapper
+from ._banded_utils import _shift_rows, diff_penalty_diagonals
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
     ParameterWarning, _mollifier_kernel, pad_edges, padded_convolve, relative_difference
@@ -885,6 +883,10 @@ class Whittaker(_Algorithm):
         return baseline, params
 
 
+_whittaker_wrapper = _class_wrapper(Whittaker)
+
+
+@_whittaker_wrapper
 def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     Fits the baseline using asymmetric least squares (AsLS) fitting.
@@ -943,11 +945,9 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     Leiden University Medical Centre Report, 2005, 1(1).
 
     """
-    return Whittaker(x_data).asls(
-        data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights
-    )
 
 
+@_whittaker_wrapper
 def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
           weights=None, diff_order=2):
     """
@@ -1009,12 +1009,9 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
 
     """
-    return Whittaker(x_data).iasls(
-        data, lam=lam, p=p, lam_1=lam_1, max_iter=max_iter, tol=tol, weights=weights,
-        diff_order=diff_order
-    )
 
 
+@_whittaker_wrapper
 def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
@@ -1062,78 +1059,9 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_d
     reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
     """
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    y, diagonals, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, True, not using_pentapy, using_pentapy
-    )
-    y_l1_norm = np.abs(y).sum()
-    main_diag_idx = diff_order if using_pentapy else 0
-    main_diagonal = diagonals[main_diag_idx].copy()
-    tol_history = np.empty(max_iter + 1)
-    # Have to have extensive error handling since the weights can all become
-    # very small due to the exp(i) term if too many iterations are performed;
-    # checking the negative residual length usually prevents any errors, but
-    # sometimes not so have to also catch any errors from the solvers
-    for i in range(1, max_iter + 2):
-        diagonals[main_diag_idx] = main_diagonal + weight_array
-        if using_pentapy:
-            output = _pentapy_solver(diagonals, weight_array * y)
-            # if weights are all ~0, then pentapy sometimes outputs nan without
-            # warnings or errors, so have to check
-            if np.isfinite(output.dot(output)):
-                baseline = output
-            else:
-                warnings.warn(
-                    ('error occurred during fitting, indicating that "tol"'
-                     ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning
-                )
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-        else:
-            try:
-                output = solveh_banded(
-                    diagonals, weight_array * y, overwrite_b=True, check_finite=False, lower=True
-                )
-            except np.linalg.LinAlgError:
-                warnings.warn(
-                    ('error occurred during fitting, indicating that "tol"'
-                     ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning
-                )
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            else:
-                baseline = output
-
-        residual = y - baseline
-        neg_mask = residual < 0
-        neg_residual = residual[neg_mask]
-        if len(neg_residual) < 2:
-            # exit if there are < 2 negative residuals since all points or all but one
-            # point would get a weight of 0, which fails the solver
-            warnings.warn(
-                ('almost all baseline points are below the data, indicating that "tol"'
-                 ' is too low and/or "max_iter" is too high'), ParameterWarning
-            )
-            i -= 1  # reduce i so that output tol_history indexing is correct
-            break
-
-        residual_l1_norm = abs(neg_residual.sum())
-        calc_difference = residual_l1_norm / y_l1_norm
-        tol_history[i - 1] = calc_difference
-        if calc_difference < tol:
-            break
-        # only use negative residual in exp to avoid exponential overflow warnings
-        # and accidently creating a weight of nan (inf * 0 = nan)
-        weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
-        weight_array[~neg_mask] = 0
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i]}
-
-    return baseline, params
 
 
+@_whittaker_wrapper
 def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     Asymmetrically reweighted penalized least squares smoothing (arPLS).
@@ -1181,33 +1109,9 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_da
     penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
     """
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    y, diagonals, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
-    )
-    main_diag_idx = diff_order if using_pentapy else 0
-    main_diagonal = diagonals[main_diag_idx].copy()
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        diagonals[main_diag_idx] = main_diagonal + weight_array
-        if using_pentapy:
-            baseline = _pentapy_solver(diagonals, weight_array * y)
-        else:
-            baseline = solveh_banded(
-                diagonals, weight_array * y, overwrite_b=True, check_finite=False, lower=True
-            )
-        new_weights = _weighting._arpls(y, baseline)
-        calc_difference = relative_difference(weight_array, new_weights)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        weight_array = new_weights
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-
-    return baseline, params
 
 
+@_whittaker_wrapper
 def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_order=2, x_data=None):
     """
     Doubly reweighted penalized least squares (drPLS) baseline.
@@ -1264,50 +1168,9 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_orde
     penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """
-    y, d2_diagonals, weight_array = _setup_whittaker(data, lam, 2, weights, False, False)
-    d1_d2_diagonals = d2_diagonals + diff_penalty_diagonals(y.shape[0], 1, False, 1)
-    if _HAS_PENTAPY:
-        d1_d2_diagonals = d1_d2_diagonals[::-1]
-    # identity - eta * D_2.T @ D_2; overwrite d2_diagonals since it's no longer needed;
-    # reversed to match the original diagonal structure of the D_2.T @ D_2 sparse matrix
-    d2_diagonals = -eta * d2_diagonals[::-1]
-    d2_diagonals[2] += 1
-    tol_history = np.empty(max_iter + 1)
-    for i in range(1, max_iter + 2):
-        d2_w_diagonals = d2_diagonals * weight_array
-        if _HAS_PENTAPY:
-            baseline = _pentapy_solver(
-                d1_d2_diagonals + d2_w_diagonals, weight_array * y
-            )
-        else:
-            baseline = solve_banded(
-                (2, 2), d1_d2_diagonals + _shift_rows(d2_w_diagonals), weight_array * y,
-                overwrite_b=True, overwrite_ab=True, check_finite=False
-            )
-        new_weights = _weighting._drpls(y, baseline, i)
-        calc_difference = relative_difference(weight_array, new_weights)
-        tol_history[i - 1] = calc_difference
-        if not np.isfinite(calc_difference):
-            # catches nan, inf and -inf due to exp(i) being too high or if there
-            # are too few negative residuals; no way to catch both conditions before
-            # new_weights calculation since it is hard to estimate if
-            # (exp(i) / std) * residual will overflow; check calc_difference rather
-            # than checking new_weights since non-finite values rarely occur and
-            # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
-            warnings.warn(
-                ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                 '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
-            )
-            break
-        elif calc_difference < tol:
-            break
-        weight_array = new_weights
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i]}
-
-    return baseline, params
 
 
+@_whittaker_wrapper
 def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None):
     """
     Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
@@ -1356,45 +1219,9 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_d
     59, 10933-10943.
 
     """
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    y, diagonals, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
-    )
-    main_diag_idx = diff_order if using_pentapy else 0
-    main_diagonal = diagonals[main_diag_idx].copy()
-    tol_history = np.empty(max_iter + 1)
-    for i in range(1, max_iter + 2):
-        diagonals[main_diag_idx] = main_diagonal + weight_array
-        if using_pentapy:
-            baseline = _pentapy_solver(diagonals, weight_array * y)
-        else:
-            baseline = solveh_banded(
-                diagonals, weight_array * y, overwrite_b=True, check_finite=False, lower=True
-            )
-        new_weights = _weighting._iarpls(y, baseline, i)
-        calc_difference = relative_difference(weight_array, new_weights)
-        tol_history[i - 1] = calc_difference
-        if not np.isfinite(calc_difference):
-            # catches nan, inf and -inf due to exp(i) being too high or if there
-            # are too few negative residuals; no way to catch both conditions before
-            # new_weights calculation since it is hard to estimate if
-            # (exp(i) / std) * residual will overflow; check calc_difference rather
-            # than checking new_weights since non-finite values rarely occur and
-            # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
-            warnings.warn(
-                ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                 '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
-            )
-            break
-        elif calc_difference < tol:
-            break
-        weight_array = new_weights
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i]}
-
-    return baseline, params
 
 
+@_whittaker_wrapper
 def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
           alpha=None, x_data=None):
     """
@@ -1462,45 +1289,9 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
     Spectroscopy Letters, 2020, 53(3), 222-233.
 
     """
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    y, diagonals, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, False, False, True
-    )
-    if alpha is None:
-        alpha_array = np.ones_like(weight_array)
-    else:
-        alpha_array = np.asarray(alpha)
-        if alpha_array.shape != y.shape:
-            raise ValueError('alpha must have the same shape as the input data')
-
-    lower_upper = (diff_order, diff_order)
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        alpha_diagonals = diagonals * alpha_array
-        alpha_diagonals[diff_order] = alpha_diagonals[diff_order] + weight_array
-        if using_pentapy:
-            baseline = _pentapy_solver(alpha_diagonals, weight_array * y)
-        else:
-            baseline = solve_banded(
-                lower_upper, _shift_rows(alpha_diagonals, diff_order), weight_array * y,
-                overwrite_ab=True, overwrite_b=True, check_finite=False
-            )
-        new_weights, residual = _weighting._aspls(y, baseline)
-        calc_difference = relative_difference(weight_array, new_weights)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        weight_array = new_weights
-        abs_d = np.abs(residual)
-        alpha_array = abs_d / abs_d.max()
-
-    params = {
-        'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1]
-    }
-
-    return baseline, params
 
 
+@_whittaker_wrapper
 def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
            weights=None, x_data=None):
     """
@@ -1576,39 +1367,9 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
     Systems, Signals, and Devices, 2014, 1-5.
 
     """
-    if not 0 < p < 1:
-        raise ValueError('p must be between 0 and 1')
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    y, diagonals, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
-    )
-    if k is None:
-        k = np.std(y) / 10
-
-    num_y = y.shape[0]
-    main_diag_idx = diff_order if using_pentapy else 0
-    main_diagonal = diagonals[main_diag_idx].copy()
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        diagonals[main_diag_idx] = main_diagonal + weight_array
-        if using_pentapy:
-            baseline = _pentapy_solver(diagonals, weight_array * y)
-        else:
-            baseline = solveh_banded(
-                diagonals, weight_array * y, overwrite_b=True, check_finite=False, lower=True
-            )
-        new_weights = _weighting._psalsa(y, baseline, p, k, num_y)
-        calc_difference = relative_difference(weight_array, new_weights)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        weight_array = new_weights
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-
-    return baseline, params
 
 
+@_whittaker_wrapper
 def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3, weights=None,
               smooth_half_window=None, num_smooths=16, x_data=None, **pad_kwargs):
     """
@@ -1682,54 +1443,3 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
     51(10), 2061-2065.
 
     """
-    if not 0 < p < 1:
-        raise ValueError('p must be between 0 and 1')
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    y, diagonals, weight_array = _setup_whittaker(
-        data, lam, diff_order, weights, False, not using_pentapy, using_pentapy
-    )
-    if k is None:
-        k = np.std(y) / 10
-    num_y = y.shape[0]
-    if smooth_half_window is None:
-        smooth_half_window = num_y // 200
-    # could pad the data every iteration, but it is ~2-3 times slower and only affects
-    # the edges, so it's not worth it
-    y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs)
-    if smooth_half_window > 0:
-        smooth_kernel = _mollifier_kernel(smooth_half_window)
-        for _ in range(num_smooths):
-            y_smooth = padded_convolve(y_smooth, smooth_kernel)
-    y_smooth = y_smooth[smooth_half_window:num_y + smooth_half_window]
-
-    diff_y_1 = np.gradient(y_smooth)
-    diff_y_2 = np.gradient(diff_y_1)
-    # x.dot(x) is same as (x**2).sum() but faster
-    rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / num_y)
-    rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / num_y)
-
-    diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
-    diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
-    partial_weights = diff_1_weights * diff_2_weights
-
-    main_diag_idx = diff_order if using_pentapy else 0
-    main_diagonal = diagonals[main_diag_idx].copy()
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        diagonals[main_diag_idx] = main_diagonal + weight_array
-        if using_pentapy:
-            baseline = _pentapy_solver(diagonals, weight_array * y)
-        else:
-            baseline = solveh_banded(
-                diagonals, weight_array * y, overwrite_b=True, check_finite=False, lower=True
-            )
-        new_weights = _weighting._derpsalsa(y, baseline, p, k, num_y, partial_weights)
-        calc_difference = relative_difference(weight_array, new_weights)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        weight_array = new_weights
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-
-    return baseline, params

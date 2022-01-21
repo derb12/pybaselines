@@ -7,16 +7,11 @@ Created on March 5, 2021
 """
 
 import numpy as np
-from scipy.linalg import solveh_banded
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import (
-    _Algorithm, _check_lam, _setup_morphology, _setup_splines, _sort_array, diff_penalty_diagonals
+    _Algorithm, _check_lam, _class_wrapper, _sort_array
 )
-from ._banded_utils import _pentapy_solver
-from ._compat import _HAS_PENTAPY
-from ._spline_utils import _solve_pspline
-from ._validation import _check_optional_array
 from .utils import (
     _mollifier_kernel, pad_edges, padded_convolve, relative_difference, whittaker_smooth
 )
@@ -437,7 +432,7 @@ class Morphological(_Algorithm):
         correction for Raman spectra. J Raman Spectroscopy, 2017, 48(2), 336-342.
 
         """
-        y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
         window_size = 2 * half_wind + 1
         kernel = _mollifier_kernel(window_size)
         if smooth_half_window is None:
@@ -946,6 +941,9 @@ class Morphological(_Algorithm):
         return baseline, params
 
 
+_morphological_wrapper = _class_wrapper(Morphological)
+
+
 def _avg_opening(y, half_window, opening=None):
     """
     Averages the dilation and erosion of a morphological opening on data.
@@ -977,6 +975,7 @@ def _avg_opening(y, half_window, opening=None):
     return 0.5 * (grey_dilation(opening, [window_size]) + grey_erosion(opening, [window_size]))
 
 
+@_morphological_wrapper
 def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_iter=50,
          weights=None, x_data=None, **window_kwargs):
     """
@@ -1052,37 +1051,9 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
            background correction. Analyst, 2013, 138, 4483-4492.
 
     """
-    if not 0 <= p <= 1:
-        raise ValueError('p must be between 0 and 1')
-
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    if weights is not None:
-        w = weights
-    else:
-        rough_baseline = grey_opening(y, [2 * half_wind + 1])
-        diff = np.diff(np.concatenate([rough_baseline[:1], rough_baseline, rough_baseline[-1:]]))
-        # diff == 0 means the point is on a flat segment, and diff != 0 means the
-        # adjacent point is not the same flat segment. The union of the two finds
-        # the endpoints of each segment, and np.flatnonzero converts the mask to
-        # indices; indices will always be even-sized.
-        indices = np.flatnonzero(
-            ((diff[1:] == 0) | (diff[:-1] == 0)) & ((diff[1:] != 0) | (diff[:-1] != 0))
-        )
-        w = np.full(y.shape[0], p)
-        # find the index of min(y) in the region between flat regions
-        for previous_segment, next_segment in zip(indices[1::2], indices[2::2]):
-            index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
-            w[index] = 1 - p
-
-    weight_array = _check_optional_array(len(y), w, check_finite=True)
-    baseline = whittaker_smooth(
-        y, lam=lam, diff_order=diff_order, weights=weight_array, check_finite=False
-    )
-
-    params = {'weights': weight_array, 'half_window': half_wind}
-    return baseline, params
 
 
+@_morphological_wrapper
 def mor(data, half_window=None, x_data=None, **window_kwargs):
     """
     A Morphological based (Mor) baseline algorithm.
@@ -1133,13 +1104,9 @@ def mor(data, half_window=None, x_data=None, **window_kwargs):
     Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
 
     """
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    opening = grey_opening(y, [2 * half_wind + 1])
-    baseline = np.minimum(opening, _avg_opening(y, half_wind, opening))
-
-    return baseline, {'half_window': half_wind}
 
 
+@_morphological_wrapper
 def imor(data, half_window=None, tol=1e-3, max_iter=200, x_data=None, **window_kwargs):
     """
     An Improved Morphological based (IMor) baseline algorithm.
@@ -1199,21 +1166,9 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, x_data=None, **window_k
     Morphological Operations. Applied Spectroscopy, 2018, 72(5), 731-739.
 
     """
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    baseline = y
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        baseline_new = np.minimum(y, _avg_opening(baseline, half_wind))
-        calc_difference = relative_difference(baseline, baseline_new)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        baseline = baseline_new
-
-    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
-    return baseline, params
 
 
+@_morphological_wrapper
 def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, x_data=None,
             **window_kwargs):
     """
@@ -1278,35 +1233,9 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, x_d
     Mollifications. Applied Spectroscopy, 2019, 73(3), 284-293.
 
     """
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    window_size = 2 * half_wind + 1
-    kernel = _mollifier_kernel(window_size)
-    data_bounds = slice(window_size, -window_size)
-
-    pad_kws = pad_kwargs if pad_kwargs is not None else {}
-    y = pad_edges(y, window_size, **pad_kws)
-    baseline = y
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        baseline_old = baseline
-        baseline = padded_convolve(
-            np.minimum(
-                y,
-                0.5 * (
-                    grey_closing(baseline, [window_size]) + grey_opening(baseline, [window_size])
-                )
-            ),
-            kernel
-        )
-        calc_difference = relative_difference(baseline_old[data_bounds], baseline[data_bounds])
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
-    return baseline[data_bounds], params
 
 
+@_morphological_wrapper
 def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=None,
            pad_kwargs=None, x_data=None, **window_kwargs):
     """
@@ -1374,31 +1303,9 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     correction for Raman spectra. J Raman Spectroscopy, 2017, 48(2), 336-342.
 
     """
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    window_size = 2 * half_wind + 1
-    kernel = _mollifier_kernel(window_size)
-    if smooth_half_window is None:
-        smooth_half_window = 1
-    smooth_kernel = _mollifier_kernel(smooth_half_window)
-    data_bounds = slice(window_size, -window_size)
-
-    pad_kws = pad_kwargs if pad_kwargs is not None else {}
-    y = pad_edges(y, window_size, **pad_kws)
-    baseline = np.zeros(y.shape[0])
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        baseline_old = baseline
-        y_smooth = padded_convolve(y - baseline, smooth_kernel)
-        baseline = baseline + padded_convolve(grey_erosion(y_smooth, window_size), kernel)
-        calc_difference = relative_difference(baseline_old[data_bounds], baseline[data_bounds])
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
-    return baseline[data_bounds], params
 
 
+@_morphological_wrapper
 def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
                  x_data=None, **window_kwargs):
     """
@@ -1471,20 +1378,9 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     Calibration of Spectra. Applied Spectroscopy, 2010, 64(9), 1007-1016.
 
     """
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    if smooth_half_window is None:
-        smooth_half_window = half_wind
-
-    rough_baseline = grey_opening(y, 2 * half_wind + 1)
-    pad_kws = pad_kwargs if pad_kwargs is not None else {}
-    baseline = uniform_filter1d(
-        pad_edges(rough_baseline, smooth_half_window, **pad_kws),
-        2 * smooth_half_window + 1
-    )[smooth_half_window:len(y) + smooth_half_window]
-
-    return baseline, {'half_window': half_wind}
 
 
+@_morphological_wrapper
 def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
          x_data=None, **window_kwargs):
     """
@@ -1548,20 +1444,9 @@ def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
     99, 138-149.
 
     """
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    if smooth_half_window is None:
-        smooth_half_window = half_wind
-
-    rough_baseline = grey_erosion(y, 2 * half_wind + 1)
-    pad_kws = pad_kwargs if pad_kwargs is not None else {}
-    baseline = uniform_filter1d(
-        pad_edges(rough_baseline, smooth_half_window, **pad_kws),
-        2 * smooth_half_window + 1
-    )[smooth_half_window:len(y) + smooth_half_window]
-
-    return baseline, {'half_window': half_wind}
 
 
+@_morphological_wrapper
 def tophat(data, half_window=None, x_data=None, **window_kwargs):
     """
     Estimates the baseline using a top-hat transformation (morphological opening).
@@ -1618,12 +1503,9 @@ def tophat(data, half_window=None, x_data=None, **window_kwargs):
     Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
 
     """
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    baseline = grey_opening(y, [2 * half_wind + 1])
-
-    return baseline, {'half_window': half_wind}
 
 
+@_morphological_wrapper
 def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=100,
              spline_degree=3, diff_order=2, weights=None, pad_kwargs=None, x_data=None,
              **window_kwargs):
@@ -1723,50 +1605,9 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     Raman Spectroscopy. 2017, 48(6), 878-883.
 
     """
-    if half_window is not None and half_window < 1:
-        raise ValueError('half-window must be greater than 0')
-    elif not 0 <= p <= 1:
-        raise ValueError('p must be between 0 and 1')
-
-    y, x, weight_array, basis, knots, penalty = _setup_splines(
-        data, x_data, weights, spline_degree, num_knots, True, diff_order, lam_smooth
-    )
-    # TODO should this use np.isclose instead?
-    # TODO this overestimates the data when there is a lot of noise, leading to an
-    # overestimated baseline; could alternatively just fit a p-spline to
-    # 0.5 * (grey_closing(y, 3) + grey_opening(y, 3)), which averages noisy data better;
-    # could add it as a boolean parameter
-    interp_weights = (y == grey_closing(y, 3)) * 1
-    initial_coef = _solve_pspline(x, y, interp_weights, basis, penalty, knots, spline_degree)
-    spline_fit = basis @ initial_coef
-
-    if weights is None:
-        _, half_window = _setup_morphology(spline_fit, half_window, **window_kwargs)
-        full_window = 2 * half_window + 1
-
-        pad_kws = pad_kwargs if pad_kwargs is not None else {}
-        padded_spline = pad_edges(spline_fit, full_window, **pad_kws)
-        opening = grey_opening(padded_spline, full_window)
-        # using the opening rather than padded_spline is more conservative when identifying
-        # baseline points and results in much better results
-        optimal_opening = np.minimum(
-            opening, _avg_opening(y, half_window, opening)
-        )[full_window:-full_window]
-
-        # TODO should this use np.isclose instead?
-        mask = spline_fit == optimal_opening
-        weight_array[mask] = 1 - p
-        weight_array[~mask] = p
-
-    coef = _solve_pspline(
-        x, spline_fit, weight_array, basis, (_check_lam(lam) / lam_smooth) * penalty, knots,
-        spline_degree
-    )
-    baseline = basis @ coef
-
-    return baseline, {'half_window': half_window, 'weights': weight_array}
 
 
+@_morphological_wrapper
 def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, gamma_mult=0.909,
          diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3, robust_opening=True, x_data=None,
          **window_kwargs):
@@ -1857,51 +1698,3 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
     Applied Spectroscopy, 2015, 69(9), 1013-1022.
 
     """
-    y, half_wind = _setup_morphology(data, half_window, **window_kwargs)
-    beta = _check_lam(beta)
-    gamma = _check_lam(gamma, allow_zero=True)
-    using_pentapy = _HAS_PENTAPY and diff_order == 2
-    penalty_diagonals = diff_penalty_diagonals(len(y), diff_order, not using_pentapy)
-    if using_pentapy:
-        penalty_diagonals = penalty_diagonals[::-1]
-
-    opening = grey_opening(y, 2 * half_wind + 1)
-    if robust_opening:
-        opening = np.minimum(opening, _avg_opening(y, half_wind, opening))
-
-    baseline_old = opening
-    signal_old = y
-    main_diag_idx = diff_order if using_pentapy else 0
-    partial_rhs_2 = (2 * alpha) * opening
-    tol_history = np.empty((max_iter + 1, 2))
-    for i in range(max_iter + 1):
-        lhs_1 = gamma * penalty_diagonals
-        lhs_1[main_diag_idx] += 1.
-        lhs_2 = (2 * beta) * penalty_diagonals
-        lhs_2[main_diag_idx] += 1. + 2. * alpha
-        if using_pentapy:
-            signal = _pentapy_solver(lhs_1, y - baseline_old)
-            baseline = _pentapy_solver(lhs_2, y - signal + partial_rhs_2)
-        else:
-            signal = solveh_banded(
-                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True, lower=True,
-                check_finite=False
-            )
-            baseline = solveh_banded(
-                lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True,
-                lower=True, check_finite=False
-            )
-
-        calc_tol_1 = relative_difference(signal_old, signal)
-        calc_tol_2 = relative_difference(baseline_old, baseline)
-        tol_history[i] = (calc_tol_1, calc_tol_2)
-        if calc_tol_1 < tol and calc_tol_2 < tol_2:
-            break
-        signal_old = signal
-        baseline_old = baseline
-        gamma *= gamma_mult
-        beta *= beta_mult
-
-    params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1], 'signal': signal}
-
-    return baseline, params

@@ -12,9 +12,9 @@ import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
 from scipy.signal import savgol_coeffs
 
-from ._algorithm_setup import _Algorithm, _get_vander, _setup_smooth, _yx_arrays
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from .utils import (
-    ParameterWarning, _check_scalar, _get_edges, _inverted_sort, gaussian, gaussian_kernel,
+    ParameterWarning, _check_scalar, _get_edges, gaussian, gaussian_kernel,
     optimize_window, pad_edges, padded_convolve, relative_difference
 )
 
@@ -600,6 +600,10 @@ class Smooth(_Algorithm):
         return baseline, {'tol_history': tol_history[:i + 1]}
 
 
+_smooth_wrapper = _class_wrapper(Smooth)
+
+
+@_smooth_wrapper
 def noise_median(data, half_window, smooth_half_window=None, sigma=None, x_data=None, **pad_kwargs):
     """
     The noise-median method for baseline identification.
@@ -641,22 +645,9 @@ def noise_median(data, half_window, smooth_half_window=None, sigma=None, x_data=
     artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
     """
-    window_size = 2 * half_window + 1
-    median = median_filter(
-        _setup_smooth(data, half_window, **pad_kwargs),
-        [window_size], mode='nearest'
-    )
-    if smooth_half_window is None:
-        smooth_window = window_size
-    else:
-        smooth_window = 2 * smooth_half_window + 1
-    if sigma is None:
-        # the gaussian kernel will includes +- 3 sigma
-        sigma = smooth_window / 6
-    baseline = padded_convolve(median, gaussian_kernel(smooth_window, sigma))
-    return baseline[half_window:-half_window], {}
 
 
+@_smooth_wrapper
 def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
          filter_order=2, x_data=None, **pad_kwargs):
     """
@@ -742,92 +733,6 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
            Physics Research A, 2009, 60, 478-487.
 
     """
-    # TODO potentially add adaptive window sizes from [4]_, or at least allow inputting
-    # an array of max_half_windows; would need to have a separate function for array
-    # windows since it would no longer be able to be vectorized
-    if filter_order not in {2, 4, 6, 8}:
-        raise ValueError('filter_order must be 2, 4, 6, or 8')
-
-    half_windows = _check_scalar(max_half_window, 2, True, dtype=int)[0]
-    num_y = len(data)
-    for i, half_window in enumerate(half_windows):
-        if half_window > (num_y - 1) // 2:
-            warnings.warn(
-                'max_half_window values greater than (len(data) - 1) / 2 have no effect.',
-                ParameterWarning
-            )
-            half_windows[i] = (num_y - 1) // 2
-
-    max_of_half_windows = np.max(half_windows)
-    if decreasing:
-        range_args = (max_of_half_windows, 0, -1)
-    else:
-        range_args = (1, max_of_half_windows + 1, 1)
-
-    y = _setup_smooth(data, max_of_half_windows, **pad_kwargs)
-    num_y += 2 * max_of_half_windows  # new num_y since y is now padded
-    smooth = smooth_half_window is not None and smooth_half_window > 0
-    baseline = y.copy()
-    for i in range(*range_args):
-        i_left = min(i, half_windows[0])
-        i_right = min(i, half_windows[1])
-
-        filters = (
-            baseline[i - i_left:num_y - i - i_left] + baseline[i + i_right:num_y - i + i_right]
-        ) / 2
-        if filter_order > 2:
-            filters_new = (
-                - (
-                    baseline[i - i_left:num_y - i - i_left]
-                    + baseline[i + i_right:num_y - i + i_right]
-                )
-                + 4 * (
-                    baseline[i - i_left // 2:-i - i_left // 2]
-                    + baseline[i + i_right // 2:-i + i_right // 2]
-                )
-            ) / 6
-            filters = np.maximum(filters, filters_new)
-        if filter_order > 4:
-            filters_new = (
-                baseline[i - i_left:num_y - i - i_left] + baseline[i + i_right:num_y - i + i_right]
-                - 6 * (
-                    baseline[i - 2 * i_left // 3:-i - 2 * i_left // 3]
-                    + baseline[i + 2 * i_right // 3:-i + 2 * i_right // 3]
-                )
-                + 15 * (
-                    baseline[i - i_left // 3:-i - i_left // 3]
-                    + baseline[i + i_right // 3:-i + i_right // 3]
-                )
-            ) / 20
-            filters = np.maximum(filters, filters_new)
-        if filter_order > 6:
-            filters_new = (
-                - (
-                    baseline[i - i_left:num_y - i - i_left]
-                    + baseline[i + i_right:num_y - i + i_right]
-                )
-                + 8 * (
-                    baseline[i - 3 * i_left // 4:-i - 3 * i_left // 4]
-                    + baseline[i + 3 * i_right // 4:-i + 3 * i_right // 4]
-                )
-                - 28 * (
-                    baseline[i - i_left // 2:-i - i_left // 2]
-                    + baseline[i + i_right // 2:-i + i_right // 2]
-                )
-                + 56 * (
-                    baseline[i - i_left // 4:-i - i_left // 4]
-                    + baseline[i + i_right // 4:-i + i_right // 4]
-                )
-            ) / 70
-            filters = np.maximum(filters, filters_new)
-
-        if smooth:
-            previous_baseline = uniform_filter1d(baseline, 2 * smooth_half_window + 1)[i:-i]
-        else:
-            previous_baseline = baseline[i:-i]
-        baseline[i:-i] = np.where(baseline[i:-i] > filters, filters, previous_baseline)
-
-    return baseline[max_of_half_windows:-max_of_half_windows], {}
 
 
 def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half_window=3):
@@ -915,6 +820,7 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
     return baseline, converged, half_window
 
 
+@_smooth_wrapper
 def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None,
           x_data=None, **pad_kwargs):
     """
@@ -984,37 +890,9 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
     66(7), 757-764.
 
     """
-    if max_half_window is None:
-        max_half_window = (len(data) - 1) // 2
-    y = _setup_smooth(data, max_half_window, **pad_kwargs)
-    len_y = len(y)  # includes the padding of max_half_window at each side
-    data_slice = slice(max_half_window, -max_half_window)
-    if smooth_half_window is None:
-        smooth_half_window = max(1, (len_y - 2 * max_half_window) // 50)
-    if smooth_half_window > 0:
-        y = uniform_filter1d(y, 2 * smooth_half_window + 1)
-
-    vander, pseudo_inverse = _get_vander(np.linspace(-1, 1, len_y - 2 * max_half_window), 3)
-    baseline, converged, half_window = _swima_loop(
-        y, vander, pseudo_inverse, data_slice, max_half_window, min_half_window
-    )
-    converges = [converged]
-    half_windows = [half_window]
-    if not converged:
-        residual = y - baseline
-        gaussian_bkg = gaussian(
-            np.arange(len_y), np.max(residual), len_y / 2, len_y / 6
-        )
-        baseline_2, converged, half_window = _swima_loop(
-            residual + gaussian_bkg, vander, pseudo_inverse, data_slice, max_half_window, 3
-        )
-        baseline += baseline_2 - gaussian_bkg
-        converges.append(converged)
-        half_windows.append(half_window)
-
-    return baseline[data_slice], {'half_window': half_windows, 'converged': converges}
 
 
+@_smooth_wrapper
 def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
          original_criteria=False, x_data=None, **pad_kwargs):
     """
@@ -1071,48 +949,9 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
     Polynomial Smoothing. Applied Spectroscopy. 71(6) (2017) 1169-1179.
 
     """
-    # TODO should just move optimize window into _setup_smooth since all smooth functions
-    # could use it; maybe just add a multiplier constant; that way, snip and noise_median
-    # no longer require a half window parameter to at least get a guess
-    if half_window is None:
-        half_window = 4 * optimize_window(data)
-    window_size = 2 * half_window + 1
-    y = _setup_smooth(data, window_size, **pad_kwargs)
-    y0 = y
-    data_slice = slice(window_size, -window_size)
-    if original_criteria:
-        if roi is None:
-            roi = slice(None)
-        elif not isinstance(roi, slice):
-            roi = np.asarray(roi)
-
-    if tol is None:
-        if original_criteria:
-            # guess what the desired height should be; not a great guess, but it's
-            # something
-            tol = 1 / np.ptp(y[data_slice][roi])
-        else:
-            tol = 1e-3
-
-    savgol_coef = savgol_coeffs(window_size, 2)
-    tol_history = np.empty(max_iter + 1)
-    old_baseline = y[data_slice]
-    for i in range(max_iter + 1):
-        baseline = padded_convolve(y, savgol_coef, 'edge')
-        if original_criteria:
-            residual = (y0 - baseline)[data_slice][roi]
-            calc_tol = abs(residual.min() / residual.max())
-        else:
-            calc_tol = relative_difference(old_baseline, baseline[data_slice])
-        tol_history[i] = calc_tol
-        if calc_tol < tol:
-            break
-        y = np.minimum(y0, baseline)
-        old_baseline = baseline[data_slice]
-
-    return baseline[data_slice], {'tol_history': tol_history[:i + 1]}
 
 
+@_smooth_wrapper
 def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both',
         width_scale=0.1, height_scale=1., sigma_scale=1. / 12., **pad_kwargs):
     """
@@ -1182,79 +1021,3 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
     (2012) 1884-1894.
 
     """
-    side = side.lower()
-    if side not in ('left', 'right', 'both'):
-        raise ValueError('side must be "left", "right", or "both"')
-
-    y, x = _yx_arrays(data, x_data)
-    if half_window is None:
-        half_window = optimize_window(y)
-    sort_x = x_data is not None
-    if sort_x:
-        sort_order = np.argsort(x, kind='mergesort')
-        x = x[sort_order]
-        y = y[sort_order]
-    max_x = x.max()
-    min_x = x.min()
-    x_range = max_x - min_x
-
-    added_window = int(x.shape[0] * width_scale)
-    lower_bound = 0
-    upper_bound = 0
-    known_area = 0.
-
-    # TODO should make this a function that could be used by optimizers.optimize_extended_range too
-    added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
-    added_gaussian = gaussian(
-        np.linspace(-added_window / 2, added_window / 2, added_window),
-        height_scale * abs(y.max()), 0, added_window * sigma_scale
-    )
-    if side in ('left', 'both'):
-        added_x_left = np.linspace(
-            min_x - x_range * (width_scale / 2), min_x, added_window + 1
-        )[:-1]
-        added_y_left = added_gaussian + added_left
-        lower_bound = added_window
-        known_area += np.trapz(added_gaussian, added_x_left)
-    else:
-        added_x_left = []
-        added_y_left = []
-
-    if side in ('right', 'both'):
-        added_x_right = np.linspace(
-            max_x, max_x + x_range * (width_scale / 2), added_window + 1
-        )[1:]
-        added_y_right = added_gaussian + added_right
-        upper_bound = added_window
-        known_area += np.trapz(added_gaussian, added_x_right)
-    else:
-        added_x_right = []
-        added_y_right = []
-
-    fit_x_data = np.concatenate((added_x_left, x, added_x_right))
-    fit_data = np.concatenate((added_y_left, y, added_y_right))
-
-    upper_max = fit_data.shape[0] - upper_bound
-    tol_history = np.empty(max_iter)
-    window_size = 2 * half_window + 1
-    smoother_array = pad_edges(fit_data, window_size, extrapolate_window=2)
-    data_slice = slice(window_size, -window_size)
-    for i in range(max_iter):
-        # only smooth fit_data so that the outer section remains unchanged by
-        # smoothing and edge effects are ignored
-        smoother_array[data_slice] = uniform_filter1d(smoother_array, window_size)[data_slice]
-        residual = fit_data - smoother_array[data_slice]
-        calc_area = np.trapz(residual[:lower_bound], fit_x_data[:lower_bound])
-        if upper_bound:
-            calc_area += np.trapz(residual[-upper_bound:], fit_x_data[-upper_bound:])
-        calc_difference = relative_difference(known_area, calc_area)
-        tol_history[i] = calc_difference
-        if calc_difference < tol or calc_area > known_area:
-            break
-        smoother_array[data_slice] = np.minimum(fit_data, smoother_array[data_slice])
-
-    baseline = smoother_array[data_slice][lower_bound:upper_max]
-    if sort_x:
-        baseline = baseline[_inverted_sort(sort_order)]
-
-    return baseline, {'tol_history': tol_history[:i + 1]}

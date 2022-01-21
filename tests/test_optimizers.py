@@ -232,7 +232,9 @@ def test_determine_polyorders(baseline_ptp):
     assert_allclose(np.ptp(true_baseline), baseline_ptp, 0, 1e-3)
     assert_allclose(np.ptp(y), 1, 0, 1e-3)
 
-    fit_baseline = polynomial.modpoly(y + true_baseline, x, 1)[0]
+    fitter = polynomial.Polynomial(x, check_finite=False, assume_sorted=True)
+
+    fit_baseline = fitter.modpoly(y + true_baseline, poly_order=1)[0]
     # sanity check to make sure internal baseline fit was correct
     assert_allclose(np.ptp(fit_baseline), baseline_ptp, 0, 1e-3)
 
@@ -252,7 +254,7 @@ def test_determine_polyorders(baseline_ptp):
         expected_orders = (6, 8)
 
     output_orders = optimizers._determine_polyorders(
-        y + true_baseline, x, 1, None, polynomial.modpoly
+        y + true_baseline, poly_order=1, weights=None, fit_function=fitter.modpoly
     )
 
     assert output_orders == expected_orders

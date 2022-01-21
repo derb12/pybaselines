@@ -16,7 +16,7 @@ from scipy.ndimage import (
 from scipy.optimize import curve_fit
 from scipy.signal import cwt, ricker
 
-from ._algorithm_setup import _Algorithm, _get_vander, _setup_classification, _setup_whittaker
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit
 from .utils import (
     _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
@@ -788,6 +788,9 @@ class Classification(_Algorithm):
         return baseline, params
 
 
+_classification_wrapper = _class_wrapper(Classification)
+
+
 def _refine_mask(mask, min_length=2):
     """
     Removes small consecutive True values and lone False values from a boolean mask.
@@ -915,6 +918,7 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
     return output
 
 
+@_classification_wrapper
 def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
              smooth_half_window=None, interp_half_window=5, weights=None, min_length=2,
              **pad_kwargs):
@@ -983,35 +987,6 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
     FT NMR Spectra. Journal of Magnetic Resonance. 2000, 146, 122-125.
 
     """
-    y, x, weight_array, *_ = _setup_classification(data, x_data, weights)
-    if half_window is None:
-        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
-        # with data size
-        half_window = ceil(optimize_window(y) / 2)
-    if smooth_half_window is None:
-        smooth_half_window = half_window
-    num_y = y.shape[0]
-    min_sigma = np.inf
-    for i in range(sections):
-        # use ddof=1 since sampling subsets of the data
-        min_sigma = min(
-            min_sigma,
-            np.std(y[i * num_y // sections:((i + 1) * num_y) // sections], ddof=1)
-        )
-
-    mask = (
-        grey_dilation(y, 2 * half_window + 1) - grey_erosion(y, 2 * half_window + 1)
-    ) < num_std * min_sigma
-    mask = _refine_mask(mask, min_length)
-    np.logical_and(mask, weight_array, out=mask)
-
-    rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
-    baseline = uniform_filter1d(
-        pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
-        2 * smooth_half_window + 1
-    )[smooth_half_window:num_y + smooth_half_window]
-
-    return baseline, {'mask': mask}
 
 
 def _iter_threshold(power, num_std=3.0):
@@ -1057,6 +1032,7 @@ def _iter_threshold(power, num_std=3.0):
     return mask
 
 
+@_classification_wrapper
 def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
              interp_half_window=5, poly_order=5, max_iter=50, tol=1e-3, weights=None,
              return_coef=False, min_length=2, **pad_kwargs):
@@ -1149,43 +1125,6 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
     Two-Dimensional NMR Spectra. Journal of Magnetic Resonance. 1991, 91, 1-11.
 
     """
-    y, x, weight_array, original_domain = _setup_classification(data, x_data, weights)
-    num_y = y.shape[0]
-
-    if smooth_half_window is None:
-        smooth_half_window = ceil(num_y / 256)
-    smooth_y = uniform_filter1d(
-        pad_edges(y, smooth_half_window, **pad_kwargs),
-        2 * smooth_half_window + 1
-    )[smooth_half_window:num_y + smooth_half_window]
-    power = np.gradient(smooth_y)**2
-    mask = _refine_mask(_iter_threshold(power, num_std), min_length)
-    np.logical_and(mask, weight_array, out=mask)
-    rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
-
-    params = {'mask': mask}
-    baseline = rough_baseline
-    if max_iter > 0:
-        vander, pseudo_inverse = _get_vander(x, poly_order)
-        old_coef = coef = np.dot(pseudo_inverse, rough_baseline)
-        baseline = np.dot(vander, coef)
-        if max_iter > 1:
-            tol_history = np.empty(max_iter - 1)
-            for i in range(max_iter - 1):
-                rough_baseline[mask] = baseline[mask]
-                coef = np.dot(pseudo_inverse, rough_baseline)
-                baseline = np.dot(vander, coef)
-                calc_difference = relative_difference(old_coef, coef)
-                tol_history[i] = calc_difference
-                if calc_difference < tol:
-                    break
-                old_coef = coef
-            params['tol_history'] = tol_history[:i + 1]
-
-        if return_coef:
-            params['coef'] = _convert_coef(coef, original_domain)
-
-    return baseline, params
 
 
 @jit(nopython=True, cache=True)
@@ -1292,6 +1231,7 @@ def _padded_rolling_std(data, half_window, ddof=0):
     return rolling_std
 
 
+@_classification_wrapper
 def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
                      fill_half_window=3, num_std=1.1, smooth_half_window=None,
                      weights=None, **pad_kwargs):
@@ -1356,40 +1296,9 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
     Analytical Chemistry. 2013, 85, 1231-1239.
 
     """
-    y, x, weight_array, _ = _setup_classification(data, x_data, weights)
-    if half_window is None:
-        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
-        # with data size
-        half_window = ceil(optimize_window(y) / 2)
-    if smooth_half_window is None:
-        smooth_half_window = half_window
-
-    # use dof=1 since sampling a subset of the data
-    std = _padded_rolling_std(y, half_window, 1)
-    median = np.median(std)
-    median_2 = np.median(std[std < 2 * median])  # TODO make the 2 an input?
-    while median_2 / median < 0.999:  # TODO make the 0.999 an input?
-        median = median_2
-        median_2 = np.median(std[std < 2 * median])
-    noise_std = median_2
-
-    # use ~ to convert from peak==1, baseline==0 to peak==0, baseline==1; if done before,
-    # would have to do ~binary_dilation(~mask) or binary_erosion(np.hstack((1, mask, 1))[1:-1]
-    mask = np.logical_and(
-        ~binary_dilation(std > num_std * noise_std, np.ones(2 * fill_half_window + 1)),
-        weight_array
-    )
-
-    rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
-
-    baseline = uniform_filter1d(
-        pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
-        2 * smooth_half_window + 1
-    )[smooth_half_window:y.shape[0] + smooth_half_window]
-
-    return baseline, {'mask': mask}
 
 
+@_classification_wrapper
 def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None,
               interp_half_window=5, smooth_half_window=None, weights=None,
               max_iter=100, min_length=2, **pad_kwargs):
@@ -1471,68 +1380,9 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
     and peak grouping in chromatographic data. Analyst. 2013, 138, 3502-3511.
 
     """
-    y, x, weight_array, _ = _setup_classification(data, x_data, weights)
-    if half_window is None:
-        # optimize_window(y) / 2 gives an "okay" estimate that at least scales
-        # with data size
-        half_window = ceil(optimize_window(y) / 2)
-    if smooth_half_window is None:
-        smooth_half_window = half_window
-    if min_fwhm is None:
-        min_fwhm = 2 * half_window
-
-    # use dof=1 since sampling a subset of the data
-    std = _padded_rolling_std(y, half_window, 1)
-    if threshold is None:
-        # scales fairly well with y and gaurantees baseline segments are created;
-        # picked 15% since it seems to work better than 10%
-        threshold_val = np.percentile(std, 15)
-    elif callable(threshold):
-        threshold_val = threshold(std)
-    else:
-        threshold_val = threshold
-
-    # reference did not mention removing single points, but do so anyway to
-    # be more thorough
-    mask = _refine_mask(std < threshold_val, min_length)
-    np.logical_and(mask, weight_array, out=mask)
-    rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
-
-    mask_sum = mask.sum()
-    # only try to fix peak regions if there actually are peak and baseline regions
-    if mask_sum and mask_sum != mask.shape[0]:
-        peak_starts, peak_ends = _find_peak_segments(mask)
-        for _ in range(max_iter):
-            modified_baseline = False
-            for start, end in zip(peak_starts, peak_ends):
-                baseline_section = rough_baseline[start:end + 1]
-                data_section = y[start:end + 1]
-                # mask should be baseline_section > data_section, but use the
-                # inverse since _find_peak_segments looks for 0s, not 1s
-                section_mask = baseline_section < data_section
-                seg_starts, seg_ends = _find_peak_segments(section_mask)
-                if np.any(seg_ends - seg_starts > min_fwhm):
-                    modified_baseline = True
-                    # designate lowest point as baseline
-                    # TODO should surrounding points also be classified as baseline?
-                    mask[np.argmin(data_section - baseline_section) + start] = 1
-
-            if modified_baseline:
-                # TODO probably faster to just re-interpolate changed sections
-                rough_baseline = _averaged_interp(x, y, mask, interp_half_window)
-            else:
-                break
-
-    # reference did not discuss smoothing, but include to be consistent with
-    # other classification functions
-    baseline = uniform_filter1d(
-        pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
-        2 * smooth_half_window + 1
-    )[smooth_half_window:y.shape[0] + smooth_half_window]
-
-    return baseline, {'mask': mask}
 
 
+@_classification_wrapper
 def cwt_br(data, x_data=None, poly_order=5, scales=None, num_std=1.0, min_length=2,
            max_iter=50, tol=1e-3, symmetric=False, weights=None, **pad_kwargs):
     """
@@ -1611,109 +1461,6 @@ def cwt_br(data, x_data=None, poly_order=5, scales=None, num_std=1.0, min_length
     Spectroscopy, 2014, 68(2), 155-164.
 
     """
-    y, x, weight_array, original_domain = _setup_classification(data, x_data, weights)
-    vander = _get_vander(x, poly_order, None, False)
-    # scale y between -1 and 1 so that the residual fit is more numerically stable
-    y_domain = np.polynomial.polyutils.getdomain(y)
-    y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
-    num_y = y.shape[0]
-    if scales is None:
-        # avoid low scales since their cwt is fairly noisy
-        min_scale = max(2, num_y // 500)
-        max_scale = num_y // 4
-        scales = range(min_scale, max_scale)
-    else:
-        scales = np.atleast_1d(scales).reshape(-1)
-        max_scale = scales.max()
-
-    shannon_old = -np.inf
-    shannon_current = -np.inf
-    half_window = max_scale * 2  # TODO is x2 enough padding to prevent edge effects from cwt?
-    padded_y = pad_edges(y, half_window, **pad_kwargs)
-    for scale in scales:
-        wavelet_cwt = cwt(padded_y, ricker, [scale])[0, half_window:-half_window]
-        abs_wavelet = np.abs(wavelet_cwt)
-        inner = abs_wavelet / abs_wavelet.sum(axis=0)
-        # was not stated in the reference to use abs(wavelet) for the Shannon entropy,
-        # but otherwise the Shannon entropy vs wavelet scale curve does not look like
-        # Figure 2 in the reference; masking out non-positive values also gives an
-        # incorrect entropy curve
-        shannon_entropy = -np.sum(inner * np.log(inner + _MIN_FLOAT), 0)
-        if shannon_current < shannon_old and shannon_entropy > shannon_current:
-            break
-        shannon_old = shannon_current
-        shannon_current = shannon_entropy
-
-    best_scale_ptp_multiple = 8 * abs(wavelet_cwt.max() - wavelet_cwt.min())
-    num_bins = 200
-    histogram, bin_edges = np.histogram(wavelet_cwt, num_bins)
-    bins = 0.5 * (bin_edges[1:] + bin_edges[:-1])
-    fit_params = [histogram.max(), np.log10(0.2 * np.std(wavelet_cwt))]
-    # use 10**sigma so that sigma is not actually bounded
-    gaussian_fit = lambda x, height, sigma: gaussian(x, height, 0, 10**sigma)
-    # TODO should the number of iterations, the height cutoff for the histogram,
-    # and the exit tol be parameters? The number of iterations is never greater than
-    # 2 or 3, matching the reference. The height maybe should be since the masking
-    # depends on the histogram scale
-    dilation_structure = np.ones(5, bool)
-    for _ in range(10):
-        # dilate the mask to ensure at least five points are included for the fitting
-        fit_mask = binary_dilation(histogram > histogram.max() / 5, dilation_structure)
-        # histogram[~fit_mask] = 0  TODO use this instead? does it help fitting?
-        fit_params = curve_fit(
-            gaussian_fit, bins[fit_mask], histogram[fit_mask], fit_params,
-            check_finite=False
-        )[0]
-        sigma_opt = 10**fit_params[1]
-
-        new_num_bins = ceil(best_scale_ptp_multiple / sigma_opt)
-        if relative_difference(num_bins, new_num_bins) < 0.05:
-            break
-        num_bins = new_num_bins
-        histogram, bin_edges = np.histogram(wavelet_cwt, num_bins)
-        bins = 0.5 * (bin_edges[1:] + bin_edges[:-1])
-
-    gaussian_mask = np.abs(bins) < 3 * sigma_opt
-    gaus_area = np.trapz(histogram[gaussian_mask], bins[gaussian_mask])
-    num_sigma = 0.6 + 10 * ((np.trapz(histogram, bins) - gaus_area) / gaus_area)
-
-    wavelet_mask = _refine_mask(abs_wavelet < num_sigma * sigma_opt, min_length)
-    np.logical_and(wavelet_mask, weight_array, out=wavelet_mask)
-
-    check_window = np.ones(2 * (num_y // 200) + 1, bool)  # TODO make window size a param?
-    baseline_old = y
-    mask = wavelet_mask.copy()
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        coef = np.linalg.lstsq(vander[mask], y[mask], None)[0]
-        baseline = vander.dot(coef)
-        residual = y - baseline
-        mask[residual > num_std * np.std(residual)] = False
-
-        # TODO is this necessary? It improves fits where the initial fit didn't
-        # include enough points, but ensures that negative peaks are not allowed;
-        # maybe make it a param called symmetric, like for mixture_model, and only
-        # do if not symmetric; also probably only need to do it the first iteration
-        # since after that the masking above will not remove negative residuals
-        coef = np.linalg.lstsq(vander[mask], y[mask], None)[0]
-        baseline = vander.dot(coef)
-
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        baseline_old = baseline
-        if not symmetric:
-            np.logical_or(mask, binary_erosion(y < baseline, check_window), out=mask)
-
-    # TODO should include wavelet_mask in params; maybe called 'initial_mask'?
-    params = {
-        'mask': mask, 'tol_history': tol_history[:i + 1], 'best_scale': scale
-    }
-
-    baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
-
-    return baseline, params
 
 
 def _haar(num_points, scale=2):
@@ -1769,6 +1516,7 @@ def _haar(num_points, scale=2):
     return wavelet / (np.sqrt(scale))
 
 
+@_classification_wrapper
 def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, weights=None,
          weights_as_mask=False, x_data=None, **pad_kwargs):
     """
@@ -1846,29 +1594,3 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
     145-151.
 
     """
-    if weights_as_mask:
-        y, _, whittaker_weights = _setup_whittaker(data, lam, diff_order, weights)
-        mask = whittaker_weights.astype(bool)
-    else:
-        y, _, weight_array, _ = _setup_classification(data, None, weights)
-        if scale is None:
-            # optimize_window(y) / 2 gives an "okay" estimate that at least scales
-            # with data size
-            scale = ceil(optimize_window(y) / 2)
-        # TODO is 2*scale enough padding to prevent edge effects from cwt?
-        half_window = scale * 2
-        wavelet_cwt = cwt(pad_edges(y, half_window, **pad_kwargs), _haar, [scale])
-        power = wavelet_cwt[0, half_window:-half_window]**2
-
-        mask = _refine_mask(_iter_threshold(power, num_std), min_length)
-        np.logical_and(mask, weight_array, out=mask)
-        whittaker_weights = mask.astype(float)
-
-    # TODO should allow a p value so that weights are mask * (1-p) + (~mask) * p
-    # similar to mpls and mpspline?
-    baseline = whittaker_smooth(
-        y, lam=lam, diff_order=diff_order, weights=whittaker_weights, check_finite=False
-    )
-    params = {'mask': mask, 'weights': whittaker_weights}
-
-    return baseline, params

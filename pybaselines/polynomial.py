@@ -79,11 +79,10 @@ import warnings
 import numpy as np
 
 from . import _weighting
-from ._algorithm_setup import _get_vander, _setup_polynomial, _Algorithm
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit, prange
 from .utils import (
-    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, _inverted_sort,
-    relative_difference
+    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
 )
 
 
@@ -1019,6 +1018,10 @@ class Polynomial(_Algorithm):
         return baseline, params
 
 
+_polynomial_wrapper = _class_wrapper(Polynomial)
+
+
+@_polynomial_wrapper
 def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
     """
     Computes a polynomial that fits the baseline of the data.
@@ -1060,16 +1063,9 @@ def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
     at the indices where peaks are located.
 
     """
-    y, x, weight_array, original_domain = _setup_polynomial(data, x_data, weights)
-    fit_polynomial = np.polynomial.Polynomial.fit(x, y, poly_order, w=np.sqrt(weight_array))
-    baseline = fit_polynomial(x)
-    params = {'weights': weight_array}
-    if return_coef:
-        params['coef'] = fit_polynomial.convert(window=original_domain).coef
-
-    return baseline, params
 
 
+@_polynomial_wrapper
 def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
             use_original=False, mask_initial_peaks=False, return_coef=False):
     """
@@ -1139,39 +1135,9 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
            2007, 61(11), 1225-1232.
 
     """
-    y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, weights, poly_order, True, True, True
-    )
-    sqrt_w = np.sqrt(weight_array)
-    if use_original:
-        y0 = y
-
-    coef = np.dot(pseudo_inverse, sqrt_w * y)
-    baseline = np.dot(vander, coef)
-    if mask_initial_peaks:
-        # use baseline + deviation since without deviation, half of y should be above baseline
-        weight_array[baseline + np.std(y - baseline) < y] = 0
-        sqrt_w = np.sqrt(weight_array)
-        vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
-
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        baseline_old = baseline
-        y = np.minimum(y0 if use_original else y, baseline)
-        coef = np.dot(pseudo_inverse, sqrt_w * y)
-        baseline = np.dot(vander, coef)
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        params['coef'] = _convert_coef(coef, original_domain)
-
-    return baseline, params
 
 
+@_polynomial_wrapper
 def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
              use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1):
     """
@@ -1244,39 +1210,6 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
            2007, 61(11), 1225-1232.
 
     """
-    y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, weights, poly_order, True, True, True
-    )
-    sqrt_w = np.sqrt(weight_array)
-    if use_original:
-        y0 = y
-
-    coef = np.dot(pseudo_inverse, sqrt_w * y)
-    baseline = np.dot(vander, coef)
-    deviation = np.std(y - baseline)
-    if mask_initial_peaks:
-        weight_array[baseline + deviation < y] = 0
-        sqrt_w = np.sqrt(weight_array)
-        vander, pseudo_inverse = _get_vander(x, poly_order, sqrt_w)
-
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
-        coef = np.dot(pseudo_inverse, sqrt_w * y)
-        baseline = np.dot(vander, coef)
-        new_deviation = np.std(y - baseline)
-        # use new_deviation as dividing term in relative difference
-        calc_difference = relative_difference(new_deviation, deviation)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        deviation = new_deviation
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        params['coef'] = _convert_coef(coef, original_domain)
-
-    return baseline, params
 
 
 # adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
@@ -1484,6 +1417,7 @@ def _identify_loss_method(loss_method):
 
 # adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
 # see license above
+@_polynomial_wrapper
 def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
                    weights=None, cost_function='asymmetric_truncated_quadratic',
                    threshold=None, alpha_factor=0.99, return_coef=False):
@@ -1575,43 +1509,6 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
            Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
     """
-    if not 0 < alpha_factor <= 1:
-        raise ValueError('alpha_factor must be between 0 and 1')
-    symmetric_loss, method = _identify_loss_method(cost_function)
-    loss_function = {
-        'huber': _huber_loss,
-        'truncated_quadratic': _truncated_quadratic_loss,
-        'indec': _indec_loss
-    }[method]
-    y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, weights, poly_order, return_vander=True, return_pinv=True
-    )
-    if threshold is None:
-        threshold = np.std(y) / 10
-    loss_kwargs = {
-        'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
-    }
-
-    sqrt_w = np.sqrt(weight_array)
-    y = sqrt_w * y
-
-    coef = np.dot(pseudo_inverse, y)
-    baseline = np.dot(vander, coef)
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        baseline_old = baseline
-        coef = np.dot(pseudo_inverse, y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
-        baseline = np.dot(vander, coef)
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        params['coef'] = _convert_coef(coef, original_domain)
-
-    return baseline, params
 
 
 def _tukey_square(residual, scale=3, symmetric=False):
@@ -2057,6 +1954,7 @@ def _determine_fits(x, num_x, total_points, delta):
     return windows[:total_fits], fits[:total_fits], skips[:total_skips]
 
 
+@_polynomial_wrapper
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
           tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
           use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=0.0):
@@ -2192,97 +2090,9 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
     .. [15] https://www.netlib.org/go (lowess.f is the file).
 
     """
-    y, x, weight_array, original_domain = _setup_polynomial(data, x_data, weights, poly_order)
-    num_x = x.shape[0]
-    if total_points is None:
-        total_points = ceil(fraction * num_x)
-    if total_points < poly_order + 1:
-        raise ValueError('total points must be greater than polynomial order + 1')
-    elif total_points > num_x:
-        raise ValueError((
-            'points per window is higher than total number of points; lower either '
-            '"fraction" or "total_points"'
-        ))
-    elif poly_order > 2:
-        warnings.warn(
-            ('polynomial orders greater than 2 can have numerical issues;'
-             ' consider using a polynomial order of 1 or 2 instead'), ParameterWarning
-        )
-    sort_x = x_data is not None
-    if sort_x:
-        sort_order = np.argsort(x, kind='mergesort')  # to ensure x is increasing
-        x = x[sort_order]
-        y = y[sort_order]
-        weight_array = weight_array[sort_order]
-    if use_original:
-        y0 = y
-
-    # find the indices for fitting beforehand so that the fitting can be done
-    # in parallel; cast delta as float so numba does not have to compile for
-    # both int and float
-    windows, fits, skips = _determine_fits(x, num_x, total_points, float(delta))
-
-    # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
-    # when matrix multiplied with the C-ordered coefficient array gives a warning
-    # when using numba, so convert Vandermonde matrix to C-ordering.
-    vander = np.ascontiguousarray(_get_vander(x, poly_order, calc_pinv=False))
-
-    baseline = y
-    coefs = np.zeros((num_x, poly_order + 1))
-    tol_history = np.empty(max_iter + 1)
-    sqrt_w = np.sqrt(weight_array)
-    # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
-    for i in range(max_iter + 1):
-        baseline_old = baseline
-        if conserve_memory:
-            baseline = _loess_low_memory(
-                x, y, sqrt_w, coefs, vander, num_x, windows, fits
-            )
-        elif i == 0:
-            kernels, baseline = _loess_first_loop(
-                x, y, sqrt_w, coefs, vander, total_points, num_x, windows, fits
-            )
-        else:
-            baseline = _loess_nonfirst_loops(
-                y, sqrt_w, coefs, vander, kernels, windows, num_x, fits
-            )
-
-        _fill_skips(x, baseline, skips)
-
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-        if use_threshold:
-            y = np.minimum(
-                y0 if use_original else y, baseline + num_std * np.std(y - baseline)
-            )
-        else:
-            residual = y - baseline
-            # TODO median_absolute_value can be 0 if more than half of residuals are
-            # 0 (perfect fit); can that ever really happen? if so, should prevent dividing by 0
-            sqrt_w = _tukey_square(
-                residual / _median_absolute_value(residual), scale, symmetric_weights
-            )
-
-    params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        # TODO maybe leave out the coefficients from the rest of the calculations
-        # since they are otherwise unused, and just fit x vs baseline here; would
-        # save a little memory; is providing coefficients for loess even useful?
-        params['coef'] = np.array([_convert_coef(coef, original_domain) for coef in coefs])
-
-    if sort_x:
-        inverted_order = _inverted_sort(sort_order)
-        baseline = baseline[inverted_order]
-        params['weights'] = params['weights'][inverted_order]
-        if return_coef:
-            params['coef'] = params['coef'][inverted_order]
-
-    return baseline, params
 
 
+@_polynomial_wrapper
 def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
               weights=None, eps=None, return_coef=False):
     """
@@ -2358,36 +2168,9 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter
             quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
 
     """
-    # TODO provide a way to estimate best poly_order based on AIC like in Komsta? could be
-    # useful for all polynomial methods; maybe could be an optimizer function
-    if not 0 < quantile < 1:
-        raise ValueError('quantile must be between 0 and 1.')
-    y, x, weight_array, original_domain, vander = _setup_polynomial(
-        data, x_data, weights, poly_order, return_vander=True
-    )
-    # estimate first iteration using least squares
-    coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
-    baseline = vander @ coef
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        baseline_old = baseline
-        weight_array = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
-        coef = np.linalg.lstsq(vander * weight_array[:, None], y * weight_array, None)[0]
-        baseline = vander @ coef
-        # relative_difference(baseline_old, baseline, 1) gives nearly same result and
-        # the l2 norm is faster to calculate, so use that instead of l1 norm
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-    params = {'weights': weight_array**2, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        params['coef'] = _convert_coef(coef, original_domain)
-
-    return baseline, params
 
 
+@_polynomial_wrapper
 def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
               cost_function='asymmetric_indec', peak_ratio=0.5, alpha_factor=0.99,
               tol_2=1e-3, tol_3=1e-6, max_iter_2=100, return_coef=False):
@@ -2485,98 +2268,3 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
             Laboratory Systems, 2005, 76(2), 121–133.
 
     """
-    if not 0 < alpha_factor <= 1:
-        raise ValueError('alpha_factor must be between 0 and 1')
-    elif not 0 < peak_ratio < 1:
-        raise ValueError('peak_ratio must be between 0 and 1')
-    try:
-        symmetric_loss, method = _identify_loss_method(cost_function)
-    except ValueError:  # do not require a prefix since cost must be asymmetric
-        symmetric_loss, method = _identify_loss_method('a_' + cost_function)
-    if symmetric_loss:
-        # symmetric cost functions don't work due to how the up-down ratio vs
-        # peak_ratio function was created in the reference; in theory, could simulate
-        # spectra with both positive and negative peaks following the reference
-        # and build another empirical function, but would likely need to also
-        # add other parameters detailing the percent of positive vs negative peaks,
-        # etc., so it's not worth the effort
-        raise ValueError('goldindec only works for asymmetric cost functions')
-
-    loss_function = {
-        'huber': _huber_loss,
-        'truncated_quadratic': _truncated_quadratic_loss,
-        'indec': _indec_loss
-    }[method]
-    y, x, weight_array, original_domain, vander, pseudo_inverse = _setup_polynomial(
-        data, x_data, weights, poly_order, return_vander=True, return_pinv=True
-    )
-    num_y = y.shape[0]
-    up_down_ratio_goal = (
-        0.7679 + 11.2358 * peak_ratio - 39.7064 * peak_ratio**2 + 92.3583 * peak_ratio**3
-    )
-    # TODO reference states threshold must be <= 2 for half-quadratic minimization to
-    # be valid for indec cost function, and normalized y so that threshold is always <= 2;
-    # however, it seems to work fine without normalization; just be aware in case errors
-    # occur, may have to normalize y in both this function and penalized_poly
-    sqrt_w = np.sqrt(weight_array)
-    y_fit = sqrt_w * y
-
-    coef = np.dot(pseudo_inverse, y_fit)
-    initial_baseline = np.dot(vander, coef)
-
-    a = 0
-    # reference used b=1, but normalized y before fitting; instead, set b as max of
-    # initial residual
-    b = abs((y - initial_baseline).max())
-    threshold = a + 0.618 * (b - a)
-    loss_kwargs = {
-        'threshold': threshold, 'alpha_factor': alpha_factor,
-        'symmetric': symmetric_loss
-    }
-    # have to use zeros rather than empty for tol_history since each inner fit may
-    # have a different number of iterations
-    tol_history = np.zeros((max_iter_2 + 2, max(max_iter, max_iter_2)))
-    j_max = 0
-    for i in range(max_iter_2):
-        baseline = initial_baseline
-        for j in range(max_iter):
-            baseline_old = baseline
-            coef = np.dot(
-                pseudo_inverse, y_fit + loss_function(y_fit - sqrt_w * baseline, **loss_kwargs)
-            )
-            baseline = np.dot(vander, coef)
-            calc_difference = relative_difference(baseline_old, baseline)
-            tol_history[i + 2, j] = calc_difference
-            if calc_difference < tol:
-                break
-        if j > j_max:
-            j_max = j
-
-        up_count = (y > baseline).sum()
-        up_down_ratio = up_count / max(1, num_y - up_count)
-        calc_difference = up_down_ratio - up_down_ratio_goal
-        tol_history[0, i] = calc_difference
-        if calc_difference > tol_2:
-            a = threshold
-        elif calc_difference < -tol_2:
-            b = threshold
-        else:
-            break
-        threshold = a + 0.618 * (b - a)
-        # this exit criteria was not stated in the reference, but the change in threshold
-        # becomes zero fairly quickly, so need to also exit rather than needlessly
-        # continuing to calculate with the same threshold value
-        calc_difference = relative_difference(loss_kwargs['threshold'], threshold)
-        tol_history[1, i] = calc_difference
-        if calc_difference < tol_3:
-            break
-        loss_kwargs['threshold'] = threshold
-
-    params = {
-        'weights': weight_array, 'tol_history': tol_history[:i + 3, :max(i, j_max) + 1],
-        'threshold': loss_kwargs['threshold']
-    }
-    if return_coef:
-        params['coef'] = _convert_coef(coef, original_domain)
-
-    return baseline, params

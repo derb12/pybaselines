@@ -14,11 +14,9 @@ from math import ceil
 import numpy as np
 
 from . import classification, morphological, polynomial, spline, whittaker
-from ._algorithm_setup import (
-    _Algorithm, _setup_optimizer, _setup_polynomial, _sort_array, _yx_arrays
-)
+from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, _inverted_sort, gaussian
+from .utils import _check_scalar, _get_edges, gaussian
 
 
 class Optimizers(_Algorithm):
@@ -426,8 +424,7 @@ class Optimizers(_Algorithm):
         weight_array = _check_optional_array(self._len, weights, check_finite=self._check_finite)
         if poly_order is None:
             poly_orders = _determine_polyorders(
-                y, None, estimation_poly_order, weight_array, fit_func, using_class=True,
-                **method_kws
+                y, estimation_poly_order, weight_array, fit_func, **method_kws
             )
         else:
             poly_orders, scalar_poly_order = _check_scalar(poly_order, 2, True, dtype=int)
@@ -482,6 +479,10 @@ class Optimizers(_Algorithm):
         return _sort_array(np.maximum.reduce(baselines), self._sort_order), params
 
 
+_optimizers_wrapper = _class_wrapper(Optimizers)
+
+
+@_optimizers_wrapper
 def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None,
                x_data=None, **kwargs):
     """
@@ -526,43 +527,9 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None,
     in Chemistry, 2018, 2018.
 
     """
-    dataset, fit_func, _, method_kws = _setup_optimizer(
-        data, method, (whittaker, morphological, classification, spline), method_kwargs,
-        True, False, **kwargs
-    )
-    if dataset.ndim < 2:
-        raise ValueError((
-            'the input data must have a shape of (number of measurements, number of points), '
-            f'but instead has a shape of {dataset.shape}'
-        ))
-    if average_dataset:
-        _, fit_params = fit_func(np.mean(dataset.T, 1), **method_kws)
-        method_kws['weights'] = fit_params['weights']
-    else:
-        weights = np.empty_like(dataset)
-        for i, entry in enumerate(dataset):
-            _, fit_params = fit_func(entry, **method_kws)
-            weights[i] = fit_params['weights']
-        method_kws['weights'] = np.mean(weights.T, 1)
-
-    method_kws['tol'] = np.inf
-    baselines = np.empty(dataset.shape)
-    params = {'average_weights': method_kws['weights']}
-    if method.lower() == 'fabc':
-        # set weights as mask so it just fits the data
-        method_kws['weights_as_mask'] = True
-
-    for i, entry in enumerate(dataset):
-        baselines[i], param = fit_func(data=entry, x_data=x_data, **method_kws)
-        for key, value in param.items():
-            if key in params:
-                params[key].append(value)
-            else:
-                params[key] = [value]
-
-    return baselines, params
 
 
+@_optimizers_wrapper
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
                             height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
                             step=1, pad_kwargs=None, method_kwargs=None, **kwargs):
@@ -669,123 +636,9 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
            Spectroscopy. 2012, 43(12), 1884-1894.
 
     """
-    side = side.lower()
-    if side not in ('left', 'right', 'both'):
-        raise ValueError('side must be "left", "right", or "both"')
-
-    y, fit_func, func_module, method_kws = _setup_optimizer(
-        data, method, (whittaker, polynomial, morphological, spline, classification),
-        method_kwargs, True, **kwargs
-    )
-    method = method.lower()
-    if func_module == 'polynomial' or method in ('dietrich', 'cwt_br'):
-        if any(not isinstance(val, int) for val in (min_value, max_value, step)):
-            raise TypeError((
-                'min_value, max_value, and step must all be integers when'
-                ' using a polynomial method'
-            ))
-        param_name = 'poly_order'
-    else:
-        if any(val > 100 for val in (min_value, max_value, step)):
-            raise ValueError((
-                'min_value, max_value, and step should be the power of 10 to use '
-                '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
-                'thus should not be greater than 100'
-            ))
-        param_name = 'lam'
-
-    _, x = _yx_arrays(y, x_data)
-    added_window = int(x.shape[0] * width_scale)
-    sort_x = x_data is not None
-    if sort_x:
-        sort_order = np.argsort(x, kind='mergesort')  # to ensure x is increasing
-        x = x[sort_order]
-        y = y[sort_order]
-        if 'weights' in method_kws:
-            # have to adjust weight length to accomodate the added sections; set weights
-            # to 1 to ensure the added sections are fit
-            method_kws['weights'] = np.pad(
-                method_kws['weights'][sort_order],
-                [0 if side == 'right' else added_window, 0 if side == 'left' else added_window],
-                'constant', constant_values=1
-            )
-    max_x = x.max()
-    min_x = x.min()
-    x_range = max_x - min_x
-    known_background = np.array([])
-    fit_x_data = x
-    fit_data = y
-    lower_bound = upper_bound = 0
-
-    if pad_kwargs is None:
-        pad_kwargs = {}
-    added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
-    added_gaussian = gaussian(
-        np.linspace(-added_window / 2, added_window / 2, added_window),
-        height_scale * abs(y.max()), 0, added_window * sigma_scale
-    )
-    if side in ('right', 'both'):
-        added_x = np.linspace(
-            max_x, max_x + x_range * (width_scale / 2), added_window + 1
-        )[1:]
-        fit_x_data = np.concatenate((fit_x_data, added_x))
-        fit_data = np.concatenate((fit_data, added_gaussian + added_right))
-        known_background = added_right
-        upper_bound += added_window
-    if side in ('left', 'both'):
-        added_x = np.linspace(
-            min_x - x_range * (width_scale / 2), min_x, added_window + 1
-        )[:-1]
-        fit_x_data = np.concatenate((added_x, fit_x_data))
-        fit_data = np.concatenate((added_gaussian + added_left, fit_data))
-        known_background = np.concatenate((known_background, added_left))
-        lower_bound += added_window
-
-    if func_module == 'polynomial' or method in ('iasls', 'dietrich', 'cwt_br'):
-        method_kws['x_data'] = fit_x_data
-
-    added_len = 2 * added_window if side == 'both' else added_window
-    upper_idx = fit_data.shape[0] - upper_bound
-    min_sum_squares = np.inf
-    best_val = None
-    # TODO maybe switch to linspace since arange is inconsistent when using floats
-    for var in np.arange(min_value, max_value + step, step):
-        if param_name == 'lam':
-            method_kws[param_name] = 10**var
-        else:
-            method_kws[param_name] = var
-        fit_baseline, fit_params = fit_func(fit_data, **method_kws)
-        # TODO change the known baseline so that np.roll does not have to be
-        # calculated each time, since it requires additional time
-        residual = (
-            known_background - np.roll(fit_baseline, upper_bound)[:added_len]
-        )
-        # just calculate the sum of squares to reduce time from using sqrt for rmse
-        sum_squares = residual.dot(residual)
-        if sum_squares < min_sum_squares:
-            baseline = fit_baseline[lower_bound:upper_idx]
-            params = fit_params
-            best_val = var
-            min_sum_squares = sum_squares
-
-    params.update(
-        {'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len)}
-    )
-    if 'weights' in params:
-        # have to remove the added sections from weights
-        params['weights'] = params['weights'][
-            0 if side == 'right' else added_window:None if side == 'left' else -added_window
-        ]
-    if sort_x:
-        inverted_order = _inverted_sort(sort_order)
-        baseline = baseline[inverted_order]
-        if 'weights' in params:
-            params['weights'] = params['weights'][inverted_order]
-
-    return baseline, params
 
 
-def _determine_polyorders(y, x, poly_order, weights, fit_function, using_class=False, **fit_kwargs):
+def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
     """
     Selects the appropriate polynomial orders based on the baseline-to-signal ratio.
 
@@ -793,8 +646,6 @@ def _determine_polyorders(y, x, poly_order, weights, fit_function, using_class=F
     ----------
     y : numpy.ndarray
         The array of y-values.
-    x : numpy.ndarray
-         The array of x-values.
     poly_order : int
         The polynomial order for fitting.
     weights : numpy.ndarray
@@ -816,12 +667,7 @@ def _determine_polyorders(y, x, poly_order, weights, fit_function, using_class=F
     of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38, 1199-1205.
 
     """
-    if using_class:
-        baseline = fit_function(y, poly_order=poly_order, weights=weights, **fit_kwargs)[0]
-    else:
-        baseline = fit_function(
-            y, x_data=x, poly_order=poly_order, weights=weights, **fit_kwargs
-        )[0]
+    baseline = fit_function(y, poly_order=poly_order, weights=weights, **fit_kwargs)[0]
     signal = y - baseline
     baseline_to_signal = (baseline.max() - baseline.min()) / (signal.max() - signal.min())
     # Table 2 in reference
@@ -843,6 +689,7 @@ def _determine_polyorders(y, x, poly_order, weights, fit_function, using_class=F
     return orders
 
 
+@_optimizers_wrapper
 def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
                     weights=None, constrained_fraction=0.01, constrained_weight=1e5,
                     estimation_poly_order=2, method_kwargs=None, **kwargs):
@@ -910,42 +757,3 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
            1199-1205.
 
     """
-    y, fit_func, _, method_kws = _setup_optimizer(
-        data, method, [polynomial], method_kwargs, False, **kwargs
-    )
-    _, x, weight_array, _ = _setup_polynomial(y, x_data, weights)
-    if poly_order is None:
-        poly_orders = _determine_polyorders(
-            y, x, estimation_poly_order, weight_array, fit_func, **method_kws
-        )
-    else:
-        poly_orders, scalar_poly_order = _check_scalar(poly_order, 2, True, dtype=int)
-        if scalar_poly_order:
-            poly_orders[1] += 1  # add 1 since they are initially equal if scalar input
-
-    # use high weighting rather than Lagrange multipliers to constrain the points
-    # to better work with noisy data
-    weightings = _check_scalar(constrained_weight, 2, True)[0]
-    constrained_fractions = _check_scalar(constrained_fraction, 2, True)[0]
-    if np.any(constrained_fractions < 0) or np.any(constrained_fractions > 1):
-        raise ValueError('constrained_fraction must be between 0 and 1')
-    len_y = len(y)
-    constrained_weights = weight_array.copy()
-    constrained_weights[:ceil(len_y * constrained_fractions[0])] = weightings[0]
-    constrained_weights[len_y - ceil(len_y * constrained_fractions[1]):] = weightings[1]
-
-    # TODO should make parameters available; a list with an item for each fit like collab_pls
-    baselines = np.empty((4, y.shape[0]))
-    baselines[0] = fit_func(y, x, poly_orders[0], weights=weight_array, **method_kws)[0]
-    baselines[1] = fit_func(y, x, poly_orders[0], weights=constrained_weights, **method_kws)[0]
-    baselines[2] = fit_func(y, x, poly_orders[1], weights=weight_array, **method_kws)[0]
-    baselines[3] = fit_func(y, x, poly_orders[1], weights=constrained_weights, **method_kws)[0]
-
-    # TODO should the coefficients also be made available? Would need to get them from
-    # each of the fits
-    params = {
-        'weights': weight_array, 'constrained_weights': constrained_weights,
-        'poly_order': poly_orders
-    }
-
-    return np.maximum.reduce(baselines), params

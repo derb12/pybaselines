@@ -396,8 +396,15 @@ class BaseTester:
         assert 'x_data' in functional_parameters
         # also ensure 'data' is first argument for class api
         assert list(class_parameters.keys())[0] == 'data'
+        # ensure key and values for all parameters match for both signatures
         for key in class_parameters:
             assert key in functional_parameters
+            class_value = class_parameters[key].default
+            functional_value = functional_parameters[key].default
+            if isinstance(class_value, float):
+                assert_allclose(class_value, functional_value, rtol=1e-14, atol=1e-14)
+            else:
+                assert class_value == functional_value
 
     def test_list_input(self, **assertion_kwargs):
         """Ensures that function works the same for both array and list inputs."""

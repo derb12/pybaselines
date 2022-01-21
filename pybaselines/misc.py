@@ -71,10 +71,10 @@ from scipy.ndimage import uniform_filter1d
 from scipy.sparse import spdiags
 from scipy.sparse.linalg import splu, spsolve
 
+from ._algorithm_setup import _Algorithm, _check_lam, _class_wrapper
 from ._compat import _HAS_NUMBA, jit
-from .utils import _MIN_FLOAT, relative_difference
-from ._algorithm_setup import _Algorithm, _check_lam
 from ._validation import _check_array
+from .utils import _MIN_FLOAT, relative_difference
 
 
 class Misc(_Algorithm):
@@ -300,6 +300,10 @@ class Misc(_Algorithm):
         return baseline, params
 
 
+_misc_wrapper = _class_wrapper(Misc)
+
+
+@_misc_wrapper
 def interp_pts(x_data, baseline_points=(), interp_method='linear', data=None):
     """
     Creates a baseline by interpolating through input points.
@@ -336,16 +340,6 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear', data=None):
     values of 0.
 
     """
-    x = np.asarray(x_data)
-    points = np.asarray(baseline_points).T
-
-    interpolator = interp1d(
-        *points, kind=interp_method, bounds_error=False, fill_value=0
-    )
-    # TODO why not just use x in the interpolator call?
-    baseline = interpolator(np.linspace(np.nanmin(x), np.nanmax(x), x.shape[0]))
-
-    return baseline, {}
 
 
 def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
@@ -1181,6 +1175,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     return baseline, {'signal': x, 'tol_history': tol_history[:i + 1]}
 
 
+@_misc_wrapper
 def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.0,
           filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
           eps_1=1e-6, fit_parabola=True, smooth_half_window=None, x_data=None):
@@ -1285,42 +1280,3 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
     .. [3] https://github.com/skotaro/pybeads.
 
     """
-    # TODO maybe add the log-transform from Navarro-Huerta to improve fit for data spanning
-    # multiple scales, or at least mention in Notes section; also should add the function
-    # in Navarro-Huerta that helps choosing the best freq_cutoff for a dataset
-    if isinstance(cost_function, str):  # allow string to maintain parity with MATLAB version
-        cost_function = cost_function.lower()
-    use_v2_loss = {'l1_v1': False, 'l1_v2': True, 1: False, 2: True}[cost_function]
-    if asymmetry <= 0:
-        raise ValueError('asymmetry must be greater than 0')
-
-    y0 = np.asarray_chkfinite(data)
-    if fit_parabola:
-        parabola = _parabola(y0)
-        y = y0 - parabola
-    else:
-        y = y0
-    # ensure that 0 + eps_0[1] > 0 to prevent numerical issues
-    eps_0 = max(eps_0, _MIN_FLOAT)
-    eps_1 = max(eps_1, _MIN_FLOAT)
-    if smooth_half_window is None:
-        smooth_half_window = 0
-
-    lam_0 = _check_lam(lam_0, True)
-    lam_1 = _check_lam(lam_1, True)
-    lam_2 = _check_lam(lam_2, True)
-    if _HAS_NUMBA:
-        baseline, params = _banded_beads(
-            y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
-            max_iter, tol, eps_0, eps_1, smooth_half_window
-        )
-    else:
-        baseline, params = _sparse_beads(
-            y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
-            max_iter, tol, eps_0, eps_1, smooth_half_window
-        )
-
-    if fit_parabola:
-        baseline = baseline + parabola
-
-    return baseline, params
