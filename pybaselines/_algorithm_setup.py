@@ -15,6 +15,7 @@ to something like 'mask'.
 
 from contextlib import contextmanager
 from functools import partial, wraps
+from inspect import signature
 import warnings
 
 import numpy as np
@@ -807,6 +808,30 @@ def _sort_array(array, sort_order=None, axis=-1):
             raise ValueError('too many dimensions to sort the data')
 
     return output
+
+
+def _class_wrapper(klass):
+    """
+    Wraps a function to call the corresponding class method instead.
+
+    Parameters
+    ----------
+    klass : _Algorithm
+        The class being wrapped.
+
+    """
+    def outer(func):
+        func_signature = signature(func)
+        method = func.__name__
+
+        @wraps(func)
+        def inner(*args, **kwargs):
+            total_inputs = func_signature.bind(*args, **kwargs).arguments
+            x = total_inputs.pop('x_data', None)
+            return getattr(klass(x_data=x), method)(**total_inputs)
+        return inner
+
+    return outer
 
 
 def _setup_whittaker(data, lam, diff_order=2, weights=None, copy_weights=False,
