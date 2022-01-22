@@ -71,9 +71,9 @@ from scipy.ndimage import uniform_filter1d
 from scipy.sparse import spdiags
 from scipy.sparse.linalg import splu, spsolve
 
-from ._algorithm_setup import _Algorithm, _check_lam, _class_wrapper
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import _HAS_NUMBA, jit
-from ._validation import _check_array
+from ._validation import _check_array, _check_lam
 from .utils import _MIN_FLOAT, relative_difference
 
 

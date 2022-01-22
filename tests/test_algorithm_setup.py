@@ -17,45 +17,45 @@ from pybaselines.utils import ParameterWarning
 from .conftest import get_data
 
 
-@pytest.mark.parametrize('array_enum', (0, 1))
-def test_setup_whittaker_y_array(small_data, array_enum):
-    """Ensures output y is always a numpy array."""
-    if array_enum == 1:
-        small_data = small_data.tolist()
-    y, *_ = _algorithm_setup._setup_whittaker(small_data, 1)
-
-    assert isinstance(y, np.ndarray)
+@pytest.fixture
+def algorithm():
+    """An _Algorithm class with x-data set to np.arange(10)."""
+    return _algorithm_setup._Algorithm(
+        x_data=np.arange(10), assume_sorted=True, check_finite=False
+    )
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lam', (1, 20))
-@pytest.mark.parametrize('lower_only', (True, False))
-@pytest.mark.parametrize('reverse_diags', (True, False))
-def test_setup_whittaker_diff_matrix(small_data, lam, diff_order, lower_only, reverse_diags):
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('reverse_diags', (True, False, None))
+def test_setup_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
+                                     allow_lower, reverse_diags):
     """Ensures output difference matrix diagonal data is in desired format."""
-    if reverse_diags and lower_only:
+    if reverse_diags and allow_lower:
         # this configuration is never used
         return
 
-    _, diagonal_data, _ = _algorithm_setup._setup_whittaker(
-        small_data, lam, diff_order, lower_only=lower_only, reverse_diags=reverse_diags
+    _ = algorithm._setup_whittaker(
+        small_data, lam, diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
     )
 
     numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
     desired_diagonals = dia_matrix(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
-    if lower_only:  # only include the lower diagonals
+    if allow_lower and not algorithm.whittaker_system.using_pentapy:
+        # only include the lower diagonals
         desired_diagonals = desired_diagonals[diff_order:]
 
     # the diagonals should be in the opposite order as the diagonal matrix's data
     # if reverse_diags is False
-    if reverse_diags:
+    if reverse_diags or (algorithm.whittaker_system.using_pentapy and reverse_diags is not False):
         desired_diagonals = desired_diagonals[::-1]
 
-    assert_allclose(diagonal_data, desired_diagonals, 1e-10)
+    assert_allclose(algorithm.whittaker_system.penalty, desired_diagonals, 1e-10)
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_whittaker_weights(small_data, weight_enum):
+def test_setup_whittaker_weights(small_data, algorithm, weight_enum):
     """Ensures output weight array is correct."""
     if weight_enum == 0:
         # no weights specified
@@ -74,88 +74,54 @@ def test_setup_whittaker_weights(small_data, weight_enum):
         weights = np.arange(small_data.shape[0]).tolist()
         desired_weights = np.arange(small_data.shape[0])
 
-    _, _, weight_array = _algorithm_setup._setup_whittaker(small_data, 1, 2, weights)
+    _, weight_array = algorithm._setup_whittaker(
+        small_data, lam=1, diff_order=2, weights=weights
+    )
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
 
 
-@pytest.mark.parametrize('filler', (np.nan, np.inf, -np.inf))
-def test_setup_whittaker_nan_inf_data_fails(small_data, filler):
-    """Ensures NaN and Inf values within data will raise an exception."""
-    small_data[0] = filler
-    with pytest.raises(ValueError):
-        _algorithm_setup._setup_whittaker(small_data, 1)
-
-
-def test_setup_whittaker_wrong_weight_shape(small_data):
+def test_setup_whittaker_wrong_weight_shape(small_data, algorithm):
     """Ensures that an exception is raised if input weights and data are different shapes."""
     weights = np.ones(small_data.shape[0] + 1)
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_whittaker(small_data, 1, 2, weights)
+        algorithm._setup_whittaker(small_data, lam=1, diff_order=2, weights=weights)
 
 
 @pytest.mark.parametrize('diff_order', (0, -1))
-def test_setup_whittaker_diff_matrix_fails(small_data, diff_order):
+def test_setup_whittaker_diff_matrix_fails(small_data, algorithm, diff_order):
     """Ensures using a diff_order < 1 with _setup_whittaker raises an exception."""
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
+        algorithm._setup_whittaker(small_data, lam=1, diff_order=diff_order)
 
 
 @pytest.mark.parametrize('diff_order', (4, 5))
-def test_setup_whittaker_diff_matrix_warns(small_data, diff_order):
+def test_setup_whittaker_diff_matrix_warns(small_data, algorithm, diff_order):
     """Ensures using a diff_order > 3 with _setup_whittaker raises a warning."""
     with pytest.warns(ParameterWarning):
-        _algorithm_setup._setup_whittaker(small_data, 1, diff_order)
+        algorithm._setup_whittaker(small_data, lam=1, diff_order=diff_order)
 
 
-def test_setup_whittaker_negative_lam_fails(small_data):
+def test_setup_whittaker_negative_lam_fails(small_data, algorithm):
     """Ensures a negative lam value fails."""
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_whittaker(small_data, -1)
+        algorithm._setup_whittaker(small_data, lam=-1)
 
 
 def test_setup_whittaker_array_lam(small_data):
     """Ensures a lam that is a single array passes while larger arrays fail."""
-    _algorithm_setup._setup_whittaker(small_data, [1])
+    _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_whittaker(
+        small_data, lam=[1]
+    )
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_whittaker(small_data, [1, 2])
-
-
-@pytest.mark.parametrize('array_enum', (0, 1))
-def test_setup_polynomial_output_array(small_data, array_enum):
-    """
-    Ensures output y and x are always numpy arrays and that x is scaled to [-1., 1.].
-
-    Similar test as for _yx_arrays, but want to double-check that
-    output is correct.
-    """
-    if array_enum == 1:
-        small_data = small_data.tolist()
-    x_data = small_data.copy()
-    y, x, *_ = _algorithm_setup._setup_polynomial(small_data, x_data)
-
-    assert isinstance(y, np.ndarray)
-    assert_array_equal(y, np.asarray(small_data))
-    assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
-
-
-def test_setup_polynomial_no_x(small_data):
-    """
-    Ensures an x array is created if None is input.
-
-    Same test as for _yx_arrays, but want to double-check that
-    output is correct.
-    """
-    y, x, *_ = _algorithm_setup._setup_polynomial(small_data)
-
-    assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_whittaker(
+            small_data, lam=[1, 2]
+        )
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_polynomial_weights(small_data, weight_enum):
+def test_setup_polynomial_weights(small_data, algorithm, weight_enum):
     """Ensures output weight array is correctly handled."""
     if weight_enum == 0:
         # no weights specified
@@ -174,31 +140,22 @@ def test_setup_polynomial_weights(small_data, weight_enum):
         weights = np.arange(small_data.shape[0]).tolist()
         desired_weights = np.arange(small_data.shape[0])
 
-    _, _, weight_array, _ = _algorithm_setup._setup_polynomial(small_data, weights=weights)
+    _, weight_array = algorithm._setup_polynomial(small_data, weights=weights)
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
 
 
-def test_setup_polynomial_wrong_weight_shape(small_data):
+def test_setup_polynomial_wrong_weight_shape(small_data, algorithm):
     """Ensures that an exception is raised if input weights and data are different shapes."""
     weights = np.ones(small_data.shape[0] + 1)
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_polynomial(small_data, weights=weights)
-
-
-def test_setup_polynomial_domain(small_data):
-    """Ensures output domain array is correct."""
-    x = np.linspace(-5, 20, len(small_data))
-
-    *_, original_domain = _algorithm_setup._setup_polynomial(small_data, x)
-
-    assert_array_equal(original_domain, np.array([-5, 20]))
+        algorithm._setup_polynomial(small_data, weights=weights)
 
 
 @pytest.mark.parametrize('vander_enum', (0, 1, 2, 3))
 @pytest.mark.parametrize('include_pinv', (True, False))
-def test_setup_polynomial_vandermonde(small_data, vander_enum, include_pinv):
+def test_setup_polynomial_vandermonde(small_data, algorithm, vander_enum, include_pinv):
     """Ensures that the Vandermonde matrix and the pseudo-inverse matrix are correct."""
     if vander_enum == 0:
         # no weights specified
@@ -217,68 +174,36 @@ def test_setup_polynomial_vandermonde(small_data, vander_enum, include_pinv):
         weights = np.arange(small_data.shape[0]).tolist()
         poly_order = 4
 
-    output = _algorithm_setup._setup_polynomial(
-        small_data, small_data, weights, poly_order, True, include_pinv
+    output = algorithm._setup_polynomial(
+        small_data, weights=weights, poly_order=poly_order, calc_vander=True,
+        calc_pinv=include_pinv
     )
     if include_pinv:
-        _, x, weight_array, _, vander_matrix, pinv_matrix = output
+        _, weight_array, pinv_matrix = output
     else:
-        _, x, weight_array, _, vander_matrix = output
+        _, weight_array = output
 
-    desired_vander = np.polynomial.polynomial.polyvander(x, poly_order)
-    assert_allclose(desired_vander, vander_matrix, 1e-12)
+    desired_vander = np.polynomial.polynomial.polyvander(
+        np.polynomial.polyutils.mapdomain(
+            algorithm.x, algorithm.x_domain, np.array([-1., 1.])
+        ), poly_order
+    )
+    assert_allclose(desired_vander, algorithm.vandermonde, 1e-12)
 
     if include_pinv:
         desired_pinv = np.linalg.pinv(np.sqrt(weight_array)[:, np.newaxis] * desired_vander)
         assert_allclose(desired_pinv, pinv_matrix, 1e-10)
 
 
-@pytest.mark.parametrize('array_enum', (0, 1))
-def test_setup_smooth_y_array(small_data, array_enum):
-    """Ensures output y is always a numpy array."""
-    if array_enum == 1:
-        small_data = small_data.tolist()
-    y = _algorithm_setup._setup_smooth(small_data, 1)
-
-    assert isinstance(y, np.ndarray)
-
-
-def test_setup_smooth_shape(small_data):
+def test_setup_smooth_shape(small_data, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4
-    y = _algorithm_setup._setup_smooth(small_data, pad_length, mode='edge')
+    y = algorithm._setup_smooth(small_data, pad_length, mode='edge')
     assert y.shape[0] == small_data.shape[0] + 2 * pad_length
 
 
-@pytest.mark.parametrize('array_enum', (0, 1))
-def test_setup_classification_output_array(small_data, array_enum):
-    """Ensures output y and x are always numpy arrays and that x is scaled to [-1., 1.]."""
-    if array_enum == 1:
-        small_data = small_data.tolist()
-    x_data = small_data.copy()
-    y, x, *_ = _algorithm_setup._setup_polynomial(small_data, x_data)
-
-    assert isinstance(y, np.ndarray)
-    assert_array_equal(y, np.asarray(small_data))
-    assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
-
-
-def test_setup_classification_no_x(small_data):
-    """
-    Ensures an x array is created if None is input.
-
-    Same test as for _yx_arrays, but want to double-check that
-    output is correct.
-    """
-    y, x, *_ = _algorithm_setup._setup_classification(small_data)
-
-    assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
-
-
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_classification_weights(small_data, weight_enum):
+def test_setup_classification_weights(small_data, algorithm, weight_enum):
     """Ensures output weight array is correctly handled in classification setup."""
     if weight_enum == 0:
         # no weights specified
@@ -297,19 +222,10 @@ def test_setup_classification_weights(small_data, weight_enum):
         weights = np.arange(small_data.shape[0], dtype=float).tolist()
         desired_weights = np.arange(small_data.shape[0]).astype(bool)
 
-    _, _, weight_array, _ = _algorithm_setup._setup_classification(small_data, weights=weights)
+    _, weight_array = algorithm._setup_classification(small_data, weights=weights)
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
-
-
-def test_setup_classification_domain(small_data):
-    """Ensures output domain array is correct."""
-    x = np.linspace(-5, 20, len(small_data))
-
-    *_, original_domain = _algorithm_setup._setup_classification(small_data, x)
-
-    assert_array_equal(original_domain, np.array([-5, 20]))
 
 
 @pytest.mark.parametrize('num_knots', (5, 15, 100))
@@ -317,18 +233,20 @@ def test_setup_classification_domain(small_data):
 @pytest.mark.parametrize('penalized', (True, False))
 def test_setup_splines_spline_basis(small_data, num_knots, spline_degree, penalized):
     """Ensures the spline basis function is correctly created."""
-    _, _, _, basis, _, _ = _algorithm_setup._setup_splines(
-        small_data, None, None, spline_degree, num_knots
+    fitter = _algorithm_setup._Algorithm(np.arange(len(small_data)))
+    _ = fitter._setup_splines(
+        small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+        penalized=True
     )
 
-    assert basis.shape[0] == len(small_data)
+    assert fitter.pspline.basis.shape[0] == len(small_data)
     # num_knots == number of inner knots with min and max points counting as
     # the first and last inner knots; then add `degree` extra knots
     # on each end to accomodate the final polynomial on each end; therefore,
     # total number of knots = num_knots + 2 * degree; the number of basis
     # functions is total knots - (degree + 1), so the ultimate
     # shape of the basis matrix should be num_knots + degree - 1
-    assert basis.shape[1] == num_knots + spline_degree - 1
+    assert fitter.pspline.basis.shape[1] == num_knots + spline_degree - 1
 
 
 @pytest.mark.parametrize('lam', (1, 20))
@@ -337,8 +255,10 @@ def test_setup_splines_spline_basis(small_data, num_knots, spline_degree, penali
 @pytest.mark.parametrize('num_knots', (5, 50, 100))
 def test_setup_splines_diff_matrix(small_data, lam, diff_order, spline_degree, num_knots):
     """Ensures output difference matrix diagonal data is in desired format."""
-    *_, penalty_diagonals = _algorithm_setup._setup_splines(
-        small_data, None, None, spline_degree, num_knots, True, diff_order, lam
+    fitter = _algorithm_setup._Algorithm(np.arange(len(small_data)))
+    _ = fitter._setup_splines(
+        small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+        penalized=True, diff_order=diff_order, lam=lam
     )
 
     num_bases = num_knots + spline_degree - 1
@@ -348,9 +268,10 @@ def test_setup_splines_diff_matrix(small_data, lam, diff_order, spline_degree, n
         padding = np.zeros((spline_degree - diff_order, desired_diagonals.shape[1]))
         desired_diagonals = np.concatenate((desired_diagonals, padding))
 
-    assert_allclose(penalty_diagonals, desired_diagonals, 1e-10, 1e-12)
+    assert_allclose(fitter.pspline.penalty, desired_diagonals, 1e-10, 1e-12)
 
 
+@pytest.mark.filterwarnings('ignore::UserWarning')
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))
 @pytest.mark.parametrize('num_knots', (5, 50, 100))
 def test_setup_splines_too_high_diff_order(small_data, spline_degree, num_knots):
@@ -363,14 +284,16 @@ def test_setup_splines_too_high_diff_order(small_data, spline_degree, num_knots)
     """
     diff_order = num_knots + spline_degree - 1
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_splines(
-            small_data, None, None, spline_degree, num_knots, True, diff_order
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+            small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+            penalized=True, diff_order=diff_order
         )
 
     diff_order += 1
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_splines(
-            small_data, None, None, spline_degree, num_knots, True, diff_order
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+            small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+            penalized=True, diff_order=diff_order
         )
 
 
@@ -378,8 +301,9 @@ def test_setup_splines_too_high_diff_order(small_data, spline_degree, num_knots)
 def test_setup_splines_too_few_knots(small_data, num_knots):
     """Ensures an error is raised if the number of knots is less than 2."""
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_splines(
-            small_data, None, None, 3, num_knots, True, 1
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+            small_data, weights=None, spline_degree=3, num_knots=num_knots,
+            penalized=True, diff_order=1
         )
 
 
@@ -387,88 +311,98 @@ def test_setup_splines_wrong_weight_shape(small_data):
     """Ensures that an exception is raised if input weights and data are different shapes."""
     weights = np.ones(small_data.shape[0] + 1)
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_splines(small_data, weights=weights)
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+            small_data, weights=weights
+        )
 
 
 @pytest.mark.parametrize('diff_order', (0, -1))
 def test_setup_splines_diff_matrix_fails(small_data, diff_order):
     """Ensures using a diff_order < 1 with _setup_splines raises an exception."""
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_splines(small_data, diff_order=diff_order)
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+            small_data, diff_order=diff_order
+        )
 
 
 @pytest.mark.parametrize('diff_order', (5, 6))
 def test_setup_splines_diff_matrix_warns(small_data, diff_order):
     """Ensures using a diff_order > 4 with _setup_splines raises a warning."""
     with pytest.warns(ParameterWarning):
-        _algorithm_setup._setup_splines(small_data, diff_order=diff_order)
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+            small_data, diff_order=diff_order
+        )
 
 
 def test_setup_splines_negative_lam_fails(small_data):
     """Ensures a negative lam value fails."""
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_splines(small_data, lam=-1)
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+            small_data, lam=-1
+        )
 
 
 def test_setup_splines_array_lam(small_data):
     """Ensures a lam that is a single array passes while larger arrays fail."""
-    _algorithm_setup._setup_whittaker(small_data, lam=[1])
+    _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(small_data, lam=[1])
     with pytest.raises(ValueError):
-        _algorithm_setup._setup_splines(small_data, lam=[1, 2])
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+            small_data, lam=[1, 2]
+        )
 
 
 @pytest.mark.parametrize(
     'method_and_outputs', (
-        ('collab_pls', optimizers.collab_pls, 'optimizers'),
-        ('COLLAB_pls', optimizers.collab_pls, 'optimizers'),
-        ('modpoly', polynomial.modpoly, 'polynomial'),
-        ('asls', whittaker.asls, 'whittaker')
+        ('collab_pls', 'collab_pls', 'optimizers'),
+        ('COLLAB_pls', 'collab_pls', 'optimizers'),
+        ('modpoly', 'modpoly', 'polynomial'),
+        ('asls', 'asls', 'whittaker')
     )
 )
-def test_get_function(method_and_outputs):
+def test_get_function(algorithm, method_and_outputs):
     """Ensures _get_function gets the correct method, regardless of case."""
     method, expected_func, expected_module = method_and_outputs
     tested_modules = [optimizers, polynomial, whittaker]
-    selected_func, module = _algorithm_setup._get_function(method, tested_modules)
-    assert selected_func is expected_func
+    selected_func, module, class_object = algorithm._get_function(
+        method, tested_modules
+    )
+    assert selected_func.__name__ == expected_func
     assert module == expected_module
+    assert isinstance(class_object, _algorithm_setup._Algorithm)
 
 
-def test_get_function_fails_wrong_method():
+def test_get_function_fails_wrong_method(algorithm):
     """Ensures _get_function fails when an no function with the input name is available."""
     with pytest.raises(AttributeError):
-        _algorithm_setup._get_function('unknown function', [optimizers])
+        algorithm._get_function('unknown function', [optimizers])
 
 
-def test_get_function_fails_no_module():
+def test_get_function_fails_no_module(algorithm):
     """Ensures _get_function fails when not given any modules to search."""
     with pytest.raises(AttributeError):
-        _algorithm_setup._get_function('collab_pls', [])
+        algorithm._get_function('collab_pls', [])
 
 
-@pytest.mark.parametrize('list_input', (True, False))
 @pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))
-def test_setup_optimizer(small_data, list_input, method_kwargs):
+def test_setup_optimizer(small_data, algorithm, method_kwargs):
     """Ensures output of _setup_optimizer is correct."""
-    if list_input:
-        data = small_data.tolist()
-    else:
-        data = small_data
-    y, fit_func, func_module, output_kwargs = _algorithm_setup._setup_optimizer(
-        data, 'asls', [whittaker], method_kwargs
+    y, fit_func, func_module, output_kwargs, class_object = algorithm._setup_optimizer(
+        small_data, 'asls', [whittaker], method_kwargs
     )
 
     assert isinstance(y, np.ndarray)
-    assert fit_func is whittaker.asls
+    assert_allclose(y, small_data)
+    assert fit_func.__name__ == 'asls'
     assert func_module == 'whittaker'
     assert isinstance(output_kwargs, dict)
+    assert isinstance(class_object, _algorithm_setup._Algorithm)
 
 
 @pytest.mark.parametrize('copy_kwargs', (True, False))
-def test_setup_optimizer_copy_kwargs(small_data, copy_kwargs):
+def test_setup_optimizer_copy_kwargs(small_data, algorithm, copy_kwargs):
     """Ensures the copy behavior of the input keyword argument dictionary."""
     input_kwargs = {'a': 1}
-    y, _, _, output_kwargs = _algorithm_setup._setup_optimizer(
+    y, _, _, output_kwargs, _ = algorithm._setup_optimizer(
         small_data, 'asls', [whittaker], input_kwargs, copy_kwargs
     )
 
@@ -483,7 +417,9 @@ def test_setup_optimizer_kwargs_warns(data_fixture):
     """Ensures a warning is emitted if extra keyword arguments are passed to the setup."""
     x, y = data_fixture
     with pytest.warns(DeprecationWarning):
-        _algorithm_setup._setup_optimizer(y, 'asls', [whittaker], None, True, x_data=x)
+        _algorithm_setup._Algorithm(x_data=x)._setup_optimizer(
+            y, 'asls', [whittaker], None, True, poly_order=3
+        )
 
 
 @pytest.mark.parametrize('input_x', (True, False))
@@ -659,6 +595,7 @@ def test_class_wrapper():
     wrapper = _algorithm_setup._class_wrapper(Dummy)
     func2 = wrapper(func)
 
+    assert func(0) == (0, default_b, default_c, None)
     assert func(0) == Dummy().func(0)
     assert func(0) == func2(0)
 
@@ -667,5 +604,6 @@ def test_class_wrapper():
     c = 10
     x = 10
 
+    assert func(a, b, c, x) == (a, b, c, x)
     assert func(a, b, c, x) == Dummy(x).func(a, b, c)
     assert func(a, b, c, x) == func2(a, b, c, x)

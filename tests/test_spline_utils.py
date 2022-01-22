@@ -15,7 +15,7 @@ from scipy.interpolate import BSpline, splev
 from scipy.sparse import diags, issparse, spdiags
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import _algorithm_setup, _banded_utils, _spline_utils
+from pybaselines import _banded_utils, _spline_utils
 
 
 def _nieve_basis_matrix(x, knots, spline_degree):
@@ -229,9 +229,9 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lowe
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
     num_bases = basis.shape[1]
-    penalty = _algorithm_setup.diff_penalty_diagonals(num_bases, diff_order, lower_only)
+    penalty = _banded_utils.diff_penalty_diagonals(num_bases, diff_order, lower_only)
     penalty_matrix = spdiags(
-        _algorithm_setup.diff_penalty_diagonals(num_bases, diff_order, False),
+        _banded_utils.diff_penalty_diagonals(num_bases, diff_order, False),
         np.arange(diff_order, -(diff_order + 1), -1), num_bases, num_bases, 'csr'
     )
 
