@@ -63,8 +63,12 @@ class Optimizers(_Algorithm):
         method : str, optional
             A string indicating the Whittaker-smoothing-based or weighted spline method to
             use for fitting the baseline. Default is 'asls'.
-        **method_kwargs
-            Keyword arguments to pass to the selected `method` function.
+        method_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to the selected `method` function.
+            Default is None, which will use an empty dictionary.
+        **kwargs
+            Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
+            keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
         Returns
         -------
@@ -391,10 +395,13 @@ class Optimizers(_Algorithm):
             The polynomial order used for estimating the baseline-to-signal ratio
             to select the appropriate polynomial orders if `poly_order` is None.
             Default is 2.
-        **method_kwargs
+        method_kwargs : dict, optional
             Additional keyword arguments to pass to :func:`.modpoly` or
             :func:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
             `mask_initial_peaks`, and `num_std`.
+        **kwargs
+            Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
+            keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
         Returns
         -------
@@ -503,8 +510,12 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None,
     method : str, optional
         A string indicating the Whittaker-smoothing-based or weighted spline method to
         use for fitting the baseline. Default is 'asls'.
-    **method_kwargs
-        Keyword arguments to pass to the selected `method` function.
+    method_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to the selected `method` function.
+        Default is None, which will use an empty dictionary.
+    **kwargs
+        Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
+        keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
     Returns
     -------
@@ -731,10 +742,13 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         The polynomial order used for estimating the baseline-to-signal ratio
         to select the appropriate polynomial orders if `poly_order` is None.
         Default is 2.
-    **method_kwargs
+    method_kwargs : dict, optional
         Additional keyword arguments to pass to :func:`.modpoly` or
         :func:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
         `mask_initial_peaks`, and `num_std`.
+    **kwargs
+        Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
+        keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
     Returns
     -------
