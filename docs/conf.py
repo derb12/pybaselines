@@ -129,7 +129,7 @@ autoapi_options = [
     #'imported-members', # document things imported within each module
 ]
 autoapi_member_order = 'groupwise' # groups into classes, functions, etc.
-autoapi_python_class_content = 'both' # include class docstring from both class and __init__
+autoapi_python_class_content = 'class' # include class docstring from class and/or __init__
 #autoapi_keep_files = True # keep the files after generation
 #autoapi_add_toctree_entry = False # need to manually add to toctree if False
 #autoapi_generate_api_docs = False # will not generate new docs when False

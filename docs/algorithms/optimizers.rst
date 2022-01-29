@@ -213,7 +213,7 @@ algorithm versus the individual baselines from the mpls method.
     total_y = (y, y2, y3, y4)
 
     lam = 1e5
-    baselines = collab_pls(total_y, lam=lam, method='mpls')[0]
+    baselines = collab_pls(total_y, method='mpls', method_kwargs={'lam': lam})[0]
 
     fig, ax = plt.subplots(tight_layout={'pad': 0.2})
     for data in total_y:
