@@ -829,9 +829,9 @@ def _class_wrapper(klass):
 
         @wraps(func)
         def inner(*args, **kwargs):
-            total_inputs = func_signature.bind(*args, **kwargs).arguments
-            x = total_inputs.pop('x_data', None)
-            return getattr(klass(x_data=x), method)(**total_inputs)
+            total_inputs = func_signature.bind(*args, **kwargs)
+            x = total_inputs.arguments.pop('x_data', None)
+            return getattr(klass(x_data=x), method)(*total_inputs.args, **total_inputs.kwargs)
         return inner
 
     return outer

@@ -607,3 +607,39 @@ def test_class_wrapper():
     assert func(a, b, c, x) == (a, b, c, x)
     assert func(a, b, c, x) == Dummy(x).func(a, b, c)
     assert func(a, b, c, x) == func2(a, b, c, x)
+
+
+def test_class_wrapper_kwargs():
+    """Ensures the class wrapper function correctly processes kwargs for _Algorithm classes."""
+
+    default_b = 2
+    default_c = 3
+
+    class Dummy:
+
+        def __init__(self, x_data=None):
+            self.x = x_data
+
+        def func(self, a, b=default_b, c=default_c, **kwargs):
+            return a, b, c, self.x, kwargs
+
+    def func(a, b=default_b, c=default_c, x_data=None, **kwargs):
+        return a, b, c, x_data, kwargs
+
+    wrapper = _algorithm_setup._class_wrapper(Dummy)
+    func2 = wrapper(func)
+
+    d = 10
+
+    assert func(0, d=d) == (0, default_b, default_c, None, {'d': d})
+    assert func(0, d=d) == Dummy().func(0, d=d)
+    assert func(0, d=d) == func2(0, d=d)
+
+    a = 5
+    b = 9
+    c = 10
+    x = 10
+
+    assert func(a, b, c, x, d=d) == (a, b, c, x, {'d': d})
+    assert func(a, b, c, x, d=d) == Dummy(x).func(a, b, c, d=d)
+    assert func(a, b, c, x, d=d) == func2(a, b, c, x, d=d)
