@@ -96,5 +96,5 @@ __version__ = '0.8.0'
 # optimizers last since it imports the other modules
 from . import (
     utils, classification, misc, morphological, polynomial, spline, whittaker, smooth,
-    window, optimizers
+    optimizers
 )
