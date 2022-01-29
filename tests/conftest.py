@@ -105,164 +105,6 @@ def no_noise_data_fixture():
     return get_data(include_noise=False)
 
 
-def _raise_error(*args, **kwargs):
-    raise NotImplementedError('must specify func for each subclass')
-
-
-class AlgorithmTester:
-    """
-    Abstract class for testing baseline algorithms.
-
-    Attributes
-    ----------
-    func : callable
-        The baseline function to test.
-    x, y : numpy.ndarray
-        The x- and y-values to use for testing. Should only be used for
-        tests where it is known that x and y are unchanged by the function.
-
-    """
-
-    func = _raise_error
-
-    @pytest.fixture(autouse=True)
-    def setup_class(self):
-        """Sets the x and y attributes for each class."""
-        self.x, self.y = get_data()
-
-    @classmethod
-    def _test_output(cls, y, *args, checked_keys=None, **kwargs):
-        """
-        Ensures that the output has the desired format.
-
-        Ensures that output has two elements, a numpy array and a param dictionary,
-        and that the output baseline is the same shape as the input y-data.
-
-        Parameters
-        ----------
-        y : array-like
-            The data to pass to the fitting function.
-        *args : tuple
-            Any arguments to pass to the fitting function.
-        checked_keys : Iterable, optional
-            The keys to ensure are present in the parameter dictionary output of the
-            fitting function. If None (default), will not check the param dictionary.
-            Used to track changes to the output params.
-        **kwargs : dict
-            Any keyword arguments to pass to the fitting function.
-
-        """
-        output = cls.func(*args, **kwargs)
-
-        assert len(output) == 2, 'algorithm output should have two items'
-        assert isinstance(output[0], np.ndarray), 'output[0] should be a numpy ndarray'
-        assert isinstance(output[1], dict), 'output[1] should be a dictionary'
-        assert y.shape == output[0].shape, 'output[0] must have same shape as y-data'
-
-        # check all entries in output param dictionary
-        if checked_keys is not None:
-            for key in checked_keys:
-                if key not in output[1]:
-                    assert False, f'key "{key}" missing from param dictionary'
-                output[1].pop(key)
-            if output[1]:
-                assert False, f'unchecked keys in param dictionary: {output[1]}'
-
-    @classmethod
-    def _test_unchanged_data(cls, static_data, y=None, x=None, *args, **kwargs):
-        """
-        Ensures that input data is unchanged by the function.
-
-        Notes
-        -----
-        y- and/or x-values should appear in both y=y, x=x, and *args, since the
-        actual input of the two values may be different for various functions (see
-        example below).
-
-        Examples
-        --------
-        >>> def test_unchanged_data(self, data_fixture):
-        >>>     x, y = get_data()
-        >>>     self._test_unchanged_data(data_fixture, y, x, y, x, lam=100)
-
-        """
-        cls.func(*args, **kwargs)
-
-        if y is not None:
-            assert_array_equal(
-                static_data[1], y, err_msg='the y-data was changed by the algorithm'
-            )
-        if x is not None:
-            assert_array_equal(
-                static_data[0], x, err_msg='the x-data was changed by the algorithm'
-            )
-
-    @classmethod
-    def _test_algorithm_no_x(cls, with_args=(), with_kwargs=None,
-                             without_args=(), without_kwargs=None,
-                             **assertion_kwargs):
-        """
-        Ensures that function output is the same when no x is input.
-
-        Maybe only valid for evenly spaced data, such as used for testing.
-        """
-        if with_kwargs is None:
-            with_kwargs = {}
-        if without_kwargs is None:
-            without_kwargs = {}
-
-        output_with = cls.func(*with_args, **with_kwargs)
-        output_without = cls.func(*without_args, **without_kwargs)
-
-        assert_allclose(
-            output_with[0], output_without[0],
-            err_msg='algorithm output is different with no x-values',
-            **assertion_kwargs
-        )
-
-    @classmethod
-    def _test_algorithm_list(cls, array_args=(), list_args=(), assertion_kwargs=None, **kwargs):
-        """Ensures that function works the same for both array and list inputs."""
-        output_array = cls.func(*array_args, **kwargs)
-        output_list = cls.func(*list_args, **kwargs)
-
-        if assertion_kwargs is None:
-            assertion_kwargs = {}
-        assert_allclose(
-            output_array[0], output_list[0],
-            err_msg='algorithm output is different for arrays vs lists', **assertion_kwargs
-        )
-
-    @classmethod
-    def _call_func(cls, *args, **kwargs):
-        """Class method to allow calling the class's function."""
-        return cls.func(*args, **kwargs)
-
-    @classmethod
-    def _test_accuracy(cls, known_output, *args, assertion_kwargs=None, **kwargs):
-        """
-        Compares the output of the baseline function to a known output.
-
-        Useful for ensuring results are consistent across versions, or for
-        comparing to the output of a method from another library.
-
-        Parameters
-        ----------
-        known_output : numpy.ndarray
-            The output to compare against. Should be from an earlier version if testing
-            for changes, or against the output of an established method.
-        assertion_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to
-            :func:`numpy.testing.assert_allclose`. Default is None.
-
-        """
-        if assertion_kwargs is None:
-            assertion_kwargs = {}
-        output = cls.func(*args, **kwargs)[0]
-
-        assert_allclose(output, known_output, **assertion_kwargs)
-
-
 def dummy_wrapper(func):
     """A dummy wrapper to simulate using the _Algorithm._register wrapper function."""
     @wraps(func)
@@ -329,7 +171,12 @@ class BaseTester:
 
     @classmethod
     def teardown_class(cls):
-        """Resets class attributes after testing."""
+        """
+        Resets class attributes after testing.
+
+        Probably not needed, but done anyway to catch changes in how pytest works.
+
+        """
         cls.x = None
         cls.y = None
         cls.func = None
@@ -519,8 +366,10 @@ class BasePolyTester(BaseTester):
     def test_output_coefs(self):
         """Ensures the output coefficients can correctly reproduce the baseline."""
         baseline, params = self.class_func(data=self.y, **self.kwargs, return_coef=True)
-        recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
 
+        assert 'coef' in params
+
+        recreated_poly = np.polynomial.Polynomial(params['coef'])(self.x)
         assert_allclose(baseline, recreated_poly)
 
 
