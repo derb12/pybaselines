@@ -79,10 +79,20 @@ class Optimizers(_Algorithm):
 
             * 'average_weights': numpy.ndarray, shape (N,)
                 The weight array used to fit all of the baselines.
+            * 'average_alpha': numpy.ndarray, shape (N,)
+                Only returned if `method` is 'aspls' or 'pspline_aspls'. The
+                `alpha` array used to fit all of the baselines for the
+                :meth:`~pybaselines.whittaker.Whittaker.aspls` or
+                :meth:`~pybaselines.spline.Spline.pspline_aspls` methods.
 
             Additional items depend on the output of the selected method. Every
             other key will have a list of values, with each item corresponding to a
             fit.
+
+        Notes
+        -----
+        If `method` is 'aspls' or 'pspline_aspls', `collab_pls` will also calculate
+        the `alpha` array for the entire dataset in the same manner as the weights.
 
         References
         ----------
@@ -95,25 +105,39 @@ class Optimizers(_Algorithm):
             data, method, (whittaker, morphological, classification, spline), method_kwargs,
             True, **kwargs
         )
-        if dataset.ndim != 2:
+        data_shape = dataset.shape
+        if len(data_shape) != 2:
             raise ValueError((
                 'the input data must have a shape of (number of measurements, number of points), '
-                f'but instead has a shape of {dataset.shape}'
+                f'but instead has a shape of {data_shape}'
             ))
+        method = method.lower()
+        calc_alpha = method in ('aspls', 'pspline_aspls')
+
         if average_dataset:
             _, fit_params = fit_func(np.mean(dataset, axis=0), **method_kws)
             method_kws['weights'] = fit_params['weights']
+            if calc_alpha:
+                method_kws['alpha'] = fit_params['alpha']
         else:
-            weights = np.empty(dataset.shape)
+            weights = np.empty(data_shape)
+            if calc_alpha:
+                alpha = np.empty(data_shape)
             for i, entry in enumerate(dataset):
                 _, fit_params = fit_func(entry, **method_kws)
                 weights[i] = fit_params['weights']
+                if calc_alpha:
+                    alpha[i] = fit_params['alpha']
             method_kws['weights'] = np.mean(weights, axis=0)
+            if calc_alpha:
+                method_kws['alpha'] = np.mean(alpha, axis=0)
 
         method_kws['tol'] = np.inf
-        baselines = np.empty(dataset.shape)
+        baselines = np.empty(data_shape)
         params = {'average_weights': method_kws['weights']}
-        if method.lower() == 'fabc':
+        if calc_alpha:
+            params['average_alpha'] = method_kws['alpha']
+        if method == 'fabc':
             # set weights as mask so it just fits the data
             method_kws['weights_as_mask'] = True
 
@@ -396,9 +420,10 @@ class Optimizers(_Algorithm):
             to select the appropriate polynomial orders if `poly_order` is None.
             Default is 2.
         method_kwargs : dict, optional
-            Additional keyword arguments to pass to :func:`.modpoly` or
-            :func:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
-            `mask_initial_peaks`, and `num_std`.
+            Additional keyword arguments to pass to
+            :meth:`~pybaselines.polynomial.Polynomial.modpoly` or
+            :meth:`~pybaselines.polynomial.Polynomial.imodpoly`. These include
+            `tol`, `max_iter`, `use_original`, `mask_initial_peaks`, and `num_std`.
         **kwargs
             Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
             keyword arguments for the fitting function in the `method_kwargs` dictionary.
@@ -526,10 +551,19 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None,
 
         * 'average_weights': numpy.ndarray, shape (N,)
             The weight array used to fit all of the baselines.
+        * 'average_alpha': numpy.ndarray, shape (N,)
+            Only returned if `method` is 'aspls' or 'pspline_aspls'. The
+            `alpha` array used to fit all of the baselines for the
+            :func:`.aspls` or :func:`.pspline_aspls` methods.
 
         Additional items depend on the output of the selected method. Every
         other key will have a list of values, with each item corresponding to a
         fit.
+
+    Notes
+    -----
+    If `method` is 'aspls' or 'pspline_aspls', `collab_pls` will also calculate
+    the `alpha` array for the entire dataset in the same manner as the weights.
 
     References
     ----------
