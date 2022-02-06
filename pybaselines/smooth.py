@@ -44,7 +44,8 @@ class Smooth(_Algorithm):
     """
 
     @_Algorithm._register
-    def noise_median(self, data, half_window, smooth_half_window=None, sigma=None, **pad_kwargs):
+    def noise_median(self, data, half_window=None, smooth_half_window=None, sigma=None,
+                     **pad_kwargs):
         """
         The noise-median method for baseline identification.
 
@@ -55,10 +56,11 @@ class Smooth(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        half_window : int
+        half_window : int, optional
             The index-based size to use for the median window. The total window
             size will range from [-half_window, ..., half_window] with size
-            2 * half_window + 1.
+            2 * half_window + 1. Default is None, which will use twice the output from
+            :func:`.optimize_window`, which is an okay starting value.
         smooth_half_window : int, optional
             The half window to use for smoothing. Default is None, which will use
             the same value as `half_window`.
@@ -82,6 +84,8 @@ class Smooth(_Algorithm):
         artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
         """
+        if half_window is None:
+            half_window = 2 * optimize_window(data)
         window_size = 2 * half_window + 1
         median = median_filter(
             self._setup_smooth(data, half_window, **pad_kwargs),
@@ -98,7 +102,7 @@ class Smooth(_Algorithm):
         return baseline[half_window:-half_window], {}
 
     @_Algorithm._register
-    def snip(self, data, max_half_window, decreasing=False, smooth_half_window=None,
+    def snip(self, data, max_half_window=None, decreasing=False, smooth_half_window=None,
              filter_order=2, **pad_kwargs):
         """
         Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
@@ -107,13 +111,14 @@ class Smooth(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        max_half_window : int or Sequence(int, int)
+        max_half_window : int or Sequence(int, int), optional
             The maximum number of iterations. Should be set such that
             `max_half_window` is approxiamtely ``(w-1)/2``, where ``w`` is the index-based
             width of a feature or peak. `max_half_window` can also be a sequence of
             two integers for asymmetric peaks, with the first item corresponding to
             the `max_half_window` of the peak's left edge, and the second item
-            for the peak's right edge [3]_.
+            for the peak's right edge [3]_. Default is None, which will use the output
+            from :func:`.optimize_window`, which is an okay starting value.
         decreasing : bool, optional
             If False (default), will iterate through window sizes from 1 to
             `max_half_window`. If True, will reverse the order and iterate from
@@ -186,6 +191,8 @@ class Smooth(_Algorithm):
         if filter_order not in {2, 4, 6, 8}:
             raise ValueError('filter_order must be 2, 4, 6, or 8')
 
+        if max_half_window is None:
+            max_half_window = optimize_window(data)
         half_windows = _check_scalar(max_half_window, 2, True, dtype=int)[0]
         for i, half_window in enumerate(half_windows):
             if half_window > (self._len - 1) // 2:
@@ -604,7 +611,8 @@ _smooth_wrapper = _class_wrapper(Smooth)
 
 
 @_smooth_wrapper
-def noise_median(data, half_window, smooth_half_window=None, sigma=None, x_data=None, **pad_kwargs):
+def noise_median(data, half_window=None, smooth_half_window=None, sigma=None, x_data=None,
+                 **pad_kwargs):
     """
     The noise-median method for baseline identification.
 
@@ -615,10 +623,11 @@ def noise_median(data, half_window, smooth_half_window=None, sigma=None, x_data=
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
-    half_window : int
+    half_window : int, optional
         The index-based size to use for the median window. The total window
         size will range from [-half_window, ..., half_window] with size
-        2 * half_window + 1.
+        2 * half_window + 1. Default is None, which will use twice the output from
+        :func:`.optimize_window`, which is an okay starting value.
     smooth_half_window : int, optional
         The half window to use for smoothing. Default is None, which will use
         the same value as `half_window`.
@@ -648,7 +657,7 @@ def noise_median(data, half_window, smooth_half_window=None, sigma=None, x_data=
 
 
 @_smooth_wrapper
-def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
+def snip(data, max_half_window=None, decreasing=False, smooth_half_window=None,
          filter_order=2, x_data=None, **pad_kwargs):
     """
     Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
@@ -657,13 +666,14 @@ def snip(data, max_half_window, decreasing=False, smooth_half_window=None,
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
-    max_half_window : int or Sequence(int, int)
+    max_half_window : int or Sequence(int, int), optional
         The maximum number of iterations. Should be set such that
         `max_half_window` is approxiamtely ``(w-1)/2``, where ``w`` is the index-based
         width of a feature or peak. `max_half_window` can also be a sequence of
         two integers for asymmetric peaks, with the first item corresponding to
         the `max_half_window` of the peak's left edge, and the second item
-        for the peak's right edge [3]_.
+        for the peak's right edge [3]_. Default is None, which will use the output
+        from :func:`.optimize_window`, which is an okay starting value.
     decreasing : bool, optional
         If False (default), will iterate through window sizes from 1 to
         `max_half_window`. If True, will reverse the order and iterate from

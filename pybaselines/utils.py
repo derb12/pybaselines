@@ -463,6 +463,7 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
     if min_half_window is None:
         min_half_window = 1
 
+    # TODO would it be better to allow padding the data?
     opening = grey_opening(y, [2 * min_half_window + 1])
     hits = 0
     best_half_window = min_half_window

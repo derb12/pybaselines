@@ -34,6 +34,11 @@ class TestNoiseMedian(SmoothTester):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(use_class, smooth_half_window=smooth_hw)
 
+    @pytest.mark.parametrize('half_window', (None, 15))
+    def test_half_windows(self, half_window):
+        """Tests possible inputs for `half_window`."""
+        self.class_func(self.y, half_window=half_window)
+
 
 class TestSNIP(SmoothTester):
     """Class for testing snip median baseline."""
@@ -76,6 +81,11 @@ class TestSNIP(SmoothTester):
         """Ensures an error is raised if max-half-windows has more than two items."""
         with pytest.raises(ValueError):
             self.class_func(self.y, max_half_window)
+
+    @pytest.mark.parametrize('max_half_window', (None, 15))
+    def test_max_half_windows(self, max_half_window):
+        """Tests possible inputs for `max_half_window`."""
+        self.class_func(self.y, max_half_window=max_half_window)
 
 
 class TestSwima(SmoothTester):
