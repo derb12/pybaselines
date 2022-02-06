@@ -711,7 +711,7 @@ class _Algorithm:
         -------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, converted to a numpy array.
-        fit_func : Callable
+        baseline_func : Callable
             The function for fitting the baseline.
         func_module : str
             The string name of the module that contained `fit_func`.
@@ -726,7 +726,7 @@ class _Algorithm:
             Passed if `kwargs` is not empty.
 
         """
-        fit_func, func_module, class_object = self._get_function(method, modules)
+        baseline_func, func_module, class_object = self._get_function(method, modules)
         if method_kwargs is None:
             method_kws = {}
         elif copy_kwargs:
@@ -746,7 +746,10 @@ class _Algorithm:
             )
             method_kws.update(kwargs)
 
-        return _sort_array(y, self._inverted_order), fit_func, func_module, method_kws, class_object
+        return (
+            _sort_array(y, self._inverted_order), baseline_func, func_module, method_kws,
+            class_object
+        )
 
     def _setup_misc(self, y):
         """

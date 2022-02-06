@@ -101,7 +101,7 @@ class Optimizers(_Algorithm):
         in Chemistry, 2018, 2018.
 
         """
-        dataset, fit_func, _, method_kws, _ = self._setup_optimizer(
+        dataset, baseline_func, _, method_kws, _ = self._setup_optimizer(
             data, method, (whittaker, morphological, classification, spline), method_kwargs,
             True, **kwargs
         )
@@ -112,10 +112,13 @@ class Optimizers(_Algorithm):
                 f'but instead has a shape of {data_shape}'
             ))
         method = method.lower()
+        # if using aspls or pspline_aspls, also need to calculate the alpha array
+        # for the entire dataset
         calc_alpha = method in ('aspls', 'pspline_aspls')
 
+        # step 1: calculate weights for the entire dataset
         if average_dataset:
-            _, fit_params = fit_func(np.mean(dataset, axis=0), **method_kws)
+            _, fit_params = baseline_func(np.mean(dataset, axis=0), **method_kws)
             method_kws['weights'] = fit_params['weights']
             if calc_alpha:
                 method_kws['alpha'] = fit_params['alpha']
@@ -124,7 +127,7 @@ class Optimizers(_Algorithm):
             if calc_alpha:
                 alpha = np.empty(data_shape)
             for i, entry in enumerate(dataset):
-                _, fit_params = fit_func(entry, **method_kws)
+                _, fit_params = baseline_func(entry, **method_kws)
                 weights[i] = fit_params['weights']
                 if calc_alpha:
                     alpha[i] = fit_params['alpha']
@@ -132,6 +135,9 @@ class Optimizers(_Algorithm):
             if calc_alpha:
                 method_kws['alpha'] = np.mean(alpha, axis=0)
 
+        # step 2: use the dataset weights from step 1 (stored in method_kws['weights'])
+        # to fit each individual data entry; set tol to infinity so that only one
+        # iteration is done and new weights are not calculated
         method_kws['tol'] = np.inf
         baselines = np.empty(data_shape)
         params = {'average_weights': method_kws['weights']}
@@ -142,7 +148,7 @@ class Optimizers(_Algorithm):
             method_kws['weights_as_mask'] = True
 
         for i, entry in enumerate(dataset):
-            baselines[i], param = fit_func(entry, **method_kws)
+            baselines[i], param = baseline_func(entry, **method_kws)
             for key, value in param.items():
                 if key in params:
                     params[key].append(value)
@@ -259,7 +265,7 @@ class Optimizers(_Algorithm):
         if side not in ('left', 'right', 'both'):
             raise ValueError('side must be "left", "right", or "both"')
 
-        y, fit_func, func_module, method_kws, fit_object = self._setup_optimizer(
+        y, baseline_func, func_module, method_kws, fit_object = self._setup_optimizer(
             data, method, (whittaker, polynomial, morphological, spline, classification),
             method_kwargs, True, **kwargs
         )
@@ -354,7 +360,7 @@ class Optimizers(_Algorithm):
                     method_kws[param_name] = 10**var
                 else:
                     method_kws[param_name] = var
-                fit_baseline, fit_params = fit_func(fit_data, **method_kws)
+                fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
                 # TODO change the known baseline so that np.roll does not have to be
                 # calculated each time, since it requires additional time
                 residual = (
@@ -449,14 +455,14 @@ class Optimizers(_Algorithm):
             1199-1205.
 
         """
-        y, fit_func, _, method_kws, _ = self._setup_optimizer(
+        y, baseline_func, _, method_kws, _ = self._setup_optimizer(
             data, method, [polynomial], method_kwargs, False, **kwargs
         )
         sort_weights = weights is not None
         weight_array = _check_optional_array(self._len, weights, check_finite=self._check_finite)
         if poly_order is None:
             poly_orders = _determine_polyorders(
-                y, estimation_poly_order, weight_array, fit_func, **method_kws
+                y, estimation_poly_order, weight_array, baseline_func, **method_kws
             )
         else:
             poly_orders, scalar_poly_order = _check_scalar(poly_order, 2, True, dtype=int)
@@ -487,17 +493,19 @@ class Optimizers(_Algorithm):
             constrained_weights = _sort_array(constrained_weights, self._inverted_order)
 
         # TODO should make parameters available; a list with an item for each fit like collab_pls
+        # TODO could maybe just use itertools.permutations, but would want to know the order in
+        # which the parameters are used
         baselines = np.empty((4, self._len))
-        baselines[0] = fit_func(
+        baselines[0] = baseline_func(
             data=y, poly_order=poly_orders[0], weights=weight_array, **method_kws
         )[0]
-        baselines[1] = fit_func(
+        baselines[1] = baseline_func(
             data=y, poly_order=poly_orders[0], weights=constrained_weights, **method_kws
         )[0]
-        baselines[2] = fit_func(
+        baselines[2] = baseline_func(
             data=y, poly_order=poly_orders[1], weights=weight_array, **method_kws
         )[0]
-        baselines[3] = fit_func(
+        baselines[3] = baseline_func(
             data=y, poly_order=poly_orders[1], weights=constrained_weights, **method_kws
         )[0]
 
@@ -702,7 +710,7 @@ def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
 
     Returns
     -------
-    orders : tuple(int, int)
+    orders : numpy.ndarray, shape (2,)
         The two polynomial orders to use based on the baseline to signal
         ratio according to the reference.
 
@@ -731,7 +739,7 @@ def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
     else:
         orders = (6, 8)  # not a typo, use 6 and 8 rather than 7 and 8
 
-    return orders
+    return np.array(orders)
 
 
 @_optimizers_wrapper

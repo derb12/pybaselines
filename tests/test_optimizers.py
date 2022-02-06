@@ -257,7 +257,7 @@ def test_determine_polyorders(baseline_ptp):
         y + true_baseline, poly_order=1, weights=None, fit_function=fitter.modpoly
     )
 
-    assert output_orders == expected_orders
+    assert_array_equal(output_orders, expected_orders)
 
 
 class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
