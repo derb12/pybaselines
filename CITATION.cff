@@ -1,4 +1,6 @@
-abstract: "A Python library of algorithms for the baseline correction of experimental data."
+abstract: pybaselines is a Python library that provides many different algorithms for
+  performing baseline correction on data from experimental techniques such as Raman,
+  FTIR, NMR, XRD, etc.
 authors:
   - family-names: Erb
     given-names: Donald
@@ -22,6 +24,6 @@ license: BSD-3-Clause
 message: "If citing this software, consider using this metadata."
 repository-artifact: https://pypi.org/project/pybaselines
 repository-code: https://github.com/derb12/pybaselines
-title: pybaselines
+title: "pybaselines: A Python library of algorithms for the baseline correction of experimental data"
 type: software
 version: 0.8.0

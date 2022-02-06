@@ -211,6 +211,14 @@ For more information, refer to the license_.
 .. _license: https://github.com/derb12/pybaselines/tree/main/LICENSE.txt
 
 
+Citing
+------
+
+If you use pybaselines for published research, please consider citing
+by following the `guidelines in the documentation
+<https://pybaselines.readthedocs.io/en/latest/citing.html>`_.
+
+
 Author
 ------
 
