@@ -13,10 +13,10 @@ from math import ceil
 
 import numpy as np
 
-from . import classification, morphological, polynomial, spline, whittaker
+from . import classification, misc, morphological, polynomial, smooth, spline, whittaker
 from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, gaussian
+from .utils import _check_scalar, _get_edges, gaussian, whittaker_smooth
 
 
 class Optimizers(_Algorithm):
@@ -44,7 +44,7 @@ class Optimizers(_Algorithm):
     """
 
     @_Algorithm._register(ensure_1d=False)
-    def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None, **kwargs):
+    def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).
 
@@ -66,9 +66,6 @@ class Optimizers(_Algorithm):
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the selected `method` function.
             Default is None, which will use an empty dictionary.
-        **kwargs
-            Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
-            keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
         Returns
         -------
@@ -103,7 +100,7 @@ class Optimizers(_Algorithm):
         """
         dataset, baseline_func, _, method_kws, _ = self._setup_optimizer(
             data, method, (whittaker, morphological, classification, spline), method_kwargs,
-            True, **kwargs
+            True
         )
         data_shape = dataset.shape
         if len(data_shape) != 2:
@@ -160,7 +157,7 @@ class Optimizers(_Algorithm):
     @_Algorithm._register
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
                                 height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
-                                step=1, pad_kwargs=None, method_kwargs=None, **kwargs):
+                                step=1, pad_kwargs=None, method_kwargs=None):
         """
         Extends data and finds the best parameter value for the given baseline method.
 
@@ -212,9 +209,6 @@ class Optimizers(_Algorithm):
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the selected `method` function.
             Default is None, which will use an empty dictionary.
-        **kwargs
-            Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
-            keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
         Returns
         -------
@@ -267,7 +261,7 @@ class Optimizers(_Algorithm):
 
         y, baseline_func, func_module, method_kws, fit_object = self._setup_optimizer(
             data, method, (whittaker, polynomial, morphological, spline, classification),
-            method_kwargs, True, **kwargs
+            method_kwargs, True
         )
         method = method.lower()
         if func_module == 'polynomial' or method in ('dietrich', 'cwt_br'):
@@ -389,7 +383,7 @@ class Optimizers(_Algorithm):
     @_Algorithm._register
     def adaptive_minmax(self, data, poly_order=None, method='modpoly', weights=None,
                         constrained_fraction=0.01, constrained_weight=1e5,
-                        estimation_poly_order=2, method_kwargs=None, **kwargs):
+                        estimation_poly_order=2, method_kwargs=None):
         """
         Fits polynomials of different orders and uses the maximum values as the baseline.
 
@@ -400,7 +394,7 @@ class Optimizers(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        poly_order : int, Sequence(int, int) or None, optional
+        poly_order : int or Sequence(int, int) or None, optional
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
@@ -430,9 +424,6 @@ class Optimizers(_Algorithm):
             :meth:`~pybaselines.polynomial.Polynomial.modpoly` or
             :meth:`~pybaselines.polynomial.Polynomial.imodpoly`. These include
             `tol`, `max_iter`, `use_original`, `mask_initial_peaks`, and `num_std`.
-        **kwargs
-            Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
-            keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
         Returns
         -------
@@ -456,7 +447,7 @@ class Optimizers(_Algorithm):
 
         """
         y, baseline_func, _, method_kws, _ = self._setup_optimizer(
-            data, method, [polynomial], method_kwargs, False, **kwargs
+            data, method, [polynomial], method_kwargs, False
         )
         sort_weights = weights is not None
         weight_array = _check_optional_array(self._len, weights, check_finite=self._check_finite)
@@ -523,8 +514,7 @@ _optimizers_wrapper = _class_wrapper(Optimizers)
 
 
 @_optimizers_wrapper
-def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None,
-               x_data=None, **kwargs):
+def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_data=None):
     """
     Collaborative Penalized Least Squares (collab-PLS).
 
@@ -546,9 +536,6 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None,
     method_kwargs : dict, optional
         A dictionary of keyword arguments to pass to the selected `method` function.
         Default is None, which will use an empty dictionary.
-    **kwargs
-        Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
-        keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
     Returns
     -------
@@ -585,7 +572,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None,
 @_optimizers_wrapper
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
                             height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
-                            step=1, pad_kwargs=None, method_kwargs=None, **kwargs):
+                            step=1, pad_kwargs=None, method_kwargs=None):
     """
     Extends data and finds the best parameter value for the given baseline method.
 
@@ -640,9 +627,8 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     method_kwargs : dict, optional
         A dictionary of keyword arguments to pass to the selected `method` function.
         Default is None, which will use an empty dictionary.
-    **kwargs
-        Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
-        keyword arguments for the fitting function in the `method_kwargs` dictionary.
+    x_data : array-like, shape (N,), optional
+        The x values for the data. Not used by most Whittaker-smoothing algorithms.
 
     Returns
     -------
@@ -745,7 +731,7 @@ def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
 @_optimizers_wrapper
 def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
                     weights=None, constrained_fraction=0.01, constrained_weight=1e5,
-                    estimation_poly_order=2, method_kwargs=None, **kwargs):
+                    estimation_poly_order=2, method_kwargs=None):
     """
     Fits polynomials of different orders and uses the maximum values as the baseline.
 
@@ -759,7 +745,7 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
-    poly_order : int, Sequence(int, int) or None, optional
+    poly_order : int or Sequence(int, int) or None, optional
         The two polynomial orders to use for fitting. If a single integer is given,
         then will use the input value and one plus the input value. Default is None,
         which will do a preliminary fit using a polynomial of order `estimation_poly_order`
@@ -788,9 +774,6 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         Additional keyword arguments to pass to :func:`.modpoly` or
         :func:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
         `mask_initial_peaks`, and `num_std`.
-    **kwargs
-        Deprecated in version 0.7.0 and will be removed in version 0.10.0 or 1.0. Pass any
-        keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
     Returns
     -------

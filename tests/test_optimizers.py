@@ -78,7 +78,9 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
         'method',
         (
             'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
-            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc'
+            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc', 'pspline_asls',
+            'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
+            'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa'
         )
     )
     def test_all_methods(self, method):
@@ -132,7 +134,9 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         (
             'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
             'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg', 'goldindec',
-            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'dietrich', 'cwt_br', 'fabc'
+            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'dietrich', 'cwt_br', 'fabc',
+            'pspline_asls', 'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
+            'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa'
         )
     )
     def test_all_methods(self, method):
@@ -206,9 +210,9 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
             regular_output, self.reverse_array(reverse_output), rtol=1e-10, atol=1e-14
         )
 
-    def test_kwargs_deprecation(self):
-        """Ensures a warning is emitted for passing kwargs meant for the fitting function."""
-        with pytest.warns(DeprecationWarning):
+    def test_kwargs_raises(self):
+        """Ensures an exception is raised for passing kwargs meant for the fitting function."""
+        with pytest.raises(TypeError):
             self.class_func(self.y, method='asls', lam=1e8)
 
 
@@ -261,7 +265,7 @@ def test_determine_polyorders(baseline_ptp):
 
 
 class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
-    """Class for testing adaptive minmax baseline."""
+    """Class for testing adaptive_minmax baseline."""
 
     func_name = 'adaptive_minmax'
     checked_keys = ('weights', 'constrained_weights', 'poly_order')
