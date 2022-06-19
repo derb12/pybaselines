@@ -19,7 +19,7 @@ from .utils import (
 )
 
 
-class Whittaker(_Algorithm):
+class _Whittaker(_Algorithm):
     """
     A base class for all Whittaker-smoothing-based algorithms.
 
@@ -37,7 +37,7 @@ class Whittaker(_Algorithm):
         If False (default), will sort the input `x_data` values. Otherwise, the
         input is assumed to be sorted. Note that some functions may raise an error
         if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
+    output_dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing
         of the input data.
 
@@ -883,7 +883,7 @@ class Whittaker(_Algorithm):
         return baseline, params
 
 
-_whittaker_wrapper = _class_wrapper(Whittaker)
+_whittaker_wrapper = _class_wrapper(_Whittaker)
 
 
 @_whittaker_wrapper

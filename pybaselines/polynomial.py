@@ -86,7 +86,7 @@ from .utils import (
 )
 
 
-class Polynomial(_Algorithm):
+class _Polynomial(_Algorithm):
     """
     A base class for all polynomial algorithms.
 
@@ -104,7 +104,7 @@ class Polynomial(_Algorithm):
         If False (default), will sort the input `x_data` values. Otherwise, the
         input is assumed to be sorted. Note that some functions may raise an error
         if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
+    output_dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing
         of the input data.
 
@@ -1018,7 +1018,7 @@ class Polynomial(_Algorithm):
         return baseline, params
 
 
-_polynomial_wrapper = _class_wrapper(Polynomial)
+_polynomial_wrapper = _class_wrapper(_Polynomial)
 
 
 @_polynomial_wrapper

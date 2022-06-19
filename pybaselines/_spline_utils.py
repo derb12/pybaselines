@@ -631,13 +631,13 @@ def _basis_midpoints(knots, spline_degree):
 
 class PSpline(PenalizedSystem):
     """
-    A P-Spline; a spline that penalizes the difference of the spline coefficients.
+    A Penalized Spline, which penalizes the difference of the spline coefficients.
 
-    P-Splines are solved with the following equation ``(B.T @ W @ B + P) c = B.T @ W @ y``
-    where `c` is the spline coefficients, `B` is the spline basis, the weights are the
-    diagonal of `W`, the penalty is `P`, and `y` is the fit data. The penalty `P` is usually
-    in the form ``lam * D.T @ D``, where `lam` is a penalty factor and `D` is the matrix
-    version of the finite difference operator.
+    Penalized splines (P-Splines) are solved with the following equation
+    ``(B.T @ W @ B + P) c = B.T @ W @ y`` where `c` is the spline coefficients, `B` is the
+    spline basis, the weights are the diagonal of `W`, the penalty is `P`, and `y` is the
+    fit data. The penalty `P` is usually in the form ``lam * D.T @ D``, where `lam` is a
+    penalty factor and `D` is the matrix version of the finite difference operator.
 
     Attributes
     ----------

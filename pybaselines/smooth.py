@@ -19,7 +19,7 @@ from .utils import (
 )
 
 
-class Smooth(_Algorithm):
+class _Smooth(_Algorithm):
     """
     A base class for all smoothing algorithms.
 
@@ -37,7 +37,7 @@ class Smooth(_Algorithm):
         If False (default), will sort the input `x_data` values. Otherwise, the
         input is assumed to be sorted. Note that some functions may raise an error
         if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
+    output_dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing
         of the input data.
 
@@ -607,7 +607,7 @@ class Smooth(_Algorithm):
         return baseline, {'tol_history': tol_history[:i + 1]}
 
 
-_smooth_wrapper = _class_wrapper(Smooth)
+_smooth_wrapper = _class_wrapper(_Smooth)
 
 
 @_smooth_wrapper

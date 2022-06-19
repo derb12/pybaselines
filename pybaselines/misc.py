@@ -77,7 +77,7 @@ from ._validation import _check_array, _check_lam
 from .utils import _MIN_FLOAT, relative_difference
 
 
-class Misc(_Algorithm):
+class _Misc(_Algorithm):
     """
     A base class for all miscellaneous algorithms.
 
@@ -95,7 +95,7 @@ class Misc(_Algorithm):
         If False (default), will sort the input `x_data` values. Otherwise, the
         input is assumed to be sorted. Note that some functions may raise an error
         if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
+    output_dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing
         of the input data.
 
@@ -300,7 +300,7 @@ class Misc(_Algorithm):
         return baseline, params
 
 
-_misc_wrapper = _class_wrapper(Misc)
+_misc_wrapper = _class_wrapper(_Misc)
 
 
 @_misc_wrapper

@@ -79,7 +79,7 @@ class _Algorithm:
             If False (default), will sort the input `x_data` values. Otherwise, the
             input is assumed to be sorted. Note that some functions may raise an error
             if `x_data` is not sorted.
-        output_dtype : type or np.dtype, optional
+        output_dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing
             of the input data.
 
@@ -164,7 +164,7 @@ class _Algorithm:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        dtype : type or np.dtype, optional
+        dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing of `array`.
         order : {None, 'C', 'F'}, optional
             The order for the output array. Default is None, which will use the default array
@@ -669,7 +669,7 @@ class _Algorithm:
                     else:
                         x = self.x
                         assume_sorted = True
-                    class_object = getattr(module, func_module.capitalize())(
+                    class_object = getattr(module, '_' + func_module.capitalize())(
                         x, check_finite=self._check_finite, assume_sorted=assume_sorted,
                         output_dtype=self._dtype
                     )

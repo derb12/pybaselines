@@ -93,8 +93,10 @@ __version__ = '0.8.0'
 
 
 # import utils first since it is imported by other modules; likewise, import
-# optimizers last since it imports the other modules
+# optimizers and api last since they import the other modules
 from . import (
     utils, classification, misc, morphological, polynomial, spline, whittaker, smooth,
-    optimizers
+    optimizers, api
 )
+
+from .api import Baseline

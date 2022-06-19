@@ -19,7 +19,7 @@ from ._validation import _check_optional_array
 from .utils import _check_scalar, _get_edges, gaussian, whittaker_smooth
 
 
-class Optimizers(_Algorithm):
+class _Optimizers(_Algorithm):
     """
     A base class for all optimizer algorithms.
 
@@ -37,7 +37,7 @@ class Optimizers(_Algorithm):
         If False (default), will sort the input `x_data` values. Otherwise, the
         input is assumed to be sorted. Note that some functions may raise an error
         if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
+    output_dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing
         of the input data.
 
@@ -510,7 +510,7 @@ class Optimizers(_Algorithm):
         return _sort_array(np.maximum.reduce(baselines), self._sort_order), params
 
 
-_optimizers_wrapper = _class_wrapper(Optimizers)
+_optimizers_wrapper = _class_wrapper(_Optimizers)
 
 
 @_optimizers_wrapper
@@ -536,6 +536,8 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
     method_kwargs : dict, optional
         A dictionary of keyword arguments to pass to the selected `method` function.
         Default is None, which will use an empty dictionary.
+    x_data : array-like, shape (N,), optional
+        The x values for the data. Not used by most Whittaker-smoothing algorithms.
 
     Returns
     -------
@@ -627,8 +629,6 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     method_kwargs : dict, optional
         A dictionary of keyword arguments to pass to the selected `method` function.
         Default is None, which will use an empty dictionary.
-    x_data : array-like, shape (N,), optional
-        The x values for the data. Not used by most Whittaker-smoothing algorithms.
 
     Returns
     -------

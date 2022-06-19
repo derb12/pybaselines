@@ -26,7 +26,7 @@ from .utils import (
 )
 
 
-class Spline(_Algorithm):
+class _Spline(_Algorithm):
     """
     A base class for all spline algorithms.
 
@@ -44,7 +44,7 @@ class Spline(_Algorithm):
         If False (default), will sort the input `x_data` values. Otherwise, the
         input is assumed to be sorted. Note that some functions may raise an error
         if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
+    output_dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing
         of the input data.
 
@@ -1302,7 +1302,7 @@ class Spline(_Algorithm):
         return baseline, params
 
 
-_spline_wrapper = _class_wrapper(Spline)
+_spline_wrapper = _class_wrapper(_Spline)
 
 
 @jit(nopython=True, cache=True)
