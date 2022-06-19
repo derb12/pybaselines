@@ -19,3 +19,7 @@ research:
 
 The above DOI is valid for all versions of pybaselines. If citing a specific version,
 the DOI can be found on the project's Zenodo page: https://doi.org/10.5281/zenodo.5608581.
+
+In addition, the original source publication for any used algorithm should likewise be
+cited; all algorithms in pybaselines provide the source publications within the docstring
+for easy lookup.

@@ -2,6 +2,57 @@
 Changelog
 =========
 
+Version 1.0.0 (Unreleased)
+-------------------------
+
+This is a major version with new features, bug fixes, deprecations,
+and documentation improvements.
+
+New Features
+~~~~~~~~~~~~
+
+* Added a new class-based api for all algorithms, which can be accessed by using
+  the `pybaselines.api.Baseline` class. All algorithms are available as methods of
+  the `Baseline` class. The functional api from earlier versions is also maintained
+  for backwards compatibility.
+* All functions now allow inputting an `x_data` keyword, even if it is not used within
+  the function, to allow for a more consistent api. Now, all algorithms can be called with
+  the signature `baseline_function(data, x_data=x_data, ...)`.
+* Added a function for Whittaker smoothing to pybaselines.utils.
+* whittaker.iasls and spline.psline_iasls now allow inputting a `diff_order` parameter.
+
+Bug Fixes
+~~~~~~~~~
+
+* Fixed the addition of the penalty difference diagonals in spline.pspline_drpls, which
+  was incorrectly treating the penalty diagonals as lower banded rather than fully banded.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Added default `half_window` values for snip and noise_median.
+* collab_pls accomodates `alpha` for aspls and pspline_aspls; the `alpha` parameter is
+  calculated for the entire dataset in the same way as the weights and is then fixed when
+  fitting each of the individual data entries.
+* Improved input validation.
+* Improved testing base classes to reduce copied code and improve test coverage.
+* Improved code handling for banded systems and penalized splines to simplify internal code.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Removed the ability to pass addtional keyword arguments to algorithms in
+  pybaselines.optimizers, which was deprecated in version 0.8.0.
+* Removed the deprecated pybaselines.window module, which was formally deprecated in version 0.8.
+* Moved the `PENTAPY_SOLVER` constant from pybaselines.utils to the new pybaselines.config module.
+
+Documentation/Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Added citation guidelines to make it easier to cite pybaselines.
+* Added new examples showing how to use the new `Baseline` class.
+
+
 Version 0.8.0 (2021-12-07)
 --------------------------
 

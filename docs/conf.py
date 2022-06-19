@@ -40,6 +40,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'sphinx.ext.autosectionlabel',
     'matplotlib.sphinxext.plot_directive',
     'sphinx_gallery.gen_gallery'
 ]
@@ -111,6 +112,11 @@ intersphinx_mapping = {
 # cache remote doc inventories for 14 days
 intersphinx_cache_limit = 14
 
+napoleon_include_private_with_doc = True
+
+# ensure each label from the autosection extension is unique
+autosectionlabel_prefix_document = True
+
 # -- Settings for autoapi extension ----------------------------
 
 # autoapi gets the docstrings for all public modules in the package
@@ -125,11 +131,11 @@ autoapi_options = [
     #'private_members', # show private objects (_variable)
     'show-inheritance',
     'show-module-summary',
-    #'special-members', # show things like __str__
+    'special-members', # show things like __str__
     #'imported-members', # document things imported within each module
 ]
 autoapi_member_order = 'groupwise' # groups into classes, functions, etc.
-autoapi_python_class_content = 'class' # include class docstring from class and/or __init__
+autoapi_python_class_content = 'both' # include class docstring from class and/or __init__
 #autoapi_keep_files = True # keep the files after generation
 #autoapi_add_toctree_entry = False # need to manually add to toctree if False
 #autoapi_generate_api_docs = False # will not generate new docs when False

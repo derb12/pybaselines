@@ -414,7 +414,8 @@ modpoly (Modified Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :func:`.modpoly` uses thresholding, as explained above, to iteratively fit a polynomial
-baseline to data.
+baseline to data. `modpoly` is also sometimes called "ModPolyFit" in literature, and both
+`modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterative Polynomial Fit".
 
 .. plot::
    :align: center
@@ -436,7 +437,8 @@ imodpoly (Improved Modified Polynomial)
 :func:`.imodpoly` is an attempt to improve the modpoly algorithm for noisy data,
 by including the standard deviation of the residual (data - baseline) when performing
 the thresholding. The number of standard deviations included in the thresholding can
-be adjusted by setting ``num_std``.
+be adjusted by setting ``num_std``. `imodpoly` is also sometimes called "IModPolyFit" in literature,
+and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterative Polynomial Fit".
 
 .. note::
    If using a ``num_std`` of 0, imodpoly may still produce different results than modpoly
@@ -575,7 +577,7 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
 loess (Locally Estimated Scatterplot Smoothing)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.loess` (sometimes referred to as "rbe" or robust baseline estimate in literature)
+:func:`.loess` (sometimes referred to as "rbe" or "robust baseline estimate" in literature)
 is similar to `traditional loess/lowess <https://en.wikipedia.org/wiki/Local_regression>`_
 but adapted for fitting the baseline. The baseline at each point is estimated by using
 polynomial regression on the k-nearest neighbors of the point, and the effect of outliers
