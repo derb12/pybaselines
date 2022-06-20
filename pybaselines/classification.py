@@ -25,28 +25,7 @@ from .utils import (
 
 
 class _Classification(_Algorithm):
-    """
-    A base class for all classification algorithms.
-
-    Parameters
-    ----------
-    x_data : array-like, shape (N,), optional
-        The x-values of the measured data. Default is None, which will create an
-        array from -1 to 1 during the first function call with length equal to the
-        input data length.
-    check_finite : bool, optional
-        If True, will raise an error if any values if `array` are not finite.
-        Default is False, which skips the check. Note that errors may occur if
-        `check_finite` is False and the input data contains non-finite values.
-    assume_sorted : bool, optional
-        If False (default), will sort the input `x_data` values. Otherwise, the
-        input is assumed to be sorted. Note that some functions may raise an error
-        if `x_data` is not sorted.
-    output_dtype : type or numpy.dtype, optional
-        The dtype to cast the output array. Default is None, which uses the typing
-        of the input data.
-
-    """
+    """A base class for all classification algorithms."""
 
     @_Algorithm._register(sort_keys=('mask',))
     def golotvin(self, data, half_window=None, num_std=2.0, sections=32, smooth_half_window=None,

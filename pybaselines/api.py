@@ -17,6 +17,27 @@ class Baseline(
     """
     A class for all baseline correction algorithms.
 
+    Contains all available baseline correction algorithms in pybaselines as methods to
+    allow a single interface for easier usage.
+
+    Parameters
+    ----------
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 during the first function call with length equal to the
+        input data length.
+    check_finite : bool, optional
+        If True (default), will raise an error if any values in input data are not finite.
+        Setting to False will skip the check. Note that errors may occur if
+        `check_finite` is False and the input data contains non-finite values.
+    assume_sorted : bool, optional
+        If False (default), will sort the input `x_data` values. Otherwise, the
+        input is assumed to be sorted. Note that some functions may raise an error
+        if `x_data` is not sorted.
+    output_dtype : type or numpy.dtype, optional
+        The dtype to cast the output array. Default is None, which uses the typing
+        of the input data.
+
     Attributes
     ----------
     poly_order : int
@@ -31,12 +52,12 @@ class Baseline(
     whittaker_system : pybaselines._banded_utils.PenalizedSystem or None
         The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
         algorithms. Is None if no Whittaker setup has been performed.
-    x : numpy.ndarray
-        The x-values for the object. If initialized with `x_data` as None, then `x` is
-        initialized the first function call to have the same length as the input `data`
-        and has min and max values of -1 and 1, respectively.
+    x : numpy.ndarray or None
+        The x-values for the object. If initialized with None, then `x` is initialized the
+        first function call to have the same length as the input `data` and has min and max
+        values of -1 and 1, respectively.
     x_domain : numpy.ndarray
-        The minimum and maximum values of `x`. If `x` is None during initialization, then
-        is set to ``numpy.ndarray([-1, 1])``.
+        The minimum and maximum values of `x`. If `x_data` is None during initialization, then
+        set to numpy.ndarray([-1, 1]).
 
     """

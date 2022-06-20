@@ -50,12 +50,12 @@ class _Algorithm:
         The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
         algorithms. Is None if no Whittaker setup has been performed (typically done in
         :meth:`_setup_whittaker`).
-    x : numpy.ndarray
+    x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same length as the input `data` and has min and max
         values of -1 and 1, respectively.
     x_domain : numpy.ndarray
-        The minimum and maximum values of `x`. If `x` is None during initialization, then
+        The minimum and maximum values of `x`. If `x_data` is None during initialization, then
         set to numpy.ndarray([-1, 1]).
 
     """
@@ -72,8 +72,8 @@ class _Algorithm:
             array from -1 to 1 during the first function call with length equal to the
             input data length.
         check_finite : bool, optional
-            If True, will raise an error if any values if `array` are not finite.
-            Default is False, which skips the check. Note that errors may occur if
+            If True (default), will raise an error if any values in input data are not finite.
+            Setting to False will skip the check. Note that errors may occur if
             `check_finite` is False and the input data contains non-finite values.
         assume_sorted : bool, optional
             If False (default), will sort the input `x_data` values. Otherwise, the

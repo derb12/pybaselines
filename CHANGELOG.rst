@@ -3,7 +3,7 @@ Changelog
 =========
 
 Version 1.0.0 (Unreleased)
--------------------------
+--------------------------
 
 This is a major version with new features, bug fixes, deprecations,
 and documentation improvements.
