@@ -11,7 +11,9 @@ from .spline import _Spline
 from .whittaker import _Whittaker
 
 
-class Baseline(_Classification, _Misc, _Morphological, _Optimizers, _Polynomial, _Smooth, _Spline, _Whittaker):
+class Baseline(
+    _Classification, _Misc, _Morphological, _Optimizers, _Polynomial, _Smooth, _Spline, _Whittaker
+):
     """
     A class for all baseline correction algorithms.
 

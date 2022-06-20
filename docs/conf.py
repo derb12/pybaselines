@@ -131,7 +131,7 @@ autoapi_options = [
     #'private_members', # show private objects (_variable)
     'show-inheritance',
     'show-module-summary',
-    'special-members', # show things like __str__
+    #'special-members', # show things like __str__
     #'imported-members', # document things imported within each module
 ]
 autoapi_member_order = 'groupwise' # groups into classes, functions, etc.
@@ -199,7 +199,9 @@ else:
 # theme further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    'navigation_depth': 8,
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
