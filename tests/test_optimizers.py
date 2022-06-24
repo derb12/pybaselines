@@ -62,7 +62,7 @@ class OptimizersTester(BaseTester):
     """Base testing class for optimizer functions."""
 
     module = optimizers
-    algorithm_base = optimizers.Optimizers
+    algorithm_base = optimizers._Optimizers
 
 
 class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
@@ -236,7 +236,7 @@ def test_determine_polyorders(baseline_ptp):
     assert_allclose(np.ptp(true_baseline), baseline_ptp, 0, 1e-3)
     assert_allclose(np.ptp(y), 1, 0, 1e-3)
 
-    fitter = polynomial.Polynomial(x, check_finite=False, assume_sorted=True)
+    fitter = polynomial._Polynomial(x, check_finite=False, assume_sorted=True)
 
     fit_baseline = fitter.modpoly(y + true_baseline, poly_order=1)[0]
     # sanity check to make sure internal baseline fit was correct

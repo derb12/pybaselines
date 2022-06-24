@@ -21,7 +21,7 @@ class MorphologicalTester(BaseTester):
     """Base testing class for morphological functions."""
 
     module = morphological
-    algorithm_base = morphological.Morphological
+    algorithm_base = morphological._Morphological
     checked_keys = ('half_window',)
 
 

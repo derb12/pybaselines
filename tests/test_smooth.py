@@ -19,7 +19,7 @@ class SmoothTester(BaseTester):
     """Base testing class for whittaker functions."""
 
     module = smooth
-    algorithm_base = smooth.Smooth
+    algorithm_base = smooth._Smooth
 
 
 class TestNoiseMedian(SmoothTester):

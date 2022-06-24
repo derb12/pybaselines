@@ -141,7 +141,7 @@ class SplineTester(BaseTester):
     """Base testing class for spline functions."""
 
     module = spline
-    algorithm_base = spline.Spline
+    algorithm_base = spline._Spline
 
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin):

@@ -22,7 +22,7 @@ class WhittakerTester(BaseTester, InputWeightsMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    algorithm_base = whittaker.Whittaker
+    algorithm_base = whittaker._Whittaker
     checked_keys = ('weights', 'tol_history')
 
     @has_pentapy

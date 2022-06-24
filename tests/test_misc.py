@@ -22,7 +22,7 @@ class MiscTester(BaseTester):
     """Base testing class for miscellaneous functions."""
 
     module = misc
-    algorithm_base = misc.Misc
+    algorithm_base = misc._Misc
 
 
 class TestInterpPts(MiscTester):
