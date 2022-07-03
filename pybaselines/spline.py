@@ -106,7 +106,7 @@ class _Spline(_Algorithm):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         # scale y between -1 and 1 so that the residual fit is more numerically stable
@@ -273,7 +273,7 @@ class _Spline(_Algorithm):
         if not 0 < quantile < 1:
             raise ValueError('quantile must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         old_coef = np.zeros(self.pspline._num_bases)
@@ -317,7 +317,7 @@ class _Spline(_Algorithm):
         Construction. Analyst, 2015, 140(23), 7984-7996.
 
         """
-        y, mask = self._setup_splines(data, make_basis=False)
+        y, mask = self._setup_spline(data, make_basis=False)
         mask = mask.astype(bool, copy=False)
 
         areas = np.zeros(max_iter)
@@ -443,7 +443,7 @@ class _Spline(_Algorithm):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
@@ -540,7 +540,7 @@ class _Spline(_Algorithm):
             baseline = self.vandermonde @ (pseudo_inverse @ data)
             weights = _weighting._asls(data, baseline, p)
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
 
@@ -628,7 +628,7 @@ class _Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam, copy_weights=True
         )
 
@@ -732,7 +732,7 @@ class _Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
@@ -820,7 +820,7 @@ class _Spline(_Algorithm):
         elif diff_order < 2:
             raise ValueError('diff_order must be 2 or greater')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam,
             allow_lower=False, reverse_diags=False
         )
@@ -926,7 +926,7 @@ class _Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
@@ -1026,7 +1026,7 @@ class _Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam,
             allow_lower=False, reverse_diags=True
         )
@@ -1136,7 +1136,7 @@ class _Spline(_Algorithm):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         if k is None:
@@ -1240,7 +1240,7 @@ class _Spline(_Algorithm):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         if k is None:

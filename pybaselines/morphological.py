@@ -754,7 +754,7 @@ class _Morphological(_Algorithm):
         elif not 0 <= p <= 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam_smooth
         )
 

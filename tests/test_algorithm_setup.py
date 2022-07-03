@@ -238,10 +238,10 @@ def test_setup_classification_weights(small_data, algorithm, weight_enum):
 @pytest.mark.parametrize('num_knots', (5, 15, 100))
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))
 @pytest.mark.parametrize('penalized', (True, False))
-def test_setup_splines_spline_basis(small_data, num_knots, spline_degree, penalized):
+def test_setup_spline_spline_basis(small_data, num_knots, spline_degree, penalized):
     """Ensures the spline basis function is correctly created."""
     fitter = _algorithm_setup._Algorithm(np.arange(len(small_data)))
-    _ = fitter._setup_splines(
+    _ = fitter._setup_spline(
         small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
         penalized=True
     )
@@ -260,10 +260,10 @@ def test_setup_splines_spline_basis(small_data, num_knots, spline_degree, penali
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))
 @pytest.mark.parametrize('num_knots', (5, 50, 100))
-def test_setup_splines_diff_matrix(small_data, lam, diff_order, spline_degree, num_knots):
+def test_setup_spline_diff_matrix(small_data, lam, diff_order, spline_degree, num_knots):
     """Ensures output difference matrix diagonal data is in desired format."""
     fitter = _algorithm_setup._Algorithm(np.arange(len(small_data)))
-    _ = fitter._setup_splines(
+    _ = fitter._setup_spline(
         small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
         penalized=True, diff_order=diff_order, lam=lam
     )
@@ -281,7 +281,7 @@ def test_setup_splines_diff_matrix(small_data, lam, diff_order, spline_degree, n
 @pytest.mark.filterwarnings('ignore::UserWarning')
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))
 @pytest.mark.parametrize('num_knots', (5, 50, 100))
-def test_setup_splines_too_high_diff_order(small_data, spline_degree, num_knots):
+def test_setup_spline_too_high_diff_order(small_data, spline_degree, num_knots):
     """
     Ensures an exception is raised when the difference order is >= number of basis functions.
 
@@ -291,69 +291,69 @@ def test_setup_splines_too_high_diff_order(small_data, spline_degree, num_knots)
     """
     diff_order = num_knots + spline_degree - 1
     with pytest.raises(ValueError):
-        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
             penalized=True, diff_order=diff_order
         )
 
     diff_order += 1
     with pytest.raises(ValueError):
-        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
             penalized=True, diff_order=diff_order
         )
 
 
 @pytest.mark.parametrize('num_knots', (0, 1))
-def test_setup_splines_too_few_knots(small_data, num_knots):
+def test_setup_spline_too_few_knots(small_data, num_knots):
     """Ensures an error is raised if the number of knots is less than 2."""
     with pytest.raises(ValueError):
-        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, weights=None, spline_degree=3, num_knots=num_knots,
             penalized=True, diff_order=1
         )
 
 
-def test_setup_splines_wrong_weight_shape(small_data):
+def test_setup_spline_wrong_weight_shape(small_data):
     """Ensures that an exception is raised if input weights and data are different shapes."""
     weights = np.ones(small_data.shape[0] + 1)
     with pytest.raises(ValueError):
-        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, weights=weights
         )
 
 
 @pytest.mark.parametrize('diff_order', (0, -1))
-def test_setup_splines_diff_matrix_fails(small_data, diff_order):
-    """Ensures using a diff_order < 1 with _setup_splines raises an exception."""
+def test_setup_spline_diff_matrix_fails(small_data, diff_order):
+    """Ensures using a diff_order < 1 with _setup_spline raises an exception."""
     with pytest.raises(ValueError):
-        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, diff_order=diff_order
         )
 
 
 @pytest.mark.parametrize('diff_order', (5, 6))
-def test_setup_splines_diff_matrix_warns(small_data, diff_order):
-    """Ensures using a diff_order > 4 with _setup_splines raises a warning."""
+def test_setup_spline_diff_matrix_warns(small_data, diff_order):
+    """Ensures using a diff_order > 4 with _setup_spline raises a warning."""
     with pytest.warns(ParameterWarning):
-        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, diff_order=diff_order
         )
 
 
-def test_setup_splines_negative_lam_fails(small_data):
+def test_setup_spline_negative_lam_fails(small_data):
     """Ensures a negative lam value fails."""
     with pytest.raises(ValueError):
-        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, lam=-1
         )
 
 
-def test_setup_splines_array_lam(small_data):
+def test_setup_spline_array_lam(small_data):
     """Ensures a lam that is a single array passes while larger arrays fail."""
-    _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(small_data, lam=[1])
+    _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(small_data, lam=[1])
     with pytest.raises(ValueError):
-        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_splines(
+        _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, lam=[1, 2]
         )
 
@@ -719,7 +719,7 @@ def test_override_x_spline(algorithm):
     spline_degree = 2
     new_spline_degree = 3
 
-    algorithm._setup_splines(np.arange(old_len), spline_degree=spline_degree)
+    algorithm._setup_spline(np.arange(old_len), spline_degree=spline_degree)
     # sanity check
     assert algorithm.pspline.spline_degree == spline_degree
     old_basis = algorithm.pspline.basis.toarray().copy()
@@ -728,7 +728,7 @@ def test_override_x_spline(algorithm):
     new_x = np.arange(new_len)
     with algorithm._override_x(new_x) as new_algorithm:
         assert new_algorithm.pspline is None
-        new_algorithm._setup_splines(np.arange(new_len), spline_degree=new_spline_degree)
+        new_algorithm._setup_spline(np.arange(new_len), spline_degree=new_spline_degree)
         assert new_algorithm.pspline.spline_degree == new_spline_degree
         assert old_basis.shape != algorithm.pspline.basis.shape
 
