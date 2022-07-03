@@ -365,7 +365,7 @@ def _spline_basis(x, knots, spline_degree=3):
 
     Returns
     -------
-    numpy.ndarray, shape (N, K - `spline_degree` - 1)
+    scipy.sparse.csr.csr_matrix, shape (N, K - `spline_degree` - 1)
         The matrix of basis functions for the spline.
 
     Notes
@@ -641,7 +641,7 @@ class PSpline(PenalizedSystem):
 
     Attributes
     ----------
-    basis : numpy.ndarray, shape (N, M)
+    basis : scipy.sparse.csr.csr_matrix, shape (N, M)
         The spline basis. Has a shape of (`N,` `M`), where `N` is the number of points
         in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots + spline_degree - 1``).

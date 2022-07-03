@@ -261,6 +261,12 @@ class _Algorithm:
         old_x_domain = self.x_domain
         old_sort_order = self._sort_order
         old_inverted_order = self._inverted_order
+        # also have to reset any sized attributes to force recalculation for new x
+        old_poly_order = self.poly_order
+        old_vandermonde = self.vandermonde
+        old_whittaker_system = self.whittaker_system
+        old_pspline = self.pspline
+
         try:
             self.x = _check_array(new_x, check_finite=self._check_finite)
             self._len = len(self.x)
@@ -271,6 +277,11 @@ class _Algorithm:
             else:
                 self._inverted_order = None
 
+            self.vandermonde = None
+            self.poly_order = -1
+            self.whittaker_system = None
+            self.pspline = None
+
             yield self
 
         finally:
@@ -279,6 +290,10 @@ class _Algorithm:
             self.x_domain = old_x_domain
             self._sort_order = old_sort_order
             self._inverted_order = old_inverted_order
+            self.vandermonde = old_vandermonde
+            self.poly_order = old_poly_order
+            self.whittaker_system = old_whittaker_system
+            self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
                          allow_lower=True, reverse_diags=None):
