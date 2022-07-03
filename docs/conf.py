@@ -255,9 +255,9 @@ latex_documents = [
 # If true, show page references after internal links.
 latex_show_pagerefs = True
 
-# If true, show URL addresses after external links.
 # 'footnote' puts the URL addresses at the footnote.
-latex_show_urls = 'footnote'
+# 'inline' displays URLS inline in parentheses
+latex_show_urls = 'inline'
 
 # Documents to append as an appendix to all manuals.
 #latex_appendices = []
