@@ -218,18 +218,18 @@ class _Optimizers(_Algorithm):
 
         Notes
         -----
-        Based on the extended range penalized least squares (erPLS) method from [1]_.
-        The method proposed by [1]_ was for optimizing lambda only for the aspls
+        Based on the extended range penalized least squares (erPLS) method from [5]_.
+        The method proposed by [5]_ was for optimizing lambda only for the aspls
         method by extending only the right side of the spectrum. The method was
-        modified by allowing extending either side following [2]_, and for optimizing
+        modified by allowing extending either side following [6]_, and for optimizing
         lambda or the polynomial degree for all of the affected algorithms in
         pybaselines.
 
         References
         ----------
-        .. [1] Zhang, F., et al. An Automatic Baseline Correction Method Based on
+        .. [5] Zhang, F., et al. An Automatic Baseline Correction Method Based on
             the Penalized Least Squares Method. Sensors, 2020, 20(7), 2015.
-        .. [2] Krishna, H., et al. Range-independent background subtraction algorithm
+        .. [6] Krishna, H., et al. Range-independent background subtraction algorithm
             for recovery of Raman spectra of biological tissue. Journal of Raman
             Spectroscopy. 2012, 43(12), 1884-1894.
 
@@ -377,7 +377,7 @@ class _Optimizers(_Algorithm):
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
-            and then select the appropriate polynomial orders according to [3]_.
+            and then select the appropriate polynomial orders according to [7]_.
         method : {'modpoly', 'imodpoly'}, optional
             The method to use for fitting each polynomial. Default is 'modpoly'.
         weights : array-like, shape (N,), optional
@@ -420,7 +420,7 @@ class _Optimizers(_Algorithm):
 
         References
         ----------
-        .. [3] Cao, A., et al. A robust method for automated background subtraction
+        .. [7] Cao, A., et al. A robust method for automated background subtraction
             of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
             1199-1205.
 

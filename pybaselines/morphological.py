@@ -38,7 +38,7 @@ class _Morphological(_Algorithm):
             Default is 1e6.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Anchor points
-            identified by the procedure in [1]_ are given a weight of `1 - p`, and all
+            identified by the procedure in [4]_ are given a weight of `1 - p`, and all
             other points have a weight of `p`. Default is 0.0.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
@@ -49,7 +49,7 @@ class _Morphological(_Algorithm):
             The exit criteria. Default is 1e-3.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the weights will be
-            calculated following the procedure in [1]_.
+            calculated following the procedure in [4]_.
         **window_kwargs
             Values for setting the half window used for the morphology operations.
             Items include:
@@ -88,7 +88,7 @@ class _Morphological(_Algorithm):
 
         References
         ----------
-        .. [1] Li, Zhong, et al. Morphological weighted penalized least squares for
+        .. [4] Li, Zhong, et al. Morphological weighted penalized least squares for
             background correction. Analyst, 2013, 138, 4483-4492.
 
         """

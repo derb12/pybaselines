@@ -232,7 +232,7 @@ class _Misc(_Algorithm):
         References
         ----------
         .. [1] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-            (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+            (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
         .. [2] Navarro-Huerta, J.A., et al. Assisted baseline subtraction in complex chromatograms
             using the BEADS algorithm. Journal of Chromatography A, 2017, 1507, 1-10.
         .. [3] https://github.com/skotaro/pybeads.
@@ -616,7 +616,7 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     """
     if not 0 < freq_cutoff < 0.5:
@@ -696,7 +696,7 @@ def _beads_theta(x, asymmetry=6, eps_0=1e-6):
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     """
     abs_x = np.abs(x)
@@ -741,7 +741,7 @@ def _beads_loss(x, use_v2=True, eps_1=1e-6):
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
 
     """
@@ -784,7 +784,7 @@ def _beads_weighting(x, use_v2=True, eps_1=1e-6):
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     """
     if use_v2:
@@ -901,7 +901,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     https://www.mathworks.com/matlabcentral/fileexchange/49974-beads-baseline-estimation-
     and-denoising-with-sparsity.
@@ -1051,7 +1051,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     https://www.mathworks.com/matlabcentral/fileexchange/49974-beads-baseline-estimation-
     and-denoising-with-sparsity.
@@ -1253,7 +1253,7 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
     References
     ----------
     .. [1] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-           (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+           (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
     .. [2] Navarro-Huerta, J.A., et al. Assisted baseline subtraction in complex chromatograms
            using the BEADS algorithm. Journal of Chromatography A, 2017, 1507, 1-10.
     .. [3] https://github.com/skotaro/pybeads.
