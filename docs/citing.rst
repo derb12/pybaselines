@@ -16,6 +16,12 @@ research:
       version = {0.8.0}
     }
 
+The resulting citation would look something like:
+
+.. code-block:: text
+
+    Erb, D. (2022). pybaselines: A Python library of algorithms for the baseline correction of
+    experimental data. https://doi.org/10.5281/zenodo.5608581.
 
 The above DOI is valid for all versions of pybaselines. If citing a specific version,
 the DOI can be found on the project's Zenodo page: https://doi.org/10.5281/zenodo.5608581.

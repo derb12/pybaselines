@@ -156,6 +156,7 @@ gallery_section_order = [
     '../examples/morphological',
     '../examples/spline',
     '../examples/classification',
+    '../examples/misc'
 ]
 
 sphinx_gallery_conf = {

@@ -13,16 +13,15 @@ A simple example is shown below.
     Beginning in version 1.0.0, pybaselines introduced a class-based api
     which allows for easier usage and allows all algorithms to be called from
     the :class:`.Baseline` object. If using an earlier version, refer to the
-    :ref:`quickstart:Pre-Version-1.0.0 Quick Start` section below.
+    :ref:`quickstart:Pre-Version-1.0.0 Quick Start` section below or the
+    `old documentation <https://pybaselines.readthedocs.io/en/v0.8.0/>`_.
 
 
 .. code-block:: python
 
     import matplotlib.pyplot as plt
     import numpy as np
-    import pybaselines
-    from pybaselines import utils
-    from pybaselines.api import Baseline
+    from pybaselines import Baseline, utils
 
     x = np.linspace(1, 1000, 1000)
     # a measured signal containing several Gaussian peaks
