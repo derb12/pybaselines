@@ -8,8 +8,8 @@ Whittaker-smoothing-based algorithms implemented in pybaselines. The reason
 for doing so was that P-splines offer additional user flexibility when choosing
 parameters for fitting and more easily work for unequally spaced data. This example
 will examine the relationship of `lam` versus the number of data points when fitting
-a baseline with the :func:`.arpls` function and its P-spline version,
-:func:`.pspline_arpls`.
+a baseline with the :meth:`.arpls` function and its P-spline version,
+:meth:`.pspline_arpls`.
 
 Note that the exact optimal `lam` values reported in this example are not of significant
 use since they depend on many other factors such as the baseline curvature, noise, peaks,

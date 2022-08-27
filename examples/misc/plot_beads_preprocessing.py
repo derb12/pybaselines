@@ -3,7 +3,7 @@
 Preprocessing for beads
 -----------------------
 
-The Baseline Estimation And Denoising with Sparsity (:func:`.beads`) algorithm is a
+The Baseline Estimation And Denoising with Sparsity (:meth:`.beads`) algorithm is a
 robust method for both performing baseline subtraction and removing noise. One of the
 main drawbacks of the original algorithm is that it requires that both ends of
 the data to be at zero. This example will explore the consequences of this as

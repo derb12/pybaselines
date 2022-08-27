@@ -65,7 +65,7 @@ Algorithms
 dietrich (Dietrich's Classification Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.dietrich` calculates the power spectrum of the data as the squared derivative
+:meth:`.dietrich` calculates the power spectrum of the data as the squared derivative
 of the data. Then baseline points are identified by iteratively removing points where
 the mean of the power spectrum is less a multiple of the standard deviation of the
 power spectrum. The baseline is created by first interpolating through all baseline
@@ -169,7 +169,7 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
 golotvin (Golotvin's Classification Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.golotvin` divides the data into sections and takes the minimum standard
+:meth:`.golotvin` divides the data into sections and takes the minimum standard
 deviation of all the sections as the noise's standard deviation for the entire data.
 Then classifies any point where the rolling max minus min is less than a multiple of
 the noise's standard deviation as belonging to the baseline.
@@ -195,7 +195,7 @@ the noise's standard deviation as belonging to the baseline.
 std_distribution (Standard Deviation Distribution)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.std_distribution` identifies baseline segments by analyzing the rolling
+:meth:`.std_distribution` identifies baseline segments by analyzing the rolling
 standard deviation distribution. The rolling standard deviations are split into two
 distributions, with the smaller distribution assigned to noise. Baseline points are
 then identified as any point where the rolled standard deviation is less than a multiple
@@ -223,8 +223,8 @@ of the median of the noise's standard deviation distribution.
 fastchrom (FastChrom's Baseline Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.fastchrom` identifies baseline segments by analyzing the rolling standard
-deviation distribution, similar to :func:`std_distribution`. Baseline points are
+:meth:`.fastchrom` identifies baseline segments by analyzing the rolling standard
+deviation distribution, similar to :meth:`.std_distribution`. Baseline points are
 identified as any point where the rolling standard deviation is less than the specified
 threshold, and peak regions are iteratively interpolated until the baseline is below the data.
 
@@ -248,7 +248,7 @@ threshold, and peak regions are iteratively interpolated until the baseline is b
 cwt_br (Continuous Wavelet Transform Baseline Recognition)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.cwt_br` identifies baseline segments by performing a continous wavelet
+:meth:`.cwt_br` identifies baseline segments by performing a continous wavelet
 transform (CWT) on the input data at various scales, and picks the scale with the first
 local minimum in the Shannon entropy. The threshold for baseline points is obtained by fitting
 a Gaussian to the histogram of the CWT at the optimal scale, and the final baseline is fit
@@ -283,8 +283,8 @@ other points have a weight of 0.
 fabc (Fully Automatic Baseline Correction)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.fabc` identifies baseline segments by thresholding the squared first derivative
-of the data, similar to :func:`dietrich`. However, fabc approximates the first derivative
+:meth:`.fabc` identifies baseline segments by thresholding the squared first derivative
+of the data, similar to :meth:`.dietrich`. However, fabc approximates the first derivative
 using a continous wavelet transform with the Haar wavelet, which is more robust to noise
 than the numerical derivative in Dietrich's method. The baseline is then fit using
 Whittaker smoothing with all baseline points having a weight of 1 and all other points

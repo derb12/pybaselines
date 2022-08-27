@@ -8,8 +8,8 @@ in the experimental data, which can lead to an underestimation of the baseline.
 This example will show how to reduce this issue by simply smoothing the data
 before performing baseline correction.
 
-Two algorithms will be compared: :func:`.modpoly`, which is not suited for noisy
-data, and :func:`.imodpoly`, which is a modification of the modpoly algorithm
+Two algorithms will be compared: :meth:`.modpoly`, which is not suited for noisy
+data, and :meth:`.imodpoly`, which is a modification of the modpoly algorithm
 created specifically to address noise.
 
 """

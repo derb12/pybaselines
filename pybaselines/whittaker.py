@@ -675,7 +675,7 @@ class _Whittaker(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :func:`.asls`.
+            will produce similar results to :meth:`.asls`.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -768,7 +768,7 @@ class _Whittaker(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :func:`.asls`.
+            will produce similar results to :meth:`.asls`.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -1297,7 +1297,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :func:`.asls`.
+        will produce similar results to :meth:`.asls`.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
@@ -1371,7 +1371,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :func:`.asls`.
+        will produce similar results to :meth:`.asls`.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.

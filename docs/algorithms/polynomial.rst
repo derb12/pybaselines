@@ -234,7 +234,7 @@ As seen above, both ways produce the same resulting baseline, but the second way
 (setting weights) is much easier and faster since the baseline is directly calculated.
 
 The only algorithm in pybaselines that requires using selective masking is
-:func:`.poly`, which is normal polynomial least-squares fitting as described
+:meth:`.poly`, which is normal polynomial least-squares fitting as described
 above. However, all other polynomial techniques allow inputting custom weights
 in order to get better fits or to reduce the number of iterations.
 
@@ -296,15 +296,15 @@ The figure below illustrates the iterative thresholding.
     plt.show()
 
 
-The algorithms in pybaselines that use thresholding are :func:`.modpoly`,
-:func:`.imodpoly`, and :func:`.loess` (if ``use_threshold`` is True).
+The algorithms in pybaselines that use thresholding are :meth:`.modpoly`,
+:meth:`.imodpoly`, and :meth:`.loess` (if ``use_threshold`` is True).
 
 Penalyzing Outliers
 ~~~~~~~~~~~~~~~~~~~
 
 The algorithms in pybaselines that penalyze outliers are
-:func:`.penalized_poly`, which incorporate the penalty directly into the
-minimized cost function, and :func:`.loess` (if ``use_threshold`` is False),
+:meth:`.penalized_poly`, which incorporate the penalty directly into the
+minimized cost function, and :meth:`.loess` (if ``use_threshold`` is False),
 which incorporates penalties by applying lower weights to outliers. Refer
 to the particular algorithms below for more details.
 
@@ -315,7 +315,7 @@ Algorithms
 poly (Regular Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.poly` is simple least-squares polynomial fitting. Use selective
+:meth:`.poly` is simple least-squares polynomial fitting. Use selective
 masking, as described above, in order to use it for baseline fitting.
 
 Note that the plots below are just the least-squared polynomial fitting
@@ -413,7 +413,7 @@ of the data since masking is time-consuming.
 modpoly (Modified Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.modpoly` uses thresholding, as explained above, to iteratively fit a polynomial
+:meth:`.modpoly` uses thresholding, as explained above, to iteratively fit a polynomial
 baseline to data. `modpoly` is also sometimes called "ModPolyFit" in literature, and both
 `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterative Polynomial Fit".
 
@@ -434,7 +434,7 @@ baseline to data. `modpoly` is also sometimes called "ModPolyFit" in literature,
 imodpoly (Improved Modified Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.imodpoly` is an attempt to improve the modpoly algorithm for noisy data,
+:meth:`.imodpoly` is an attempt to improve the modpoly algorithm for noisy data,
 by including the standard deviation of the residual (data - baseline) when performing
 the thresholding. The number of standard deviations included in the thresholding can
 be adjusted by setting ``num_std``. `imodpoly` is also sometimes called "IModPolyFit" in literature,
@@ -462,7 +462,7 @@ and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterati
 penalized_poly (Penalized Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.penalized_poly` (sometimes referred to as "backcor" in literature) fits a
+:meth:`.penalized_poly` (sometimes referred to as "backcor" in literature) fits a
 polynomial baseline to data using non-quadratic cost functions. Compared to the quadratic
 cost function used in typical least-squares as discussed above, non-quadratic cost funtions
 allow outliers above a user-defined threshold to have less effect on the fit. pentalized_poly
@@ -577,7 +577,7 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
 loess (Locally Estimated Scatterplot Smoothing)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.loess` (sometimes referred to as "rbe" or "robust baseline estimate" in literature)
+:meth:`.loess` (sometimes referred to as "rbe" or "robust baseline estimate" in literature)
 is similar to `traditional loess/lowess <https://en.wikipedia.org/wiki/Local_regression>`_
 but adapted for fitting the baseline. The baseline at each point is estimated by using
 polynomial regression on the k-nearest neighbors of the point, and the effect of outliers
@@ -619,7 +619,7 @@ is reduced by iterative reweighting.
 quant_reg (Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.quant_reg` fits a polynomial to the baseline using quantile regression.
+:meth:`.quant_reg` fits a polynomial to the baseline using quantile regression.
 
 .. plot::
    :align: center
@@ -641,8 +641,8 @@ quant_reg (Quantile Regression)
 goldindec (Goldindec Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.goldindec` fits a polynomial baseline to data using non-quadratic cost functions,
-similar to :func:`.penalized_poly`, except that it only allows asymmetric cost functions.
+:meth:`.goldindec` fits a polynomial baseline to data using non-quadratic cost functions,
+similar to :meth:`.penalized_poly`, except that it only allows asymmetric cost functions.
 The optimal threshold value between quadratic and non-quadratic loss is iteratively optimized
 based on the input `peak_ratio` value.
 

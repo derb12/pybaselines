@@ -726,7 +726,7 @@ class _Classification(_Algorithm):
 
         Notes
         -----
-        The classification of baseline points is similar to :func:`dietrich`, except that
+        The classification of baseline points is similar to :meth:`.dietrich`, except that
         this method approximates the first derivative using a continous wavelet transform
         with the Haar wavelet, which is more robust than the numerical derivative in
         Dietrich's method.
@@ -1561,7 +1561,7 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
 
     Notes
     -----
-    The classification of baseline points is similar to :func:`dietrich`, except that
+    The classification of baseline points is similar to :meth:`.dietrich`, except that
     this method approximates the first derivative using a continous wavelet transform
     with the Haar wavelet, which is more robust than the numerical derivative in
     Dietrich's method.

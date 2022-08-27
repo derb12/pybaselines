@@ -530,7 +530,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
         * 'average_alpha': numpy.ndarray, shape (N,)
             Only returned if `method` is 'aspls' or 'pspline_aspls'. The
             `alpha` array used to fit all of the baselines for the
-            :func:`.aspls` or :func:`.pspline_aspls` methods.
+            :meth:`.aspls` or :meth:`.pspline_aspls` methods.
 
         Additional items depend on the output of the selected method. Every
         other key will have a list of values, with each item corresponding to a
@@ -750,8 +750,8 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         to select the appropriate polynomial orders if `poly_order` is None.
         Default is 2.
     method_kwargs : dict, optional
-        Additional keyword arguments to pass to :func:`.modpoly` or
-        :func:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
+        Additional keyword arguments to pass to :meth:`.modpoly` or
+        :meth:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
         `mask_initial_peaks`, and `num_std`.
 
     Returns

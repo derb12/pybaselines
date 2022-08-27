@@ -21,7 +21,7 @@ Algorithms
 noise_median (Noise Median method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.noise_median` estimates the baseline as the median value within
+:meth:`.noise_median` estimates the baseline as the median value within
 a moving window. The resulting baseline is then smoothed by convolving with a Gaussian
 kernel. Note that this method does not perform well for tightly-grouped peaks.
 
@@ -123,7 +123,7 @@ kernel. Note that this method does not perform well for tightly-grouped peaks.
 snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.snip` iteratively takes the element-wise minimimum of each value
+:meth:`.snip` iteratively takes the element-wise minimimum of each value
 and the average of the values at the left and right edge of a window centered
 at the value. The size of the half-window is incrementally increased from 1 to the
 specified maximum size, which should be set to approximately half of the
@@ -167,7 +167,7 @@ data. The baselines when using decreasing window size and smoothing is shown bel
 swima (Small-Window Moving Average)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.swima` iteratively takes the element-wise minimum of either the
+:meth:`.swima` iteratively takes the element-wise minimum of either the
 data (first iteration) or the previous iteration's baseline and the data/previous baseline
 smoothed with a moving average. The window used for the moving average smoothing is
 incrementally increased to smooth peaks until convergence is reached.
@@ -190,7 +190,7 @@ incrementally increased to smooth peaks until convergence is reached.
 ipsa (Iterative Polynomial Smoothing Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.ipsa` iteratively smooths the input data using a second-order
+:meth:`.ipsa` iteratively smooths the input data using a second-order
 Savitzky–Golay filter until the exit criteria is reached.
 
 .. plot::
@@ -210,7 +210,7 @@ Savitzky–Golay filter until the exit criteria is reached.
 ria (Range Independent Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.ria` first extrapolates a linear baseline from the left and/or
+:meth:`.ria` first extrapolates a linear baseline from the left and/or
 right edges of the data and adds Gaussian peaks to these baselines, similar to the
 :ref:`optimize_extended_range <extending-data-explanation>` function, and
 records their initial areas. The data is then iteratively smoothed using a

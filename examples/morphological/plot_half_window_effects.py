@@ -6,7 +6,7 @@
 This example shows the influence of the `half_window` parameter that is used when
 fitting any morphological algorithm.
 
-For this example, the :func:`.mor` algorithm will be used, which is a relatively
+For this example, the :meth:`.mor` algorithm will be used, which is a relatively
 robust baseline algorithm.
 
 """

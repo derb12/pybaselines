@@ -3,7 +3,7 @@
 fastchrom threshold
 -------------------
 
-:func:`.fastchrom` classifies baseline points based on their rolling standard
+:meth:`.fastchrom` classifies baseline points based on their rolling standard
 deviation value.
 The default threshold for fastchrom is set to the fifteenth percentile of the rolling
 standard deviation distribution. This default is rather conservative in assigning

@@ -11,7 +11,7 @@ Algorithms
 interp_pts (Interpolation between points)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.interp_pts` interpolates between input points using line segments
+:meth:`.interp_pts` interpolates between input points using line segments
 or splines of different orders. The function is mainly intended for usage
 with user interfaces and is not encouraged otherwise.
 
@@ -70,7 +70,7 @@ since it solely depends on the user-defined anchor points.
 beads (Baseline Estimation And Denoising with Sparsity)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.beads` decomposes the input data into baseline and pure, noise-free signal by
+:meth:`.beads` decomposes the input data into baseline and pure, noise-free signal by
 modeling the baseline as a low pass filter and by considering the signal and its derivatives
 as sparse.
 

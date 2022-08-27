@@ -8,7 +8,7 @@ fitting any algorithm that is based on Whittaker-smoothing. Note that the
 exact `lam` values used in this example are unimportant, just the changes
 in their scale.
 
-For this example, the :func:`.arpls` algorithm will be used, which performs
+For this example, the :meth:`.arpls` algorithm will be used, which performs
 well in the presence of noise.
 
 """

@@ -11,8 +11,8 @@ Introduction
 Whittaker-smoothing-based (WSB) algorithms are usually referred to in literature
 as weighted least squares, penalized least squares, or asymmetric least squares,
 but are referred to as WSB in pybaselines to distinguish them from polynomial
-techniques that also take advantage of weighted least squares (like :func:`.loess`)
-and penalized least squares (like :func:`.penalized_poly`).
+techniques that also take advantage of weighted least squares (like :meth:`.loess`)
+and penalized least squares (like :meth:`.penalized_poly`).
 
 The general idea behind WSB algorithms is to make the baseline match the measured
 data as well as it can while also penalizing the roughness of the baseline. The
@@ -80,7 +80,7 @@ Algorithms
 asls (Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The :func:`.asls` (sometimes called "ALS" in literature) function is the
+The :meth:`.asls` (sometimes called "ALS" in literature) function is the
 original implementation of Whittaker smoothing for baseline fitting.
 
 Minimized function:
@@ -204,7 +204,7 @@ Weighting:
 iasls (Improved Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.iasls` is an attempt to improve the asls algorithm by considering
+:meth:`.iasls` is an attempt to improve the asls algorithm by considering
 both the roughness of the baseline and the first derivative of the residual
 (data - baseline).
 
@@ -258,7 +258,7 @@ Weighting:
 airpls (Adaptive Iteratively Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.airpls` uses an exponential weighting of the negative residuals to
+:meth:`.airpls` uses an exponential weighting of the negative residuals to
 attempt to provide a better fit than the asls method.
 
 Minimized function:
@@ -298,7 +298,7 @@ values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z
 arpls (Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.arpls` uses a single weighting function that is designed to account
+:meth:`.arpls` uses a single weighting function that is designed to account
 for noisy data.
 
 Minimized function:
@@ -340,7 +340,7 @@ deviation, respectively, of the negative values in the residual vector :math:`\m
 drpls (Doubly Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.drpls` uses a single weighting function that is designed to account
+:meth:`.drpls` uses a single weighting function that is designed to account
 for noisy data, similar to arpls. Further, it takes into account both the
 first and second derivatives of the baseline and uses a parameter :math:`\eta`
 to adjust the fit in peak versus non-peak regions.
@@ -396,7 +396,7 @@ respectively, of the negative values in the residual vector :math:`\mathbf r`.
 iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.iarpls` is an attempt to improve the arpls method, which has a tendency
+:meth:`.iarpls` is an attempt to improve the arpls method, which has a tendency
 to overestimate the baseline when fitting small peaks in noisy data, by using an
 adjusted weighting formula.
 
@@ -440,7 +440,7 @@ the residual vector :math:`\mathbf r`.
 aspls (Adaptive Smoothness Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.aspls`, similar to the iarpls method, is an attempt to improve the arpls method,
+:meth:`.aspls`, similar to the iarpls method, is an attempt to improve the arpls method,
 which it does by using an adjusted weighting function and an additional parameter :math:`\alpha`.
 
 Minimized function:
@@ -495,7 +495,7 @@ of the asPLS paper closer than the factor of 2 and fits noisy data much better).
 psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.psalsa` is an attempt at improving the asls method to better fit noisy data
+:meth:`.psalsa` is an attempt at improving the asls method to better fit noisy data
 by using an exponential decaying weighting for positive residuals.
 
 Minimized function:
@@ -540,7 +540,7 @@ be considered a peak.
 derpsalsa (Derivative Peak-Screening Asymmetric Least Squares Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.derpsalsa` is an attempt at improving the asls method to better fit noisy data
+:meth:`.derpsalsa` is an attempt at improving the asls method to better fit noisy data
 by using an exponential decaying weighting for positive residuals. Further, it calculates
 additional weights based on the first and second derivatives of the data.
 

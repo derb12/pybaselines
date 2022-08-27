@@ -5,8 +5,8 @@ Padding data
 
 Several baseline algorithms, especially those in :mod:`pybaselines.smooth` and
 :mod:`pybaselines.morphological`, pad the input data in order to reduce edge effects
-from calculations. Padding is performed by :func:`.pad_edges`, which is a thin
-wrapper around :func:`numpy.pad` that also allows linear extrapolation.
+from calculations. Padding is performed by :meth:`.pad_edges`, which is a thin
+wrapper around :meth:`numpy.pad` that also allows linear extrapolation.
 
 """
 
