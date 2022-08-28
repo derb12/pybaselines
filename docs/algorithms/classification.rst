@@ -78,22 +78,8 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines import classification
+    from pybaselines import Baseline
 
-    def create_plots():
-        fig, axes = plt.subplots(
-            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
-            gridspec_kw={'wspace': 0, 'hspace': 0}
-        )
-        axes = axes.ravel()
-        for ax in axes:
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.tick_params(
-                which='both', labelbottom=False, labelleft=False,
-                labeltop=False, labelright=False
-            )
-        return fig, axes
 
     def create_data():
         x = np.linspace(1, 1000, 500)
@@ -135,23 +121,65 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
         y4 = signal + + signal_2 + baseline_4 + noise * 0.5
         y5 = signal * 2 - signal_2 + baseline_5 + noise
 
-        baselines = baseline_1, baseline_2, baseline_3, baseline_4, baseline_5
+        baselines = (baseline_1, baseline_2, baseline_3, baseline_4, baseline_5)
         data = (y1, y2, y3, y4, y5)
 
-        fig, axes = create_plots()
-        for ax, y, baseline in zip(axes, data, baselines):
-            data_handle = ax.plot(y)
-            baseline_handle = ax.plot(baseline, lw=2.5)
-        fit_handle = axes[-1].plot((), (), 'g--')
-        axes[-1].legend(
-            (data_handle[0], baseline_handle[0], fit_handle[0]),
-            ('data', 'real baseline', 'estimated baseline'),
-            loc='center', frameon=False
+        return x, data, baselines
+
+
+    def create_plots(data=None, baselines=None):
+        fig, axes = plt.subplots(
+            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
+            gridspec_kw={'wspace': 0, 'hspace': 0}
         )
+        axes = axes.ravel()
 
-        return axes, data
+        legend_handles = []
+        if data is None:
+            plot_data = False
+            legend_handles.append(None)
+        else:
+            plot_data = True
+        if baselines is None:
+            plot_baselines = False
+            legend_handles.append(None)
+        else:
+            plot_baselines = True
 
-    for i, (ax, y) in enumerate(zip(*create_data())):
+        for i, axis in enumerate(axes):
+            axis.set_xticks([])
+            axis.set_yticks([])
+            axis.tick_params(
+                which='both', labelbottom=False, labelleft=False,
+                labeltop=False, labelright=False
+            )
+            if i < 5:
+                if plot_data:
+                    data_handle = axis.plot(data[i])
+                if plot_baselines:
+                    baseline_handle = axis.plot(baselines[i], lw=2.5)
+        fit_handle = axes[-1].plot((), (), 'g--')
+        if plot_data:
+            legend_handles.append(data_handle[0])
+        if plot_baselines:
+            legend_handles.append(baseline_handle[0])
+        legend_handles.append(fit_handle[0])
+
+        if None not in legend_handles:
+            axes[-1].legend(
+                (data_handle[0], baseline_handle[0], fit_handle[0]),
+                ('data', 'real baseline', 'estimated baseline'),
+                loc='center', frameon=False
+            )
+
+        return fig, axes, legend_handles
+
+
+    x, data, baselines = create_data()
+    baseline_fitter = Baseline(x, check_finite=False)
+
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
         else:
@@ -160,10 +188,10 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
             num_std = 2.5
         else:
             num_std = 3
-        baseline = classification.dietrich(
-            y, None, smooth_half_window=5, num_std=num_std, poly_order=poly_order, min_length=3
+        baseline, params = baseline_fitter.dietrich(
+            y, smooth_half_window=5, num_std=num_std, poly_order=poly_order, min_length=3
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 golotvin (Golotvin's Classification Method)
@@ -179,7 +207,8 @@ the noise's standard deviation as belonging to the baseline.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             half_window = 20
         else:
@@ -188,8 +217,8 @@ the noise's standard deviation as belonging to the baseline.
             num_std = 40
         else:
             num_std = 10
-        baseline = classification.golotvin(y, None, half_window=half_window, num_std=num_std)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.golotvin(y, half_window=half_window, num_std=num_std)
+        ax.plot(baseline, 'g--')
 
 
 std_distribution (Standard Deviation Distribution)
@@ -206,7 +235,8 @@ of the median of the noise's standard deviation distribution.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             half_window = 30
             num_std = 0.9
@@ -216,8 +246,8 @@ of the median of the noise's standard deviation distribution.
         else:
             half_window = 12
             num_std = 1.1
-        baseline = classification.std_distribution(y, None, half_window=half_window, num_std=num_std)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.std_distribution(y, half_window=half_window, num_std=num_std)
+        ax.plot(baseline, 'g--')
 
 
 fastchrom (FastChrom's Baseline Method)
@@ -234,15 +264,16 @@ threshold, and peak regions are iteratively interpolated until the baseline is b
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 4:
             min_fwhm = y.shape[0]  # ensure it doesn't try to fill in negative peaks
         else:
             min_fwhm = None
-        baseline = classification.fastchrom(
-            y, None, half_window=12, threshold=1, min_fwhm=min_fwhm
+        baseline, params = baseline_fitter.fastchrom(
+            y, half_window=12, threshold=1, min_fwhm=min_fwhm
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 cwt_br (Continuous Wavelet Transform Baseline Recognition)
@@ -262,7 +293,8 @@ other points have a weight of 0.
 
     scales = np.arange(2, 40)
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
             symmetric = False
@@ -273,11 +305,11 @@ other points have a weight of 0.
             min_length = 3
         else:
             min_length = 20
-        baseline = classification.cwt_br(
+        baseline, params = baseline_fitter.cwt_br(
             y, poly_order=poly_order, scales=scales, min_length=min_length,
             symmetric=symmetric, num_std=0.5
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 fabc (Fully Automatic Baseline Correction)
@@ -296,7 +328,8 @@ a weight of 0.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             lam = 1e4
         elif i == 3:
@@ -309,5 +342,5 @@ a weight of 0.
             num_std = 2.5
         else:
             num_std = 3
-        baseline = classification.fabc(y, lam=lam, scale=16, num_std=num_std, min_length=3)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.fabc(y, lam=lam, scale=16, num_std=num_std, min_length=3)
+        ax.plot(baseline, 'g--')

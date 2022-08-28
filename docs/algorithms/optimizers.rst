@@ -90,22 +90,7 @@ added linear regions is selected as the optimal parameter.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines import optimizers
-
-    def create_plots():
-        fig, axes = plt.subplots(
-            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
-            gridspec_kw={'wspace': 0, 'hspace': 0}
-        )
-        axes = axes.ravel()
-        for ax in axes:
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.tick_params(
-                which='both', labelbottom=False, labelleft=False,
-                labeltop=False, labelright=False
-            )
-        return fig, axes
+    from pybaselines import Baseline
 
 
     def create_data():
@@ -148,28 +133,69 @@ added linear regions is selected as the optimal parameter.
         y4 = signal + + signal_2 + baseline_4 + noise * 0.5
         y5 = signal * 2 - signal_2 + baseline_5 + noise
 
-        baselines = baseline_1, baseline_2, baseline_3, baseline_4, baseline_5
+        baselines = (baseline_1, baseline_2, baseline_3, baseline_4, baseline_5)
         data = (y1, y2, y3, y4, y5)
 
-        fig, axes = create_plots()
-        for ax, y, baseline in zip(axes, data, baselines):
-            data_handle = ax.plot(y)
-            baseline_handle = ax.plot(baseline, lw=2.5)
-        fit_handle = axes[-1].plot((), (), 'g--')
-        axes[-1].legend(
-            (data_handle[0], baseline_handle[0], fit_handle[0]),
-            ('data', 'real baseline', 'estimated baseline'),
-            loc='center', frameon=False
+        return x, data, baselines
+
+
+    def create_plots(data=None, baselines=None):
+        fig, axes = plt.subplots(
+            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
+            gridspec_kw={'wspace': 0, 'hspace': 0}
         )
+        axes = axes.ravel()
 
-        return axes, data
+        legend_handles = []
+        if data is None:
+            plot_data = False
+            legend_handles.append(None)
+        else:
+            plot_data = True
+        if baselines is None:
+            plot_baselines = False
+            legend_handles.append(None)
+        else:
+            plot_baselines = True
+
+        for i, axis in enumerate(axes):
+            axis.set_xticks([])
+            axis.set_yticks([])
+            axis.tick_params(
+                which='both', labelbottom=False, labelleft=False,
+                labeltop=False, labelright=False
+            )
+            if i < 5:
+                if plot_data:
+                    data_handle = axis.plot(data[i])
+                if plot_baselines:
+                    baseline_handle = axis.plot(baselines[i], lw=2.5)
+        fit_handle = axes[-1].plot((), (), 'g--')
+        if plot_data:
+            legend_handles.append(data_handle[0])
+        if plot_baselines:
+            legend_handles.append(baseline_handle[0])
+        legend_handles.append(fit_handle[0])
+
+        if None not in legend_handles:
+            axes[-1].legend(
+                (data_handle[0], baseline_handle[0], fit_handle[0]),
+                ('data', 'real baseline', 'estimated baseline'),
+                loc='center', frameon=False
+            )
+
+        return fig, axes, legend_handles
 
 
-    for ax, y in zip(*create_data()):
-        baseline = optimizers.optimize_extended_range(
+    x, data, baselines = create_data()
+    baseline_fitter = Baseline(x, check_finite=False)
+
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        baseline, params = baseline_fitter.optimize_extended_range(
             y, method='aspls', height_scale=0.1, pad_kwargs={'extrapolate_window': 30}
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 collab_pls (Collaborative Penalized Least Squares)
@@ -189,12 +215,7 @@ algorithm versus the individual baselines from the mpls method.
 
 .. plot::
    :align: center
-
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from pybaselines.utils import gaussian
-    from pybaselines.optimizers import collab_pls
-    from pybaselines.morphological import mpls
+   :context: close-figs
 
     x = np.linspace(1, 1000, 500)
     signal = (
@@ -213,15 +234,15 @@ algorithm versus the individual baselines from the mpls method.
     total_y = (y, y2, y3, y4)
 
     lam = 1e5
-    baselines = collab_pls(total_y, method='mpls', method_kwargs={'lam': lam})[0]
+    fit_baselines = baseline_fitter.collab_pls(total_y, method='mpls', method_kwargs={'lam': lam})[0]
 
     fig, ax = plt.subplots(tight_layout={'pad': 0.2})
-    for data in total_y:
-        data_handle = ax.plot(data, 'C0')  # C0 is first item in color cycle
-    for baseline in baselines:
+    for y_values in total_y:
+        data_handle = ax.plot(y_values, 'C0')  # C0 is first item in color cycle
+    for baseline in fit_baselines:
         baseline_handle = ax.plot(baseline, 'g--')
-    for data in total_y:
-        individual_fit_handle = ax.plot(mpls(data, lam=lam)[0], 'r:')
+    for y_values in total_y:
+        individual_fit_handle = ax.plot(baseline_fitter.mpls(y_values, lam=lam)[0], 'r:')
     ax.set_yticks([])
     ax.set_xticks([])
     ax.legend(
@@ -255,10 +276,11 @@ the name).
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
         else:
             poly_order = 1
-        baseline = optimizers.adaptive_minmax(y, poly_order=poly_order, method='imodpoly')
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.adaptive_minmax(y, poly_order=poly_order, method='imodpoly')
+        ax.plot(baseline, 'g--')
