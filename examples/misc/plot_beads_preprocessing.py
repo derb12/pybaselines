@@ -19,7 +19,8 @@ from itertools import cycle
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines.misc import beads, _parabola
+from pybaselines import Baseline
+from pybaselines.misc import _parabola
 from pybaselines.utils import gaussian
 
 
@@ -57,6 +58,9 @@ linestyles = cycle(('-', '--'))
 # the data as proposed by Navarro-Huerta, J.A., et al. to get both ends of the data to zero, and
 # the raw data after subtracting the parabola.
 x = np.linspace(0, 1000, 1000)
+
+baseline_fitter = Baseline(x_data=x)
+
 figure, axes = plt.subplots(nrows=3)
 for i in range(3):
     y, baseline = make_data(x, baseline_type=i)
@@ -81,7 +85,9 @@ y, baseline = make_data(x, baseline_type=0)
 plt.figure()
 plt.plot(y)
 for subtract_parabola in (False, True):
-    fit_baseline = beads(y, lam_0=0.005, lam_1=0.01, lam_2=1, fit_parabola=subtract_parabola)[0]
+    fit_baseline = baseline_fitter.beads(
+        y, lam_0=0.005, lam_1=0.01, lam_2=1, fit_parabola=subtract_parabola
+    )[0]
     plt.plot(fit_baseline, ls=next(linestyles), label=f'parabola subtracted: {subtract_parabola}')
 plt.plot(baseline, ':', label='true baseline')
 plt.legend()
@@ -94,7 +100,9 @@ y, baseline = make_data(x, baseline_type=1)
 plt.figure()
 plt.plot(y)
 for subtract_parabola in (False, True):
-    fit_baseline = beads(y, lam_0=0.015, lam_1=0.1, lam_2=1, fit_parabola=subtract_parabola)[0]
+    fit_baseline = baseline_fitter.beads(
+        y, lam_0=0.015, lam_1=0.1, lam_2=1, fit_parabola=subtract_parabola
+    )[0]
     plt.plot(fit_baseline, ls=next(linestyles), label=f'parabola subtracted: {subtract_parabola}')
 plt.plot(baseline, ':', label='true baseline')
 plt.legend()
@@ -105,7 +113,7 @@ y, baseline = make_data(x, baseline_type=2)
 plt.figure()
 plt.plot(y)
 for subtract_parabola in (False, True):
-    fit_baseline = beads(
+    fit_baseline = baseline_fitter.beads(
         y, lam_0=0.00006, lam_1=0.00008, lam_2=0.05, fit_parabola=subtract_parabola, tol=1e-3,
         freq_cutoff=0.04, asymmetry=3
     )[0]

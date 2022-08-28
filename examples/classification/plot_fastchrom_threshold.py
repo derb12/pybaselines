@@ -25,7 +25,8 @@ of the rolling standard deviation distribution.
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines.classification import _padded_rolling_std, fastchrom
+from pybaselines import Baseline
+from pybaselines.classification import _padded_rolling_std
 from pybaselines.utils import gaussian
 
 
@@ -51,15 +52,16 @@ baseline = gaussian(x, 6, 400, 500)
 noise = np.random.default_rng(0).normal(0, 0.2, len(x))
 y = signal + baseline + noise
 
+baseline_fitter = Baseline(x_data=x)
 # %%
 # Three thresholds will be compared: the default, a fixed threshold of 1.5, and
 # a user-specified thresholding function.
 fixed_threshold = 1.5
 half_window = 15
 
-fit_1, params_1 = fastchrom(y, x, half_window)
-fit_2, params_2 = fastchrom(y, x, half_window, threshold=fixed_threshold)
-fit_3, params_3 = fastchrom(y, x, half_window, threshold=custom_threshold)
+fit_1, params_1 = baseline_fitter.fastchrom(y, half_window)
+fit_2, params_2 = baseline_fitter.fastchrom(y, half_window, threshold=fixed_threshold)
+fit_3, params_3 = baseline_fitter.fastchrom(y, half_window, threshold=custom_threshold)
 
 plt.plot(y)
 plt.plot(fit_1, label='default')

@@ -17,8 +17,8 @@ well in the presence of noise.
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pybaselines import Baseline
 from pybaselines.utils import gaussian
-from pybaselines.whittaker import arpls
 
 
 x = np.linspace(0, 1000, 1000)
@@ -36,13 +36,14 @@ baseline = 5 + 10 * np.exp(-x / 800)
 noise = np.random.default_rng(0).normal(0, 0.2, len(x))
 y = signal + baseline + noise
 
+baseline_fitter = Baseline(x_data=x)
 # %%
 # For extremely small `lam` values, the algorithm's output is more comparable
 # with smoothing than baseline correction (which would be the desired result if
 # using pure Whittaker smoothing).
 plt.plot(y, label='data')
 lam = 1
-plt.plot(arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
 plt.legend()
 
 # %%
@@ -51,7 +52,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 lam = 1e3
-plt.plot(arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
 plt.legend()
 
 
@@ -61,7 +62,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 lam = 1e6
-plt.plot(arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
 plt.legend()
 
 
@@ -71,7 +72,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 lam = 1e10
-plt.plot(arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
 plt.legend()
 
 # %%
@@ -80,7 +81,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 for lam in (1, 1e3, 1e6, 1e10):
-    plt.plot(arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+    plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
 plt.legend()
 
 plt.show()

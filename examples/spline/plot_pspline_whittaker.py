@@ -24,7 +24,7 @@ from itertools import cycle
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines import spline, whittaker
+from pybaselines import Baseline
 
 # local import with setup code
 from example_helpers import make_data, optimize_lam
@@ -52,11 +52,11 @@ num_points = np.logspace(np.log10(500), np.log10(20000), 6, dtype=int)
 symbols = cycle(['o', 's'])
 _, ax = plt.subplots()
 legend = [[], []]
-for i, func in enumerate((whittaker.arpls, spline.pspline_arpls)):
-    func_name = func.__name__
+for i, func_name in enumerate(('arpls', 'pspline_arpls')):
     best_lams = np.empty_like(num_points, float)
     min_lam = None
     for j, num_x in enumerate(num_points):
+        func = getattr(Baseline(), func_name)
         y, baseline = make_data(num_x, bkg_type='exponential')
         # use a slightly lower tolerance to speed up the calculation
         min_lam = optimize_lam(y, baseline, func, min_lam, tol=1e-2, max_iter=50)

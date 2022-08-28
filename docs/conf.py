@@ -179,7 +179,7 @@ sphinx_gallery_conf = {
     # prevents getting repr of last item in cell; good for ignoring matplotlib objects
     'capture_repr': (),
     # ignore the example_helpers.py files that contain setup code for the examples
-    'ignore_pattern': r'example_helpers\.py',
+    'ignore_pattern': r'(example_helpers)',
 }
 
 
