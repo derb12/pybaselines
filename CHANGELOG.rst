@@ -16,9 +16,11 @@ New Features
   the `Baseline` class. The functional api from earlier versions is also maintained
   for backwards compatibility.
 * All functions now allow inputting an `x_data` keyword, even if it is not used within
-  the function, to allow for a more consistent api. Now, all algorithms can be called with
-  the signature `baseline_function(data, x_data=x_data, ...)`.
-* Added a function for Whittaker smoothing to pybaselines.utils.
+  the function, to allow for a more consistent api. Likewise, `pybaselines.misc.interp_pts`
+  added an unused `data` keyword. Now, all algorithms can be called with
+  the signature `baseline_algorithm(data=y_data, x_data=x_data, ...)`.
+* Added a function for Whittaker smoothing to pybaselines.utils,
+  `pybaselines.utils.whittaker_smooth`.
 * whittaker.iasls and spline.psline_iasls now allow inputting a `diff_order` parameter.
 
 Bug Fixes
@@ -30,6 +32,7 @@ Bug Fixes
 Other Changes
 ~~~~~~~~~~~~~
 
+* Officially list Python 3.11 as supported.
 * Added default `half_window` values for snip and noise_median.
 * collab_pls accomodates `alpha` for aspls and pspline_aspls; the `alpha` parameter is
   calculated for the entire dataset in the same way as the weights and is then fixed when
@@ -51,6 +54,7 @@ Documentation/Examples
 
 * Added citation guidelines to make it easier to cite pybaselines.
 * Added new examples showing how to use the new `Baseline` class.
+* Added a new example examining the `beads` algorithm.
 
 
 Version 0.8.0 (2021-12-07)
