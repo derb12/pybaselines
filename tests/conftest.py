@@ -413,5 +413,3 @@ class InputWeightsMixin:
         assert_allclose(
             regular_output, self.reverse_array(reverse_output), **assertion_kwargs
         )
-
-        return regular_output, regular_output_params, reverse_output, reverse_output_params
