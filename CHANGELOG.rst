@@ -2,7 +2,7 @@
 Changelog
 =========
 
-Version 1.0.0 (Unreleased)
+Version 1.0.0 (2022-10-26)
 --------------------------
 
 This is a major version with new features, bug fixes, deprecations,

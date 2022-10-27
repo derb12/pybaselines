@@ -13,7 +13,7 @@ research:
       doi = {10.5281/zenodo.5608581},
       title = {{pybaselines}: A {Python} library of algorithms for the baseline correction of experimental data},
       url = {https://github.com/derb12/pybaselines}
-      version = {0.8.0}
+      version = {1.0.0}
     }
 
 The resulting citation would look something like:
