@@ -19,29 +19,8 @@ from .utils import (
 )
 
 
-class Whittaker(_Algorithm):
-    """
-    A base class for all Whittaker-smoothing-based algorithms.
-
-    Parameters
-    ----------
-    x_data : array-like, shape (N,), optional
-        The x-values of the measured data. Default is None, which will create an
-        array from -1 to 1 during the first function call with length equal to the
-        input data length.
-    check_finite : bool, optional
-        If True, will raise an error if any values if `array` are not finite.
-        Default is False, which skips the check. Note that errors may occur if
-        `check_finite` is False and the input data contains non-finite values.
-    assume_sorted : bool, optional
-        If False (default), will sort the input `x_data` values. Otherwise, the
-        input is assumed to be sorted. Note that some functions may raise an error
-        if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
-        The dtype to cast the output array. Default is None, which uses the typing
-        of the input data.
-
-    """
+class _Whittaker(_Algorithm):
+    """A base class for all Whittaker-smoothing-based algorithms."""
 
     @_Algorithm._register(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -696,7 +675,7 @@ class Whittaker(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :func:`.asls`.
+            will produce similar results to :meth:`.asls`.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -789,7 +768,7 @@ class Whittaker(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :func:`.asls`.
+            will produce similar results to :meth:`.asls`.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -883,7 +862,7 @@ class Whittaker(_Algorithm):
         return baseline, params
 
 
-_whittaker_wrapper = _class_wrapper(Whittaker)
+_whittaker_wrapper = _class_wrapper(_Whittaker)
 
 
 @_whittaker_wrapper
@@ -1318,7 +1297,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :func:`.asls`.
+        will produce similar results to :meth:`.asls`.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
@@ -1392,7 +1371,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :func:`.asls`.
+        will produce similar results to :meth:`.asls`.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.

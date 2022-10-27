@@ -9,7 +9,7 @@ a `tol_history` item in the parameter dictionary, which is a numpy array of
 the measured tolerance value at each iteration. The `tol_history` parameter
 can be helpful for determining appropriate `max_iter` or `tol` values.
 
-In this example, the convergence of the :func:`.asls` and :func:`.aspls` functions
+In this example, the convergence of the :meth:`.asls` and :meth:`.aspls` functions
 will be compared. asls is a relatively simple calculation that sets its weighting
 each iteration based on whether the current baseline is above or below the input data
 at each point. aspls has a much more intricate weighting based on the logistic distribution
@@ -22,8 +22,8 @@ parameter each iteration that controls the local stiffness of the baseline.
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pybaselines import Baseline
 from pybaselines.utils import gaussian
-from pybaselines.whittaker import asls, aspls
 
 
 x = np.linspace(0, 1000, 1000)
@@ -42,11 +42,13 @@ baseline = 5 + 10 * np.exp(-x / 600)
 noise = np.random.default_rng(0).normal(0, 0.1, len(x))
 y = signal + baseline + noise
 
+baseline_fitter = Baseline(x_data=x)
+
 lam = 5e6
 tol = 1e-3
 max_iter = 20
-fit_1, params_1 = asls(y, lam=lam, tol=tol, max_iter=max_iter)
-fit_2, params_2 = aspls(y, lam=lam, tol=tol, max_iter=max_iter)
+fit_1, params_1 = baseline_fitter.asls(y, lam=lam, tol=tol, max_iter=max_iter)
+fit_2, params_2 = baseline_fitter.aspls(y, lam=lam, tol=tol, max_iter=max_iter)
 
 plt.plot(y)
 plt.plot(fit_1, label='asls')
@@ -84,8 +86,8 @@ for function_name, params in (('asls', params_1), ('aspls', params_2)):
 # converges.
 
 max_iter = 100
-fit_3, params_3 = asls(y, lam=lam, tol=tol, max_iter=max_iter)
-fit_4, params_4 = aspls(y, lam=lam, tol=tol, max_iter=max_iter)
+fit_3, params_3 = baseline_fitter.asls(y, lam=lam, tol=tol, max_iter=max_iter)
+fit_4, params_4 = baseline_fitter.aspls(y, lam=lam, tol=tol, max_iter=max_iter)
 
 plt.figure()
 plt.plot(y)

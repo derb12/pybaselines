@@ -365,7 +365,7 @@ def _spline_basis(x, knots, spline_degree=3):
 
     Returns
     -------
-    numpy.ndarray, shape (N, K - `spline_degree` - 1)
+    scipy.sparse.csr.csr_matrix, shape (N, K - `spline_degree` - 1)
         The matrix of basis functions for the spline.
 
     Notes
@@ -631,17 +631,17 @@ def _basis_midpoints(knots, spline_degree):
 
 class PSpline(PenalizedSystem):
     """
-    A P-Spline; a spline that penalizes the difference of the spline coefficients.
+    A Penalized Spline, which penalizes the difference of the spline coefficients.
 
-    P-Splines are solved with the following equation ``(B.T @ W @ B + P) c = B.T @ W @ y``
-    where `c` is the spline coefficients, `B` is the spline basis, the weights are the
-    diagonal of `W`, the penalty is `P`, and `y` is the fit data. The penalty `P` is usually
-    in the form ``lam * D.T @ D``, where `lam` is a penalty factor and `D` is the matrix
-    version of the finite difference operator.
+    Penalized splines (P-Splines) are solved with the following equation
+    ``(B.T @ W @ B + P) c = B.T @ W @ y`` where `c` is the spline coefficients, `B` is the
+    spline basis, the weights are the diagonal of `W`, the penalty is `P`, and `y` is the
+    fit data. The penalty `P` is usually in the form ``lam * D.T @ D``, where `lam` is a
+    penalty factor and `D` is the matrix version of the finite difference operator.
 
     Attributes
     ----------
-    basis : numpy.ndarray, shape (N, M)
+    basis : scipy.sparse.csr.csr_matrix, shape (N, M)
         The spline basis. Has a shape of (`N,` `M`), where `N` is the number of points
         in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots + spline_degree - 1``).

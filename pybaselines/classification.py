@@ -24,29 +24,8 @@ from .utils import (
 )
 
 
-class Classification(_Algorithm):
-    """
-    A base class for all classification algorithms.
-
-    Parameters
-    ----------
-    x_data : array-like, shape (N,), optional
-        The x-values of the measured data. Default is None, which will create an
-        array from -1 to 1 during the first function call with length equal to the
-        input data length.
-    check_finite : bool, optional
-        If True, will raise an error if any values if `array` are not finite.
-        Default is False, which skips the check. Note that errors may occur if
-        `check_finite` is False and the input data contains non-finite values.
-    assume_sorted : bool, optional
-        If False (default), will sort the input `x_data` values. Otherwise, the
-        input is assumed to be sorted. Note that some functions may raise an error
-        if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
-        The dtype to cast the output array. Default is None, which uses the typing
-        of the input data.
-
-    """
+class _Classification(_Algorithm):
+    """A base class for all classification algorithms."""
 
     @_Algorithm._register(sort_keys=('mask',))
     def golotvin(self, data, half_window=None, num_std=2.0, sections=32, smooth_half_window=None,
@@ -747,7 +726,7 @@ class Classification(_Algorithm):
 
         Notes
         -----
-        The classification of baseline points is similar to :func:`dietrich`, except that
+        The classification of baseline points is similar to :meth:`.dietrich`, except that
         this method approximates the first derivative using a continous wavelet transform
         with the Haar wavelet, which is more robust than the numerical derivative in
         Dietrich's method.
@@ -788,7 +767,7 @@ class Classification(_Algorithm):
         return baseline, params
 
 
-_classification_wrapper = _class_wrapper(Classification)
+_classification_wrapper = _class_wrapper(_Classification)
 
 
 def _refine_mask(mask, min_length=2):
@@ -1582,7 +1561,7 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
 
     Notes
     -----
-    The classification of baseline points is similar to :func:`dietrich`, except that
+    The classification of baseline points is similar to :meth:`.dietrich`, except that
     this method approximates the first derivative using a continous wavelet transform
     with the Haar wavelet, which is more robust than the numerical derivative in
     Dietrich's method.

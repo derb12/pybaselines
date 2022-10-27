@@ -50,12 +50,12 @@ class _Algorithm:
         The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
         algorithms. Is None if no Whittaker setup has been performed (typically done in
         :meth:`_setup_whittaker`).
-    x : numpy.ndarray
+    x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same length as the input `data` and has min and max
         values of -1 and 1, respectively.
     x_domain : numpy.ndarray
-        The minimum and maximum values of `x`. If `x` is None during initialization, then
+        The minimum and maximum values of `x`. If `x_data` is None during initialization, then
         set to numpy.ndarray([-1, 1]).
 
     """
@@ -72,14 +72,14 @@ class _Algorithm:
             array from -1 to 1 during the first function call with length equal to the
             input data length.
         check_finite : bool, optional
-            If True, will raise an error if any values if `array` are not finite.
-            Default is False, which skips the check. Note that errors may occur if
+            If True (default), will raise an error if any values in input data are not finite.
+            Setting to False will skip the check. Note that errors may occur if
             `check_finite` is False and the input data contains non-finite values.
         assume_sorted : bool, optional
             If False (default), will sort the input `x_data` values. Otherwise, the
             input is assumed to be sorted. Note that some functions may raise an error
             if `x_data` is not sorted.
-        output_dtype : type or np.dtype, optional
+        output_dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing
             of the input data.
 
@@ -164,7 +164,7 @@ class _Algorithm:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        dtype : type or np.dtype, optional
+        dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing of `array`.
         order : {None, 'C', 'F'}, optional
             The order for the output array. Default is None, which will use the default array
@@ -261,6 +261,12 @@ class _Algorithm:
         old_x_domain = self.x_domain
         old_sort_order = self._sort_order
         old_inverted_order = self._inverted_order
+        # also have to reset any sized attributes to force recalculation for new x
+        old_poly_order = self.poly_order
+        old_vandermonde = self.vandermonde
+        old_whittaker_system = self.whittaker_system
+        old_pspline = self.pspline
+
         try:
             self.x = _check_array(new_x, check_finite=self._check_finite)
             self._len = len(self.x)
@@ -271,6 +277,11 @@ class _Algorithm:
             else:
                 self._inverted_order = None
 
+            self.vandermonde = None
+            self.poly_order = -1
+            self.whittaker_system = None
+            self.pspline = None
+
             yield self
 
         finally:
@@ -279,6 +290,10 @@ class _Algorithm:
             self.x_domain = old_x_domain
             self._sort_order = old_sort_order
             self._inverted_order = old_inverted_order
+            self.vandermonde = old_vandermonde
+            self.poly_order = old_poly_order
+            self.whittaker_system = old_whittaker_system
+            self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
                          allow_lower=True, reverse_diags=None):
@@ -428,9 +443,9 @@ class _Algorithm:
 
         return y, weight_array, pseudo_inverse
 
-    def _setup_splines(self, y, weights=None, spline_degree=3, num_knots=10,
-                       penalized=True, diff_order=3, lam=1, make_basis=True, allow_lower=True,
-                       reverse_diags=None, copy_weights=False):
+    def _setup_spline(self, y, weights=None, spline_degree=3, num_knots=10,
+                      penalized=True, diff_order=3, lam=1, make_basis=True, allow_lower=True,
+                      reverse_diags=None, copy_weights=False):
         """
         Sets the starting parameters for doing spline fitting.
 
@@ -669,7 +684,7 @@ class _Algorithm:
                     else:
                         x = self.x
                         assume_sorted = True
-                    class_object = getattr(module, func_module.capitalize())(
+                    class_object = getattr(module, '_' + func_module.capitalize())(
                         x, check_finite=self._check_finite, assume_sorted=assume_sorted,
                         output_dtype=self._dtype
                     )

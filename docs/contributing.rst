@@ -109,7 +109,8 @@ docs directory:
 
     make html
 
-and ensure that no warnings or errors are raised during building.
+and ensure that no warnings or errors are raised during building. The built documentation can
+then be viewed in the ``pybaselines/docs/_build/html`` folder.
 
 If adding a new baseline algorithm, please add a short summary of the algorithm to the
 appropriate module in the

@@ -16,29 +16,8 @@ from .utils import (
 )
 
 
-class Morphological(_Algorithm):
-    """
-    A base class for all morphological algorithms.
-
-    Parameters
-    ----------
-    x_data : array-like, shape (N,), optional
-        The x-values of the measured data. Default is None, which will create an
-        array from -1 to 1 during the first function call with length equal to the
-        input data length.
-    check_finite : bool, optional
-        If True, will raise an error if any values if `array` are not finite.
-        Default is False, which skips the check. Note that errors may occur if
-        `check_finite` is False and the input data contains non-finite values.
-    assume_sorted : bool, optional
-        If False (default), will sort the input `x_data` values. Otherwise, the
-        input is assumed to be sorted. Note that some functions may raise an error
-        if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
-        The dtype to cast the output array. Default is None, which uses the typing
-        of the input data.
-
-    """
+class _Morphological(_Algorithm):
+    """A base class for all morphological algorithms."""
 
     @_Algorithm._register(sort_keys=('weights',))
     def mpls(self, data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_iter=50,
@@ -59,7 +38,7 @@ class Morphological(_Algorithm):
             Default is 1e6.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Anchor points
-            identified by the procedure in [1]_ are given a weight of `1 - p`, and all
+            identified by the procedure in [4]_ are given a weight of `1 - p`, and all
             other points have a weight of `p`. Default is 0.0.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
@@ -70,7 +49,7 @@ class Morphological(_Algorithm):
             The exit criteria. Default is 1e-3.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the weights will be
-            calculated following the procedure in [1]_.
+            calculated following the procedure in [4]_.
         **window_kwargs
             Values for setting the half window used for the morphology operations.
             Items include:
@@ -109,7 +88,7 @@ class Morphological(_Algorithm):
 
         References
         ----------
-        .. [1] Li, Zhong, et al. Morphological weighted penalized least squares for
+        .. [4] Li, Zhong, et al. Morphological weighted penalized least squares for
             background correction. Analyst, 2013, 138, 4483-4492.
 
         """
@@ -775,7 +754,7 @@ class Morphological(_Algorithm):
         elif not 0 <= p <= 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam_smooth
         )
 
@@ -851,7 +830,7 @@ class Morphological(_Algorithm):
         robust_opening : bool, optional
             If True (default), the opening used to represent the initial baseline is the
             element-wise minimum between the morphological opening and the average of the
-            morphological erosion and dilation of the opening, similar to :func:`.mor`. If
+            morphological erosion and dilation of the opening, similar to :meth:`.mor`. If
             False, the opening is just the morphological opening, as used in the reference.
             The robust opening typically represents the baseline better.
         **window_kwargs
@@ -940,7 +919,7 @@ class Morphological(_Algorithm):
         return baseline, params
 
 
-_morphological_wrapper = _class_wrapper(Morphological)
+_morphological_wrapper = _class_wrapper(_Morphological)
 
 
 def _avg_opening(y, half_window, opening=None):
@@ -1647,7 +1626,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
     robust_opening : bool, optional
         If True (default), the opening used to represent the initial baseline is the
         element-wise minimum between the morphological opening and the average of the
-        morphological erosion and dilation of the opening, similar to :func:`.mor`. If
+        morphological erosion and dilation of the opening, similar to :meth:`.mor`. If
         False, the opening is just the morphological opening, as used in the reference.
         The robust opening typically represents the baseline better.
     x_data : array-like, optional

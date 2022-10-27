@@ -5,7 +5,7 @@
 
 This example will examine the effects of `lam` for fitting a penalized spline baseline
 while varying both the number of knots for the spline, `num_knots`, and the number of
-data points. The function :func:`.mixture_model` is used for all calculations.
+data points. The function :meth:`.mixture_model` is used for all calculations.
 
 Note that the exact optimal `lam` values reported in this example are not of significant
 use since they depend on many other factors such as the baseline curvature, noise, peaks,
@@ -21,7 +21,7 @@ from itertools import cycle
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines.spline import mixture_model
+from pybaselines import Baseline
 
 # local import with setup code
 from example_helpers import make_data, optimize_lam
@@ -44,9 +44,9 @@ num_points = np.logspace(np.log10(500.1), np.log10(20000), 6, dtype=int)
 symbols = cycle(['o', 's', 'd', 'h', '^', 'x'])
 best_lams = np.empty((len(num_knots), len(num_points)))
 for i, num_knot in enumerate(num_knots):
-    func = partial(mixture_model, num_knots=num_knot, diff_order=2)
     min_lam = 0
     for j, num_x in enumerate(num_points):
+        func = partial(Baseline().mixture_model, num_knots=num_knot, diff_order=2)
         y, baseline = make_data(num_x, bkg_type='exponential')
         # use a slightly lower tolerance to speed up the calculation
         min_lam = optimize_lam(y, baseline, func, min_lam, tol=1e-2, max_iter=50)

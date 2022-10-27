@@ -117,7 +117,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
     ----------
     array : array-like
         The input array to check.
-    dtype : type or np.dtype, optional
+    dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing of `array`.
     order : {None, 'C', 'F'}, optional
         The order for the output array. Default is None, which will use the default array
@@ -173,7 +173,7 @@ def _check_sized_array(array, length, dtype=None, order=None, check_finite=False
         The input array to check.
     length : int
         The length that the input should have on the specified `axis`.
-    dtype : type or np.dtype, optional
+    dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing of `array`.
     order : {None, 'C', 'F'}, optional
         The order for the output array. Default is None, which will use the default array
@@ -225,7 +225,7 @@ def _yx_arrays(data, x_data=None, check_finite=False, dtype=None, order=None, en
     check_finite : bool, optional
         If True, will raise an error if any values if `array` are not finite. Default is False,
         which skips the check.
-    dtype : type or np.dtype, optional
+    dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing of `array`.
     order : {None, 'C', 'F'}, optional
         The order for the output array. Default is None, which will use the default array
@@ -358,7 +358,7 @@ def _check_optional_array(data_size, array=None, dtype=None, order=None, check_f
         equal to `data_size`.
     copy_input : bool, optional
         If True, returns a copy of the input `array` if it is not None. Default is False.
-    dtype : type or np.dtype, optional
+    dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing of `array`.
     order : {None, 'C', 'F'}, optional
         The order for the output array. Default is None, which will use the default array

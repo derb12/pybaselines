@@ -19,29 +19,8 @@ from ._validation import _check_optional_array
 from .utils import _check_scalar, _get_edges, gaussian, whittaker_smooth
 
 
-class Optimizers(_Algorithm):
-    """
-    A base class for all optimizer algorithms.
-
-    Parameters
-    ----------
-    x_data : array-like, shape (N,), optional
-        The x-values of the measured data. Default is None, which will create an
-        array from -1 to 1 during the first function call with length equal to the
-        input data length.
-    check_finite : bool, optional
-        If True, will raise an error if any values if `array` are not finite.
-        Default is False, which skips the check. Note that errors may occur if
-        `check_finite` is False and the input data contains non-finite values.
-    assume_sorted : bool, optional
-        If False (default), will sort the input `x_data` values. Otherwise, the
-        input is assumed to be sorted. Note that some functions may raise an error
-        if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
-        The dtype to cast the output array. Default is None, which uses the typing
-        of the input data.
-
-    """
+class _Optimizers(_Algorithm):
+    """A base class for all optimizer algorithms."""
 
     @_Algorithm._register(ensure_1d=False)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
@@ -239,18 +218,18 @@ class Optimizers(_Algorithm):
 
         Notes
         -----
-        Based on the extended range penalized least squares (erPLS) method from [1]_.
-        The method proposed by [1]_ was for optimizing lambda only for the aspls
+        Based on the extended range penalized least squares (erPLS) method from [5]_.
+        The method proposed by [5]_ was for optimizing lambda only for the aspls
         method by extending only the right side of the spectrum. The method was
-        modified by allowing extending either side following [2]_, and for optimizing
+        modified by allowing extending either side following [6]_, and for optimizing
         lambda or the polynomial degree for all of the affected algorithms in
         pybaselines.
 
         References
         ----------
-        .. [1] Zhang, F., et al. An Automatic Baseline Correction Method Based on
+        .. [5] Zhang, F., et al. An Automatic Baseline Correction Method Based on
             the Penalized Least Squares Method. Sensors, 2020, 20(7), 2015.
-        .. [2] Krishna, H., et al. Range-independent background subtraction algorithm
+        .. [6] Krishna, H., et al. Range-independent background subtraction algorithm
             for recovery of Raman spectra of biological tissue. Journal of Raman
             Spectroscopy. 2012, 43(12), 1884-1894.
 
@@ -398,7 +377,7 @@ class Optimizers(_Algorithm):
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
-            and then select the appropriate polynomial orders according to [3]_.
+            and then select the appropriate polynomial orders according to [7]_.
         method : {'modpoly', 'imodpoly'}, optional
             The method to use for fitting each polynomial. Default is 'modpoly'.
         weights : array-like, shape (N,), optional
@@ -441,7 +420,7 @@ class Optimizers(_Algorithm):
 
         References
         ----------
-        .. [3] Cao, A., et al. A robust method for automated background subtraction
+        .. [7] Cao, A., et al. A robust method for automated background subtraction
             of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
             1199-1205.
 
@@ -510,7 +489,7 @@ class Optimizers(_Algorithm):
         return _sort_array(np.maximum.reduce(baselines), self._sort_order), params
 
 
-_optimizers_wrapper = _class_wrapper(Optimizers)
+_optimizers_wrapper = _class_wrapper(_Optimizers)
 
 
 @_optimizers_wrapper
@@ -536,6 +515,8 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
     method_kwargs : dict, optional
         A dictionary of keyword arguments to pass to the selected `method` function.
         Default is None, which will use an empty dictionary.
+    x_data : array-like, shape (N,), optional
+        The x values for the data. Not used by most Whittaker-smoothing algorithms.
 
     Returns
     -------
@@ -549,7 +530,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
         * 'average_alpha': numpy.ndarray, shape (N,)
             Only returned if `method` is 'aspls' or 'pspline_aspls'. The
             `alpha` array used to fit all of the baselines for the
-            :func:`.aspls` or :func:`.pspline_aspls` methods.
+            :meth:`.aspls` or :meth:`.pspline_aspls` methods.
 
         Additional items depend on the output of the selected method. Every
         other key will have a list of values, with each item corresponding to a
@@ -627,8 +608,6 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     method_kwargs : dict, optional
         A dictionary of keyword arguments to pass to the selected `method` function.
         Default is None, which will use an empty dictionary.
-    x_data : array-like, shape (N,), optional
-        The x values for the data. Not used by most Whittaker-smoothing algorithms.
 
     Returns
     -------
@@ -771,8 +750,8 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         to select the appropriate polynomial orders if `poly_order` is None.
         Default is 2.
     method_kwargs : dict, optional
-        Additional keyword arguments to pass to :func:`.modpoly` or
-        :func:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
+        Additional keyword arguments to pass to :meth:`.modpoly` or
+        :meth:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
         `mask_initial_peaks`, and `num_std`.
 
     Returns

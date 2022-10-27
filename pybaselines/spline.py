@@ -26,29 +26,8 @@ from .utils import (
 )
 
 
-class Spline(_Algorithm):
-    """
-    A base class for all spline algorithms.
-
-    Parameters
-    ----------
-    x_data : array-like, shape (N,), optional
-        The x-values of the measured data. Default is None, which will create an
-        array from -1 to 1 during the first function call with length equal to the
-        input data length.
-    check_finite : bool, optional
-        If True, will raise an error if any values if `array` are not finite.
-        Default is False, which skips the check. Note that errors may occur if
-        `check_finite` is False and the input data contains non-finite values.
-    assume_sorted : bool, optional
-        If False (default), will sort the input `x_data` values. Otherwise, the
-        input is assumed to be sorted. Note that some functions may raise an error
-        if `x_data` is not sorted.
-    output_dtype : type or np.dtype, optional
-        The dtype to cast the output array. Default is None, which uses the typing
-        of the input data.
-
-    """
+class _Spline(_Algorithm):
+    """A base class for all spline algorithms."""
 
     @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
     def mixture_model(self, data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_order=3,
@@ -127,7 +106,7 @@ class Spline(_Algorithm):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         # scale y between -1 and 1 so that the residual fit is more numerically stable
@@ -294,7 +273,7 @@ class Spline(_Algorithm):
         if not 0 < quantile < 1:
             raise ValueError('quantile must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         old_coef = np.zeros(self.pspline._num_bases)
@@ -338,7 +317,7 @@ class Spline(_Algorithm):
         Construction. Analyst, 2015, 140(23), 7984-7996.
 
         """
-        y, mask = self._setup_splines(data, make_basis=False)
+        y, mask = self._setup_spline(data, make_basis=False)
         mask = mask.astype(bool, copy=False)
 
         areas = np.zeros(max_iter)
@@ -464,7 +443,7 @@ class Spline(_Algorithm):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
@@ -561,7 +540,7 @@ class Spline(_Algorithm):
             baseline = self.vandermonde @ (pseudo_inverse @ data)
             weights = _weighting._asls(data, baseline, p)
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
 
@@ -649,7 +628,7 @@ class Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam, copy_weights=True
         )
 
@@ -753,7 +732,7 @@ class Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
@@ -841,7 +820,7 @@ class Spline(_Algorithm):
         elif diff_order < 2:
             raise ValueError('diff_order must be 2 or greater')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam,
             allow_lower=False, reverse_diags=False
         )
@@ -947,7 +926,7 @@ class Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
@@ -1047,7 +1026,7 @@ class Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam,
             allow_lower=False, reverse_diags=True
         )
@@ -1104,7 +1083,7 @@ class Spline(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :func:`.asls`.
+            will produce similar results to :meth:`.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -1157,7 +1136,7 @@ class Spline(_Algorithm):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         if k is None:
@@ -1200,7 +1179,7 @@ class Spline(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :func:`.asls`.
+            will produce similar results to :meth:`.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -1261,7 +1240,7 @@ class Spline(_Algorithm):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        y, weight_array = self._setup_splines(
+        y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         if k is None:
@@ -1302,7 +1281,7 @@ class Spline(_Algorithm):
         return baseline, params
 
 
-_spline_wrapper = _class_wrapper(Spline)
+_spline_wrapper = _class_wrapper(_Spline)
 
 
 @jit(nopython=True, cache=True)
@@ -2290,7 +2269,7 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :func:`.asls`.
+        will produce similar results to :meth:`.asls`.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional
@@ -2369,7 +2348,7 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :func:`.asls`.
+        will produce similar results to :meth:`.asls`.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional

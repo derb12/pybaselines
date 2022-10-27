@@ -40,6 +40,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'sphinx.ext.autosectionlabel',
     'matplotlib.sphinxext.plot_directive',
     'sphinx_gallery.gen_gallery'
 ]
@@ -68,7 +69,7 @@ author = "Donald Erb"
 # the built documents.
 #
 # The short X.Y version.
-version = '0.8.0'
+version = '1.0.0'
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -111,6 +112,11 @@ intersphinx_mapping = {
 # cache remote doc inventories for 14 days
 intersphinx_cache_limit = 14
 
+napoleon_include_private_with_doc = True
+
+# ensure each label from the autosection extension is unique
+autosectionlabel_prefix_document = True
+
 # -- Settings for autoapi extension ----------------------------
 
 # autoapi gets the docstrings for all public modules in the package
@@ -123,7 +129,7 @@ autoapi_options = [
     'inherited-members',
     #'undoc-members', # show objects that do not have doc strings
     #'private_members', # show private objects (_variable)
-    'show-inheritance',
+    #'show-inheritance',
     'show-module-summary',
     #'special-members', # show things like __str__
     #'imported-members', # document things imported within each module
@@ -150,6 +156,7 @@ gallery_section_order = [
     '../examples/morphological',
     '../examples/spline',
     '../examples/classification',
+    '../examples/misc'
 ]
 
 sphinx_gallery_conf = {
@@ -172,7 +179,7 @@ sphinx_gallery_conf = {
     # prevents getting repr of last item in cell; good for ignoring matplotlib objects
     'capture_repr': (),
     # ignore the example_helpers.py files that contain setup code for the examples
-    'ignore_pattern': r'example_helpers\.py',
+    'ignore_pattern': r'(example_helpers)',
 }
 
 
@@ -193,12 +200,16 @@ else:
 # theme further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    'navigation_depth': 8,
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = [
+    #'_static'
+]
 
 
 # -- Options for HTMLHelp output ---------------------------------------
@@ -245,9 +256,9 @@ latex_documents = [
 # If true, show page references after internal links.
 latex_show_pagerefs = True
 
-# If true, show URL addresses after external links.
 # 'footnote' puts the URL addresses at the footnote.
-latex_show_urls = 'footnote'
+# 'inline' displays URLS inline in parentheses
+latex_show_urls = 'inline'
 
 # Documents to append as an appendix to all manuals.
 #latex_appendices = []

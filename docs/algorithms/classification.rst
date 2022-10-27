@@ -65,7 +65,7 @@ Algorithms
 dietrich (Dietrich's Classification Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.dietrich` calculates the power spectrum of the data as the squared derivative
+:meth:`.dietrich` calculates the power spectrum of the data as the squared derivative
 of the data. Then baseline points are identified by iteratively removing points where
 the mean of the power spectrum is less a multiple of the standard deviation of the
 power spectrum. The baseline is created by first interpolating through all baseline
@@ -78,22 +78,8 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines import classification
+    from pybaselines import Baseline
 
-    def create_plots():
-        fig, axes = plt.subplots(
-            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
-            gridspec_kw={'wspace': 0, 'hspace': 0}
-        )
-        axes = axes.ravel()
-        for ax in axes:
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.tick_params(
-                which='both', labelbottom=False, labelleft=False,
-                labeltop=False, labelright=False
-            )
-        return fig, axes
 
     def create_data():
         x = np.linspace(1, 1000, 500)
@@ -135,23 +121,65 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
         y4 = signal + + signal_2 + baseline_4 + noise * 0.5
         y5 = signal * 2 - signal_2 + baseline_5 + noise
 
-        baselines = baseline_1, baseline_2, baseline_3, baseline_4, baseline_5
+        baselines = (baseline_1, baseline_2, baseline_3, baseline_4, baseline_5)
         data = (y1, y2, y3, y4, y5)
 
-        fig, axes = create_plots()
-        for ax, y, baseline in zip(axes, data, baselines):
-            data_handle = ax.plot(y)
-            baseline_handle = ax.plot(baseline, lw=2.5)
-        fit_handle = axes[-1].plot((), (), 'g--')
-        axes[-1].legend(
-            (data_handle[0], baseline_handle[0], fit_handle[0]),
-            ('data', 'real baseline', 'estimated baseline'),
-            loc='center', frameon=False
+        return x, data, baselines
+
+
+    def create_plots(data=None, baselines=None):
+        fig, axes = plt.subplots(
+            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
+            gridspec_kw={'wspace': 0, 'hspace': 0}
         )
+        axes = axes.ravel()
 
-        return axes, data
+        legend_handles = []
+        if data is None:
+            plot_data = False
+            legend_handles.append(None)
+        else:
+            plot_data = True
+        if baselines is None:
+            plot_baselines = False
+            legend_handles.append(None)
+        else:
+            plot_baselines = True
 
-    for i, (ax, y) in enumerate(zip(*create_data())):
+        for i, axis in enumerate(axes):
+            axis.set_xticks([])
+            axis.set_yticks([])
+            axis.tick_params(
+                which='both', labelbottom=False, labelleft=False,
+                labeltop=False, labelright=False
+            )
+            if i < 5:
+                if plot_data:
+                    data_handle = axis.plot(data[i])
+                if plot_baselines:
+                    baseline_handle = axis.plot(baselines[i], lw=2.5)
+        fit_handle = axes[-1].plot((), (), 'g--')
+        if plot_data:
+            legend_handles.append(data_handle[0])
+        if plot_baselines:
+            legend_handles.append(baseline_handle[0])
+        legend_handles.append(fit_handle[0])
+
+        if None not in legend_handles:
+            axes[-1].legend(
+                (data_handle[0], baseline_handle[0], fit_handle[0]),
+                ('data', 'real baseline', 'estimated baseline'),
+                loc='center', frameon=False
+            )
+
+        return fig, axes, legend_handles
+
+
+    x, data, baselines = create_data()
+    baseline_fitter = Baseline(x, check_finite=False)
+
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
         else:
@@ -160,16 +188,16 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
             num_std = 2.5
         else:
             num_std = 3
-        baseline = classification.dietrich(
-            y, None, smooth_half_window=5, num_std=num_std, poly_order=poly_order, min_length=3
+        baseline, params = baseline_fitter.dietrich(
+            y, smooth_half_window=5, num_std=num_std, poly_order=poly_order, min_length=3
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 golotvin (Golotvin's Classification Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.golotvin` divides the data into sections and takes the minimum standard
+:meth:`.golotvin` divides the data into sections and takes the minimum standard
 deviation of all the sections as the noise's standard deviation for the entire data.
 Then classifies any point where the rolling max minus min is less than a multiple of
 the noise's standard deviation as belonging to the baseline.
@@ -179,7 +207,8 @@ the noise's standard deviation as belonging to the baseline.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             half_window = 20
         else:
@@ -188,14 +217,14 @@ the noise's standard deviation as belonging to the baseline.
             num_std = 40
         else:
             num_std = 10
-        baseline = classification.golotvin(y, None, half_window=half_window, num_std=num_std)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.golotvin(y, half_window=half_window, num_std=num_std)
+        ax.plot(baseline, 'g--')
 
 
 std_distribution (Standard Deviation Distribution)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.std_distribution` identifies baseline segments by analyzing the rolling
+:meth:`.std_distribution` identifies baseline segments by analyzing the rolling
 standard deviation distribution. The rolling standard deviations are split into two
 distributions, with the smaller distribution assigned to noise. Baseline points are
 then identified as any point where the rolled standard deviation is less than a multiple
@@ -206,7 +235,8 @@ of the median of the noise's standard deviation distribution.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             half_window = 30
             num_std = 0.9
@@ -216,15 +246,15 @@ of the median of the noise's standard deviation distribution.
         else:
             half_window = 12
             num_std = 1.1
-        baseline = classification.std_distribution(y, None, half_window=half_window, num_std=num_std)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.std_distribution(y, half_window=half_window, num_std=num_std)
+        ax.plot(baseline, 'g--')
 
 
 fastchrom (FastChrom's Baseline Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.fastchrom` identifies baseline segments by analyzing the rolling standard
-deviation distribution, similar to :func:`std_distribution`. Baseline points are
+:meth:`.fastchrom` identifies baseline segments by analyzing the rolling standard
+deviation distribution, similar to :meth:`.std_distribution`. Baseline points are
 identified as any point where the rolling standard deviation is less than the specified
 threshold, and peak regions are iteratively interpolated until the baseline is below the data.
 
@@ -234,21 +264,22 @@ threshold, and peak regions are iteratively interpolated until the baseline is b
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 4:
             min_fwhm = y.shape[0]  # ensure it doesn't try to fill in negative peaks
         else:
             min_fwhm = None
-        baseline = classification.fastchrom(
-            y, None, half_window=12, threshold=1, min_fwhm=min_fwhm
+        baseline, params = baseline_fitter.fastchrom(
+            y, half_window=12, threshold=1, min_fwhm=min_fwhm
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 cwt_br (Continuous Wavelet Transform Baseline Recognition)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.cwt_br` identifies baseline segments by performing a continous wavelet
+:meth:`.cwt_br` identifies baseline segments by performing a continous wavelet
 transform (CWT) on the input data at various scales, and picks the scale with the first
 local minimum in the Shannon entropy. The threshold for baseline points is obtained by fitting
 a Gaussian to the histogram of the CWT at the optimal scale, and the final baseline is fit
@@ -262,7 +293,8 @@ other points have a weight of 0.
 
     scales = np.arange(2, 40)
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
             symmetric = False
@@ -273,18 +305,18 @@ other points have a weight of 0.
             min_length = 3
         else:
             min_length = 20
-        baseline = classification.cwt_br(
+        baseline, params = baseline_fitter.cwt_br(
             y, poly_order=poly_order, scales=scales, min_length=min_length,
             symmetric=symmetric, num_std=0.5
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 fabc (Fully Automatic Baseline Correction)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.fabc` identifies baseline segments by thresholding the squared first derivative
-of the data, similar to :func:`dietrich`. However, fabc approximates the first derivative
+:meth:`.fabc` identifies baseline segments by thresholding the squared first derivative
+of the data, similar to :meth:`.dietrich`. However, fabc approximates the first derivative
 using a continous wavelet transform with the Haar wavelet, which is more robust to noise
 than the numerical derivative in Dietrich's method. The baseline is then fit using
 Whittaker smoothing with all baseline points having a weight of 1 and all other points
@@ -296,7 +328,8 @@ a weight of 0.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             lam = 1e4
         elif i == 3:
@@ -309,5 +342,5 @@ a weight of 0.
             num_std = 2.5
         else:
             num_std = 3
-        baseline = classification.fabc(y, lam=lam, scale=16, num_std=num_std, min_length=3)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.fabc(y, lam=lam, scale=16, num_std=num_std, min_length=3)
+        ax.plot(baseline, 'g--')

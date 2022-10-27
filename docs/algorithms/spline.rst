@@ -66,7 +66,7 @@ Algorithms
 mixture_model (Mixture Model)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.mixture_model` considers the data as a mixture model composed of
+:meth:`.mixture_model` considers the data as a mixture model composed of
 a baseline with noise and peaks. The weighting for the penalized spline fitting
 the baseline is iteratively determined by fitting the residual with a normal
 distribution centered at 0 (representing the noise), and a uniform distribution
@@ -82,22 +82,8 @@ residual belonging to the noise's normal distribution.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines import spline
+    from pybaselines import Baseline
 
-    def create_plots():
-        fig, axes = plt.subplots(
-            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
-            gridspec_kw={'wspace': 0, 'hspace': 0}
-        )
-        axes = axes.ravel()
-        for ax in axes:
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.tick_params(
-                which='both', labelbottom=False, labelleft=False,
-                labeltop=False, labelright=False
-            )
-        return fig, axes
 
     def create_data():
         x = np.linspace(1, 1000, 500)
@@ -139,23 +125,65 @@ residual belonging to the noise's normal distribution.
         y4 = signal + + signal_2 + baseline_4 + noise * 0.5
         y5 = signal * 2 - signal_2 + baseline_5 + noise
 
-        baselines = baseline_1, baseline_2, baseline_3, baseline_4, baseline_5
+        baselines = (baseline_1, baseline_2, baseline_3, baseline_4, baseline_5)
         data = (y1, y2, y3, y4, y5)
 
-        fig, axes = create_plots()
-        for ax, y, baseline in zip(axes, data, baselines):
-            data_handle = ax.plot(y)
-            baseline_handle = ax.plot(baseline, lw=2.5)
-        fit_handle = axes[-1].plot((), (), 'g--')
-        axes[-1].legend(
-            (data_handle[0], baseline_handle[0], fit_handle[0]),
-            ('data', 'real baseline', 'estimated baseline'),
-            loc='center', frameon=False
+        return x, data, baselines
+
+
+    def create_plots(data=None, baselines=None):
+        fig, axes = plt.subplots(
+            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
+            gridspec_kw={'wspace': 0, 'hspace': 0}
         )
+        axes = axes.ravel()
 
-        return axes, data
+        legend_handles = []
+        if data is None:
+            plot_data = False
+            legend_handles.append(None)
+        else:
+            plot_data = True
+        if baselines is None:
+            plot_baselines = False
+            legend_handles.append(None)
+        else:
+            plot_baselines = True
 
-    for i, (ax, y) in enumerate(zip(*create_data())):
+        for i, axis in enumerate(axes):
+            axis.set_xticks([])
+            axis.set_yticks([])
+            axis.tick_params(
+                which='both', labelbottom=False, labelleft=False,
+                labeltop=False, labelright=False
+            )
+            if i < 5:
+                if plot_data:
+                    data_handle = axis.plot(data[i])
+                if plot_baselines:
+                    baseline_handle = axis.plot(baselines[i], lw=2.5)
+        fit_handle = axes[-1].plot((), (), 'g--')
+        if plot_data:
+            legend_handles.append(data_handle[0])
+        if plot_baselines:
+            legend_handles.append(baseline_handle[0])
+        legend_handles.append(fit_handle[0])
+
+        if None not in legend_handles:
+            axes[-1].legend(
+                (data_handle[0], baseline_handle[0], fit_handle[0]),
+                ('data', 'real baseline', 'estimated baseline'),
+                loc='center', frameon=False
+            )
+
+        return fig, axes, legend_handles
+
+
+    x, data, baselines = create_data()
+    baseline_fitter = Baseline(x, check_finite=False)
+
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i in (0, 4):
             lam = 5e8
         elif i == 1:
@@ -168,14 +196,14 @@ residual belonging to the noise's normal distribution.
         else:
             symmetric = False
             p = 0.01
-        baseline = spline.mixture_model(y, lam=lam, p=p, symmetric=symmetric)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.mixture_model(y, lam=lam, p=p, symmetric=symmetric)
+        ax.plot(baseline, 'g--')
 
 
 irsqr (Iterative Reweighted Spline Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.irsqr` uses penalized splines and iterative reweighted least squares
+:meth:`.irsqr` uses penalized splines and iterative reweighted least squares
 to perform quantile regression on the data.
 
 .. plot::
@@ -184,21 +212,22 @@ to perform quantile regression on the data.
 
     quantiles = {0: 0.3, 1: 0.1, 2: 0.2, 3: 0.25, 4: 0.5}
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 0:
             lam = 1e7
         elif i == 1:
             lam = 1e6
         else:
             lam = 1e5
-        baseline = spline.irsqr(y, lam=lam, quantile=quantiles[i])
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.irsqr(y, lam=lam, quantile=quantiles[i])
+        ax.plot(baseline, 'g--')
 
 
 corner_cutting (Corner-Cutting Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.corner_cutting` iteratively removes corner points and then creates
+:meth:`.corner_cutting` iteratively removes corner points and then creates
 a quadratic Bezier spline from the remaining points. Continuity between
 the individual Bezier curves is maintained by adding control points halfway
 between all but the first and last non-corner points.
@@ -208,7 +237,8 @@ between all but the first and last non-corner points.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             max_iter = 12
         elif i == 3:
@@ -216,14 +246,14 @@ between all but the first and last non-corner points.
         else:
             max_iter = 100
 
-        baseline = spline.corner_cutting(y, max_iter=max_iter)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.corner_cutting(y, max_iter=max_iter)
+        ax.plot(baseline, 'g--')
 
 
 pspline_asls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_asls` is a penalized spline version of :func:`.asls`.
+:meth:`.pspline_asls` is a penalized spline version of :meth:`.asls`.
 
 Minimized function:
 
@@ -252,7 +282,8 @@ Weighting:
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             lam = 1e4
             p = 0.01
@@ -262,15 +293,15 @@ Weighting:
         else:
             lam = 1e3
             p = 0.01
-        baseline = spline.pspline_asls(y, lam=lam, p=p)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.pspline_asls(y, lam=lam, p=p)
+        ax.plot(baseline, 'g--')
 
 
 
 pspline_iasls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_iasls` is a penalized spline version of :func:`.iasls`.
+:meth:`.pspline_iasls` is a penalized spline version of :meth:`.iasls`.
 
 Minimized function:
 
@@ -302,7 +333,8 @@ Weighting:
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 0:
             lam = 1e3
             p = 0.1
@@ -315,14 +347,14 @@ Weighting:
         else:
             lam = 1e1
             p = 0.01
-        baseline = spline.pspline_iasls(y, lam=lam, p=p)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.pspline_iasls(y, lam=lam, p=p)
+        ax.plot(baseline, 'g--')
 
 
 pspline_airpls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_airpls` is a penalized spline version of :func:`.airpls`.
+:meth:`.pspline_airpls` is a penalized spline version of :meth:`.airpls`.
 
 Minimized function:
 
@@ -354,21 +386,22 @@ values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             lam = 1e4
         elif i == 4:
             lam = 1e6
         else:
             lam = 1e3
-        baseline = spline.pspline_airpls(y, lam=lam)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.pspline_airpls(y, lam=lam)
+        ax.plot(baseline, 'g--')
 
 
 pspline_arpls (Penalized Spline Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_arpls` is a penalized spline version of :func:`.arpls`.
+:meth:`.pspline_arpls` is a penalized spline version of :meth:`.arpls`.
 
 Minimized function:
 
@@ -403,15 +436,16 @@ values in the residual vector :math:`\mathbf r`.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for ax, y in zip(*create_data()):
-        baseline = spline.pspline_arpls(y)
-        ax.plot(baseline[0], 'g--')
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        baseline, params = baseline_fitter.pspline_arpls(y)
+        ax.plot(baseline, 'g--')
 
 
 pspline_drpls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_drpls` is a penalized spline version of :func:`.drpls`.
+:meth:`.pspline_drpls` is a penalized spline version of :meth:`.drpls`.
 
 Minimized function:
 
@@ -454,19 +488,20 @@ respectively, of the negative values in the residual vector :math:`\mathbf r`.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 3:
             lam = 1e2
         else:
             lam = 1e3
-        baseline = spline.pspline_drpls(y, lam=lam)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.pspline_drpls(y, lam=lam)
+        ax.plot(baseline, 'g--')
 
 
 pspline_iarpls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_iarpls` is a penalized spline version of :func:`.iarpls`.
+:meth:`.pspline_iarpls` is a penalized spline version of :meth:`.iarpls`.
 
 Minimized function:
 
@@ -501,19 +536,20 @@ the residual vector :math:`\mathbf r`.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 3:
             lam = 1e2
         else:
             lam = 1e3
-        baseline = spline.pspline_iarpls(y, lam=lam)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.pspline_iarpls(y, lam=lam)
+        ax.plot(baseline, 'g--')
 
 
 pspline_aspls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_aspls` is a penalized spline version of :func:`.aspls`.
+:meth:`.pspline_aspls` is a penalized spline version of :meth:`.aspls`.
 
 Minimized function:
 
@@ -563,21 +599,22 @@ of the asPLS paper closer than the factor of 2 and fits noisy data much better).
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 1:
             lam = 1e4
         elif i == 3:
             lam = 1e2
         else:
             lam = 1e3
-        baseline = spline.pspline_aspls(y, lam=lam)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.pspline_aspls(y, lam=lam)
+        ax.plot(baseline, 'g--')
 
 
 pspline_psalsa (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_psalsa` is a penalized spline version of :func:`.psalsa`.
+:meth:`.pspline_psalsa` is a penalized spline version of :meth:`.psalsa`.
 
 Minimized function:
 
@@ -610,20 +647,21 @@ be considered a peak.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 0:
             k = 2
         else:
             k = 0.5
-        baseline = spline.pspline_psalsa(y, lam=1e3, k=k)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.pspline_psalsa(y, lam=1e3, k=k)
+        ax.plot(baseline, 'g--')
 
 
 
 pspline_derpsalsa (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.pspline_derpsalsa` is a penalized spline version of :func:`.derpsalsa`.
+:meth:`.pspline_derpsalsa` is a penalized spline version of :meth:`.derpsalsa`.
 
 Minimized function:
 
@@ -672,10 +710,11 @@ respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the roo
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 0:
             k = 2
         else:
             k = 0.5
-        baseline = spline.pspline_derpsalsa(y, lam=1e2, k=k)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.pspline_derpsalsa(y, lam=1e2, k=k)
+        ax.plot(baseline, 'g--')

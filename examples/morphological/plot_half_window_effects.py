@@ -6,7 +6,7 @@
 This example shows the influence of the `half_window` parameter that is used when
 fitting any morphological algorithm.
 
-For this example, the :func:`.mor` algorithm will be used, which is a relatively
+For this example, the :meth:`.mor` algorithm will be used, which is a relatively
 robust baseline algorithm.
 
 """
@@ -15,7 +15,7 @@ robust baseline algorithm.
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines.morphological import mor
+from pybaselines import Baseline
 from pybaselines.utils import gaussian
 
 
@@ -33,6 +33,8 @@ signal = (
 baseline = 5 + gaussian(x, 10, 650, 150)
 noise = np.random.default_rng(0).normal(0, 0.1, len(x))
 y = signal + baseline + noise
+
+baseline_fitter = Baseline(x_data=x)
 
 # %%
 # For many morphology-based baseline algorithms, the optimal `half_window` value
@@ -62,7 +64,7 @@ print(int(2.3548 * 12 / dx))
 plt.figure()
 plt.plot(y, label='data')
 half_window = 30
-plt.plot(mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
+plt.plot(baseline_fitter.mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
 plt.legend()
 
 
@@ -72,7 +74,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 half_window = 60
-plt.plot(mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
+plt.plot(baseline_fitter.mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
 plt.legend()
 
 
@@ -82,7 +84,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 half_window = 120
-plt.plot(mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
+plt.plot(baseline_fitter.mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
 plt.legend()
 
 # %%
@@ -95,7 +97,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 for half_window in (30, 60, 120):
-    plt.plot(mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
+    plt.plot(baseline_fitter.mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
 plt.legend()
 
 # %%
@@ -107,7 +109,7 @@ y = y - baseline + flat_baseline  # replace the old baseline with the flat basel
 plt.figure()
 plt.plot(y, label='data')
 for half_window in (30, 60, 120):
-    plt.plot(mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
+    plt.plot(baseline_fitter.mor(y, half_window=half_window)[0], label=f'half_window={half_window}')
 plt.legend()
 
 plt.show()

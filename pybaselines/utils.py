@@ -36,7 +36,7 @@ class ParameterWarning(UserWarning):
 
 def relative_difference(old, new, norm_order=None):
     """
-    Calculates the relative difference (norm(new-old) / norm(old)) of two values.
+    Calculates the relative difference, ``(norm(new-old) / norm(old))``, of two values.
 
     Used as an exit criteria in many baseline algorithms.
 

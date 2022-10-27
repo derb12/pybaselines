@@ -25,13 +25,13 @@ pybaselines has the following optional dependencies:
 * `numba <https://github.com/numba/numba>`_ (>= 0.45):
   speeds up calculations used by the following functions:
 
-    * :func:`.loess`
-    * :func:`.dietrich`
-    * :func:`.golotvin`
-    * :func:`.std_distribution`
-    * :func:`.fastchrom`
-    * :func:`.beads`
-    * :func:`.mpspline`
+    * :meth:`.loess`
+    * :meth:`.dietrich`
+    * :meth:`.golotvin`
+    * :meth:`.std_distribution`
+    * :meth:`.fastchrom`
+    * :meth:`.beads`
+    * :meth:`.mpspline`
     * all functions in :mod:`pybaselines.spline`
 
 * `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
@@ -39,9 +39,9 @@ pybaselines has the following optional dependencies:
   used by the following functions (when ``diff_order=2``):
 
     * all functions in :mod:`pybaselines.whittaker`
-    * :func:`.mpls`
-    * :func:`.jbcd`
-    * :func:`.fabc`
+    * :meth:`.mpls`
+    * :meth:`.jbcd`
+    * :meth:`.fabc`
 
 
 Stable Release

@@ -284,7 +284,7 @@ class ClassificationTester(BaseTester, InputWeightsMixin):
     """Base testing class for classification functions."""
 
     module = classification
-    algorithm_base = classification.Classification
+    algorithm_base = classification._Classification
     checked_keys = ('mask',)
     weight_keys = ('mask',)
 

@@ -234,7 +234,7 @@ As seen above, both ways produce the same resulting baseline, but the second way
 (setting weights) is much easier and faster since the baseline is directly calculated.
 
 The only algorithm in pybaselines that requires using selective masking is
-:func:`.poly`, which is normal polynomial least-squares fitting as described
+:meth:`.poly`, which is normal polynomial least-squares fitting as described
 above. However, all other polynomial techniques allow inputting custom weights
 in order to get better fits or to reduce the number of iterations.
 
@@ -296,15 +296,15 @@ The figure below illustrates the iterative thresholding.
     plt.show()
 
 
-The algorithms in pybaselines that use thresholding are :func:`.modpoly`,
-:func:`.imodpoly`, and :func:`.loess` (if ``use_threshold`` is True).
+The algorithms in pybaselines that use thresholding are :meth:`.modpoly`,
+:meth:`.imodpoly`, and :meth:`.loess` (if ``use_threshold`` is True).
 
 Penalyzing Outliers
 ~~~~~~~~~~~~~~~~~~~
 
 The algorithms in pybaselines that penalyze outliers are
-:func:`.penalized_poly`, which incorporate the penalty directly into the
-minimized cost function, and :func:`.loess` (if ``use_threshold`` is False),
+:meth:`.penalized_poly`, which incorporate the penalty directly into the
+minimized cost function, and :meth:`.loess` (if ``use_threshold`` is False),
 which incorporates penalties by applying lower weights to outliers. Refer
 to the particular algorithms below for more details.
 
@@ -315,7 +315,7 @@ Algorithms
 poly (Regular Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.poly` is simple least-squares polynomial fitting. Use selective
+:meth:`.poly` is simple least-squares polynomial fitting. Use selective
 masking, as described above, in order to use it for baseline fitting.
 
 Note that the plots below are just the least-squared polynomial fitting
@@ -328,22 +328,8 @@ of the data since masking is time-consuming.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines import polynomial
+    from pybaselines import Baseline
 
-    def create_plots():
-        fig, axes = plt.subplots(
-            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
-            gridspec_kw={'wspace': 0, 'hspace': 0}
-        )
-        axes = axes.ravel()
-        for ax in axes:
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.tick_params(
-                which='both', labelbottom=False, labelleft=False,
-                labeltop=False, labelright=False
-            )
-        return fig, axes
 
     def create_data():
         x = np.linspace(1, 1000, 500)
@@ -385,58 +371,103 @@ of the data since masking is time-consuming.
         y4 = signal + + signal_2 + baseline_4 + noise * 0.5
         y5 = signal * 2 - signal_2 + baseline_5 + noise
 
-        baselines = baseline_1, baseline_2, baseline_3, baseline_4, baseline_5
+        baselines = (baseline_1, baseline_2, baseline_3, baseline_4, baseline_5)
         data = (y1, y2, y3, y4, y5)
 
-        fig, axes = create_plots()
-        for ax, y, baseline in zip(axes, data, baselines):
-            data_handle = ax.plot(y)
-            baseline_handle = ax.plot(baseline, lw=2.5)
-        fit_handle = axes[-1].plot((), (), 'g--')
-        axes[-1].legend(
-            (data_handle[0], baseline_handle[0], fit_handle[0]),
-            ('data', 'real baseline', 'estimated baseline'),
-            loc='center', frameon=False
+        return x, data, baselines
+
+
+    def create_plots(data=None, baselines=None):
+        fig, axes = plt.subplots(
+            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
+            gridspec_kw={'wspace': 0, 'hspace': 0}
         )
+        axes = axes.ravel()
 
-        return axes, data
+        legend_handles = []
+        if data is None:
+            plot_data = False
+            legend_handles.append(None)
+        else:
+            plot_data = True
+        if baselines is None:
+            plot_baselines = False
+            legend_handles.append(None)
+        else:
+            plot_baselines = True
 
-    for i, (ax, y) in enumerate(zip(*create_data())):
+        for i, axis in enumerate(axes):
+            axis.set_xticks([])
+            axis.set_yticks([])
+            axis.tick_params(
+                which='both', labelbottom=False, labelleft=False,
+                labeltop=False, labelright=False
+            )
+            if i < 5:
+                if plot_data:
+                    data_handle = axis.plot(data[i])
+                if plot_baselines:
+                    baseline_handle = axis.plot(baselines[i], lw=2.5)
+        fit_handle = axes[-1].plot((), (), 'g--')
+        if plot_data:
+            legend_handles.append(data_handle[0])
+        if plot_baselines:
+            legend_handles.append(baseline_handle[0])
+        legend_handles.append(fit_handle[0])
+
+        if None not in legend_handles:
+            axes[-1].legend(
+                (data_handle[0], baseline_handle[0], fit_handle[0]),
+                ('data', 'real baseline', 'estimated baseline'),
+                loc='center', frameon=False
+            )
+
+        return fig, axes, legend_handles
+
+
+    x, data, baselines = create_data()
+    baseline_fitter = Baseline(x, check_finite=False)
+
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
         else:
             poly_order = 1
-        baseline = polynomial.poly(y, poly_order=poly_order)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.poly(y, poly_order=poly_order)
+        ax.plot(baseline, 'g--')
 
 
 modpoly (Modified Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.modpoly` uses thresholding, as explained above, to iteratively fit a polynomial
-baseline to data.
+:meth:`.modpoly` uses thresholding, as explained above, to iteratively fit a polynomial
+baseline to data. `modpoly` is also sometimes called "ModPolyFit" in literature, and both
+`modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterative Polynomial Fit".
 
 .. plot::
    :align: center
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
         else:
             poly_order = 1
-        baseline = polynomial.modpoly(y, poly_order=poly_order, use_original=True)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.modpoly(y, poly_order=poly_order, use_original=True)
+        ax.plot(baseline, 'g--')
 
 
 imodpoly (Improved Modified Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.imodpoly` is an attempt to improve the modpoly algorithm for noisy data,
+:meth:`.imodpoly` is an attempt to improve the modpoly algorithm for noisy data,
 by including the standard deviation of the residual (data - baseline) when performing
 the thresholding. The number of standard deviations included in the thresholding can
-be adjusted by setting ``num_std``.
+be adjusted by setting ``num_std``. `imodpoly` is also sometimes called "IModPolyFit" in literature,
+and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterative Polynomial Fit".
 
 .. note::
    If using a ``num_std`` of 0, imodpoly may still produce different results than modpoly
@@ -448,19 +479,20 @@ be adjusted by setting ``num_std``.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
         else:
             poly_order = 1
-        baseline = polynomial.imodpoly(y, poly_order=poly_order)
-        ax.plot(baseline[0], 'g--')
+        baseline, params = baseline_fitter.imodpoly(y, poly_order=poly_order)
+        ax.plot(baseline, 'g--')
 
 
 penalized_poly (Penalized Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.penalized_poly` (sometimes referred to as "backcor" in literature) fits a
+:meth:`.penalized_poly` (sometimes referred to as "backcor" in literature) fits a
 polynomial baseline to data using non-quadratic cost functions. Compared to the quadratic
 cost function used in typical least-squares as discussed above, non-quadratic cost funtions
 allow outliers above a user-defined threshold to have less effect on the fit. pentalized_poly
@@ -559,23 +591,24 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 4:
             cost_function = 'symmetric_truncated_quadratic'
             poly_order = 1
         else:
             cost_function = 'asymmetric_truncated_quadratic'
             poly_order = i + 1
-        baseline = polynomial.penalized_poly(
+        baseline, params = baseline_fitter.penalized_poly(
             y, poly_order=poly_order, threshold=1.2, cost_function=cost_function
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 loess (Locally Estimated Scatterplot Smoothing)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.loess` (sometimes referred to as "rbe" or robust baseline estimate in literature)
+:meth:`.loess` (sometimes referred to as "rbe" or "robust baseline estimate" in literature)
 is similar to `traditional loess/lowess <https://en.wikipedia.org/wiki/Local_regression>`_
 but adapted for fitting the baseline. The baseline at each point is estimated by using
 polynomial regression on the k-nearest neighbors of the point, and the effect of outliers
@@ -591,7 +624,8 @@ is reduced by iterative reweighting.
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 4:
             symmetric_weights = True
         else:
@@ -607,40 +641,41 @@ is reduced by iterative reweighting.
         else:
             poly_order = 2
 
-        baseline = polynomial.loess(
+        baseline, params = baseline_fitter.loess(
             y, poly_order=poly_order, scale=scale, fraction=fraction,
             symmetric_weights=symmetric_weights
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 quant_reg (Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.quant_reg` fits a polynomial to the baseline using quantile regression.
+:meth:`.quant_reg` fits a polynomial to the baseline using quantile regression.
 
 .. plot::
    :align: center
    :context: close-figs
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i < 4:
             poly_order = i + 1
         else:
             poly_order = 1
         quantile = {0: 0.3, 1: 0.1, 2: 0.2, 3: 0.25, 4: 0.5}[i]
-        baseline = polynomial.quant_reg(
+        baseline, params = baseline_fitter.quant_reg(
             y, poly_order=poly_order, quantile=quantile
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 
 goldindec (Goldindec Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.goldindec` fits a polynomial baseline to data using non-quadratic cost functions,
-similar to :func:`.penalized_poly`, except that it only allows asymmetric cost functions.
+:meth:`.goldindec` fits a polynomial baseline to data using non-quadratic cost functions,
+similar to :meth:`.penalized_poly`, except that it only allows asymmetric cost functions.
 The optimal threshold value between quadratic and non-quadratic loss is iteratively optimized
 based on the input `peak_ratio` value.
 
@@ -650,12 +685,13 @@ based on the input `peak_ratio` value.
 
     peak_ratios = [0.2, 0.6, 0.2, 0.2, 0.3]
     # to see contents of create_data function, look at the top-most algorithm's code
-    for i, (ax, y) in enumerate(zip(*create_data())):
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 4:
             poly_order = 1
         else:
             poly_order = i + 1
-        baseline = polynomial.goldindec(
+        baseline, params = baseline_fitter.goldindec(
             y, poly_order=poly_order, peak_ratio=peak_ratios[i]
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
