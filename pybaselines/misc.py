@@ -71,12 +71,219 @@ from scipy.ndimage import uniform_filter1d
 from scipy.sparse import spdiags
 from scipy.sparse.linalg import splu, spsolve
 
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import _HAS_NUMBA, jit
+from ._validation import _check_array, _check_lam
 from .utils import _MIN_FLOAT, relative_difference
-from ._algorithm_setup import _check_lam
 
 
-def interp_pts(x_data, baseline_points=(), interp_method='linear'):
+class _Misc(_Algorithm):
+    """A base class for all miscellaneous algorithms."""
+
+    @_Algorithm._register
+    def interp_pts(self, data=None, baseline_points=(), interp_method='linear'):
+        """
+        Creates a baseline by interpolating through input points.
+
+        Parameters
+        ----------
+        data : array-like, optional
+            The y-values. Not used by this function, but input is allowed for consistency
+            with other functions.
+        baseline_points : array-like, shape (n, 2)
+            An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
+            each point representing the baseline.
+        interp_method : str, optional
+            The method to use for interpolation. See :class:`scipy.interpolate.interp1d`
+            for all options. Default is 'linear', which connects each point with a
+            line segment.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The baseline array constructed from interpolating between
+            each input baseline point.
+        dict
+            An empty dictionary, just to match the output of all other algorithms.
+
+        Raises
+        ------
+        ValueError
+            Raised of `baseline_points` does not contain at least two values, signifying
+            one x-y point.
+
+        Notes
+        -----
+        This method is only suggested for use within user-interfaces.
+
+        Regions of the baseline where `x_data` is less than the minimum x-value
+        or greater than the maximum x-value in `baseline_points` will be assigned
+        values of 0.
+
+        """
+        points = np.atleast_2d(
+            _check_array(baseline_points, check_finite=self._check_finite, ensure_1d=False)
+        )
+        if points.shape[1] != 2:
+            raise ValueError(
+                'baseline_points must have shape (number of x-y pairs, 2), but '
+                f'instead is {points.shape}'
+            )
+        interpolator = interp1d(
+            points[:, 0], points[:, 1], kind=interp_method, bounds_error=False, fill_value=0
+        )
+        baseline = interpolator(self.x)
+
+        return baseline, {}
+
+    @_Algorithm._register(sort_keys=('signal',))
+    def beads(self, data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.0,
+              filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
+              eps_1=1e-6, fit_parabola=True, smooth_half_window=None):
+        r"""
+        Baseline estimation and denoising with sparsity (BEADS).
+
+        Decomposes the input data into baseline and pure, noise-free signal by modeling
+        the baseline as a low pass filter and by considering the signal and its derivatives
+        as sparse [1]_.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        freq_cutoff : float, optional
+            The cutoff frequency of the high pass filter, normalized such that
+            0 < `freq_cutoff` < 0.5. Default is 0.005.
+        lam_0 : float, optional
+            The regularization parameter for the signal values. Default is 1.0. Higher
+            values give a higher penalty.
+        lam_1 : float, optional
+            The regularization parameter for the first derivative of the signal. Default
+            is 1.0. Higher values give a higher penalty.
+        lam_2 : float, optional
+            The regularization parameter for the second derivative of the signal. Default
+            is 1.0. Higher values give a higher penalty.
+        asymmetry : float, optional
+            A number greater than 0 that determines the weighting of negative values
+            compared to positive values in the cost function. Default is 6.0, which gives
+            negative values six times more impact on the cost function that positive values.
+            Set to 1 for a symmetric cost function, or a value less than 1 to weigh positive
+            values more.
+        filter_type : int, optional
+            An integer describing the high pass filter type. The order of the high pass
+            filter is ``2 * filter_type``. Default is 1 (second order filter).
+        cost_function : {2, 1, "l1_v1", "l1_v2"}, optional
+            An integer or string indicating which approximation of the l1 (absolute value)
+            penalty to use. 1 or "l1_v1" will use :math:`l(x) = \sqrt{x^2 + \text{eps_1}}`
+            and 2 (default) or "l1_v2" will use
+            :math:`l(x) = |x| - \text{eps_1}\log{(|x| + \text{eps_1})}`.
+        max_iter : int, optional
+            The maximum number of iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-2.
+        eps_0 : float, optional
+            The cutoff threshold between absolute loss and quadratic loss. Values in the signal
+            with absolute value less than `eps_0` will have quadratic loss. Default is 1e-6.
+        eps_1 : float, optional
+            A small, positive value used to prevent issues when the first or second order
+            derivatives are close to zero. Default is 1e-6.
+        fit_parabola : bool, optional
+            If True (default), will fit a parabola to the data and subtract it before
+            performing the beads fit as suggested in [2]_. This ensures the endpoints of
+            the fit data are close to 0, which is required by beads. If the data is already
+            close to 0 on both endpoints, set `fit_parabola` to False.
+        smooth_half_window : int, optional
+            The half-window to use for smoothing the derivatives of the data with a moving
+            average and full window size of `2 * smooth_half_window + 1`. Smoothing can
+            improve the convergence of the calculation, and make the calculation less sensitive
+            to small changes in `lam_1` and `lam_2`, as noted in the pybeads package [3]_.
+            Default is None, which will not perform any smoothing.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'signal': numpy.ndarray, shape (N,)
+                The pure signal portion of the input `data` without noise or the baseline.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+
+        Notes
+        -----
+        The default `lam_0`, `lam_1`, and `lam_2` values are good starting points for a
+        dataset with 1000 points. Typically, smaller values are needed for larger datasets
+        and larger values for smaller datasets.
+
+        When finding the best parameters for fitting, it is usually best to find the optimal
+        `freq_cutoff` for the noise in the data before adjusting any other parameters since
+        it has the largest effect [2]_.
+
+        Raises
+        ------
+        ValueError
+            Raised if `asymmetry` is less than 0.
+
+        References
+        ----------
+        .. [1] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+            (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
+        .. [2] Navarro-Huerta, J.A., et al. Assisted baseline subtraction in complex chromatograms
+            using the BEADS algorithm. Journal of Chromatography A, 2017, 1507, 1-10.
+        .. [3] https://github.com/skotaro/pybeads.
+
+        """
+        # TODO maybe add the log-transform from Navarro-Huerta to improve fit for data spanning
+        # multiple scales, or at least mention in Notes section; also should add the function
+        # in Navarro-Huerta that helps choosing the best freq_cutoff for a dataset
+        y0 = self._setup_misc(data)
+        if isinstance(cost_function, str):  # allow string to maintain parity with MATLAB version
+            cost_function = cost_function.lower()
+        use_v2_loss = {'l1_v1': False, 'l1_v2': True, 1: False, 2: True}[cost_function]
+        if asymmetry <= 0:
+            raise ValueError('asymmetry must be greater than 0')
+
+        if fit_parabola:
+            parabola = _parabola(y0)
+            y = y0 - parabola
+        else:
+            y = y0
+        # ensure that 0 + eps_0[1] > 0 to prevent numerical issues
+        eps_0 = max(eps_0, _MIN_FLOAT)
+        eps_1 = max(eps_1, _MIN_FLOAT)
+        if smooth_half_window is None:
+            smooth_half_window = 0
+
+        lam_0 = _check_lam(lam_0, True)
+        lam_1 = _check_lam(lam_1, True)
+        lam_2 = _check_lam(lam_2, True)
+        if _HAS_NUMBA:
+            baseline, params = _banded_beads(
+                y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
+                max_iter, tol, eps_0, eps_1, smooth_half_window
+            )
+        else:
+            baseline, params = _sparse_beads(
+                y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
+                max_iter, tol, eps_0, eps_1, smooth_half_window
+            )
+
+        if fit_parabola:
+            baseline = baseline + parabola
+
+        return baseline, params
+
+
+_misc_wrapper = _class_wrapper(_Misc)
+
+
+@_misc_wrapper
+def interp_pts(x_data, baseline_points=(), interp_method='linear', data=None):
     """
     Creates a baseline by interpolating through input points.
 
@@ -91,6 +298,9 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear'):
         The method to use for interpolation. See :class:`scipy.interpolate.interp1d`
         for all options. Default is 'linear', which connects each point with a
         line segment.
+    data : array-like, optional
+        The y-values. Not used by this function, but input is allowed for consistency
+        with other functions.
 
     Returns
     -------
@@ -109,16 +319,6 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear'):
     values of 0.
 
     """
-    x = np.asarray(x_data)
-    points = np.asarray(baseline_points).T
-
-    interpolator = interp1d(
-        *points, kind=interp_method, bounds_error=False, fill_value=0
-    )
-    # TODO why not just use x in the interpolator call?
-    baseline = interpolator(np.linspace(np.nanmin(x), np.nanmax(x), x.shape[0]))
-
-    return baseline, {}
 
 
 def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
@@ -365,7 +565,7 @@ def _parabola(data):
 
     """
     y = np.asarray(data)
-    x = np.linspace(-1, 1, y.shape[0])
+    x = np.linspace(-1, 1, len(y))
     # use only the endpoints; when trying to use the mean of the last few values, the
     # fit is usually not as good since beads expects the endpoints to be 0; may allow
     # setting mean_width as a parameter later
@@ -416,7 +616,7 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     """
     if not 0 < freq_cutoff < 0.5:
@@ -496,7 +696,7 @@ def _beads_theta(x, asymmetry=6, eps_0=1e-6):
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     """
     abs_x = np.abs(x)
@@ -541,7 +741,7 @@ def _beads_loss(x, use_v2=True, eps_1=1e-6):
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
 
     """
@@ -584,7 +784,7 @@ def _beads_weighting(x, use_v2=True, eps_1=1e-6):
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     """
     if use_v2:
@@ -701,7 +901,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     https://www.mathworks.com/matlabcentral/fileexchange/49974-beads-baseline-estimation-
     and-denoising-with-sparsity.
@@ -851,7 +1051,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     References
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
 
     https://www.mathworks.com/matlabcentral/fileexchange/49974-beads-baseline-estimation-
     and-denoising-with-sparsity.
@@ -954,9 +1154,10 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     return baseline, {'signal': x, 'tol_history': tol_history[:i + 1]}
 
 
+@_misc_wrapper
 def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.0,
           filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
-          eps_1=1e-6, fit_parabola=True, smooth_half_window=None):
+          eps_1=1e-6, fit_parabola=True, smooth_half_window=None, x_data=None):
     r"""
     Baseline estimation and denoising with sparsity (BEADS).
 
@@ -1015,6 +1216,9 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
         improve the convergence of the calculation, and make the calculation less sensitive
         to small changes in `lam_1` and `lam_2`, as noted in the pybeads package [3]_.
         Default is None, which will not perform any smoothing.
+    x_data : array-like, optional
+        The x-values. Not used by this function, but input is allowed for consistency
+        with other functions.
 
     Returns
     -------
@@ -1049,48 +1253,9 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
     References
     ----------
     .. [1] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-           (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156–167.
+           (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
     .. [2] Navarro-Huerta, J.A., et al. Assisted baseline subtraction in complex chromatograms
            using the BEADS algorithm. Journal of Chromatography A, 2017, 1507, 1-10.
     .. [3] https://github.com/skotaro/pybeads.
 
     """
-    # TODO maybe add the log-transform from Navarro-Huerta to improve fit for data spanning
-    # multiple scales, or at least mention in Notes section; also should add the function
-    # in Navarro-Huerta that helps choosing the best freq_cutoff for a dataset
-    if isinstance(cost_function, str):  # allow string to maintain parity with MATLAB version
-        cost_function = cost_function.lower()
-    use_v2_loss = {'l1_v1': False, 'l1_v2': True, 1: False, 2: True}[cost_function]
-    if asymmetry <= 0:
-        raise ValueError('asymmetry must be greater than 0')
-
-    y0 = np.asarray_chkfinite(data)
-    if fit_parabola:
-        parabola = _parabola(y0)
-        y = y0 - parabola
-    else:
-        y = y0
-    # ensure that 0 + eps_0[1] > 0 to prevent numerical issues
-    eps_0 = max(eps_0, _MIN_FLOAT)
-    eps_1 = max(eps_1, _MIN_FLOAT)
-    if smooth_half_window is None:
-        smooth_half_window = 0
-
-    lam_0 = _check_lam(lam_0, True)
-    lam_1 = _check_lam(lam_1, True)
-    lam_2 = _check_lam(lam_2, True)
-    if _HAS_NUMBA:
-        baseline, params = _banded_beads(
-            y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
-            max_iter, tol, eps_0, eps_1, smooth_half_window
-        )
-    else:
-        baseline, params = _sparse_beads(
-            y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
-            max_iter, tol, eps_0, eps_1, smooth_half_window
-        )
-
-    if fit_parabola:
-        baseline = baseline + parabola
-
-    return baseline, params

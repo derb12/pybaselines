@@ -8,8 +8,8 @@ in the experimental data, which can lead to an underestimation of the baseline.
 This example will show how to reduce this issue by simply smoothing the data
 before performing baseline correction.
 
-Two algorithms will be compared: :func:`.modpoly`, which is not suited for noisy
-data, and :func:`.imodpoly`, which is a modification of the modpoly algorithm
+Two algorithms will be compared: :meth:`.modpoly`, which is not suited for noisy
+data, and :meth:`.imodpoly`, which is a modification of the modpoly algorithm
 created specifically to address noise.
 
 """
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import uniform_filter1d
 
-from pybaselines.polynomial import imodpoly, modpoly
+from pybaselines import Baseline
 from pybaselines.utils import gaussian
 
 
@@ -38,6 +38,7 @@ baseline = 5 + 10 * np.exp(-x / 600)
 noise = np.random.default_rng(0).normal(0, 0.6, len(x))
 y = signal + baseline + noise
 
+baseline_fitter = Baseline(x_data=x)
 # %%
 # Smoothing will be performed using a simple 11-point moving average. Other
 # types of smoothing include Savitzky-Golay smoothing, Gaussian smoothing,
@@ -54,8 +55,8 @@ plt.legend()
 # shown below. It is clear that the fit for the original data underestimates
 # the baseline due to noise, while the modpoly fit of the smoothed data is
 # much closer to the true baseline.
-regular_modpoly = modpoly(y, x, poly_order=3)[0]
-smoothed_modpoly = modpoly(smooth_y, x, poly_order=3)[0]
+regular_modpoly = baseline_fitter.modpoly(y, poly_order=3)[0]
+smoothed_modpoly = baseline_fitter.modpoly(smooth_y, poly_order=3)[0]
 plt.figure()
 plt.plot(y)
 plt.plot(regular_modpoly, label='modpoly')
@@ -67,8 +68,8 @@ plt.legend()
 # Unlike the modpoly, the imodpoly function fits the noisy data quite
 # well. Smoothing the input has little effect, with both the original
 # and smoothed data producing similar results.
-regular_imodpoly = imodpoly(y, x, poly_order=3, num_std=0.7)[0]
-smoothed_imodpoly = imodpoly(smooth_y, x, poly_order=3, num_std=0.7)[0]
+regular_imodpoly = baseline_fitter.imodpoly(y, poly_order=3, num_std=0.7)[0]
+smoothed_imodpoly = baseline_fitter.imodpoly(smooth_y, poly_order=3, num_std=0.7)[0]
 
 plt.figure()
 plt.plot(y)

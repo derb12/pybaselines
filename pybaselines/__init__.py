@@ -89,12 +89,14 @@ Created on March 5, 2021
 
 """
 
-__version__ = '0.8.0'
+__version__ = '1.0.0'
 
 
 # import utils first since it is imported by other modules; likewise, import
-# optimizers last since it imports the other modules
+# optimizers and api last since they import the other modules
 from . import (
     utils, classification, misc, morphological, polynomial, spline, whittaker, smooth,
-    window, optimizers
+    optimizers, api
 )
+
+from .api import Baseline

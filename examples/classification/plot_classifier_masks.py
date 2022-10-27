@@ -17,7 +17,7 @@ belonging to the baseline and False otherwise.
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines.classification import std_distribution
+from pybaselines import Baseline
 from pybaselines.utils import gaussian
 
 
@@ -37,6 +37,8 @@ baseline = gaussian(x, -6, 700, 500)
 noise = np.random.default_rng(0).normal(0, 0.1, x.size)
 y = signal + baseline + noise
 
+baseline_fitter = Baseline(x_data=x)
+
 # %%
 # When first fitting a new dataset, it may be difficult to estimate the correct
 # parameters. For this example, the main parameter for the baseline function is
@@ -45,8 +47,8 @@ y = signal + baseline + noise
 
 half_window_1 = 15
 half_window_2 = 45
-fit_1, params_1 = std_distribution(y, x, half_window_1, smooth_half_window=10)
-fit_2, params_2 = std_distribution(y, x, half_window_2, smooth_half_window=10)
+fit_1, params_1 = baseline_fitter.std_distribution(y, half_window_1, smooth_half_window=10)
+fit_2, params_2 = baseline_fitter.std_distribution(y, half_window_2, smooth_half_window=10)
 
 plt.plot(x, y)
 plt.plot(x, fit_1, label=f'half_window={half_window_1}')

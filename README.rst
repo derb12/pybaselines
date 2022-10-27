@@ -132,14 +132,17 @@ pybaselines's documentation. For examples of their usage, refer to the `examples
 
 .. _examples section: https://pybaselines.readthedocs.io/en/latest/examples/index.html
 
-A simple example is shown below.
+A simple example is shown below (if using a version earlier than 1.0, see the `quickstart`_ in
+the documentation for the old version).
+
+.. _quickstart: https://pybaselines.readthedocs.io/en/latest/quickstart.html#pre-version-1-0-0-quick-start
+
 
 .. code-block:: python
 
     import matplotlib.pyplot as plt
     import numpy as np
-    import pybaselines
-    from pybaselines import utils
+    from pybaselines import Baseline, utils
 
     x = np.linspace(1, 1000, 1000)
     # a measured signal containing several Gaussian peaks
@@ -159,10 +162,12 @@ A simple example is shown below.
 
     y = signal + true_baseline + noise
 
-    bkg_1 = pybaselines.polynomial.modpoly(y, x, poly_order=3)[0]
-    bkg_2 = pybaselines.whittaker.asls(y, lam=1e7, p=0.02)[0]
-    bkg_3 = pybaselines.morphological.mor(y, half_window=30)[0]
-    bkg_4 = pybaselines.smooth.snip(
+    baseline_fitter = Baseline(x_data=x)
+
+    bkg_1 = baseline_fitter.modpoly(y, poly_order=3)[0]
+    bkg_2 = baseline_fitter.asls(y, lam=1e7, p=0.02)[0]
+    bkg_3 = baseline_fitter.mor(y, half_window=30)[0]
+    bkg_4 = baseline_fitter.snip(
         y, max_half_window=40, decreasing=True, smooth_half_window=3
     )[0]
 
@@ -209,6 +214,14 @@ pybaselines is open source and freely available under the BSD 3-clause license.
 For more information, refer to the license_.
 
 .. _license: https://github.com/derb12/pybaselines/tree/main/LICENSE.txt
+
+
+Citing
+------
+
+If you use pybaselines for published research, please consider citing
+by following the `guidelines in the documentation
+<https://pybaselines.readthedocs.io/en/latest/citing.html>`_.
 
 
 Author

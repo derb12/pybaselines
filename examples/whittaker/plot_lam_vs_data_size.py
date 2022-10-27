@@ -24,7 +24,7 @@ from itertools import cycle
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines import whittaker
+from pybaselines import Baseline
 
 # local import with setup code
 from example_helpers import make_data, optimize_lam
@@ -34,7 +34,7 @@ def iasls(*args, lam=1, p=0.05, **kwargs):
     """Ensures the `lam_1` value for whittaker.iasls scales with `lam`."""
     # not sure if lam_1 should be fixed or proportional to lam;
     # both give similar results
-    return whittaker.iasls(*args, lam=lam, lam_1=1e-8 * lam, p=p, **kwargs)
+    return Baseline().iasls(*args, lam=lam, lam_1=1e-8 * lam, p=p, **kwargs)
 
 
 # %%
@@ -61,17 +61,19 @@ print('-' * 60)
 show_plots = False  # for debugging
 num_points = np.logspace(np.log10(500), np.log10(20000), 6, dtype=int)
 symbols = cycle(['o', 's', 'd'])
-for i, func in enumerate((
-    whittaker.asls, iasls, whittaker.airpls, whittaker.arpls, whittaker.iarpls,
-    whittaker.drpls, whittaker.aspls, whittaker.psalsa, whittaker.derpsalsa
+for i, func_name in enumerate((
+    'asls', 'iasls', 'airpls', 'arpls', 'iarpls', 'drpls', 'aspls', 'psalsa', 'derpsalsa'
 )):
-    func_name = func.__name__
     legend = [[], []]
     _, ax = plt.subplots(num=func_name)
     for bkg_type in bkg_types:
         best_lams = np.empty_like(num_points, float)
         min_lam = None
         for j, num_x in enumerate(num_points):
+            if func_name == 'iasls':
+                func = iasls
+            else:
+                func = getattr(Baseline(), func_name)
             y, baseline = make_data(num_x, bkg_type)
             # use a slightly lower tolerance to speed up the calculation
             min_lam = optimize_lam(y, baseline, func, min_lam, tol=1e-2, max_iter=50)

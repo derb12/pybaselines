@@ -7,7 +7,7 @@ The Whittaker-smoothing-based algorithms in pybaselines make use of
 the banded structure of the linear system to reduce the computation time.
 
 This example shows the difference in computation times of the asymmetic least squares
-(:func:`.asls`) algorithm when using the banded solver from Scipy (solveh_banded)
+(:meth:`.asls`) algorithm when using the banded solver from Scipy (solveh_banded)
 and the banded solver from the optional dependency
 `pentapy <https://github.com/GeoStat-Framework/pentapy>`_. In addition, the time
 it takes when solving the system using sparse matrices rather than the banded matrices
@@ -27,7 +27,7 @@ import numpy as np
 from scipy.sparse import spdiags
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import whittaker
+from pybaselines import whittaker, _banded_utils
 from pybaselines.utils import difference_matrix, gaussian, relative_difference
 
 
@@ -72,8 +72,8 @@ def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weig
 
 def scipy_asls(*args, **kwargs):
     """Temporarily turns off pentapy support to force scipy usage."""
-    if whittaker._HAS_PENTAPY:
-        whittaker._HAS_PENTAPY = False
+    if _banded_utils._HAS_PENTAPY:
+        _banded_utils._HAS_PENTAPY = False
         reset_pentapy = True
     else:
         reset_pentapy = False
@@ -82,7 +82,7 @@ def scipy_asls(*args, **kwargs):
         output = whittaker.asls(*args, **kwargs)
     finally:
         if reset_pentapy:
-            whittaker._HAS_PENTAPY = True
+            _banded_utils._HAS_PENTAPY = True
 
     return output
 
@@ -109,7 +109,7 @@ def make_data(num_x):
 
 if __name__ == '__main__':
 
-    if not whittaker._HAS_PENTAPY:
+    if not _banded_utils._HAS_PENTAPY:
         warnings.warn(
             'pentapy is not installed so pentapy and scipy-banded timings will be identical'
         )

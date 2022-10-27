@@ -10,6 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.sparse import identity
+from scipy.sparse.linalg import spsolve
 
 from pybaselines import utils
 
@@ -148,7 +149,7 @@ def test_convert_coef(x, coefs):
 def test_difference_matrix(diff_order):
     """Tests common differential matrices."""
     diff_matrix = utils.difference_matrix(10, diff_order).toarray()
-    numpy_diff = np.diff(np.eye(10), diff_order).T
+    numpy_diff = np.diff(np.eye(10), diff_order, axis=0)
 
     assert_array_equal(diff_matrix, numpy_diff)
 
@@ -232,7 +233,7 @@ def pad_func(array, pad_width, axis, kwargs):
         array[-pad_width[1]:] = pad_val
 
 
-@pytest.mark.parametrize('kernel_size', (1, 10, 31, 1000, 2000, 4000))
+@pytest.mark.parametrize('kernel_size', (1, 10, 31, 1000, 4000))
 @pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate', pad_func))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_padded_convolve(kernel_size, pad_mode, list_input, data_fixture):
@@ -267,7 +268,7 @@ def test_padded_convolve_empty_kernel():
 @pytest.mark.parametrize(
     'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
 )
-@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 4000))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_pad_edges(pad_mode, pad_length, list_input, data_fixture):
     """Tests various inputs for utils.pad_edges."""
@@ -292,7 +293,7 @@ def test_pad_edges(pad_mode, pad_length, list_input, data_fixture):
         assert_allclose(output, expected_output)
 
 
-@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 4000))
 @pytest.mark.parametrize('extrapolate_window', (None, 1, 2, 10, 1001, (10, 20), (1, 1)))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_pad_edges_extrapolate(pad_length, list_input, extrapolate_window, data_fixture):
@@ -370,7 +371,7 @@ def test_get_edges_custom_pad_func():
 @pytest.mark.parametrize(
     'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
 )
-@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 2000, 4000))
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 500, 1000, 4000))
 @pytest.mark.parametrize('list_input', (False, True))
 def test_get_edges(pad_mode, pad_length, list_input, data_fixture):
     """Tests various inputs for utils._get_edges."""
@@ -406,73 +407,6 @@ def test_get_edges(pad_mode, pad_length, list_input, data_fixture):
         assert_allclose(right, expected_right)
 
 
-@pytest.mark.parametrize('fill_scalar', (True, False))
-@pytest.mark.parametrize('list_input', (True, False))
-@pytest.mark.parametrize('nested_input', (True, False))
-def test_check_scalar_scalar_input(fill_scalar, list_input, nested_input):
-    """Ensures _check_scalar works with scalar values."""
-    input_data = 5
-    desired_length = 10
-    if fill_scalar:
-        desired_output = np.full(desired_length, input_data)
-    else:
-        desired_output = np.asarray(input_data)
-    if nested_input:
-        input_data = [input_data]
-    if list_input:
-        input_data = [input_data]
-
-    output, was_scalar = utils._check_scalar(input_data, desired_length)
-
-    assert was_scalar
-    assert isinstance(output, np.ndarray)
-    assert_array_equal(output, desired_output)
-
-
-@pytest.mark.parametrize('fit_desired_length', (True, False))
-@pytest.mark.parametrize('list_input', (True, False))
-@pytest.mark.parametrize('nested_input', (True, False))
-def test_check_scalar_array_input(fit_desired_length, list_input, nested_input):
-    """Ensures _check_scalar works with array-like inputs."""
-    desired_length = 20
-    fill_value = 5
-    if fit_desired_length:
-        input_data = np.full(desired_length, fill_value)
-    else:
-        input_data = np.full(desired_length - 1, fill_value)
-
-    if nested_input:
-        input_data = input_data.reshape(-1, 1)
-    if list_input:
-        input_data = input_data.tolist()
-
-    if fit_desired_length:
-        output, was_scalar = utils._check_scalar(input_data, desired_length)
-
-        assert not was_scalar
-        assert isinstance(output, np.ndarray)
-        assert_array_equal(output, np.asarray(input_data).reshape(-1))
-    else:
-        with pytest.raises(ValueError):
-            utils._check_scalar(input_data, desired_length)
-
-
-def test_check_scalar_asarray_kwargs():
-    """Ensures kwargs are passed to np.asarray by _check_scalar."""
-    for dtype in (int, float, np.float64, np.int64):
-        output, _ = utils._check_scalar(20, 1, dtype=dtype)
-        assert output.dtype == dtype
-
-        output, _ = utils._check_scalar(20, 10, True, dtype=dtype)
-        assert output.dtype == dtype
-
-        output, _ = utils._check_scalar([20], 1, dtype=dtype)
-        assert output.dtype == dtype
-
-        output, _ = utils._check_scalar(np.array([1, 2, 3]), 3, dtype=dtype)
-        assert output.dtype == dtype
-
-
 @pytest.mark.parametrize('seed', (123, 98765))
 def test_invert_sort(seed):
     """Ensures the inverted sort works."""
@@ -485,3 +419,23 @@ def test_invert_sort(seed):
 
     assert_array_equal(expected_inverted_sort, inverted_order)
     assert_array_equal(values, values[sort_order][inverted_order])
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+def test_whittaker_smooth(data_fixture, diff_order):
+    """Ensures the Whittaker smoothing function performs correctly."""
+    x, y = data_fixture
+    lam = 1
+    output = utils.whittaker_smooth(y, lam, diff_order)
+
+    assert isinstance(output, np.ndarray)
+
+    # construct the sparse solution and compare
+    len_y = len(y)
+    diff_matrix = utils.difference_matrix(len_y, diff_order, 'csc')
+    penalty = lam * (diff_matrix.T @ diff_matrix)
+
+    # solve the simple case for all weights are 1
+    expected_output = spsolve(identity(len_y) + penalty, y)
+
+    assert_allclose(output, expected_output, 1e-6)

@@ -5,11 +5,6 @@
 {{ obj.name }}
 {{ "=" * obj.name|length }}
 
-{% if obj.name == "pybaselines.window" %}
-{{ "This module was renamed in version 0.6.0. Use :mod:`pybaselines.smooth` instead." }}
-
-{% endif %}
-
 .. py:module:: {{ obj.name }}
 
 

@@ -1,2 +1,2 @@
-Whittaker Examples
-------------------
+Whittaker Baseline Examples
+---------------------------

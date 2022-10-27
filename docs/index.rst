@@ -27,6 +27,7 @@ pybaselines is a library of algorithms for the baseline correction of experiment
    contributing
    changes
    license
+   citing
    authors
 
 

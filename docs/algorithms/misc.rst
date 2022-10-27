@@ -11,7 +11,7 @@ Algorithms
 interp_pts (Interpolation between points)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.interp_pts` interpolates between input points using line segments
+:meth:`.interp_pts` interpolates between input points using line segments
 or splines of different orders. The function is mainly intended for usage
 with user interfaces and is not encouraged otherwise.
 
@@ -70,7 +70,7 @@ since it solely depends on the user-defined anchor points.
 beads (Baseline Estimation And Denoising with Sparsity)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:func:`.beads` decomposes the input data into baseline and pure, noise-free signal by
+:meth:`.beads` decomposes the input data into baseline and pure, noise-free signal by
 modeling the baseline as a low pass filter and by considering the signal and its derivatives
 as sparse.
 
@@ -81,22 +81,8 @@ as sparse.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines import misc
+    from pybaselines import Baseline
 
-    def create_plots():
-        fig, axes = plt.subplots(
-            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
-            gridspec_kw={'wspace': 0, 'hspace': 0}
-        )
-        axes = axes.ravel()
-        for ax in axes:
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.tick_params(
-                which='both', labelbottom=False, labelleft=False,
-                labeltop=False, labelright=False
-            )
-        return fig, axes
 
     def create_data():
         x = np.linspace(1, 1000, 500)
@@ -138,33 +124,76 @@ as sparse.
         y4 = signal + + signal_2 + baseline_4 + noise * 0.5
         y5 = signal * 2 - signal_2 + baseline_5 + noise
 
-        baselines = baseline_1, baseline_2, baseline_3, baseline_4, baseline_5
+        baselines = (baseline_1, baseline_2, baseline_3, baseline_4, baseline_5)
         data = (y1, y2, y3, y4, y5)
 
-        fig, axes = create_plots()
-        for ax, y, baseline in zip(axes, data, baselines):
-            data_handle = ax.plot(y)
-            baseline_handle = ax.plot(baseline, lw=2.5)
-        fit_handle = axes[-1].plot((), (), 'g--')
-        axes[-1].legend(
-            (data_handle[0], baseline_handle[0], fit_handle[0]),
-            ('data', 'real baseline', 'estimated baseline'),
-            loc='center', frameon=False
+        return x, data, baselines
+
+
+    def create_plots(data=None, baselines=None):
+        fig, axes = plt.subplots(
+            3, 2, tight_layout={'pad': 0.1, 'w_pad': 0, 'h_pad': 0},
+            gridspec_kw={'wspace': 0, 'hspace': 0}
         )
+        axes = axes.ravel()
 
-        return axes, data
+        legend_handles = []
+        if data is None:
+            plot_data = False
+            legend_handles.append(None)
+        else:
+            plot_data = True
+        if baselines is None:
+            plot_baselines = False
+            legend_handles.append(None)
+        else:
+            plot_baselines = True
 
-    params = [(3, 3), (0.15, 8), (0.1, 6), (0.25, 8), (0.1, 0.6)]
-    for i, (ax, y) in enumerate(zip(*create_data())):
+        for i, axis in enumerate(axes):
+            axis.set_xticks([])
+            axis.set_yticks([])
+            axis.tick_params(
+                which='both', labelbottom=False, labelleft=False,
+                labeltop=False, labelright=False
+            )
+            if i < 5:
+                if plot_data:
+                    data_handle = axis.plot(data[i])
+                if plot_baselines:
+                    baseline_handle = axis.plot(baselines[i], lw=2.5)
+        fit_handle = axes[-1].plot((), (), 'g--')
+        if plot_data:
+            legend_handles.append(data_handle[0])
+        if plot_baselines:
+            legend_handles.append(baseline_handle[0])
+        legend_handles.append(fit_handle[0])
+
+        if None not in legend_handles:
+            axes[-1].legend(
+                (data_handle[0], baseline_handle[0], fit_handle[0]),
+                ('data', 'real baseline', 'estimated baseline'),
+                loc='center', frameon=False
+            )
+
+        return fig, axes, legend_handles
+
+
+    x, data, baselines = create_data()
+    baseline_fitter = Baseline(x, check_finite=False)
+
+    fit_params = [(3, 3), (0.15, 8), (0.1, 6), (0.25, 8), (0.1, 0.6)]
+
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 0:
             freq_cutoff = 0.002
         else:
             freq_cutoff = 0.005
-        lam_0, asymmetry = params[i]
-        baseline = misc.beads(
+        lam_0, asymmetry = fit_params[i]
+        baseline, params = baseline_fitter.beads(
             y, freq_cutoff=freq_cutoff, lam_0=lam_0, lam_1=0.05, lam_2=0.2, asymmetry=asymmetry
         )
-        ax.plot(baseline[0], 'g--')
+        ax.plot(baseline, 'g--')
 
 The signal with both noise and baseline removed can also be obtained from the output
 of the beads function.
@@ -174,21 +203,21 @@ of the beads function.
    :context: close-figs
 
     # to see contents of create_data function, look at the second-to-top-most algorithm's code
-    axes, data = create_data()
-    params = [(3, 3), (0.15, 8), (0.1, 6), (0.25, 8), (0.1, 0.6)]
+    figure, axes, handles = create_plots(data, baselines)
+    fit_params = [(3, 3), (0.15, 8), (0.1, 6), (0.25, 8), (0.1, 0.6)]
     for i, (ax, y) in enumerate(zip(axes, data)):
         if i == 0:
             freq_cutoff = 0.002
         else:
             freq_cutoff = 0.005
-        lam_0, asymmetry = params[i]
-        baseline = misc.beads(
+        lam_0, asymmetry = fit_params[i]
+        baseline, params = baseline_fitter.beads(
             y, freq_cutoff=freq_cutoff, lam_0=lam_0, lam_1=0.05, lam_2=0.2, asymmetry=asymmetry
         )
 
         ax.clear()  # remove the old plots in the axis
         data_handle = ax.plot(y)
-        signal_handle = ax.plot(baseline[1]['signal'])
+        signal_handle = ax.plot(params['signal'])
 
     axes[-1].clear()  # remove the old legend
     axes[-1].legend(

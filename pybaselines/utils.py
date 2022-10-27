@@ -11,42 +11,10 @@ from math import ceil
 import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.signal import convolve
-from scipy.sparse import diags, identity
 
-from ._compat import _pentapy_solve, jit
-
-
-# Note: the triple quotes are for including the attributes within the documentation
-PENTAPY_SOLVER = 2
-"""An integer designating the solver to use if pentapy is installed.
-pentapy's solver can be used for solving pentadiagonal linear systems, such
-as those used for the Whittaker-smoothing-based algorithms. Should be 2 (default)
-or 1. See :func:`pentapy.core.solve` for more details.
-"""
-
-
-def _pentapy_solver(ab, y):
-    """
-    Convenience function for calling pentapy's solver with defaults already set.
-
-    Solves the linear system :math:`A @ x = y` for `x`, given the matrix `A` in
-    banded format, `ab`. The default settings of :func`:pentapy.solve` are
-    already set for the fastest configuration.
-
-    Parameters
-    ----------
-    ab : array-like
-        The matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
-    y : array-like
-        The right hand side of the equation.
-
-    Returns
-    -------
-    numpy.ndarray
-        The solution to the linear system.
-
-    """
-    return _pentapy_solve(ab, y, is_flat=True, index_row_wise=True, solver=PENTAPY_SOLVER)
+from ._banded_utils import PenalizedSystem, difference_matrix as _difference_matrix
+from ._compat import jit
+from ._validation import _check_array, _check_scalar, _check_optional_array
 
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
@@ -68,7 +36,7 @@ class ParameterWarning(UserWarning):
 
 def relative_difference(old, new, norm_order=None):
     """
-    Calculates the relative difference (norm(new-old) / norm(old)) of two values.
+    Calculates the relative difference, ``(norm(new-old) / norm(old))``, of two values.
 
     Used as an exit criteria in many baseline algorithms.
 
@@ -443,29 +411,10 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     doing penalized least squared fitting or Whittaker-smoothing-based fitting.
 
     """
-    if diff_order < 0:
-        raise ValueError('the differential order must be >= 0')
-    elif data_size < 0:
-        raise ValueError('data size must be >= 0')
-    elif diff_order > data_size:
-        # do not issue warning or exception to maintain parity with np.diff
-        diff_order = data_size
-
-    if diff_order == 0:
-        # faster to directly create identity matrix
-        diff_matrix = identity(data_size, format=diff_format)
-    else:
-        diagonals = np.zeros(2 * diff_order + 1)
-        diagonals[diff_order] = 1
-        for _ in range(diff_order):
-            diagonals = diagonals[:-1] - diagonals[1:]
-
-        diff_matrix = diags(
-            diagonals, np.arange(diff_order + 1),
-            shape=(data_size - diff_order, data_size), format=diff_format
-        )
-
-    return diff_matrix
+    # difference_matrix moved to pybaselines._banded_utils in version 1.0.0 in order to more
+    # easily use it in other modules without creating circular imports; this function
+    # exposes it through pybaselines.utils for backwards compatibility in user code
+    return _difference_matrix(data_size, diff_order=diff_order, diff_format=diff_format)
 
 
 def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
@@ -514,6 +463,7 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
     if min_half_window is None:
         min_half_window = 1
 
+    # TODO would it be better to allow padding the data?
     opening = grey_opening(y, [2 * min_half_window + 1])
     hits = 0
     best_half_window = min_half_window
@@ -532,61 +482,6 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
         opening = new_opening
 
     return max(half_window, 1)  # ensure half window is at least 1
-
-
-def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
-    """
-    Checks if the input is scalar and potentially coerces it to the desired length.
-
-    Only intended for one dimensional data.
-
-    Parameters
-    ----------
-    data : array-like
-        Either a scalar value or an array. Array-like inputs with only 1 item will also
-        be considered scalar.
-    desired_length : int
-        If `data` is an array, `desired_length` is the length the array must have. If `data`
-        is a scalar and `fill_scalar` is True, then `desired_length` is the length of the output.
-    fill_scalar : bool, optional
-        If True and `data` is a scalar, then will output an array with a length of
-        `desired_length`. Default is False, which leaves scalar values unchanged.
-    **asarray_kwargs : dict
-        Additional keyword arguments to pass to :func:`numpy.asarray`.
-
-    Returns
-    -------
-    output : numpy.ndarray
-        The array of values with 0 or 1 dimensions depending on the input parameters.
-    is_scalar : bool
-        True if the input was a scalar value or had a length of 1; otherwise, is False.
-
-    Raises
-    ------
-    ValueError
-        Raised if `data` is not a scalar and its length is not equal to `desired_length`.
-
-    """
-    output = np.asarray(data, **asarray_kwargs)
-    ndim = output.ndim
-    if not ndim:
-        is_scalar = True
-    else:
-        if ndim > 1:  # coerce to 1d shape
-            output = output.reshape(-1)
-        len_output = len(output)
-        if len_output == 1:
-            is_scalar = True
-            output = np.asarray(output[0], **asarray_kwargs)
-        else:
-            is_scalar = False
-
-    if is_scalar and fill_scalar:
-        output = np.full(desired_length, output)
-    elif not is_scalar and len_output != desired_length:
-        raise ValueError(f'desired length was {desired_length} but instead got {len_output}')
-
-    return output, is_scalar
 
 
 def _inverted_sort(sort_order):
@@ -621,3 +516,62 @@ def _inverted_sort(sort_order):
     inverted_order[sort_order] = np.arange(num_points, dtype=np.intp)
 
     return inverted_order
+
+
+def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=True,
+                     penalized_system=None):
+    """
+    Smooths the input data using Whittaker smoothing.
+
+    The input is smoothed by solving the equation ``(W + lam * D.T @ D) y_smooth = W @ y``,
+    where `W` is a matrix with `weights` on the diagonals and `D` is the finite difference
+    matrix.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e6.
+    diff_order : int, optional
+        The order of the finite difference matrix. Must be greater than or equal to 0.
+        Default is 2 (second order differential matrix). Typical values are 2 or 1.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    check_finite : bool, optional
+        If True, will raise an error if any values if `data` or `weights` are not finite.
+        Default is False, which skips the check.
+    penalized_system : pybaselines._banded_utils.PenalizedSystem, optional
+        If None (default), will create a new PenalizedSystem object for solving the equation.
+        If not None, will use the object's `reset_diagonals` method and then solve.
+
+    Returns
+    -------
+    smooth_y : numpy.ndarray, shape (N,)
+        The smoothed data.
+
+    References
+    ----------
+    Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+    """
+    y = _check_array(data, check_finite=check_finite, ensure_1d=True)
+    len_y = len(y)
+    if penalized_system is not None:
+        penalized_system.reset_diagonals(lam=lam, diff_order=diff_order)
+    else:
+        penalized_system = PenalizedSystem(len_y, lam=lam, diff_order=diff_order)
+    weight_array = _check_optional_array(len_y, weights, check_finite=check_finite)
+
+    penalized_system.penalty[penalized_system.main_diagonal_index] = (
+        penalized_system.penalty[penalized_system.main_diagonal_index] + weight_array
+    )
+    smooth_y = penalized_system.solve(
+        penalized_system.penalty, weight_array * y, overwrite_ab=True, overwrite_b=True
+    )
+
+    return smooth_y
