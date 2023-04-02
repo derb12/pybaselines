@@ -14,7 +14,8 @@ from scipy.signal import convolve
 
 from ._banded_utils import PenalizedSystem, difference_matrix as _difference_matrix
 from ._compat import jit
-from ._validation import _check_array, _check_scalar, _check_optional_array
+from ._spline_utils import PSpline
+from ._validation import _check_array, _check_scalar, _check_optional_array, _yx_arrays
 
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
@@ -63,7 +64,7 @@ def relative_difference(old, new, norm_order=None):
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     """
-    Generates a gaussian distribution based on height, center, and sigma.
+    Generates a Gaussian distribution based on height, center, and sigma.
 
     Parameters
     ----------
@@ -79,7 +80,7 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     Returns
     -------
     numpy.ndarray
-        The gaussian distribution evaluated with x.
+        The Gaussian distribution evaluated with x.
 
     """
     return height * np.exp(-0.5 * ((x - center)**2) / max(sigma, _MIN_FLOAT)**2)
@@ -551,7 +552,7 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
 
     Returns
     -------
-    smooth_y : numpy.ndarray, shape (N,)
+    y_smooth : numpy.ndarray, shape (N,)
         The smoothed data.
 
     References
@@ -570,8 +571,72 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
     penalized_system.penalty[penalized_system.main_diagonal_index] = (
         penalized_system.penalty[penalized_system.main_diagonal_index] + weight_array
     )
-    smooth_y = penalized_system.solve(
+    y_smooth = penalized_system.solve(
         penalized_system.penalty, weight_array * y, overwrite_ab=True, overwrite_b=True
     )
 
-    return smooth_y
+    return y_smooth
+
+
+def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, diff_order=2,
+                   weights=None, check_finite=True, pspline=None):
+    """
+    Smooths the input data using Penalized Spline smoothing.
+
+    The input is smoothed by solving the equation
+    ``(B.T @ W @ B + lam * D.T @ D) y_smooth = B.T @ W @ y``, where `W` is a matrix with
+    `weights` on the diagonals, `D` is the finite difference matrix, and `B` is the
+    spline basis matrix.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e1.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the finite difference matrix. Must be greater than or equal to 0.
+        Default is 2 (second order differential matrix). Typical values are 2 or 1.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    check_finite : bool, optional
+        If True, will raise an error if any values if `data` or `weights` are not finite.
+        Default is False, which skips the check.
+    pspline : pybaselines._spline_utils.PSpline, optional
+        If None (default), will create a new PSpline object for solving the equation.
+        If not None, will use the object's `reset_penalty_diagonals` method and then solve.
+
+    Returns
+    -------
+    y_smooth : numpy.ndarray, shape (N,)
+        The smoothed data.
+
+    References
+    ----------
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+    y, x = _yx_arrays(data, x_data, check_finite=check_finite, ensure_1d=True)
+    if pspline is None or not pspline.same_basis(num_knots, spline_degree):
+        pspline = PSpline(x, num_knots, spline_degree, False, lam, diff_order)
+    else:
+        pspline.reset_penalty_diagonals(lam, diff_order)
+
+    weight_array = _check_optional_array(
+        len(y), weights, dtype=float, order='C', check_finite=check_finite
+    )
+    y_smooth = pspline.solve_pspline(y, weight_array)
+
+    return y_smooth

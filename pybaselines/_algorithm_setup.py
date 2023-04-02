@@ -445,7 +445,7 @@ class _Algorithm:
 
     def _setup_spline(self, y, weights=None, spline_degree=3, num_knots=10,
                       penalized=True, diff_order=3, lam=1, make_basis=True, allow_lower=True,
-                      reverse_diags=None, copy_weights=False):
+                      reverse_diags=False, copy_weights=False):
         """
         Sets the starting parameters for doing spline fitting.
 

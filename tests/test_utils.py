@@ -9,10 +9,10 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import identity
+from scipy.sparse import diags, identity, spdiags
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import utils
+from pybaselines import _banded_utils, _spline_utils, utils
 
 from .conftest import gaussian
 
@@ -439,3 +439,33 @@ def test_whittaker_smooth(data_fixture, diff_order):
     expected_output = spsolve(identity(len_y) + penalty, y)
 
     assert_allclose(output, expected_output, 1e-6)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('num_knots', (10, 100, 200))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+def test_pspline_smooth(data_fixture, diff_order, num_knots, spline_degree):
+    """Ensures the Penalized Spline smoothing function performs correctly."""
+    x, y = data_fixture
+    lam = 1
+    output = utils.pspline_smooth(
+        y, x, lam=lam, diff_order=diff_order, num_knots=num_knots, spline_degree=spline_degree
+    )
+
+    assert isinstance(output, np.ndarray)
+
+    # construct the sparse solution and compare
+    len_y = len(y)
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+    num_bases = basis.shape[1]
+    penalty_matrix = spdiags(
+        _banded_utils.diff_penalty_diagonals(num_bases, diff_order, lower_only=False),
+        np.arange(diff_order, -(diff_order + 1), -1), num_bases, num_bases, 'csr'
+    )
+    weights = diags(np.ones(len_y), format='csr')
+
+    # solve the simple case for all weights are 1
+    coeffs = spsolve(basis.T @ weights @ basis + lam * penalty_matrix, basis.T @ weights @ y)
+
+    assert_allclose(basis @ coeffs, output, 1e-6)

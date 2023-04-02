@@ -767,7 +767,7 @@ class PSpline(PenalizedSystem):
         """
         return num_knots == self.num_knots and spline_degree == self.spline_degree
 
-    def reset_penalty_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=None):
+    def reset_penalty_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=False):
         """
         Resets the penalty diagonals of the system and all of the attributes.
 
@@ -784,10 +784,9 @@ class PSpline(PenalizedSystem):
             If True (default), will allow only using the lower bands of the penalty matrix,
             which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
             slower :func:`scipy.linalg.solve_banded`.
-        reverse_diags : {None, False, True}, optional
+        reverse_diags : bool, optional
             If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False, will never reverse the diagonals. If None (default), will
-            only reverse the diagonals if using pentapy's solver.
+            matrix. If False (default), will never reverse the diagonals.
 
         Notes
         -----
