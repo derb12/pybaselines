@@ -335,3 +335,38 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
         super().test_input_weights(
             constrained_weight=weightings, constrained_fraction=constrained_fractions
         )
+
+
+class TestCustomBC(OptimizersTester, OptimizerInputWeightsMixin):
+    """Class for testing custom_bc baseline."""
+
+    func_name = 'custom_bc'
+    # will need to change checked_keys if default method is changed
+    checked_keys = ('weights', 'tol_history', 'data', 'x_data')
+    weight_keys = ('weights',)
+
+    @pytest.mark.parametrize(
+        'method',
+        (
+            'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'asls', 'airpls', 'arpls',
+            'mpls', 'mor', 'imor', 'mixture_model', 'irsqr', 'corner_cutting', 'pspline_asls',
+            'pspline_airpls', 'noise_median', 'snip', 'dietrich', 'std_distribution', 'fabc'
+        )
+    )
+    def test_methods(self, method):
+        """
+        Ensures most available methods work.
+
+        Does not test all methods since the function can be used for all methods within
+        pybaselines; instead, it just tests a few methods from each module.
+
+        """
+        self.class_func(self.y, method=method)
+
+    def test_x_ordering(self):
+        """Ensures arrays are correctly sorted within the function."""
+        super().test_x_ordering(assertion_kwargs={'rtol': 1e-6})
+
+    def test_input_weights(self, assertion_kwargs=None, **kwargs):
+        """Ensures weights are correctly sorted within the function."""
+        super().test_input_weights(assertion_kwargs={'rtol': 1e-6})

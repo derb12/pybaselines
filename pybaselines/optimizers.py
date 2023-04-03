@@ -488,6 +488,112 @@ class _Optimizers(_Algorithm):
 
         return _sort_array(np.maximum.reduce(baselines), self._sort_order), params
 
+    @_Algorithm._register
+    def custom_bc(self, data, method='asls', rois=(None, None), sampling=1, lam=None,
+                  diff_order=2, method_kwargs=None):
+        """
+        Customized baseline correction for fine tuned stiffness of the baseline at specific regions.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        method : str, optional
+            A string indicating the algorithm to use for fitting the baseline; can be any
+            non-optimizer algorithm in pybaselines. Default is 'asls'.
+        rois : array-like, shape (M, 2), optional
+            The two dimensional array containing the start and stop indices for each region of
+            interest. Each region is defined as ``data[start:stop]``. Default is (None, None),
+            which will use all points.
+        sampling : int or array-like, optional
+            The sampling step size for each region defined in `rois`. If `sampling` is an integer,
+            then all regions in `rois` will use the same index step size; if `sampling` is an
+            array-like, its length must be equal to `M`, the first dimension in `rois`. Default
+            is 1, which will use all points.
+        lam : float or None, optional
+            The value for smoothing the calculated interpolated baseline using Whittaker
+            smoothing, in order to reduce the kinks between regions. Default is None, which
+            will not smooth the baseline; a value of 0 will also not perform smoothing.
+        diff_order : int, optional
+            The difference order used for Whittaker smoothing of the calculated baseline.
+            Default is 2.
+        method_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to the selected `method` function.
+            Default is None, which will use an empty dictionary.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The baseline calculated with the optimum parameter.
+        method_params : dict
+            A dictionary with the following items:
+
+
+            Additional items depend on the output of the selected method.
+
+        Raises
+        ------
+        ValueError
+            Raised if `rois` is not two dimensional or if `sampling` is not the same length
+            as `rois.shape[0]`.
+
+        Notes
+        -----
+        Uses Whittaker smoothing to smooth the transitions between regions rather than LOESS
+        as used in [31]_ since LOESS introduces additional kinks in the regions between the
+        smoothed and non-smoothed regions.
+
+        References
+        ----------
+        .. [31] Liland, K., et al. Customized baseline correction. Chemometrics and
+               Intelligent Laboratory Systems, 2011, 109(1), 51-56.
+
+        """
+        y, baseline_func, _, method_kws, fitting_object = self._setup_optimizer(
+            data, method,
+            (classification, misc, morphological, polynomial, smooth, spline, whittaker),
+            method_kwargs, True
+        )
+        roi_array = np.atleast_2d(rois)
+        roi_shape = roi_array.shape
+        if len(roi_shape) != 2 or roi_shape[1] != 2:
+            raise ValueError('rois must be a two dimensional sequence of (start, stop) values')
+
+        steps = _check_scalar(sampling, roi_shape[0], fill_scalar=True, dtype=np.intp)[0]
+        if np.any(steps < 1):
+            raise ValueError('all step sizes in "sampling" must be >= 1')
+
+        # TODO maybe use binning (sum or average) to get a better signal to noise ratio rather
+        # than just indexing
+        x_sections = []
+        x_mask = np.ones(self._len, dtype=bool)
+        for (start, stop), step in zip(roi_array, steps):
+            if start is None:
+                start = 0
+            if stop is None:
+                stop = self._len
+            x_sections.append(np.arange(start, stop, step, dtype=np.intp))
+            x_mask[start:stop] = False
+        x_sections.append(np.arange(self._len, dtype=np.intp)[x_mask])
+        indices = np.unique(np.clip(np.concatenate(x_sections), 0, self._len - 1))
+        y_fit = y[indices]
+        x_fit = self.x[indices]
+
+        # TODO what about the sort ordering?
+        with fitting_object._override_x(x_fit):
+            baseline_fit, params = baseline_func(y_fit, **method_kws)
+
+        baseline = np.interp(self.x, x_fit, baseline_fit)
+        params.update({'x_data': x_fit, 'data': y_fit})
+        if lam is not None and lam != 0:
+            _, weights = self._setup_whittaker(y, lam=lam, diff_order=diff_order)
+            baseline = whittaker_smooth(
+                baseline, lam=lam, diff_order=diff_order, weights=weights,
+                check_finite=self._check_finite, penalized_system=self.whittaker_system
+            )
+
+        return _sort_array(baseline, self._sort_order), params
+
 
 _optimizers_wrapper = _class_wrapper(_Optimizers)
 
@@ -773,5 +879,70 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     .. [3] Cao, A., et al. A robust method for automated background subtraction
            of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
            1199-1205.
+
+    """
+
+
+@_optimizers_wrapper
+def custom_bc(data, x_data=None, method='asls', rois=(None, None), sampling=1, lam=None,
+              diff_order=2, method_kwargs=None):
+    """
+    Customized baseline correction for fine tuned stiffness of the baseline at specific regions.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    method : str, optional
+        [description]. Default is 'asls'.
+    rois : array-like, shape (M, 2), optional
+        The two dimensional array containing the start and stop indices for each region of
+        interest. Each region is defined as ``data[start:stop]``. Default is (None, None),
+        which will use all points.
+    sampling : int or array-like, optional
+        The sampling step size for each region defined in `rois`. If `sampling` is an integer,
+        then all regions in `rois` will use the same index step size; if `sampling` is an
+        array-like, its length must be equal to `M`, the first dimension in `rois`. Default
+        is 1, which will use all points.
+    lam : float or None, optional
+        The value for smoothing the calculated interpolated baseline using Whittaker
+        smoothing, in order to reduce the kinks between regions. Default is None, which
+        will not smooth the baseline; a value of 0 will also not perform smoothing.
+    diff_order : int, optional
+        The difference order used for Whittaker smoothing of the calculated baseline.
+        Default is 2.
+    method_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to the selected `method` function.
+        Default is None, which will use an empty dictionary.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The baseline calculated with the optimum parameter.
+    method_params : dict
+        A dictionary with the following items:
+
+
+        Additional items depend on the output of the selected method.
+
+    Raises
+    ------
+    ValueError
+        Raised if `rois` is not two dimensional or if `sampling` is not the same length
+        as `rois.shape[0]`.
+
+    Notes
+    -----
+    Uses Whittaker smoothing to smooth the transitions between regions rather than LOESS
+    as used in [4]_ since LOESS introduces additional kinks in the regions between the
+    smoothed and non-smoothed regions.
+
+    References
+    ----------
+    .. [4] Liland, K., et al. Customized baseline correction. Chemometrics and
+            Intelligent Laboratory Systems, 2011, 109(1), 51-56.
 
     """
