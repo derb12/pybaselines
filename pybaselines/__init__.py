@@ -101,3 +101,4 @@ from . import (
 )
 
 from .api import Baseline
+from .two_d.api import Baseline2D
