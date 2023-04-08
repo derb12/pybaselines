@@ -11,18 +11,19 @@ from math import ceil
 import warnings
 
 import numpy as np
+from scipy.ndimage import grey_opening
 from scipy.optimize import curve_fit
 from scipy.sparse import spdiags
 
 from . import _weighting
-from ._algorithm_setup import _Algorithm, _class_wrapper
+from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
 from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
 from ._compat import _HAS_NUMBA, jit
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
     _MIN_FLOAT, _mollifier_kernel, ParameterWarning, gaussian, pad_edges, padded_convolve,
-    relative_difference
+    pspline_smooth, relative_difference
 )
 
 
@@ -1280,6 +1281,124 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
+    @_Algorithm._register(sort_keys=('weights',))
+    def pspline_mpls(self, data, half_window=None, lam=1e3, p=0.0, num_knots=100, spline_degree=3,
+                     diff_order=2, tol=1e-3, max_iter=50, weights=None, **window_kwargs):
+        """
+        A penalized spline version of the morphological penalized least squares (MPLS) algorithm.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        half_window : int, optional
+            The half-window used for the morphology functions. If a value is input,
+            then that value will be used. Default is None, which will optimize the
+            half-window size using :func:`.optimize_window` and `window_kwargs`.
+        lam : float, optional
+            The smoothing parameter. Larger values will create smoother baselines.
+            Default is 1e3.
+        p : float, optional
+            The penalizing weighting factor. Must be between 0 and 1. Anchor points
+            identified by the procedure in [32]_ are given a weight of `1 - p`, and all
+            other points have a weight of `p`. Default is 0.0.
+        num_knots : int, optional
+            The number of knots for the spline. Default is 100.
+        spline_degree : int, optional
+            The degree of the spline. Default is 3, which is a cubic spline.
+        diff_order : int, optional
+            The order of the differential matrix. Must be greater than 0. Default is 2
+            (second order differential matrix). Typical values are 2 or 1.
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then the weights will be
+            calculated following the procedure in [32]_.
+        **window_kwargs
+            Values for setting the half window used for the morphology operations.
+            Items include:
+
+                * 'increment': int
+                    The step size for iterating half windows. Default is 1.
+                * 'max_hits': int
+                    The number of consecutive half windows that must produce the same
+                    morphological opening before accepting the half window as the
+                    optimum value. Default is 1.
+                * 'window_tol': float
+                    The tolerance value for considering two morphological openings as
+                    equivalent. Default is 1e-6.
+                * 'max_half_window': int
+                    The maximum allowable window size. If None (default), will be set
+                    to (len(data) - 1) / 2.
+                * 'min_half_window': int
+                    The minimum half-window size. If None (default), will be set to 1.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,)
+                The weight array used for fitting the data.
+            * 'half_window': int
+                The half window used for the morphological calculations.
+
+        Raises
+        ------
+        ValueError
+            Raised if p is not between 0 and 1.
+
+        References
+        ----------
+        .. [32] Li, Zhong, et al. Morphological weighted penalized least squares for
+            background correction. Analyst, 2013, 138, 4483-4492.
+
+        Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+        Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+        """
+        if not 0 <= p <= 1:
+            raise ValueError('p must be between 0 and 1')
+
+        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        if weights is not None:
+            w = weights
+        else:
+            rough_baseline = grey_opening(y, [2 * half_wind + 1])
+            diff = np.diff(
+                np.concatenate([rough_baseline[:1], rough_baseline, rough_baseline[-1:]])
+            )
+            # diff == 0 means the point is on a flat segment, and diff != 0 means the
+            # adjacent point is not the same flat segment. The union of the two finds
+            # the endpoints of each segment, and np.flatnonzero converts the mask to
+            # indices; indices will always be even-sized.
+            indices = np.flatnonzero(
+                ((diff[1:] == 0) | (diff[:-1] == 0)) & ((diff[1:] != 0) | (diff[:-1] != 0))
+            )
+            w = np.full(y.shape[0], p)
+            # find the index of min(y) in the region between flat regions
+            for previous_segment, next_segment in zip(indices[1::2], indices[2::2]):
+                index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
+                w[index] = 1 - p
+
+            # have to invert the weight ordering the matching the original input y ordering
+            # since it will be sorted within _setup_spline
+            w = _sort_array(w, self._inverted_order)
+
+        _, weight_array = self._setup_spline(y, w, spline_degree, num_knots, True, diff_order, lam)
+        baseline = pspline_smooth(
+            y, x_data=self.x, lam=lam, num_knots=num_knots, spline_degree=spline_degree,
+            diff_order=diff_order, weights=weight_array, check_finite=self._check_finite,
+            pspline=self.pspline
+        )
+
+        params = {'weights': weight_array, 'half_window': half_wind}
+        return baseline, params
+
 
 _spline_wrapper = _class_wrapper(_Spline)
 
@@ -2405,6 +2524,92 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
     Korepanov, V. Asymmetric least-squares baseline algorithm with peak screening for
     automatic processing of the Raman spectra. Journal of Raman Spectroscopy. 2020,
     51(10), 2061-2065.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+
+
+@_spline_wrapper
+def pspline_mpls(data, x_data=None, half_window=None, lam=1e3, p=0.0, num_knots=100,
+                 spline_degree=3, diff_order=2, tol=1e-3, max_iter=50, weights=None,
+                 **window_kwargs):
+    """
+    A penalized spline version of the morphological penalized least squares (MPLS) algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    half_window : int, optional
+        The half-window used for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e3.
+    p : float, optional
+        The penalizing weighting factor. Must be between 0 and 1. Anchor points
+        identified by the procedure in [1]_ are given a weight of `1 - p`, and all
+        other points have a weight of `p`. Default is 0.0.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the weights will be
+        calculated following the procedure in [1]_.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'half_window': int
+            The half window used for the morphological calculations.
+
+    Raises
+    ------
+    ValueError
+        Raised if p is not between 0 and 1.
+
+    References
+    ----------
+    .. [1] Li, Zhong, et al. Morphological weighted penalized least squares for
+        background correction. Analyst, 2013, 138, 4483-4492.
 
     Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
     Reviews: Computational Statistics, 2010, 2(6), 637-653.

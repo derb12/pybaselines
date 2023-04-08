@@ -78,7 +78,7 @@ release = version
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # smartquotes converts quotes and dashes to typographically correct entities
 # but I think it's been messing up my html documentation.

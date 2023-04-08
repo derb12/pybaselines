@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import _banded_utils, spline, utils, whittaker
+from pybaselines import _banded_utils, morphological, spline, utils, whittaker
 
 from .conftest import BaseTester, InputWeightsMixin
 
@@ -559,3 +559,34 @@ class TestPsplineDerpsalsa(IterativeSplineTester):
     def test_whittaker_comparison(self, lam, p):
         """Ensures the P-spline version is the same as the Whittaker version."""
         compare_pspline_whittaker(self, whittaker.derpsalsa, self.y, lam=lam, p=p)
+
+
+class TestPsplineMPLS(SplineTester, InputWeightsMixin):
+    """Class for testing pspline_mpls baseline."""
+
+    func_name = 'pspline_mpls'
+    checked_keys = ('half_window', 'weights')
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e4, 3: 1e10}[diff_order]
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
+
+    @pytest.mark.parametrize('p', (-1, 2))
+    def test_outside_p_fails(self, p):
+        """Ensures p values outside of [0, 1] raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, p=p)
+
+    def test_mpls_weights(self):
+        """
+        Ensure that the assigned weights are the same as the MPLS method.
+
+        The assigned weights are not dependent on the least-squared fitting parameters,
+        only on the half window.
+        """
+        _, params = self.class_func(self.y, half_window=15)
+        _, mpls_params = morphological.mpls(self.y, half_window=15)
+
+        assert_allclose(params['weights'], mpls_params['weights'], rtol=1e-9)

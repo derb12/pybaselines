@@ -718,3 +718,48 @@ respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the roo
             k = 0.5
         baseline, params = baseline_fitter.pspline_derpsalsa(y, lam=1e2, k=k)
         ax.plot(baseline, 'g--')
+
+
+pspline_mpls (Penalized Spline Morphological Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`.pspline_mpls` is a penalized spline version of :meth:`.mpls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \left\{\begin{array}{cr}
+        p & y_i > z_i \\
+        1 - p & y_i \le z_i
+    \end{array}\right.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        if i == 4:
+            # few baseline points are identified, so use a higher p value so
+            # that other points contribute to fitting; mpls isn't good for
+            # signals with positive and negative peaks
+            p = 0.1
+        else:
+            p = 0.001
+        baseline, params = baseline_fitter.pspline_mpls(y, lam=lam, p=p)
+        ax.plot(baseline, 'g--')
