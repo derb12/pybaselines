@@ -7,11 +7,12 @@ Created on April 8, 2023
 """
 
 from .morphological import _Morphological
+from .polynomial import _Polynomial
 from .smooth import _Smooth
 
 
 class Baseline2D(
-    _Morphological, _Smooth
+    _Morphological, _Polynomial, _Smooth
 ):
     """
     A class for all 2D baseline correction algorithms.

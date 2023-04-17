@@ -245,7 +245,7 @@ class _Polynomial(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',))
     def imodpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
-                 use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1):
+                 use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1.):
         """
         The improved modofied polynomial (IModPoly) baseline algorithm.
 

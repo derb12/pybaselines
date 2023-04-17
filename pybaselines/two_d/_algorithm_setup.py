@@ -12,8 +12,8 @@ from functools import partial, wraps
 import numpy as np
 from scipy.ndimage import grey_opening
 
-from .._validation import (
-    _check_array, _check_half_window, _check_sized_array, _yx_arrays
+from ._validation import (
+    _check_array, _check_half_window, _check_optional_array, _check_sized_array, _yx_arrays
 )
 from ..utils import _inverted_sort, pad_edges, relative_difference
 
@@ -135,7 +135,8 @@ class _Algorithm2D:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, dtype=None, order=None, ensure_1d=True, axis=-1):
+    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True,
+                  axis=-1, reshape_baseline=False, reshape_keys=()):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -147,6 +148,9 @@ class _Algorithm2D:
         ----------
         func : Callable, optional
             The function that is being decorated. Default is None, which returns a partial function.
+        sort_keys : tuple, optional
+            The keys within the output parameter dictionary that will need sorting to match the
+            sort order of :attr:`.x`. Default is ().
         dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing of `array`.
         order : {None, 'C', 'F'}, optional
@@ -157,6 +161,13 @@ class _Algorithm2D:
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
         axis : int, optional
             The axis of the input on which to check its length. Default is -1.
+        reshape_baseline : bool, optional
+            If True, will reshape the output baseline back into the shape of the input data. If
+            False (default), will not modify the output baseline shape.
+        reshape_keys : tuple, optional
+            The keys within the output parameter dictionary that will need reshaped to match the
+            shape of the data. For example, used to convert weights for polynomials from 1D back
+            into the original shape. Default is ().
 
         Returns
         -------
@@ -168,11 +179,13 @@ class _Algorithm2D:
         """
         if func is None:
             return partial(
-                cls._register, dtype=dtype, order=order, ensure_1d=ensure_1d, axis=axis
+                cls._register, dtype=dtype, order=order, ensure_1d=ensure_1d, axis=axis,
+                reshape_baseline=reshape_baseline, reshape_keys=reshape_keys
             )
 
         @wraps(func)
         def inner(self, data=None, *args, **kwargs):
+            """  # TODO add back in later
             if self.x is None:
                 if data is None:
                     raise TypeError('"data" and "x_data" cannot both be None')
@@ -200,12 +213,18 @@ class _Algorithm2D:
                     self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
 
+            """
+            y = data; input_y = True; reset_x = False; x_dtype = None  # TODO remove later
+
             if input_y and self._dtype is None:
                 output_dtype = y.dtype
             else:
                 output_dtype = self._dtype
 
+            y_shape = y.shape  # TODO remove later and move somewhere else
             baseline, params = func(self, y, *args, **kwargs)
+            if reshape_baseline:
+                baseline = baseline.reshape(y_shape)
             if reset_x:
                 self.x = np.array(self.x, dtype=x_dtype, copy=False)
 
@@ -271,6 +290,91 @@ class _Algorithm2D:
             self.poly_order = old_poly_order
             self.whittaker_system = old_whittaker_system
             self.pspline = old_pspline
+
+    def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
+                          calc_pinv=False, copy_weights=False):
+        """
+        Sets the starting parameters for doing polynomial fitting.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+        poly_order : int, optional
+            The polynomial order. Default is 2.
+        calc_vander : bool, optional
+            If True, will calculate and the Vandermonde matrix. Default is False.
+        calc_pinv : bool, optional
+            If True, and if `return_vander` is True, will calculate and return the
+            pseudo-inverse of the Vandermonde matrix. Default is False.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for fitting a polynomial to the data.
+        pseudo_inverse : numpy.ndarray
+            Only returned if `calc_pinv` is True. The pseudo-inverse of the
+            Vandermonde matrix, calculated with singular value decomposition (SVD).
+
+        Raises
+        ------
+        ValueError
+            Raised if `calc_pinv` is True and `calc_vander` is False.
+
+        Notes
+        -----
+        If x_data is given, its domain is reduced from ``[min(x_data), max(x_data)]``
+        to [-1., 1.] to improve the numerical stability of calculations; since the
+        Vandermonde matrix goes from ``x**0`` to ``x^**poly_order``, large values of
+        x would otherwise cause difficulty when doing least squares minimization.
+
+        """
+        weight_array = _check_optional_array(
+            y.shape, weights, copy_input=copy_weights, check_finite=self._check_finite, ensure_1d=False  # TODO change y.shape to self._len or self._shape
+        )
+        weight_array = weight_array.ravel()
+        # TODO
+        #if self._sort_order is not None and weights is not None:
+        #    weight_array = weight_array[self._sort_order]
+
+        if calc_vander:
+            if self.vandermonde is None or poly_order > self.poly_order:
+                mapped_x = np.polynomial.polyutils.mapdomain(
+                    self.x, self.x_domain, np.array([-1., 1.])
+                )
+                mapped_z = np.polynomial.polyutils.mapdomain(
+                    self.z, self.z_domain, np.array([-1., 1.])
+                )
+                # rearrange the vandermonde such that it matches the typical A c = b where b
+                # is the flattened version of y and c are the coefficients
+                self.vandermonde = np.polynomial.polynomial.polyvander2d(
+                    *np.meshgrid(mapped_x, mapped_z), [poly_order, poly_order]
+                ).reshape((-1, (poly_order + 1) * (poly_order + 1)))
+
+            elif poly_order < self.poly_order:
+                pass #self.vandermonde = self.vandermonde[:, :poly_order + 1]
+        self.poly_order = poly_order
+
+        if not calc_pinv:
+            return y, weight_array
+        elif not calc_vander:
+            raise ValueError('if calc_pinv is True, then calc_vander must also be True')
+
+        if weights is None:
+            pseudo_inverse = np.linalg.pinv(self.vandermonde)
+        else:
+            pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
+
+        return y.ravel(), weight_array, pseudo_inverse
 
     def _setup_morphology(self, y, half_window=None, **window_kwargs):
         """
