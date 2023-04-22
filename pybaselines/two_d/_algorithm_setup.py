@@ -363,7 +363,7 @@ class _Algorithm2D:
             elif poly_order < self.poly_order:
                 pass #self.vandermonde = self.vandermonde[:, :poly_order + 1]
         self.poly_order = poly_order
-
+        y = y.ravel()
         if not calc_pinv:
             return y, weight_array
         elif not calc_vander:
@@ -374,7 +374,7 @@ class _Algorithm2D:
         else:
             pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
 
-        return y.ravel(), weight_array, pseudo_inverse
+        return y, weight_array, pseudo_inverse
 
     def _setup_morphology(self, y, half_window=None, **window_kwargs):
         """

@@ -493,6 +493,110 @@ class _Polynomial(_Algorithm2D):
     @_Algorithm2D._register(
         sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
     )
+    def quant_reg(self, data, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
+                  weights=None, eps=None, return_coef=False):
+        """
+        Approximates the baseline of the data using quantile regression.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        poly_order : int, optional
+            The polynomial order for fitting the baseline. Default is 2.
+        quantile : float, optional
+            The quantile at which to fit the baseline. Default is 0.05.
+        tol : float, optional
+            The exit criteria. Default is 1e-6. For extreme quantiles (`quantile` < 0.01
+            or `quantile` > 0.99), may need to use a lower value to get a good fit.
+        max_iter : int, optional
+            The maximum number of iterations. Default is 250. For extreme quantiles
+            (`quantile` < 0.01 or `quantile` > 0.99), may need to use a higher value to
+            ensure convergence.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+        eps : float, optional
+            A small value added to the square of the residual to prevent dividing by 0.
+            Default is None, which uses the square of the maximum-absolute-value of the
+            fit each iteration multiplied by 1e-6.
+        return_coef : bool, optional
+            If True, will convert the polynomial coefficients for the fit baseline to
+            a form that fits the input `x_data` and return them in the params dictionary.
+            Default is False, since the conversion takes time.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+                Only if `return_coef` is True. The array of polynomial parameters
+                for the baseline, in increasing order. Can be used to create a
+                polynomial using numpy.polynomial.polynomial.Polynomial().
+
+        Raises
+        ------
+        ValueError
+            Raised if `quantile` is not between 0 and 1.
+
+        Notes
+        -----
+        Application of quantile regression for baseline fitting ss described in [23]_.
+
+        Performs quantile regression using iteratively reweighted least squares (IRLS)
+        as described in [24]_.
+
+        References
+        ----------
+        .. [23] Komsta, Ł. Comparison of Several Methods of Chromatographic
+                Baseline Removal with a New Approach Based on Quantile Regression.
+                Chromatographia, 2011, 73, 721-731.
+        .. [24] Schnabel, S., et al. Simultaneous estimation of quantile curves using
+                quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
+
+        """
+        # TODO provide a way to estimate best poly_order based on AIC like in Komsta? could be
+        # useful for all polynomial methods; maybe could be an optimizer function
+        if not 0 < quantile < 1:
+            raise ValueError('quantile must be between 0 and 1.')
+
+        y, weight_array = self._setup_polynomial(data, weights, poly_order, calc_vander=True)
+        # estimate first iteration using least squares
+        sqrt_w = np.sqrt(weight_array)
+        coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
+        baseline = self.vandermonde @ coef
+        tol_history = np.empty(max_iter)
+        for i in range(max_iter):
+            baseline_old = baseline
+            sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+            coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
+            baseline = self.vandermonde @ coef
+            # relative_difference(baseline_old, baseline, 1) gives nearly same result and
+            # the l2 norm is faster to calculate, so use that instead of l1 norm
+            calc_difference = relative_difference(baseline_old, baseline)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
+
+        params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
+        if return_coef:
+            params['coef'] = _convert_coef(coef, self.x_domain)
+
+        return baseline, params
+
+    @_Algorithm2D._register(
+        sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
+    )
     def goldindec(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                   cost_function='asymmetric_indec', peak_ratio=0.5, alpha_factor=0.99,
                   tol_2=1e-3, tol_3=1e-6, max_iter_2=100, return_coef=False):
