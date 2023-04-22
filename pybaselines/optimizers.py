@@ -565,6 +565,7 @@ class _Optimizers(_Algorithm):
 
         # TODO maybe use binning (sum or average) to get a better signal to noise ratio rather
         # than just indexing
+        # TODO should ensure steps are in increasing index order and do not overlap
         x_sections = []
         x_mask = np.ones(self._len, dtype=bool)
         for (start, stop), step in zip(roi_array, steps):
@@ -585,7 +586,7 @@ class _Optimizers(_Algorithm):
 
         baseline = np.interp(self.x, x_fit, baseline_fit)
         params.update({'x_data': x_fit, 'data': y_fit})
-        if lam is not None and lam != 0:
+        if lam is not None and lam != 0:  # TODO should probably use np.isclose with very small abs error
             _, weights = self._setup_whittaker(y, lam=lam, diff_order=diff_order)
             baseline = whittaker_smooth(
                 baseline, lam=lam, diff_order=diff_order, weights=weights,

@@ -579,14 +579,15 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    def test_mpls_weights(self):
+    @pytest.mark.parametrize('half_window', (4, 15, 30))
+    def test_mpls_weights(self, half_window):
         """
         Ensure that the assigned weights are the same as the MPLS method.
 
         The assigned weights are not dependent on the least-squared fitting parameters,
         only on the half window.
         """
-        _, params = self.class_func(self.y, half_window=15)
-        _, mpls_params = morphological.mpls(self.y, half_window=15)
+        _, params = self.class_func(self.y, half_window=half_window)
+        _, mpls_params = morphological.mpls(self.y, half_window=half_window)
 
         assert_allclose(params['weights'], mpls_params['weights'], rtol=1e-9)
