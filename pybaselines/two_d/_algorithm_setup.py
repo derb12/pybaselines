@@ -8,14 +8,14 @@ Created on April 8, 2023
 
 from contextlib import contextmanager
 from functools import partial, wraps
+import warnings
 
 import numpy as np
 from scipy.ndimage import grey_opening
 
-from ._validation import (
-    _check_array, _check_half_window, _check_optional_array, _check_sized_array, _yx_arrays
-)
-from ..utils import _inverted_sort, pad_edges, relative_difference
+from ..utils import ParameterWarning, _inverted_sort, pad_edges, relative_difference
+from ._spline_utils import PSpline2D
+from ._validation import _check_array, _check_half_window, _check_optional_array, _check_scalar
 
 
 class _Algorithm2D:
@@ -375,6 +375,89 @@ class _Algorithm2D:
             pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
 
         return y, weight_array, pseudo_inverse
+
+    def _setup_spline(self, y, weights=None, spline_degree=3, num_knots=10,
+                      penalized=True, diff_order=3, lam=1, make_basis=True, allow_lower=True,
+                      reverse_diags=False, copy_weights=False):
+        """
+        Sets the starting parameters for doing spline fitting.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+        spline_degree : int, optional
+            The degree of the spline. Default is 3, which is a cubic spline.
+        num_knots : int, optional
+            The number of interior knots for the splines. Default is 10.
+        penalized : bool, optional
+            Whether the basis matrix should be for a penalized spline or a regular
+            B-spline. Default is True, which creates the basis for a penalized spline.
+        diff_order : int, optional
+            The integer differential order for the spline penalty; must be greater than 0.
+            Default is 3. Only used if `penalized` is True.
+        lam : float, optional
+            The smoothing parameter, lambda. Typical values are between 10 and
+            1e8, but it strongly depends on the number of knots and the difference order.
+            Default is 1.
+        make_basis : bool, optional
+            If True (default), will create the matrix containing the spline basis functions.
+        allow_lower : boolean, optional
+            If True (default), will include only the lower non-zero diagonals of
+            the squared difference matrix. If False, will include all non-zero diagonals.
+        reverse_diags : boolean, optional
+            If True, will reverse the order of the diagonals of the penalty matrix.
+            Default is False.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for fitting the spline to the data.
+
+        Warns
+        -----
+        ParameterWarning
+            Raised if `diff_order` is greater than 4.
+
+        Notes
+        -----
+        `degree` is used instead of `order` like for polynomials since the order of a spline
+        is defined by convention as ``degree + 1``.
+
+        """
+        weight_array = _check_optional_array(
+            y.shape, weights, copy_input=copy_weights, check_finite=self._check_finite, ensure_1d=False  # TODO change y.shape to self._len or self._shape
+        )
+        weight_array = weight_array.ravel()
+        # TODO
+        #if self._sort_order is not None and weights is not None:
+        #    weight_array = weight_array[self._sort_order]
+        diff_order = _check_scalar(diff_order, 2, True)[0]
+        if make_basis:
+            if (diff_order > 4).any():
+                warnings.warn(
+                    ('differential orders greater than 4 can have numerical issues;'
+                     ' consider using a differential order of 2 or 3 instead'),
+                    ParameterWarning, stacklevel=2
+                )
+
+            if self.pspline is None or not self.pspline.same_basis(num_knots, spline_degree):
+                self.pspline = PSpline2D(
+                    self.x, self.z, num_knots, spline_degree, self._check_finite, lam, diff_order
+                )
+            else:
+                self.pspline.reset_penalty_diagonals(lam, diff_order)
+
+        return y.ravel(), weight_array
 
     def _setup_morphology(self, y, half_window=None, **window_kwargs):
         """

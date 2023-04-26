@@ -9,10 +9,11 @@ Created on April 8, 2023
 from .morphological import _Morphological
 from .polynomial import _Polynomial
 from .smooth import _Smooth
+from .spline import _Spline
 
 
 class Baseline2D(
-    _Morphological, _Polynomial, _Smooth
+    _Morphological, _Polynomial, _Smooth, _Spline
 ):
     """
     A class for all 2D baseline correction algorithms.
@@ -26,7 +27,7 @@ class Baseline2D(
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 during the first function call with length equal to the
         input data length.
-    z_data : array-like, shape (N,), optional
+    z_data : array-like, shape (L,), optional
         The z-values of the measured data. Default is None, which will create an
         array from -1 to 1 during the first function call with length equal to the
         input data length.
