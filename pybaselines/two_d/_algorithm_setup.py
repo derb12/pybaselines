@@ -437,7 +437,7 @@ class _Algorithm2D:
         weight_array = _check_optional_array(
             y.shape, weights, copy_input=copy_weights, check_finite=self._check_finite, ensure_1d=False  # TODO change y.shape to self._len or self._shape
         )
-        weight_array = weight_array.ravel()
+        weight_array = weight_array
         # TODO
         #if self._sort_order is not None and weights is not None:
         #    weight_array = weight_array[self._sort_order]
@@ -457,7 +457,7 @@ class _Algorithm2D:
             else:
                 self.pspline.reset_penalty_diagonals(lam, diff_order)
 
-        return y.ravel(), weight_array
+        return y, weight_array
 
     def _setup_morphology(self, y, half_window=None, **window_kwargs):
         """

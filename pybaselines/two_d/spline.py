@@ -18,9 +18,7 @@ from ._algorithm_setup import _Algorithm2D
 class _Spline(_Algorithm2D):
     """A base class for all spline algorithms."""
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
-    )
+    @_Algorithm2D._register(sort_keys=('weights',))
     def irsqr(self, data, lam=1e3, quantile=0.05, num_knots=25, spline_degree=3,
               diff_order=3, max_iter=100, tol=1e-6, weights=None, eps=None):
         """
@@ -105,9 +103,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
-    )
+    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_asls(self, data, lam=1e3, p=1e-2, num_knots=25, spline_degree=3, diff_order=2,
                      max_iter=50, tol=1e-3, weights=None):
         """
@@ -198,9 +194,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
-    )
+    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_airpls(self, data, lam=1e3, num_knots=25, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -304,9 +298,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
-    )
+    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_arpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                       max_iter=50, tol=1e-3, weights=None):
         """
@@ -380,9 +372,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
-    )
+    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_iarpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                        max_iter=50, tol=1e-3, weights=None):
         """
@@ -472,9 +462,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
-    )
+    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_psalsa(self, data, lam=1e3, p=0.5, k=None, num_knots=25, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -558,7 +546,7 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve_pspline(y, weight_array)
-            new_weights = _weighting._psalsa(y, baseline, p, k, len(y))  # TODO replace len(y) with self._shape or whatever
+            new_weights = _weighting._psalsa(y, baseline, p, k, y.shape)  # TODO replace y.shape with self._shape or whatever
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

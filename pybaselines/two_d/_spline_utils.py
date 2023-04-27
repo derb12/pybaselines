@@ -101,7 +101,11 @@ class PSpline2D:
         self.basis_2 = _spline_basis(self.z, self.knots_2, self.spline_degree[1])
         self._num_bases = np.array([self.basis_1.shape[1], self.basis_2.shape[1]])
 
-        self.basis = sparse.kron(self.basis_2, self.basis_1)
+        el = np.ones((self._num_bases[0], 1))
+        ek = np.ones((self._num_bases[1], 1))
+        self._G = sparse.kron(self.basis_1, el.T).multiply(sparse.kron(el.T, self.basis_1))
+        self._G2 = sparse.kron(self.basis_2, ek.T).multiply(sparse.kron(ek.T, self.basis_2))
+
         self.coef = None
 
         D1 = difference_matrix(self._num_bases[0], self.diff_order[0])
@@ -201,17 +205,30 @@ class PSpline2D:
             The spline, corresponding to ``B @ c``, where `c` are the solved spline
             coefficients and `B` is the spline basis.
 
+        Notes
+        -----
+        Uses the more efficient algorithm from Eilers's paper, although the memory usage
+        is higher than the straigtforward method when the number of knots is high; however,
+        it is significantly faster and memory efficient when the number of knots is lower,
+        which will be the more typical use case.
+
         """
-        # TODO investigate whether the other algorithm in Eilers's paper is more efficient
-        # memory- or time-wise
-        CWT = self.basis.multiply(
-            np.repeat(
-                weights, self._num_bases[0] * self._num_bases[1]
-            ).reshape(self.shape[0] * self.shape[1], -1)
-        ).T
-        CWC = CWT @ self.basis
-        CWy = CWT @ y
+        # do not save intermediate results since they are memory intensive for high number of knots
+        F = np.transpose(
+            (self._G2.T @ weights @ self._G).reshape(
+                (self._num_bases[1], self._num_bases[1], self._num_bases[0], self._num_bases[0])
+            ),
+            [0, 2, 1, 3]
+        ).reshape(
+            (self._num_bases[0] * self._num_bases[1], self._num_bases[0] * self._num_bases[1])
+        )
 
-        self.coef = spsolve(CWC + self.penalty, CWy)
+        self.coef = spsolve(
+            sparse.csr_matrix(F) + self.penalty,
+            (self.basis_2.T @ (weights * y) @ self.basis_1).flatten(),
+            'NATURAL'
+        ).reshape(self._num_bases[1], self._num_bases[0])
 
-        return self.basis @ self.coef
+        output = self.basis_2 @ self.coef @ self.basis_1.T
+
+        return output
