@@ -13,10 +13,10 @@ from math import ceil
 
 import numpy as np
 
-from . import classification, morphological, polynomial, spline, whittaker
+from . import classification, misc, morphological, polynomial, smooth, spline, whittaker
 from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, gaussian
+from .utils import _check_scalar, _get_edges, gaussian, whittaker_smooth
 
 
 class _Optimizers(_Algorithm):
@@ -586,7 +586,7 @@ class _Optimizers(_Algorithm):
 
         baseline = np.interp(self.x, x_fit, baseline_fit)
         params.update({'x_data': x_fit, 'data': y_fit})
-        if lam is not None and lam != 0:  # TODO should probably use np.isclose with very small abs error
+        if lam is not None and lam != 0:
             _, weights = self._setup_whittaker(y, lam=lam, diff_order=diff_order)
             baseline = whittaker_smooth(
                 baseline, lam=lam, diff_order=diff_order, weights=weights,
