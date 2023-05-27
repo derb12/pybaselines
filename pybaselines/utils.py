@@ -621,6 +621,10 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     -------
     y_smooth : numpy.ndarray, shape (N,)
         The smoothed data.
+    tuple(numpy.ndarray, numpy.ndarray, int)
+        A tuple of the spline knots, spline coefficients, and spline degree, which can be used to
+        reconstruct the fit spline. Useful if needing to recreate the spline with different
+        x-values.
 
     References
     ----------
@@ -639,4 +643,4 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     )
     y_smooth = pspline.solve_pspline(y, weight_array)
 
-    return y_smooth
+    return y_smooth, pspline.tck

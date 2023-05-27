@@ -1394,7 +1394,7 @@ class _Spline(_Algorithm):
             y, x_data=self.x, lam=lam, num_knots=num_knots, spline_degree=spline_degree,
             diff_order=diff_order, weights=weight_array, check_finite=self._check_finite,
             pspline=self.pspline
-        )
+        )[0]
 
         params = {'weights': weight_array, 'half_window': half_wind}
         return baseline, params

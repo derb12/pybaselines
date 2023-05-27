@@ -388,6 +388,51 @@ def test_pspline_negative_spline_degree_fails(data_fixture, spline_degree):
             _spline_utils.PSpline(x, spline_degree=spline_degree)
 
 
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('num_knots', (10, 100))
+@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('lam', (1e-2, 1e2))
+def test_pspline_tck(data_fixture, num_knots, spline_degree, diff_order, lam):
+    """Ensures the tck attribute can correctly recreate the solved spline."""
+    x, y = data_fixture
+    pspline = _spline_utils.PSpline(
+        x, num_knots=num_knots, spline_degree=spline_degree, diff_order=diff_order, lam=lam
+    )
+    fit_spline = pspline.solve_pspline(y, weights=np.ones_like(y))
+
+    # ensure tck is the knots, coefficients, and spline degree
+    assert len(pspline.tck) == 3
+    knots, coeffs, degree = pspline.tck
+
+    assert_allclose(knots, pspline.knots, rtol=1e-12)
+    assert_allclose(coeffs, pspline.coef, rtol=1e-12)
+    assert degree == spline_degree
+
+    # now recreate the spline with scipy's BSpline and ensure it is the same
+    recreated_spline = BSpline(*pspline.tck)(x)
+
+    assert_allclose(recreated_spline, fit_spline, rtol=1e-10)
+
+
+def test_pspline_tck_none(data_fixture):
+    """Ensures an exception is raised when tck attribute is accessed without first solving once."""
+    x, y = data_fixture
+    pspline = _spline_utils.PSpline(x)
+
+    assert pspline.coef is None
+    with pytest.raises(ValueError):
+        pspline.tck
+
+
+def test_pspline_tck_readonly(data_fixture):
+    """Ensures the tck attribute is read-only."""
+    x, y = data_fixture
+    pspline = _spline_utils.PSpline(x)
+    pspline.solve_pspline(y, np.ones_like(y))
+    with pytest.raises(AttributeError):
+        pspline.tck = (1, 2, 3)
+
+
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4))
 def test_basis_midpoints(spline_degree):
     """Tests the _basis_midpoints function."""

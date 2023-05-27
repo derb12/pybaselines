@@ -747,6 +747,26 @@ class PSpline(PenalizedSystem):
         else:
             self._use_numba = False
 
+    @property
+    def tck(self):
+        """
+        The knots, spline coefficients, and spline degree to reconstruct the spline.
+
+        Convenience function for easily reconstructing the last solved spline with outside
+        modules, such as with Scipy's `BSpline`, to allow for other usages such as evaulating
+        with different x-values.
+
+        Raises
+        ------
+        ValueError
+            Raised if `solve_pspline` has not been called yet, meaning that the spline has not
+            yet been constructed.
+
+        """
+        if self.coef is None:
+            raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
+        return self.knots, self.coef, self.spline_degree
+
     def same_basis(self, num_knots=100, spline_degree=3):
         """
         Sees if the current basis is equivalent to the input number of knots of spline degree.

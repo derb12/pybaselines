@@ -9,6 +9,7 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy.interpolate import BSpline
 from scipy.sparse import diags, identity, spdiags
 from scipy.sparse.linalg import spsolve
 
@@ -448,7 +449,7 @@ def test_pspline_smooth(data_fixture, diff_order, num_knots, spline_degree):
     """Ensures the Penalized Spline smoothing function performs correctly."""
     x, y = data_fixture
     lam = 1
-    output = utils.pspline_smooth(
+    output, tck = utils.pspline_smooth(
         y, x, lam=lam, diff_order=diff_order, num_knots=num_knots, spline_degree=spline_degree
     )
 
@@ -469,3 +470,11 @@ def test_pspline_smooth(data_fixture, diff_order, num_knots, spline_degree):
     coeffs = spsolve(basis.T @ weights @ basis + lam * penalty_matrix, basis.T @ weights @ y)
 
     assert_allclose(basis @ coeffs, output, 1e-6)
+
+    # ensure tck is the knots, coefficients, and spline degree
+    assert len(tck) == 3
+
+    # now recreate the spline with scipy's BSpline and ensure it is the same
+    recreated_spline = BSpline(*tck)(x)
+
+    assert_allclose(recreated_spline, output, rtol=1e-10)
