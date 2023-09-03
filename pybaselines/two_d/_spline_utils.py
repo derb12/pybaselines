@@ -12,7 +12,7 @@ from scipy.sparse.linalg import spsolve
 
 from .._banded_utils import difference_matrix
 from .._spline_utils import _spline_basis, _spline_knots
-from ._validation import _check_array, _check_lam, _check_scalar
+from .._validation import _check_array, _check_lam, _check_scalar
 
 
 class PSpline2D:

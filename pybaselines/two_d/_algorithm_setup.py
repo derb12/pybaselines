@@ -15,7 +15,10 @@ from scipy.ndimage import grey_opening
 
 from ..utils import ParameterWarning, _inverted_sort, pad_edges, relative_difference
 from ._spline_utils import PSpline2D
-from ._validation import _check_array, _check_half_window, _check_optional_array, _check_scalar
+from .._validation import (
+    _check_array, _check_half_window, _check_optional_array, _check_scalar, _check_sized_array
+)
+from ._whittaker_utils import PenalizedSystem2D
 
 
 class _Algorithm2D:
@@ -77,22 +80,21 @@ class _Algorithm2D:
         Unlike `_Algorithm`, `_2DAlgorithm` does not sort input data.
 
         """
+        self._len = [None, None]
         if x_data is None:
             self.x = None
             self.x_domain = np.array([-1., 1.])
-            self._len = None
         else:
             self.x = _check_array(x_data, check_finite=check_finite)
-            self._len = len(self.x)
+            self._len[1] = len(self.x)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
 
         if z_data is None:
             self.z = None
             self.z_domain = np.array([-1., 1.])
-            self._len = None
         else:
             self.z = _check_array(z_data, check_finite=check_finite)
-            self._len = len(self.z)
+            self._len[0] = len(self.z)
             self.z_domain = np.polynomial.polyutils.getdomain(self.z)
 
         self.whittaker_system = None
@@ -185,7 +187,7 @@ class _Algorithm2D:
 
         @wraps(func)
         def inner(self, data=None, *args, **kwargs):
-            """  # TODO add back in later
+            """
             if self.x is None:
                 if data is None:
                     raise TypeError('"data" and "x_data" cannot both be None')
@@ -212,7 +214,6 @@ class _Algorithm2D:
                 self.x = _check_array(
                     self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
-
             """
             y = data; input_y = True; reset_x = False; x_dtype = None  # TODO remove later
 
@@ -290,6 +291,79 @@ class _Algorithm2D:
             self.poly_order = old_poly_order
             self.whittaker_system = old_whittaker_system
             self.pspline = old_pspline
+
+    def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
+                         allow_lower=True, reverse_diags=None):
+        """
+        Sets the starting parameters for doing penalized least squares.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        lam : float, optional
+            The smoothing parameter, lambda. Typical values are between 10 and
+            1e8, but it strongly depends on the penalized least square method
+            and the differential order. Default is 1.
+        diff_order : int, optional
+            The integer differential order; must be greater than 0. Default is 2.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            shape (N,) and all values set to 1.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+        allow_lower : boolean, optional
+            If True (default), will allow using only the lower non-zero diagonals of
+            the squared difference matrix. If False, will include all non-zero diagonals.
+        reverse_diags : {None, False, True}, optional
+            If True, will reverse the order of the diagonals of the squared difference
+            matrix. If False, will never reverse the diagonals. If None (default), will
+            only reverse the diagonals if using pentapy's solver.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,), optional
+            The weighting array.
+
+        Raises
+        ------
+        ValueError
+            Raised is `diff_order` is less than 1.
+
+        Warns
+        -----
+        ParameterWarning
+            Raised if `diff_order` is greater than 3.
+
+        """
+        if diff_order < 1:
+            raise ValueError(
+                'the difference order must be > 0 for Whittaker-smoothing-based methods'
+            )
+        elif diff_order > 3:
+            warnings.warn(
+                ('difference orders greater than 3 can have numerical issues;'
+                 ' consider using a difference order of 2 or 1 instead'),
+                ParameterWarning, stacklevel=2
+            )
+        weight_array = _check_optional_array(
+            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite
+        ).ravel()
+        #if self._sort_order is not None and weights is not None:
+        #    weight_array = weight_array[self._sort_order]
+
+        if self.whittaker_system is not None:
+            self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
+        else:
+            self.whittaker_system = PenalizedSystem2D(
+                self._len, lam, diff_order
+            )
+
+        return y.ravel(), weight_array
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
                           calc_pinv=False, copy_weights=False):

@@ -10,10 +10,11 @@ from .morphological import _Morphological
 from .polynomial import _Polynomial
 from .smooth import _Smooth
 from .spline import _Spline
+from .whittaker import _Whittaker
 
 
 class Baseline2D(
-    _Morphological, _Polynomial, _Smooth, _Spline
+    _Morphological, _Polynomial, _Smooth, _Spline, _Whittaker
 ):
     """
     A class for all 2D baseline correction algorithms.

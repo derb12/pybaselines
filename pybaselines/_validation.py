@@ -348,14 +348,14 @@ def _check_half_window(half_window, allow_zero=False):
 
 
 def _check_optional_array(data_size, array=None, dtype=None, order=None, check_finite=False,
-                          copy_input=False, name='weights'):
+                          copy_input=False, name='weights', ensure_1d=True, axis=-1):
     """
     Validates the length of the input array or creates an array of ones if no input is given.
 
     Parameters
     ----------
-    data_size : int
-        The length that the input should have.
+    data_size : int or Container[int, int]
+        The shape that the input should have.
     array : array-like, shape (`data_size`), optional
         The array to validate. Default is None, which will create an array of ones with length
         equal to `data_size`.
@@ -371,6 +371,12 @@ def _check_optional_array(data_size, array=None, dtype=None, order=None, check_f
         which skips the check.
     name : str, optional
         The name for the variable if an exception is raised. Default is 'weights'.
+    ensure_1d : bool, optional
+        If True (default), will raise an error if the shape of `array` is not a one dimensional
+        array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N). If False,
+        will ignore the shape of `array`.
+    axis : int, optional
+        The axis of the input on which to check its length. Default is -1.
 
     Returns
     -------
@@ -383,7 +389,7 @@ def _check_optional_array(data_size, array=None, dtype=None, order=None, check_f
     else:
         output_array = _check_sized_array(
             array, data_size, dtype=dtype, order=order, check_finite=check_finite,
-            ensure_1d=True, name=name
+            ensure_1d=ensure_1d, name=name, axis=axis
         )
         if copy_input:
             output_array = output_array.copy()
