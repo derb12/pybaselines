@@ -88,7 +88,7 @@ class _Polynomial(_Algorithm2D):
     @_Algorithm2D._register(
         sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
     )
-    def poly(self, data, poly_order=2, weights=None, return_coef=False):
+    def poly(self, data, poly_order=2, weights=None, return_coef=False, max_cross=None):
         """
         Computes a polynomial that fits the baseline of the data.
 
@@ -96,8 +96,8 @@ class _Polynomial(_Algorithm2D):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        poly_order : int, optional
-            The polynomial order for fitting the baseline. Default is 2.
+        poly_order : int or Container[int, int], optional
+            The polynomial orders for x and z. Default is 2.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -105,6 +105,10 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
             Default is False, since the conversion takes time.
+        max_cross: int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
+            does not limit the cross terms.
 
         Returns
         -------
@@ -127,7 +131,7 @@ class _Polynomial(_Algorithm2D):
 
         """
         y, weight_array, pseudo_inverse = self._setup_polynomial(
-            data, weights, poly_order, calc_vander=True, calc_pinv=True
+            data, weights, poly_order, calc_vander=True, calc_pinv=True, max_cross=max_cross
         )
         sqrt_w = np.sqrt(weight_array)
 
@@ -143,7 +147,7 @@ class _Polynomial(_Algorithm2D):
         sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
     )
     def modpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
-                use_original=False, mask_initial_peaks=False, return_coef=False):
+                use_original=False, mask_initial_peaks=False, return_coef=False, max_cross=None):
         """
         The modified polynomial (ModPoly) baseline algorithm.
 
@@ -154,8 +158,8 @@ class _Polynomial(_Algorithm2D):
         x_data : array-like, shape (N,), optional
             The x-values of the measured data. Default is None, which will create an
             array from -1 to 1 with N points.
-        poly_order : int, optional
-            The polynomial order for fitting the baseline. Default is 2.
+        poly_order : int or Container[int, int], optional
+            The polynomial orders for x and z. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -174,6 +178,10 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
             Default is False, since the conversion takes time.
+        max_cross: int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
+            does not limit the cross terms.
 
         Returns
         -------
@@ -212,7 +220,8 @@ class _Polynomial(_Algorithm2D):
 
         """
         y, weight_array, pseudo_inverse = self._setup_polynomial(
-            data, weights, poly_order, calc_vander=True, calc_pinv=True, copy_weights=True
+            data, weights, poly_order, calc_vander=True, calc_pinv=True, copy_weights=True,
+            max_cross=max_cross
         )
         sqrt_w = np.sqrt(weight_array)
         if use_original:
@@ -247,7 +256,8 @@ class _Polynomial(_Algorithm2D):
         sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
     )
     def imodpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
-                 use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1.):
+                 use_original=False, mask_initial_peaks=True, return_coef=False,
+                 num_std=1., max_cross=None):
         """
         The improved modofied polynomial (IModPoly) baseline algorithm.
 
@@ -255,8 +265,8 @@ class _Polynomial(_Algorithm2D):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        poly_order : int, optional
-            The polynomial order for fitting the baseline. Default is 2.
+        poly_order : int or Container[int, int], optional
+            The polynomial orders for x and z. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -278,6 +288,10 @@ class _Polynomial(_Algorithm2D):
         num_std : float, optional
             The number of standard deviations to include when thresholding. Default
             is 1. Must be greater or equal to 0.
+        max_cross: int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
+            does not limit the cross terms.
 
         Returns
         -------
@@ -324,7 +338,8 @@ class _Polynomial(_Algorithm2D):
             raise ValueError('num_std must be greater than or equal to 0')
 
         y, weight_array, pseudo_inverse = self._setup_polynomial(
-            data, weights, poly_order, calc_vander=True, calc_pinv=True, copy_weights=True
+            data, weights, poly_order, calc_vander=True, calc_pinv=True,
+            copy_weights=True, max_cross=max_cross
         )
         sqrt_w = np.sqrt(weight_array)
         if use_original:
@@ -365,7 +380,7 @@ class _Polynomial(_Algorithm2D):
     )
     def penalized_poly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                        cost_function='asymmetric_truncated_quadratic', threshold=None,
-                       alpha_factor=0.99, return_coef=False):
+                       alpha_factor=0.99, return_coef=False, max_cross=None):
         """
         Fits a polynomial baseline using a non-quadratic cost function.
 
@@ -376,8 +391,8 @@ class _Polynomial(_Algorithm2D):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        poly_order : int, optional
-            The polynomial order for fitting the baseline. Default is 2.
+        poly_order : int or Container[int, int], optional
+            The polynomial orders for x and z. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -413,6 +428,10 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
             Default is False, since the conversion takes time.
+        max_cross: int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
+            does not limit the cross terms.
 
         Returns
         -------
@@ -461,7 +480,7 @@ class _Polynomial(_Algorithm2D):
         }[method]
 
         y, weight_array, pseudo_inverse = self._setup_polynomial(
-            data, weights, poly_order, calc_vander=True, calc_pinv=True
+            data, weights, poly_order, calc_vander=True, calc_pinv=True, max_cross=max_cross
         )
         if threshold is None:
             threshold = np.std(y) / 10
@@ -494,7 +513,7 @@ class _Polynomial(_Algorithm2D):
         sort_keys=('weights',), reshape_baseline=True, reshape_keys=('weights',)
     )
     def quant_reg(self, data, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
-                  weights=None, eps=None, return_coef=False):
+                  weights=None, eps=None, return_coef=False, max_cross=None):
         """
         Approximates the baseline of the data using quantile regression.
 
@@ -502,8 +521,8 @@ class _Polynomial(_Algorithm2D):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        poly_order : int, optional
-            The polynomial order for fitting the baseline. Default is 2.
+        poly_order : int or Container[int, int], optional
+            The polynomial orders for x and z. Default is 2.
         quantile : float, optional
             The quantile at which to fit the baseline. Default is 0.05.
         tol : float, optional
@@ -524,6 +543,10 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input `x_data` and return them in the params dictionary.
             Default is False, since the conversion takes time.
+        max_cross: int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
+            does not limit the cross terms.
 
         Returns
         -------
@@ -570,7 +593,9 @@ class _Polynomial(_Algorithm2D):
         if not 0 < quantile < 1:
             raise ValueError('quantile must be between 0 and 1.')
 
-        y, weight_array = self._setup_polynomial(data, weights, poly_order, calc_vander=True)
+        y, weight_array = self._setup_polynomial(
+            data, weights, poly_order, calc_vander=True, max_cross=max_cross
+        )
         # estimate first iteration using least squares
         sqrt_w = np.sqrt(weight_array)
         coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
@@ -599,7 +624,7 @@ class _Polynomial(_Algorithm2D):
     )
     def goldindec(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                   cost_function='asymmetric_indec', peak_ratio=0.5, alpha_factor=0.99,
-                  tol_2=1e-3, tol_3=1e-6, max_iter_2=100, return_coef=False):
+                  tol_2=1e-3, tol_3=1e-6, max_iter_2=100, return_coef=False, max_cross=None):
         """
         Fits a polynomial baseline using a non-quadratic cost function.
 
@@ -610,8 +635,8 @@ class _Polynomial(_Algorithm2D):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        poly_order : int, optional
-            The polynomial order for fitting the baseline. Default is 2.
+        poly_order : int or Container[int, int], optional
+            The polynomial orders for x and z. Default is 2.
         tol : float, optional
             The exit criteria for the fitting with a given threshold value. Default is 1e-3.
         max_iter : int, optional
@@ -648,6 +673,10 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
             Default is False, since the conversion takes time.
+        max_cross: int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
+            does not limit the cross terms.
 
         Returns
         -------
@@ -714,7 +743,7 @@ class _Polynomial(_Algorithm2D):
             'indec': _indec_loss
         }[method]
         y, weight_array, pseudo_inverse = self._setup_polynomial(
-            data, weights, poly_order, calc_vander=True, calc_pinv=True
+            data, weights, poly_order, calc_vander=True, calc_pinv=True, max_cross=max_cross
         )
         up_down_ratio_goal = (
             0.7679 + 11.2358 * peak_ratio - 39.7064 * peak_ratio**2 + 92.3583 * peak_ratio**3

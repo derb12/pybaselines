@@ -16,7 +16,7 @@ from scipy.ndimage import grey_opening
 from ..utils import ParameterWarning, _inverted_sort, pad_edges, relative_difference
 from ._spline_utils import PSpline2D
 from .._validation import (
-    _check_array, _check_half_window, _check_optional_array, _check_scalar, _check_sized_array
+    _check_array, _check_half_window, _check_optional_array, _check_scalar, _check_scalar_variable
 )
 from ._whittaker_utils import PenalizedSystem2D
 
@@ -366,7 +366,7 @@ class _Algorithm2D:
         return y.ravel(), weight_array
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
-                          calc_pinv=False, copy_weights=False):
+                          calc_pinv=False, copy_weights=False, max_cross=None):
         """
         Sets the starting parameters for doing polynomial fitting.
 
@@ -378,8 +378,8 @@ class _Algorithm2D:
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
-        poly_order : int, optional
-            The polynomial order. Default is 2.
+        poly_order : int or Container[int, int], optional
+            The polynomial orders for x and z. Default is 2.
         calc_vander : bool, optional
             If True, will calculate and the Vandermonde matrix. Default is False.
         calc_pinv : bool, optional
@@ -388,6 +388,10 @@ class _Algorithm2D:
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
+        max_cross: int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
+            does not limit the cross terms.
 
         Returns
         -------
@@ -404,13 +408,6 @@ class _Algorithm2D:
         ValueError
             Raised if `calc_pinv` is True and `calc_vander` is False.
 
-        Notes
-        -----
-        If x_data is given, its domain is reduced from ``[min(x_data), max(x_data)]``
-        to [-1., 1.] to improve the numerical stability of calculations; since the
-        Vandermonde matrix goes from ``x**0`` to ``x^**poly_order``, large values of
-        x would otherwise cause difficulty when doing least squares minimization.
-
         """
         weight_array = _check_optional_array(
             y.shape, weights, copy_input=copy_weights, check_finite=self._check_finite, ensure_1d=False  # TODO change y.shape to self._len or self._shape
@@ -419,9 +416,13 @@ class _Algorithm2D:
         # TODO
         #if self._sort_order is not None and weights is not None:
         #    weight_array = weight_array[self._sort_order]
-
+        poly_orders = _check_scalar(poly_order, 2, True)[0]
+        if max_cross is not None:
+            max_cross = _check_scalar_variable(
+                max_cross, allow_zero=True, variable_name='max_cross'
+            )
         if calc_vander:
-            if self.vandermonde is None or poly_order > self.poly_order:
+            if self.vandermonde is None or self._max_cross != max_cross:
                 mapped_x = np.polynomial.polyutils.mapdomain(
                     self.x, self.x_domain, np.array([-1., 1.])
                 )
@@ -431,12 +432,27 @@ class _Algorithm2D:
                 # rearrange the vandermonde such that it matches the typical A c = b where b
                 # is the flattened version of y and c are the coefficients
                 self.vandermonde = np.polynomial.polynomial.polyvander2d(
-                    *np.meshgrid(mapped_x, mapped_z), [poly_order, poly_order]
-                ).reshape((-1, (poly_order + 1) * (poly_order + 1)))
+                    *np.meshgrid(mapped_x, mapped_z), [poly_orders[0], poly_orders[1]]
+                ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
 
-            elif poly_order < self.poly_order:
-                pass #self.vandermonde = self.vandermonde[:, :poly_order + 1]
-        self.poly_order = poly_order
+                if max_cross is not None:
+                    # probably a smarter way to accomplish this... but it works
+                    # TODO see if there is a way to list out (i, j) coefficients
+                    # so that I can just filter out any (i, j) pairing > max_cross
+                    z_coefs = np.arange(poly_orders[1] + 1)
+                    x_coefs = np.arange(poly_orders[0] + 1)
+                    z_coefs[:min(max_cross, poly_orders[1]) + 1] = 0
+                    x_coefs[:min(max_cross, poly_orders[0]) + 1] = 0
+                    total_coefs = z_coefs + x_coefs[:, None]
+                    # include all pure x and z terms
+                    total_coefs[:, 0] = 0
+                    total_coefs[0, :] = 0
+                    for idx, val in enumerate(total_coefs.reshape(-1)):
+                        if val != 0:
+                            self.vandermonde[:, idx] = 0
+
+        self.poly_order = poly_orders
+        self._max_cross = max_cross
         y = y.ravel()
         if not calc_pinv:
             return y, weight_array
