@@ -8,6 +8,7 @@ Created on April 8, 2023
 
 from contextlib import contextmanager
 from functools import partial, wraps
+import itertools
 import warnings
 
 import numpy as np
@@ -422,7 +423,10 @@ class _Algorithm2D:
                 max_cross, allow_zero=True, variable_name='max_cross'
             )
         if calc_vander:
-            if self.vandermonde is None or self._max_cross != max_cross:
+            if (
+                self.vandermonde is None or self._max_cross != max_cross
+                or np.any(self.poly_order != poly_order)
+            ):
                 mapped_x = np.polynomial.polyutils.mapdomain(
                     self.x, self.x_domain, np.array([-1., 1.])
                 )
@@ -436,19 +440,12 @@ class _Algorithm2D:
                 ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
 
                 if max_cross is not None:
-                    # probably a smarter way to accomplish this... but it works
-                    # TODO see if there is a way to list out (i, j) coefficients
-                    # so that I can just filter out any (i, j) pairing > max_cross
-                    z_coefs = np.arange(poly_orders[1] + 1)
-                    x_coefs = np.arange(poly_orders[0] + 1)
-                    z_coefs[:min(max_cross, poly_orders[1]) + 1] = 0
-                    x_coefs[:min(max_cross, poly_orders[0]) + 1] = 0
-                    total_coefs = z_coefs + x_coefs[:, None]
-                    # include all pure x and z terms
-                    total_coefs[:, 0] = 0
-                    total_coefs[0, :] = 0
-                    for idx, val in enumerate(total_coefs.reshape(-1)):
-                        if val != 0:
+                    # lists out (z_0, x_0), (z_1, x_0), etc
+                    for idx, val in enumerate(
+                        itertools.product(range(poly_orders[0] + 1), range(poly_orders[1] + 1))
+                    ):
+                        # 0 designates pure z or x terms
+                        if 0 not in val and any(v > max_cross for v in val):
                             self.vandermonde[:, idx] = 0
 
         self.poly_order = poly_orders
