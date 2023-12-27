@@ -76,6 +76,7 @@ names of the algorithms were used. The algorithms are grouped accordingly:
     * fastchrom (FastChrom's Baseline Method)
     * cwt_br (Continuous Wavelet Transform Baseline Recognition)
     * fabc (Fully Automatic Baseline Correction)
+    * rubberband (Rubberband Method)
 
 * Optimizers (:mod:`pybaselines.optimizers`)
 

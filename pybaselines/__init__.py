@@ -71,6 +71,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * fastchrom (FastChrom's Baseline Method)
     * cwt_br (Continuous Wavelet Transform Baseline Recognition)
     * fabc (Fully Automatic Baseline Correction)
+    * rubberband (Rubberband Method)
 
 * Optimizers (:mod:`pybaselines.optimizers`)
 

@@ -344,3 +344,73 @@ a weight of 0.
             num_std = 3
         baseline, params = baseline_fitter.fabc(y, lam=lam, scale=16, num_std=num_std, min_length=3)
         ax.plot(baseline, 'g--')
+
+
+rubberband (Rubberband Method)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`.rubberband` uses a convex hull to find local minima
+of the data, which are then used to construct the baseline using either
+linear interpolation or Whittaker smoothing. The rubberband method is simple and
+easy to use for convex shaped data, but performs poorly for concave data. To get
+around this, Bruker's OPUS spectroscopy software uses a `patented method
+<https://patents.google.com/patent/US20060212275A1/en>`_ to coerce
+the data into a convex shape so that the rubberband method still works. pybaselines
+uses an alternate approach of allowing splitting the data in segments, in order
+to reduce the concavity of each individual section; it is less user-friendly
+than Bruker's method but works well enough for data with similar baselines and
+peak positions.
+
+.. note::
+   For noisy data, rubberband performs significantly better when smoothing
+   the data beforehand.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        if i == 1:
+            segments = [100, 250, 300]
+        elif i == 3:
+            segments = [250, 380]
+        else:
+            segments = 1
+        if i < 4:
+            smooth_half_window = 5
+        else:
+            smooth_half_window = 0
+        baseline, params = baseline_fitter.rubberband(
+            y, segments=segments, lam=0, smooth_half_window=smooth_half_window
+        )
+        ax.plot(baseline, 'g--')
+
+
+By using Whittaker smoothing (or other smoothing interpolation methods) rather than
+linear interpolation to construct the baseline from the convex hull points, the
+negative effects of applying the rubberband method to concave data can be
+slightly reduced, as seen below.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        if i == 1:
+            segments = [100, 250, 300]
+        elif i == 3:
+            segments = [380]
+        else:
+            segments = 1
+        if i < 4:
+            smooth_half_window = 5
+        else:
+            smooth_half_window = 0
+        baseline, params = baseline_fitter.rubberband(
+            y, segments=segments, lam=100, smooth_half_window=smooth_half_window
+        )
+        ax.plot(baseline, 'g--')

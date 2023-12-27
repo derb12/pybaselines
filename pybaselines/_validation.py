@@ -9,7 +9,7 @@ Created on December 9, 2021
 import numpy as np
 
 
-def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
+def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asarray_kwargs):
     """
     Checks if the input is scalar and potentially coerces it to the desired length.
 
@@ -26,6 +26,9 @@ def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
     fill_scalar : bool, optional
         If True and `data` is a scalar, then will output an array with a length of
         `desired_length`. Default is False, which leaves scalar values unchanged.
+    coerce_0d : bool, optional
+        If True (default) and `data` is an array-like, `output` will be a scalar. If
+        False, `output` will also be an array with shape (1,).
     **asarray_kwargs : dict
         Additional keyword arguments to pass to :func:`numpy.asarray`.
 
@@ -50,7 +53,7 @@ def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
         if ndim > 1:  # coerce to 1d shape
             output = output.reshape(-1)
         len_output = len(output)
-        if len_output == 1:
+        if len_output == 1 and coerce_0d:
             is_scalar = True
             output = np.asarray(output[0], **asarray_kwargs)
         else:
@@ -62,7 +65,7 @@ def _check_scalar(data, desired_length, fill_scalar=False, **asarray_kwargs):
         else:
             # index with an empty tuple to get the single scalar while maintaining the numpy dtype
             output = output[()]
-    elif len_output != desired_length:
+    elif desired_length is not None and len_output != desired_length:
         raise ValueError(f'desired length was {desired_length} but instead got {len_output}')
 
     return output, is_scalar

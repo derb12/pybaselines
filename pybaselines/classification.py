@@ -15,9 +15,11 @@ from scipy.ndimage import (
 )
 from scipy.optimize import curve_fit
 from scipy.signal import cwt, ricker
+from scipy.spatial import ConvexHull
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit
+from ._validation import _check_scalar
 from .utils import (
     _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
     pad_edges, relative_difference, whittaker_smooth
@@ -765,6 +767,116 @@ class _Classification(_Algorithm):
         params = {'mask': mask, 'weights': whittaker_weights}
 
         return baseline, params
+
+
+    @_Algorithm._register(sort_keys=('mask',))
+    def rubberband(self, data, segments=1, lam=None, diff_order=2, weights=None,
+                   smooth_half_window=None, **pad_kwargs):
+        """
+        Identifies baseline points by fitting a convex hull to the bottom of the data.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        segments : int or array-like[int], optional
+            Used to fit multiple convex hulls to the data to negate the effects of
+            concave data. If the input is an integer, it sets the number of equally sized
+            segments the data will be split into. If the input is an array-like, each integer
+            in the array will be the index that splits two segments, which allows
+            constructing unequally sized segments. Default is 1, which fits a single convex
+            hull to the data.
+        lam : float or None, optional
+            The smoothing parameter for interpolating the baseline points using
+            Whittaker smoothing. Set to 0 or None to use linear interpolation instead.
+            Default is None, which does not smooth.
+        diff_order : int, optional
+            The order of the differential matrix if using Whittaker smoothing. Must
+            be greater than 0. Default is 2 (second order differential matrix).
+            Typical values are 2 or 1.
+        weights : array-like, shape (N,), optional
+            The weighting array, used to override the function's baseline identification
+            to designate peak points. Only elements with 0 or False values will have
+            an effect; all non-zero values are considered potential baseline points. If None
+            (default), then will be an array with size equal to N and all values set to 1.
+        smooth_half_window : int or None, optional
+            The half window to use for smoothing the input data with a moving average
+            before calculating the convex hull, which gives much better results for
+            noisy data. Set to None (default) or 0 to not smooth the data.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        dict
+            A dictionary with the following items:
+
+            * 'mask': numpy.ndarray, shape (N,)
+                The boolean array designating baseline points as True and peak points
+                as False.
+
+        Raises
+        ------
+        ValueError
+            Raised if the number of segments per window for the fitting is less than
+            `poly_order` + 1 or greater than the total number of points, or if the
+            values in `self.x` are not strictly increasing.
+
+        """
+        sections, scalar_sections = _check_scalar(segments, None, coerce_0d=False, dtype=np.intp)
+        if scalar_sections and (sections < 1 or self._len / sections < 3):
+            raise ValueError(
+                f'There must be between 1 and {self._len // 3} segments for the rubberband fit'
+            )
+        elif not scalar_sections and (np.any(sections < 0) or np.any(sections > self._len)):
+            raise ValueError(
+                f'Segment indices must be between 0 and {self._len} for the rubberband fit'
+            )
+
+        if np.any(self.x[1:] < self.x[:-1]):
+            raise ValueError('x must be strictly increasing')
+
+        y, weight_array = self._setup_classification(data, weights)
+        if smooth_half_window is not None and smooth_half_window != 0:
+            y = self._setup_smooth(y, smooth_half_window, allow_zero=False, **pad_kwargs)
+            y = uniform_filter1d(
+                y, 2 * smooth_half_window + 1
+            )[smooth_half_window:-smooth_half_window]
+
+        if scalar_sections:
+            total_sections = np.arange(sections + 1, dtype=np.intp) * self._len // sections
+        else:
+            total_sections = np.concatenate(([0], sections, [self._len]))
+            # np.unique already sorts so do not need to check order
+            total_sections = np.unique(total_sections)
+            for i, section in enumerate(total_sections[:-1]):
+                if total_sections[i + 1] - section < 3:
+                    raise ValueError('Each segment must have at least 3 points.')
+
+        hull_data = np.vstack((self.x, y)).T
+        total_vertices = []
+        for i, left_idx in enumerate(total_sections[:-1]):
+            vertices = ConvexHull(hull_data[left_idx:total_sections[i + 1]]).vertices
+            min_idx = vertices.argmin()
+            max_idx = vertices.argmax() + 1
+            if max_idx < min_idx:
+                vertices = np.concatenate((vertices[min_idx:], vertices[:max_idx]))
+            else:
+                vertices = vertices[min_idx:max_idx]
+            total_vertices.extend(vertices + left_idx)
+
+        mask = np.zeros(self._len, dtype=bool)
+        mask[np.unique(total_vertices)] = True
+        np.logical_and(mask, weight_array, out=mask)
+        if lam is not None and lam != 0:
+            baseline = whittaker_smooth(
+                y, lam=lam, diff_order=diff_order, weights=mask.astype(float),
+                check_finite=False, penalized_system=self.whittaker_system
+            )
+        else:
+            baseline = np.interp(self.x, self.x[mask], y[mask])
+
+        return baseline, {'mask': mask}
 
 
 _classification_wrapper = _class_wrapper(_Classification)
@@ -1571,5 +1683,64 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
     Cobas, J., et al. A new general-purpose fully automatic baseline-correction
     procedure for 1D and 2D NMR data. Journal of Magnetic Resonance, 2006, 183(1),
     145-151.
+
+    """
+
+
+@_classification_wrapper
+def rubberband(data, x_data=None, segments=1, lam=None, diff_order=2, weights=None,
+               smooth_half_window=None, **pad_kwargs):
+    """
+    Identifies baseline points by fitting a convex hull to the bottom of the data.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    segments : int or array-like[int], optional
+        Used to fit multiple convex hulls to the data to negate the effects of
+        concave data. If the input is an integer, it sets the number of equally sized
+        segments the data will be split into. If the input is an array-like, each integer
+        in the array will be the index that splits two segments, which allows
+        constructing unequally sized segments. Default is 1, which fits a single convex
+        hull to the data.
+    lam : float or None, optional
+        The smoothing parameter for interpolating the baseline points using
+        Whittaker smoothing. Set to 0 or None to use linear interpolation instead.
+        Default is None, which does not smooth.
+    diff_order : int, optional
+        The order of the differential matrix if using Whittaker smoothing. Must
+        be greater than 0. Default is 2 (second order differential matrix).
+        Typical values are 2 or 1.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered potential baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    smooth_half_window : int or None, optional
+        The half window to use for smoothing the input data with a moving average
+        before calculating the convex hull, which gives much better results for
+        noisy data. Set to None (default) or 0 to not smooth the data.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'mask': numpy.ndarray, shape (N,)
+            The boolean array designating baseline points as True and peak points
+            as False.
+
+    Raises
+    ------
+    ValueError
+        Raised if the number of segments per window for the fitting is less than
+        `poly_order` + 1 or greater than the total number of points, or if the
+        values in `self.x` are not strictly increasing.
 
     """

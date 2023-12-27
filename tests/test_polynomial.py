@@ -374,6 +374,12 @@ class TestLoess(IterativePolynomialTester):
         """Ensures the input weights are sorted correctly."""
         super().test_input_weights(use_threshold=use_threshold)
 
+    def test_non_sorted_x_fails(self):
+        """Ensures that non-monotonically increasing x-values fails."""
+        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=True)
+        with pytest.raises(ValueError):
+            getattr(reverse_fitter, self.func_name)(self.y)
+
 
 class TestQuantReg(IterativePolynomialTester):
     """Class for testing quant_reg baseline."""

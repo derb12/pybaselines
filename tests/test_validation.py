@@ -138,6 +138,33 @@ def test_check_scalar_asarray_kwargs():
         assert output.dtype == dtype
 
 
+@pytest.mark.parametrize('coerce_0d', (False, True))
+def test_check_scalar_coerce_0d(coerce_0d):
+    """Ensures coerce_0d keyword maintains array when False."""
+    data = [1]
+    output, is_scalar = _validation._check_scalar(data, desired_length=None, coerce_0d=coerce_0d)
+    if coerce_0d:
+        assert output == 1
+        assert is_scalar
+    else:
+        assert_array_equal(output, np.array([1]))
+        assert output.shape == (1,)
+        assert not is_scalar
+
+
+def test_check_scalar_length_none():
+    """Ensures a desired_length of None skips the length check."""
+    for data in (0, [0]):
+        output, _ = _validation._check_scalar(data, desired_length=None)
+        assert output == 0
+
+    for data in ([0, 1, 2], [[0, 1], [2, 3]]):
+        output, _ = _validation._check_scalar(data, desired_length=None)
+        assert output.shape == (np.array(data).flatten().size,)
+        with pytest.raises(ValueError):
+            _validation._check_scalar(data, desired_length=10000)
+
+
 @pytest.mark.parametrize('lam', (5, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]])))
 def test_check_lam(lam):
     """Ensures scalar lam values are correctly processed."""
