@@ -756,14 +756,14 @@ class _Classification(_Algorithm):
 
             mask = _refine_mask(_iter_threshold(power, num_std), min_length)
             np.logical_and(mask, weight_array, out=mask)
-            whittaker_weights = mask.astype(float)
 
-        # TODO should allow a p value so that weights are mask * (1-p) + (~mask) * p
-        # similar to mpls and mpspline?
+            _, whittaker_weights = self._setup_whittaker(y, lam, diff_order, mask)
+            if self._sort_order is not None:
+                whittaker_weights = whittaker_weights[self._inverted_order]
+
         baseline = whittaker_smooth(
             y, lam=lam, diff_order=diff_order, weights=whittaker_weights,
-            check_finite=False, penalized_system=self.whittaker_system,
-            pentapy_solver=self.pentapy_solver
+            check_finite=False, penalized_system=self.whittaker_system
         )
         params = {'mask': mask, 'weights': whittaker_weights}
 
@@ -870,10 +870,12 @@ class _Classification(_Algorithm):
         mask[np.unique(total_vertices)] = True
         np.logical_and(mask, weight_array, out=mask)
         if lam is not None and lam != 0:
+            # call setup whittaker so that self.whittaker_system will be initialized
+            # and does not need setup again on repeated function calls
+            self._setup_whittaker(y, lam, diff_order, mask)
             baseline = whittaker_smooth(
-                y, lam=lam, diff_order=diff_order, weights=mask.astype(float),
-                check_finite=False, penalized_system=self.whittaker_system,
-                pentapy_solver=self.pentapy_solver
+                y, lam=lam, diff_order=diff_order, weights=mask,
+                check_finite=False, penalized_system=self.whittaker_system
             )
         else:
             baseline = np.interp(self.x, self.x[mask], y[mask])
