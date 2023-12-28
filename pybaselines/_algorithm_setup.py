@@ -37,6 +37,10 @@ class _Algorithm:
 
     Attributes
     ----------
+    pentapy_solver : int or str
+        The integer or string designating which solver to use if using pentapy. See
+        :func:`pentapy.core.solve` for available options, although `1` or `2` are the
+        most relevant options. Default is 2.
     poly_order : int
         The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
         that no polynomial fitting has been performed.
@@ -107,6 +111,28 @@ class _Algorithm:
         self.pspline = None
         self._check_finite = check_finite
         self._dtype = output_dtype
+        self.pentapy_solver = 2
+
+    @property
+    def pentapy_solver(self):
+        """The designated solver when using pentapy's solver for pentadiagonal linear systems."""
+        return self._pentapy_solver
+
+    @pentapy_solver.setter
+    def pentapy_solver(self, value):
+        """
+        Sets the solver for pentapy.
+
+        Parameters
+        ----------
+        value : int or str
+            The designated solver to use when using pentapy. See :func:`pentapy.core.solve`
+            for available options.
+
+        """
+        if self.whittaker_system is not None:
+            self.whittaker_system.pentapy_solver = value
+        self._pentapy_solver = value
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), axis=-1):
         """
@@ -363,7 +389,8 @@ class _Algorithm:
             self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
         else:
             self.whittaker_system = PenalizedSystem(
-                self._len, lam, diff_order, allow_lower, reverse_diags
+                self._len, lam, diff_order, allow_lower, reverse_diags,
+                pentapy_solver=self.pentapy_solver
             )
 
         return y, weight_array

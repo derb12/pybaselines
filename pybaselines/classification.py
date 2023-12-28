@@ -762,7 +762,8 @@ class _Classification(_Algorithm):
         # similar to mpls and mpspline?
         baseline = whittaker_smooth(
             y, lam=lam, diff_order=diff_order, weights=whittaker_weights,
-            check_finite=False, penalized_system=self.whittaker_system
+            check_finite=False, penalized_system=self.whittaker_system,
+            pentapy_solver=self.pentapy_solver
         )
         params = {'mask': mask, 'weights': whittaker_weights}
 
@@ -871,7 +872,8 @@ class _Classification(_Algorithm):
         if lam is not None and lam != 0:
             baseline = whittaker_smooth(
                 y, lam=lam, diff_order=diff_order, weights=mask.astype(float),
-                check_finite=False, penalized_system=self.whittaker_system
+                check_finite=False, penalized_system=self.whittaker_system,
+                pentapy_solver=self.pentapy_solver
             )
         else:
             baseline = np.interp(self.x, self.x[mask], y[mask])

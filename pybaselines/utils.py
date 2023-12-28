@@ -520,7 +520,7 @@ def _inverted_sort(sort_order):
 
 
 def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=True,
-                     penalized_system=None):
+                     penalized_system=None, pentapy_solver=2):
     """
     Smooths the input data using Whittaker smoothing.
 
@@ -549,6 +549,10 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
     penalized_system : pybaselines._banded_utils.PenalizedSystem, optional
         If None (default), will create a new PenalizedSystem object for solving the equation.
         If not None, will use the object's `reset_diagonals` method and then solve.
+    pentapy_solver : int or str, optional
+        The integer or string designating which solver to use if using pentapy. See
+        :func:`pentapy.core.solve` for available options, although `1` or `2` are the
+        most relevant options. Default is 2.
 
     Returns
     -------
@@ -565,7 +569,9 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
     if penalized_system is not None:
         penalized_system.reset_diagonals(lam=lam, diff_order=diff_order)
     else:
-        penalized_system = PenalizedSystem(len_y, lam=lam, diff_order=diff_order)
+        penalized_system = PenalizedSystem(
+            len_y, lam=lam, diff_order=diff_order, pentapy_solver=pentapy_solver
+        )
     weight_array = _check_optional_array(len_y, weights, check_finite=check_finite)
 
     penalized_system.penalty[penalized_system.main_diagonal_index] = (

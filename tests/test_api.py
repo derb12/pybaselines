@@ -40,11 +40,15 @@ def get_public_methods(klass):
 
     Returns
     -------
-    list[str, ...]
+    methods : list[str, ...]
         The list of all public methods of the input class.
 
     """
-    return [method for method in dir(klass) if not method.startswith('_')]
+    methods = []
+    for method in dir(klass):
+        if not (method.startswith('_') or method.startswith('pentapy_solver')):
+            methods.append(method)
+    return methods
 
 
 # will be like [('asls', whittaker._Whittaker), ('modpoly', polynomial._Polynomial), ...]
@@ -130,3 +134,16 @@ class TestBaseline:
 
         # no additional methods should be available
         assert len(total_methods) == 0
+
+    def test_pentapy_solver(self):
+        """Ensures the pentapy_solver attribute works correctly."""
+        fitter = self.algorithm_base(self.x, check_finite=False, assume_sorted=True)
+        assert fitter._pentapy_solver == fitter.pentapy_solver
+        # ensure whittaker_system is originally None before changing pentapy solver
+        assert fitter.whittaker_system is None
+
+        fitter._setup_whittaker(self.y, lam=1)
+        assert fitter.whittaker_system.pentapy_solver == fitter.pentapy_solver
+
+        fitter.pentapy_solver = 3
+        assert fitter.whittaker_system.pentapy_solver == fitter.pentapy_solver
