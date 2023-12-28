@@ -551,7 +551,7 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
         If not None, will use the object's `reset_diagonals` method and then solve.
     pentapy_solver : int or str, optional
         The integer or string designating which solver to use if using pentapy. See
-        :func:`pentapy.core.solve` for available options, although `1` or `2` are the
+        :func:`pentapy.solve` for available options, although `1` or `2` are the
         most relevant options. Default is 2.
 
     Returns

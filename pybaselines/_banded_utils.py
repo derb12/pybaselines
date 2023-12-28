@@ -504,7 +504,7 @@ def _pentapy_solver(ab, y, check_output=False, pentapy_solver=2):
         Default is False.
     pentapy_solver : int or str, optional
         The integer or string designating which solver to use if using pentapy. See
-        :func:`pentapy.core.solve` for available options, although `1` or `2` are the
+        :func:`pentapy.solve` for available options, although `1` or `2` are the
         most relevant options. Default is 2.
 
     Returns
@@ -552,7 +552,7 @@ class PenalizedSystem:
         Reset by calling :meth:`.reset_diagonals`.
     pentapy_solver : int or str
         The integer or string designating which solver to use if using pentapy. See
-        :func:`pentapy.core.solve` for available options, although `1` or `2` are the
+        :func:`pentapy.solve` for available options, although `1` or `2` are the
         most relevant options. Default is 2.
     reversed : bool
         If True, the penalty is reversed of the typical LAPACK banded format. Useful if

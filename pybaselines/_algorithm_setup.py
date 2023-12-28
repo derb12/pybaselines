@@ -41,6 +41,9 @@ class _Algorithm:
         The integer or string designating which solver to use if using pentapy. See
         :func:`pentapy.core.solve` for available options, although `1` or `2` are the
         most relevant options. Default is 2.
+
+        .. versionadded:: 1.1.0
+
     poly_order : int
         The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
         that no polynomial fitting has been performed.
