@@ -4,6 +4,42 @@
 Created on July 3, 2021
 @author: Donald Erb
 
+
+Several functions were adapted from SciPy
+(https://github.com/scipy/scipy, accessed December 28, 2023), which was
+licensed under the BSD-3-Clause below.
+
+Copyright (c) 2001-2002 Enthought, Inc.  2003-2023, SciPy Developers.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above
+   copyright notice, this list of conditions and the following
+   disclaimer in the documentation and/or other materials provided
+   with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 """
 
 from math import ceil
@@ -14,7 +50,7 @@ from scipy.ndimage import (
     binary_dilation, binary_erosion, binary_opening, grey_dilation, grey_erosion, uniform_filter1d
 )
 from scipy.optimize import curve_fit
-from scipy.signal import cwt, ricker
+from scipy.signal import convolve
 from scipy.spatial import ConvexHull
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
@@ -581,7 +617,7 @@ class _Classification(_Algorithm):
         half_window = max_scale * 2  # TODO is x2 enough padding to prevent edge effects from cwt?
         padded_y = pad_edges(y, half_window, **pad_kwargs)
         for scale in scales:
-            wavelet_cwt = cwt(padded_y, ricker, [scale])[0, half_window:-half_window]
+            wavelet_cwt = _cwt(padded_y, _ricker, [scale])[0, half_window:-half_window]
             abs_wavelet = np.abs(wavelet_cwt)
             inner = abs_wavelet / abs_wavelet.sum(axis=0)
             # was not stated in the reference to use abs(wavelet) for the Shannon entropy,
@@ -751,7 +787,7 @@ class _Classification(_Algorithm):
                 scale = ceil(optimize_window(y) / 2)
             # TODO is 2*scale enough padding to prevent edge effects from cwt?
             half_window = scale * 2
-            wavelet_cwt = cwt(pad_edges(y, half_window, **pad_kwargs), _haar, [scale])
+            wavelet_cwt = _cwt(pad_edges(y, half_window, **pad_kwargs), _haar, [scale])
             power = wavelet_cwt[0, half_window:-half_window]**2
 
             mask = _refine_mask(_iter_threshold(power, num_std), min_length)
@@ -1609,6 +1645,104 @@ def _haar(num_points, scale=2):
 
     # the 1/sqrt(scale) is a normalization
     return wavelet / (np.sqrt(scale))
+
+
+# adapted from scipy (scipy/signal/_wavelets.py/ricker); see license above
+def _ricker(points, a):
+    """
+    Return a Ricker wavelet, also known as the "Mexican hat wavelet".
+
+    It models the function:
+
+        ``A * (1 - (x/a)**2) * exp(-0.5*(x/a)**2)``,
+
+    where ``A = 2/(sqrt(3*a)*(pi**0.25))``.
+
+    Parameters
+    ----------
+    points : int
+        Number of points in `vector`.
+        Will be centered around 0.
+    a : scalar
+        Width parameter of the wavelet.
+
+    Returns
+    -------
+    vector : (N,) ndarray
+        Array of length `points` in shape of ricker curve.
+
+    Notes
+    -----
+    This function was deprecated from scipy.signal in version 1.12.
+
+    """
+    A = 2 / (np.sqrt(3 * a) * (np.pi**0.25))
+    wsq = a**2
+    vec = np.arange(0, points) - (points - 1.0) / 2
+    xsq = vec**2
+    mod = (1 - xsq / wsq)
+    gauss = np.exp(-xsq / (2 * wsq))
+    total = A * mod * gauss
+    return total
+
+
+# adapted from scipy (scipy/signal/_wavelets.py/cwt); see license above
+def _cwt(data, wavelet, widths, dtype=None, **kwargs):
+    """
+    Continuous wavelet transform.
+
+    Performs a continuous wavelet transform on `data`,
+    using the `wavelet` function. A CWT performs a convolution
+    with `data` using the `wavelet` function, which is characterized
+    by a width parameter and length parameter. The `wavelet` function
+    is allowed to be complex.
+
+    Parameters
+    ----------
+    data : (N,) ndarray
+        data on which to perform the transform.
+    wavelet : function
+        Wavelet function, which should take 2 arguments.
+        The first argument is the number of points that the returned vector
+        will have (len(wavelet(length,width)) == length).
+        The second is a width parameter, defining the size of the wavelet
+        (e.g. standard deviation of a gaussian). See `ricker`, which
+        satisfies these requirements.
+    widths : (M,) sequence
+        Widths to use for transform.
+    dtype : data-type, optional
+        The desired data type of output. Defaults to ``float64`` if the
+        output of `wavelet` is real and ``complex128`` if it is complex.
+    kwargs
+        Keyword arguments passed to wavelet function.
+
+    Returns
+    -------
+    cwt: (M, N) ndarray
+        Will have shape of (len(widths), len(data)).
+
+    Notes
+    -----
+    This function was deprecated from scipy.signal in version 1.12.
+
+    References
+    ----------
+    S. Mallat, "A Wavelet Tour of Signal Processing (3rd Edition)", Academic Press, 2009.
+
+    """
+    # Determine output type
+    if dtype is None:
+        if np.asarray(wavelet(1, widths[0], **kwargs)).dtype.char in 'FDG':
+            dtype = np.complex128
+        else:
+            dtype = np.float64
+
+    output = np.empty((len(widths), len(data)), dtype=dtype)
+    for ind, width in enumerate(widths):
+        N = np.min([10 * width, len(data)])
+        wavelet_data = np.conj(wavelet(N, width, **kwargs)[::-1])
+        output[ind] = convolve(data, wavelet_data, mode='same')
+    return output
 
 
 @_classification_wrapper
