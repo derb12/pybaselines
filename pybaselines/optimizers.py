@@ -525,9 +525,12 @@ class _Optimizers(_Algorithm):
         -------
         baseline : numpy.ndarray, shape (N,)
             The baseline calculated with the optimum parameter.
-        method_params : dict
+        params : dict
             A dictionary with the following items:
-
+                * 'x_fit': numpy.ndarray, shape (P,)
+                    The truncated x-values used for fitting the baseline.
+                * 'y_fit': numpy.ndarray, shape (P,)
+                    The truncated y-values used for fitting the baseline.
 
             Additional items depend on the output of the selected method.
 
@@ -585,7 +588,7 @@ class _Optimizers(_Algorithm):
             baseline_fit, params = baseline_func(y_fit, **method_kws)
 
         baseline = np.interp(self.x, x_fit, baseline_fit)
-        params.update({'x_data': x_fit, 'data': y_fit})
+        params.update({'x_fit': x_fit, 'y_fit': y_fit})
         if lam is not None and lam != 0:
             _, weights = self._setup_whittaker(y, lam=lam, diff_order=diff_order)
             baseline = whittaker_smooth(
@@ -923,9 +926,12 @@ def custom_bc(data, x_data=None, method='asls', rois=(None, None), sampling=1, l
     -------
     baseline : numpy.ndarray, shape (N,)
         The baseline calculated with the optimum parameter.
-    method_params : dict
+    params : dict
         A dictionary with the following items:
-
+            * 'x_fit': numpy.ndarray, shape (P,)
+                The truncated x-values used for fitting the baseline.
+            * 'y_fit': numpy.ndarray, shape (P,)
+                The truncated y-values used for fitting the baseline.
 
         Additional items depend on the output of the selected method.
 

@@ -342,7 +342,7 @@ class TestCustomBC(OptimizersTester, OptimizerInputWeightsMixin):
 
     func_name = 'custom_bc'
     # will need to change checked_keys if default method is changed
-    checked_keys = ('weights', 'tol_history', 'data', 'x_data')
+    checked_keys = ('weights', 'tol_history', 'y_fit', 'x_fit')
     weight_keys = ('weights',)
 
     @pytest.mark.parametrize(
@@ -367,6 +367,6 @@ class TestCustomBC(OptimizersTester, OptimizerInputWeightsMixin):
         """Ensures arrays are correctly sorted within the function."""
         super().test_x_ordering(assertion_kwargs={'rtol': 1e-6})
 
-    def test_input_weights(self, assertion_kwargs=None, **kwargs):
+    def test_input_weights(self):
         """Ensures weights are correctly sorted within the function."""
         super().test_input_weights(assertion_kwargs={'rtol': 1e-6})

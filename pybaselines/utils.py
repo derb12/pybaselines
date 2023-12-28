@@ -632,10 +632,11 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
     """
-    y, x = _yx_arrays(data, x_data, check_finite=check_finite, ensure_1d=True)
     if pspline is None or not pspline.same_basis(num_knots, spline_degree):
+        y, x = _yx_arrays(data, x_data, check_finite=check_finite, ensure_1d=True)
         pspline = PSpline(x, num_knots, spline_degree, False, lam, diff_order)
     else:
+        y = _check_array(data, check_finite=check_finite, ensure_1d=True)
         pspline.reset_penalty_diagonals(lam, diff_order)
 
     weight_array = _check_optional_array(
