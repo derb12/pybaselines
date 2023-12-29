@@ -43,7 +43,7 @@ baseline_fitter = Baseline(x_data=x)
 # using pure Whittaker smoothing).
 plt.plot(y, label='data')
 lam = 1
-plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam=10$^{np.log10(lam):.0f}$')
 plt.legend()
 
 # %%
@@ -52,7 +52,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 lam = 1e3
-plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam=10$^{np.log10(lam):.0f}$')
 plt.legend()
 
 
@@ -62,7 +62,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 lam = 1e6
-plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam=10$^{np.log10(lam):.0f}$')
 plt.legend()
 
 
@@ -72,7 +72,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 lam = 1e10
-plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam=10$^{{{np.log10(lam):.0f}}}$')
 plt.legend()
 
 # %%
@@ -81,7 +81,7 @@ plt.legend()
 plt.figure()
 plt.plot(y, label='data')
 for lam in (1, 1e3, 1e6, 1e10):
-    plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam={lam:.0f}')
+    plt.plot(baseline_fitter.arpls(y, lam=lam)[0], label=f'lam=10$^{{{np.log10(lam):.0f}}}$')
 plt.legend()
 
 plt.show()
