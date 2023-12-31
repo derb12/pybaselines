@@ -1022,7 +1022,7 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
     Returns
     -------
     output : numpy.ndarray
-        A copy of the input `y` array with peak values in `mask` calulcated using linear
+        A copy of the input `y` array with peak values in `mask` calculcated using linear
         interpolation.
 
     """
