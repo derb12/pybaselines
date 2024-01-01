@@ -11,6 +11,7 @@ from math import ceil
 import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.signal import convolve
+from scipy.special import binom
 
 from ._banded_utils import PenalizedSystem, difference_matrix as _difference_matrix
 from ._compat import jit
@@ -355,23 +356,31 @@ def _convert_coef(coef, original_domain):
 
     Returns
     -------
-    output_coefs : numpy.ndarray
+    numpy.ndarray
         The array of coefficients scaled for the original domain.
 
+    Notes
+    -----
+    Based on https://stackoverflow.com/questions/141422/how-can-a-transform-a-polynomial-to-another-coordinate-system#comment57358951_142436.
+
+    Could slightly reduce computation time by computing offset and scale once within
+    the _Algorithm object, but doing it this way with `original_domain` is backwards
+    compatible and this function is probably not called enough to justify the change.
+
     """
-    zeros_mask = np.equal(coef, 0)
-    if zeros_mask.any():
-        # coefficients with one or several zeros sometimes get compressed
-        # to leave out some of the coefficients, so replace zero with another value
-        # and then fill in later
-        coef = coef.copy()
-        coef[zeros_mask] = _MIN_FLOAT  # could probably fill it with any non-zero value
+    offset, scale = np.polynomial.polyutils.mapparms(np.array([-1, 1]), original_domain)
+    num_coefficients = len(coef)
+    transformation = np.zeros((num_coefficients, num_coefficients))
+    skip_offset = np.equal(offset, 0)  # 0 raised to negative powers causes nan
+    for i in range(num_coefficients):
+        for j in range(num_coefficients):
+            if skip_offset:
+                if j == i:
+                    transformation[i, j] = binom(j, i) * (scale)**(-j)
+            else:
+                transformation[i, j] = binom(j, i) * (scale)**(-j) * (-offset)**(j - i)
 
-    fit_polynomial = np.polynomial.Polynomial(coef, domain=original_domain)
-    output_coefs = fit_polynomial.convert().coef
-    output_coefs[zeros_mask] = 0
-
-    return output_coefs
+    return transformation @ coef
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
