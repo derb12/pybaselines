@@ -466,7 +466,7 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
     else:
         assert algorithm._len is None
 
-    if not assume_sorted and input_x:
+    if not assume_sorted and change_order and input_x:
         order = np.arange(len(x))
         if change_order:
             order[sort_order] = order[sort_order][::-1]

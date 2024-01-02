@@ -512,6 +512,24 @@ def test_invert_sort(seed):
     assert_array_equal(values, values[sort_order][inverted_order])
 
 
+@pytest.mark.parametrize('needs_sorting', (True, False))
+def test_determine_sorts(needs_sorting):
+    """Ensures the sort and inverted sort determinations work."""
+    data = np.linspace(-1, 1, 20)
+    original_data = data.copy()
+    if needs_sorting:
+        data[5:10] = data[5:10][::-1]
+
+    sort_order, inverted_order = utils._determine_sorts(data)
+    if not needs_sorting:
+        assert sort_order is None
+        assert inverted_order is None
+    else:
+        assert_array_equal(data[sort_order], original_data)
+        assert_array_equal(sort_order, data.argsort(kind='mergesort'))
+        assert_array_equal(data[sort_order][inverted_order], data)
+
+
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 def test_whittaker_smooth(data_fixture, diff_order):
     """Ensures the Whittaker smoothing function performs correctly."""

@@ -589,6 +589,33 @@ def _inverted_sort(sort_order):
     return inverted_order
 
 
+def _determine_sorts(data):
+    """
+    Provides the arrays for sorting and inverting sorting, if needed.
+
+    Parameters
+    ----------
+    data : numpy.ndarray, shape (N,)
+        The array to potentially sort.
+
+    Returns
+    -------
+    output : tuple(numpy.ndarray, numpy.ndarray) or tuple(None, None)
+        A tuple of the index array for sorting the input array and the array
+        that inverts that sorting. If the input array is already sorted, then
+        the output will be (None, None).
+
+    """
+    sort_order = data.argsort(kind='mergesort')
+    skip_sorting = (sort_order[1:] > sort_order[:-1]).all()
+    if skip_sorting:
+        output = (None, None)
+    else:
+        output = (sort_order, _inverted_sort(sort_order))
+
+    return output
+
+
 def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=True):
     """
     Smooths the input data using Whittaker smoothing.

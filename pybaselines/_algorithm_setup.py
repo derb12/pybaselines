@@ -25,7 +25,9 @@ from ._spline_utils import PSpline
 from ._validation import (
     _check_array, _check_half_window, _check_optional_array, _check_sized_array, _yx_arrays
 )
-from .utils import ParameterWarning, _inverted_sort, optimize_window, pad_edges
+from .utils import (
+    ParameterWarning, _determine_sorts, _inverted_sort, optimize_window, pad_edges
+)
 
 
 class _Algorithm:
@@ -97,9 +99,9 @@ class _Algorithm:
             self._sort_order = None
             self._inverted_order = None
         else:
-            self._sort_order = self.x.argsort(kind='mergesort')
-            self.x = self.x[self._sort_order]
-            self._inverted_order = _inverted_sort(self._sort_order)
+            self._sort_order, self._inverted_order = _determine_sorts(self.x)
+            if self._sort_order is not None:
+                self.x = self.x[self._sort_order]
 
         self.whittaker_system = None
         self.vandermonde = None
