@@ -225,7 +225,7 @@ class _Classification(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order,)
                 Only if `return_coef` is True and `max_iter` is greater than 0. The array
                 of polynomial coefficients for the baseline, in increasing order. Can be
-                used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
+                used to create a polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
             * 'tol_history': numpy.ndarray
                 Only if `max_iter` is greater than 1. An array containing the calculated
                 tolerance values for each iteration. The length of the array is the number
@@ -1230,7 +1230,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         * 'coef': numpy.ndarray, shape (poly_order,)
             Only if `return_coef` is True and `max_iter` is greater than 0. The array
             of polynomial coefficients for the baseline, in increasing order. Can be
-            used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
+            used to create a polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
         * 'tol_history': numpy.ndarray
             Only if `max_iter` is greater than 1. An array containing the calculated
             tolerance values for each iteration. The length of the array is the number

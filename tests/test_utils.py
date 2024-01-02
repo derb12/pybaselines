@@ -122,6 +122,25 @@ def test_interp_inplace():
     assert_allclose(y_calc, y_actual, 1e-12)
 
 
+@pytest.mark.parametrize('scale', (1., 10., 0.557))
+@pytest.mark.parametrize('num_coeffs', (1, 2, 5))
+def test_poly_transform_matrix(scale, num_coeffs):
+    """
+    Tests the matrix that transforms polynomial coefficients from one domain to another.
+
+    Only tests the simple cases where the offset is 0 since more complicated cases are
+    handled by the _convert_coef and _convert_coef2d tests.
+    """
+    transform_matrix = np.eye(num_coeffs)
+    for i in range(num_coeffs):
+        transform_matrix[i, i] /= scale**i
+
+    domain = np.array([-1, 1]) * scale
+    calc_matrix = utils._poly_transform_matrix(num_coeffs, domain)
+
+    assert_allclose(calc_matrix, transform_matrix, atol=1e-12, rtol=1e-14)
+
+
 @pytest.mark.parametrize('x', (np.array([-5, -2, 0, 1, 8]), np.array([1, 2, 3, 4, 5])))
 @pytest.mark.parametrize(
     'coefs', (
@@ -144,6 +163,77 @@ def test_convert_coef(x, coefs):
     converted_coefs = utils._convert_coef(fit_coefs, original_domain)
 
     assert_allclose(converted_coefs, coefs, atol=1e-10)
+
+
+@pytest.mark.parametrize('x', (np.linspace(-1, 1, 50), np.linspace(-13.5, 11.6, 51)))
+@pytest.mark.parametrize('z', (np.linspace(-1, 1, 50), np.linspace(-13.5, 11.6, 51)))
+@pytest.mark.parametrize(
+    'coef', (
+        np.array([
+            [1, 0],
+            [1, 0]
+        ]),
+        np.array([
+            [1, 1],
+            [0, 0]
+        ]),
+        np.array([
+            [1, 0.1, 0.3, -0.5],
+            [1, 0.1, 0, 1],
+            [0.2, 0, 1.5, -0.3]
+        ]),
+    )
+)
+def test_convert_coef2d(x, z, coef):
+    """
+    Checks that polynomial coefficients are correctly converted to the original domain.
+
+    Notes on the tested x and z values: Data from [-1, 1] has an offset of 0 and a scale
+    of 1, so the coefficients are unaffected, while the second set of values has an offset
+    not equal to 0 and a scale not equal to 1 so should be a good test of whether the
+    conversion is successful.
+
+    """
+    x_domain = np.polynomial.polyutils.getdomain(x)
+    mapped_x = np.polynomial.polyutils.mapdomain(
+        x, x_domain, np.array([-1., 1.])
+    )
+    z_domain = np.polynomial.polyutils.getdomain(z)
+    mapped_z = np.polynomial.polyutils.mapdomain(
+        z, z_domain, np.array([-1., 1.])
+    )
+    X, Z = np.meshgrid(x, z)
+    y = np.zeros_like(x)
+    for i in range(coef.shape[0]):
+        for j in range(coef.shape[1]):
+            y = y + coef[i, j] * X**i * Z**j
+    y_flat = y.ravel()
+
+    vandermonde = np.polynomial.polynomial.polyvander2d(
+        *np.meshgrid(mapped_x, mapped_z),
+        (coef.shape[0] - 1, coef.shape[1] - 1)
+    ).reshape((-1, (coef.shape[0]) * (coef.shape[1])))
+
+    calc_coef = np.linalg.pinv(vandermonde) @ (y_flat)
+    calc_y = vandermonde @ calc_coef  # corresponds to mapped domain
+    calc_coef = calc_coef.reshape(coef.shape)
+
+    # sanity check; use slightly higher atol than other checks since
+    # the fit can potentially be off by a bit
+    assert_allclose(calc_y, y_flat, rtol=1e-10, atol=1e-6)
+
+    converted_coef = utils._convert_coef2d(calc_coef, x_domain, z_domain)
+
+    mapped_X, mapped_Z = np.meshgrid(mapped_x, mapped_z)
+    mapped_polynomial = np.polynomial.polynomial.polyval2d(mapped_X, mapped_Z, calc_coef)
+
+    original_polynomial = np.polynomial.polynomial.polyval2d(X, Z, converted_coef)
+
+    # sanity check that polyval2d recreates with the mapped coefficients
+    assert_allclose(mapped_polynomial, calc_y.reshape(y.shape), rtol=1e-10, atol=1e-14)
+
+    assert_allclose(original_polynomial, mapped_polynomial, rtol=1e-10, atol=1e-14)
+    assert_allclose(converted_coef, coef, rtol=1e-10, atol=1e-12)
 
 
 @pytest.mark.parametrize('diff_order', (0, 1, 2, 3, 4, 5))

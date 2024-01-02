@@ -120,7 +120,7 @@ class _Polynomial(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
         Notes
         -----
@@ -192,7 +192,7 @@ class _Polynomial(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
         Notes
         -----
@@ -294,7 +294,7 @@ class _Polynomial(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
         Raises
         ------
@@ -427,7 +427,7 @@ class _Polynomial(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
         Raises
         ------
@@ -580,8 +580,8 @@ class _Polynomial(_Algorithm):
             * 'coef': numpy.ndarray, shape (N, poly_order + 1)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a polynomial
-                using numpy.polynomial.polynomial.Polynomial(). If `delta` is > 0, the
-                coefficients for any skipped x-value will all be 0.
+                using :class:`numpy.polynomial.polynomial.Polynomial`. If `delta` is > 0,
+                the coefficients for any skipped x-value will all be 0.
 
         Raises
         ------
@@ -754,7 +754,7 @@ class _Polynomial(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
         Raises
         ------
@@ -884,7 +884,7 @@ class _Polynomial(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
         Raises
         ------
@@ -1034,7 +1034,7 @@ def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
         * 'coef': numpy.ndarray, shape (poly_order,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
-            polynomial using numpy.polynomial.polynomial.Polynomial().
+            polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
     Notes
     -----
@@ -1095,7 +1095,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
-            polynomial using numpy.polynomial.polynomial.Polynomial().
+            polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
     Notes
     -----
@@ -1170,7 +1170,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
-            polynomial using numpy.polynomial.polynomial.Polynomial().
+            polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
     Notes
     -----
@@ -1468,7 +1468,7 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
-            polynomial using numpy.polynomial.polynomial.Polynomial().
+            polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
     Raises
     ------
@@ -2029,8 +2029,8 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         * 'coef': numpy.ndarray, shape (N, poly_order + 1)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a polynomial
-            using numpy.polynomial.polynomial.Polynomial(). If `delta` is > 0, the
-            coefficients for any skipped x-value will all be 0.
+            using :class:`numpy.polynomial.polynomial.Polynomial`. If `delta` is > 0,
+            the coefficients for any skipped x-value will all be 0.
 
     Raises
     ------
@@ -2124,7 +2124,7 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
-            polynomial using numpy.polynomial.polynomial.Polynomial().
+            polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
     Raises
     ------
@@ -2230,7 +2230,7 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
-            polynomial using numpy.polynomial.polynomial.Polynomial().
+            polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
 
     Raises
     ------

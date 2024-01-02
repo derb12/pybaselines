@@ -337,6 +337,48 @@ def _interp_inplace(x, y, y_start, y_end):
     return y
 
 
+def _poly_transform_matrix(num_coefficients, original_domain):
+    """
+    Creates the matrix that transforms polynomial coefficents from one domain to another.
+
+    The polynomial coefficient array `d` computed with `v` can be transformed to the
+    coefficient array `c` computed with `x` where ``v = scale * x + offset`` by applying
+    ``c = T @ d``, where `T` is the transformation matrix.
+
+    Parameters
+    ----------
+    num_coefficients : int
+        The number of polynomial coefficients, ie. the polynomial degree + 1.
+    original_domain : Container[float, float]
+        The domain, [min(x), max(x)], of the original data used for fitting.
+
+    Returns
+    -------
+    transformation : numpy.ndarray, shape (`num_coefficients`, `num_coefficients`)
+        The transformation matrix to convert domains.
+
+    Notes
+    -----
+    The calculation of the transformation matrix is based on the math from
+    https://stackoverflow.com/questions/141422/how-can-a-transform-a-polynomial-to-another-coordinate-system#comment57358951_142436.
+
+    This function assumes the original coefficients were computed with the domain [-1, 1].
+
+    """
+    offset, scale = np.polynomial.polyutils.mapparms(np.array([-1., 1.]), original_domain)
+    transformation = np.zeros((num_coefficients, num_coefficients))
+    skip_offset = np.equal(offset, 0)  # 0 raised to negative powers causes nan
+    for i in range(num_coefficients):
+        for j in range(num_coefficients):
+            if skip_offset:
+                if j == i:
+                    transformation[i, j] = binom(j, i) * (scale)**(-j)
+            else:
+                transformation[i, j] = binom(j, i) * (scale)**(-j) * (-offset)**(j - i)
+
+    return transformation
+
+
 def _convert_coef(coef, original_domain):
     """
     Scales the polynomial coefficients back to the original domain of the data.
@@ -348,39 +390,58 @@ def _convert_coef(coef, original_domain):
 
     Parameters
     ----------
-    coef : array-like
+    coef : numpy.ndarray, shape (a,)
         The array of coefficients for the polynomial. Should increase in
         order, for example (c0, c1, c2) from `y = c0 + c1 * x + c2 * x**2`.
-    original_domain : array-like, shape (2,)
+    original_domain : Container[float, float]
         The domain, [min(x), max(x)], of the original data used for fitting.
 
     Returns
     -------
-    numpy.ndarray
+    numpy.ndarray, shape (a,)
         The array of coefficients scaled for the original domain.
 
     Notes
     -----
-    Based on https://stackoverflow.com/questions/141422/how-can-a-transform-a-polynomial-to-another-coordinate-system#comment57358951_142436.
-
     Could slightly reduce computation time by computing offset and scale once within
     the _Algorithm object, but doing it this way with `original_domain` is backwards
     compatible and this function is probably not called enough to justify the change.
 
     """
-    offset, scale = np.polynomial.polyutils.mapparms(np.array([-1, 1]), original_domain)
-    num_coefficients = len(coef)
-    transformation = np.zeros((num_coefficients, num_coefficients))
-    skip_offset = np.equal(offset, 0)  # 0 raised to negative powers causes nan
-    for i in range(num_coefficients):
-        for j in range(num_coefficients):
-            if skip_offset:
-                if j == i:
-                    transformation[i, j] = binom(j, i) * (scale)**(-j)
-            else:
-                transformation[i, j] = binom(j, i) * (scale)**(-j) * (-offset)**(j - i)
-
+    transformation = _poly_transform_matrix(coef.shape[0], original_domain)
     return transformation @ coef
+
+
+def _convert_coef2d(coef, original_x_domain, original_z_domain):
+    """
+    Scales the polynomial coefficients back to the original domain of the data.
+
+    For fitting, the x-values and z-values are scaled from their original domain,
+    [min(x), max(x)] and [min(z), max(z)], to [-1, 1] in order to improve the numerical
+    stability of fitting. This function rescales the retrieved polynomial coefficients
+    for the fit x-values and z-values back to their original domains.
+
+    Parameters
+    ----------
+    coef : numpy.ndarray, shape (a, b)
+        The 2d array of coefficients for the polynomial. Should increase in
+        order. The shape should be (a, b), where a is the polynomial degree + 1 for
+        the x-values and b is the polynomial degree + 1 for the z-values.
+    original_x_domain : Container[float, float]
+        The domain, [min(x), max(x)], of the original x-values used for fitting.
+    original_z_domain : Container[float, float]
+        The domain, [min(z), max(z)], of the original z-values used for fitting.
+
+    Returns
+    -------
+    numpy.ndarray, shape (a, b)
+        The array of coefficients scaled for the original domains.
+
+    """
+    transformation_x = _poly_transform_matrix(coef.shape[0], original_x_domain)
+    transformation_z = _poly_transform_matrix(coef.shape[1], original_z_domain)
+
+    return transformation_x @ coef @ transformation_z.T
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):

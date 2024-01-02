@@ -78,7 +78,7 @@ import numpy as np
 from .. import _weighting
 from ._algorithm_setup import _Algorithm2D
 from ..utils import (
-    _MIN_FLOAT, _convert_coef, relative_difference
+    _MIN_FLOAT, _convert_coef2d, relative_difference
 )
 
 
@@ -122,7 +122,7 @@ class _Polynomial(_Algorithm2D):
             * 'coef': numpy.ndarray, shape (poly_order,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
 
         Notes
         -----
@@ -139,7 +139,7 @@ class _Polynomial(_Algorithm2D):
         baseline = self.vandermonde @ coef
         params = {'weights': weight_array}
         if return_coef:
-            params['coef'] = _convert_coef(coef, self.x_domain)
+            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
 
         return baseline, params
 
@@ -200,7 +200,7 @@ class _Polynomial(_Algorithm2D):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
 
         Notes
         -----
@@ -248,7 +248,7 @@ class _Polynomial(_Algorithm2D):
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
-            params['coef'] = _convert_coef(coef, self.x_domain)
+            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
 
         return baseline, params
 
@@ -310,7 +310,7 @@ class _Polynomial(_Algorithm2D):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
 
         Raises
         ------
@@ -368,7 +368,7 @@ class _Polynomial(_Algorithm2D):
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
-            params['coef'] = _convert_coef(coef, self.x_domain)
+            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
 
         return baseline, params
 
@@ -450,7 +450,7 @@ class _Polynomial(_Algorithm2D):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
 
         Raises
         ------
@@ -505,7 +505,7 @@ class _Polynomial(_Algorithm2D):
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
-            params['coef'] = _convert_coef(coef, self.x_domain)
+            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
 
         return baseline, params
 
@@ -565,7 +565,7 @@ class _Polynomial(_Algorithm2D):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
 
         Raises
         ------
@@ -615,7 +615,7 @@ class _Polynomial(_Algorithm2D):
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
         if return_coef:
-            params['coef'] = _convert_coef(coef, self.x_domain)
+            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
 
         return baseline, params
 
@@ -703,7 +703,7 @@ class _Polynomial(_Algorithm2D):
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
-                polynomial using numpy.polynomial.polynomial.Polynomial().
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
 
         Raises
         ------
@@ -811,7 +811,7 @@ class _Polynomial(_Algorithm2D):
             'threshold': loss_kwargs['threshold']
         }
         if return_coef:
-            params['coef'] = _convert_coef(coef, self.x_domain)
+            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
 
         return baseline, params
 
