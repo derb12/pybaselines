@@ -50,6 +50,7 @@ docs/_build/
 
 # sphinx-gallery output
 docs/examples/
+sg_execution_times.rst
 
 # sphinx-autoapi output
 docs/api
