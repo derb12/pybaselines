@@ -40,7 +40,9 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
-    'sphinx.ext.autosectionlabel',
+    # austosectionlabel allows referencing sections by their titles, but was throwing lots of duplicate object warnings
+    # since changes.rst and CHANGELOG.rst have the same section headers
+    #'sphinx.ext.autosectionlabel',
     'matplotlib.sphinxext.plot_directive',
     'sphinx_gallery.gen_gallery'
 ]
@@ -105,7 +107,7 @@ todo_include_todos = False
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'pentapy': ('https://geostat-framework.readthedocs.io/projects/pentapy/en/stable/', None)
 }
 

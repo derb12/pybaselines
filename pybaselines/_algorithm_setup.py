@@ -37,13 +37,6 @@ class _Algorithm:
 
     Attributes
     ----------
-    pentapy_solver : int or str
-        The integer or string designating which solver to use if using pentapy. See
-        :func:`pentapy.core.solve` for available options, although `1` or `2` are the
-        most relevant options. Default is 2.
-
-        .. versionadded:: 1.1.0
-
     poly_order : int
         The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
         that no polynomial fitting has been performed.
@@ -118,7 +111,15 @@ class _Algorithm:
 
     @property
     def pentapy_solver(self):
-        """The designated solver when using pentapy's solver for pentadiagonal linear systems."""
+        """
+        The integer or string designating which solver to use if using pentapy.
+
+        See :func:`pentapy.solve` for available options, although `1` or `2` are the
+        most relevant options. Default is 2.
+
+        .. versionadded:: 1.1.0
+
+        """
         return self._pentapy_solver
 
     @pentapy_solver.setter

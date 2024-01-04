@@ -13,7 +13,7 @@ A simple example is shown below.
     Beginning in version 1.0.0, pybaselines introduced a class-based api
     which allows for easier usage and allows all algorithms to be called from
     the :class:`.Baseline` object. If using an earlier version, refer to the
-    :ref:`quickstart:Pre-Version-1.0.0 Quick Start` section below or the
+    :ref:`old-quickstart` section below or the
     `old documentation <https://pybaselines.readthedocs.io/en/v0.8.0/>`_.
 
 
@@ -66,6 +66,8 @@ The above code will produce the image shown below.
 .. image:: images/quickstart.jpg
    :align: center
 
+
+.. _old-quickstart:
 
 Pre-Version-1.0.0 Quick Start
 -----------------------------
