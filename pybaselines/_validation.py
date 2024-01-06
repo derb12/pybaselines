@@ -112,7 +112,8 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarr
     return output
 
 
-def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=True):
+def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=True,
+                 ensure_2d=False):
     """
     Validates the shape and values of the input array and controls the output parameters.
 
@@ -161,6 +162,15 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
             output = output.reshape(-1)
         elif dimensions != 1:
             raise ValueError('must be a one dimensional array')
+    elif ensure_2d:
+        output = np.array(output, copy=False, ndmin=2)
+        dimensions = output.ndim
+        if dimensions == 3 and 1 in output.shape:
+            output_shape = np.array(output.shape)
+            flat_dims = ~np.equal(output_shape, 1)
+            output = output.reshape(output_shape[flat_dims]).shape
+        elif dimensions != 2:
+            raise ValueError('must be a two dimensional array')
 
     return output
 
@@ -206,7 +216,7 @@ def _check_sized_array(array, length, dtype=None, order=None, check_finite=False
     output = _check_array(
         array, dtype=dtype, order=order, check_finite=check_finite, ensure_1d=ensure_1d
     )
-    if output.shape[axis] != length:
+    if not np.equal(output.shape[axis], length).all():
         raise ValueError(
             f'length mismatch for {name}; expected {length} but got {output.shape[axis]}'
         )
@@ -265,6 +275,72 @@ def _yx_arrays(data, x_data=None, check_finite=False, dtype=None, order=None, en
         )
 
     return y, x
+
+
+def _yxz_arrays(data, x_data=None, z_data=None, check_finite=False, dtype=None, order=None,
+                ensure_2d=True, x_axis=-1, z_axis=-2):
+    """
+    Converts input data into numpy arrays and provides x and z data if none are given.
+
+    Parameters
+    ----------
+    data : array-like, shape (M, N)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1. to 1. with N points.
+    z_data : array-like, shape (M,), optional
+        The z-values of the measured data. Default is None, which will create an
+        array from -1. to 1. with N points.
+    check_finite : bool, optional
+        If True, will raise an error if any values if `array` are not finite. Default is False,
+        which skips the check.
+    dtype : type or numpy.dtype, optional
+        The dtype to cast the output array. Default is None, which uses the typing of `array`.
+    order : {None, 'C', 'F'}, optional
+        The order for the output array. Default is None, which will use the default array
+        ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
+    ensure_2d : bool, optional
+        If True (default), will raise an error if the shape of `array` is not a two dimensional
+        array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
+
+    Returns
+    -------
+    y : numpy.ndarray, shape (M, N)
+        A numpy array of the y-values of the measured data.
+    x : numpy.ndarray, shape (N,)
+        A numpy array of the x-values of the measured data, or a created array.
+    z : numpy.ndarray, shape (M,)
+        A numpy array of the z-values of the measured data, or a created array.
+
+    Notes
+    -----
+    Does not change the scale/domain of the input `x_data` or `z_data` if they
+    are given, only converts them to arrays.
+
+    """
+    y = _check_array(
+        data, dtype=dtype, order=order, check_finite=check_finite, ensure_1d=False,
+        ensure_2d=ensure_2d
+    )
+    x_len = y.shape[x_axis]
+    z_len = y.shape[z_axis]
+    if x_data is None:
+        x = np.linspace(-1, 1, x_len)
+    else:
+        x = _check_sized_array(
+            x_data, x_len, dtype=dtype, order=order, check_finite=check_finite,
+            ensure_1d=True, axis=0, name='x_data'
+        )
+    if z_data is None:
+        z = np.linspace(-1, 1, z_len)
+    else:
+        z = _check_sized_array(
+            z_data, z_len, dtype=dtype, order=order, check_finite=check_finite,
+            ensure_1d=True, axis=0, name='z_data'
+        )
+
+    return y, x, z
 
 
 def _check_lam(lam, allow_zero=False):

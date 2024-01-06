@@ -553,6 +553,59 @@ def test_sort_array(two_d):
     assert_allclose(data, utils._sort_array(reversed_data, sort_order), atol=0, rtol=1e-14)
 
 
+@pytest.mark.parametrize('three_d', (True, False))
+def test_sort_array2d_none(three_d):
+    """Tests the case where the sorting array is None, which should skip sorting."""
+    data = np.linspace(-1, 1, 20).reshape(5, 4)
+    if three_d:
+        data = data[None, :]
+
+    assert_allclose(data, utils._sort_array2d(data, sort_order=None), atol=0, rtol=1e-14)
+
+
+@pytest.mark.parametrize('sort_x', (True, False, None))
+@pytest.mark.parametrize('three_d', (True, False))
+def test_sort_array2d(three_d, sort_x):
+    """
+    Ensures sorting for 2d data works.
+
+    Each of the three `sort_x` cases corresponds to how _Algorithm2D will make its _sort_order
+    attribute if given only x, only z, and both x and z, respectively.
+    """
+    x = np.linspace(-1, 1, 20)
+    z = np.linspace(-2, 2, 30)
+    x_sort_order = np.arange(len(x))
+    z_sort_order = np.arange(len(z))
+
+    X, Z = np.meshgrid(x, z)
+    data = X + 2 * Z
+
+    if sort_x is None:  # sort both x and z, so reverse both x and z
+        x2 = x[::-1]
+        x_sort_order = x_sort_order[::-1]
+        z2 = z[::-1]
+        z_sort_order = z_sort_order[::-1]
+        sort_order = (z_sort_order[:, None], x_sort_order[None, :])
+    elif sort_x:  # sort just x, so reverse just x
+        x2 = x[::-1]
+        x_sort_order = x_sort_order[::-1]
+        z2 = z
+        sort_order = (..., x_sort_order)
+    else:  # sort just z, so reverse just z
+        x2 = x
+        z2 = z[::-1]
+        z_sort_order = z_sort_order[::-1]
+        sort_order = z_sort_order
+
+    X2, Z2 = np.meshgrid(x2, z2)
+    reversed_data = X2 + 2 * Z2
+    if three_d:
+        data = np.array([data, data])
+        reversed_data = np.array([reversed_data, reversed_data])
+
+    assert_allclose(data, utils._sort_array2d(reversed_data, sort_order), atol=0, rtol=1e-14)
+
+
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 def test_whittaker_smooth(data_fixture, diff_order):
     """Ensures the Whittaker smoothing function performs correctly."""

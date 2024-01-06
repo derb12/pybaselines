@@ -616,6 +616,51 @@ def _determine_sorts(data):
     return output
 
 
+def _sort_array2d(array, sort_order=None):
+    """
+    Sorts the input 2D array only if given a non-None sorting order.
+
+    Parameters
+    ----------
+    array : numpy.ndarray
+        The array to sort. Must be two or three dimensional.
+    sort_order : numpy.ndarray, optional
+        The array(s) defining the sort order for the input array. Default is None, which
+        will not sort the input.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The input array after optionally sorting.
+
+    Notes
+    -----
+    For all inputs, assumes the last 2 axes correspond to the data that needs sorted.
+
+    Raises
+    ------
+    ValueError
+        Raised if the input array is not two or three dimensional.
+
+    """
+    if sort_order is None:
+        output = array
+    else:
+        n_dims = array.ndim
+        if n_dims == 2:
+            output = array[sort_order]
+        elif n_dims == 3:
+            if isinstance(sort_order, tuple):
+                if sort_order[0] is Ellipsis:
+                    output = array[sort_order]
+                else:
+                    output = array[:, sort_order[0], sort_order[1]]
+            else:
+                output = array[:, sort_order, :]
+        else:
+            raise ValueError('too many dimensions to sort the data')
+
+    return output
 
 
 def _sort_array(array, sort_order=None):
