@@ -14,9 +14,9 @@ from math import ceil
 import numpy as np
 
 from . import classification, misc, morphological, polynomial, smooth, spline, whittaker
-from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, gaussian, whittaker_smooth
+from .utils import _check_scalar, _get_edges, _sort_array, gaussian, whittaker_smooth
 
 
 class _Optimizers(_Algorithm):

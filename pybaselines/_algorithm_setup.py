@@ -26,7 +26,7 @@ from ._validation import (
     _check_array, _check_half_window, _check_optional_array, _check_sized_array, _yx_arrays
 )
 from .utils import (
-    ParameterWarning, _determine_sorts, _inverted_sort, optimize_window, pad_edges
+    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array, optimize_window, pad_edges
 )
 
 
@@ -140,7 +140,7 @@ class _Algorithm:
             self.whittaker_system.pentapy_solver = value
         self._pentapy_solver = value
 
-    def _return_results(self, baseline, params, dtype, sort_keys=(), axis=-1, skip_sorting=False):
+    def _return_results(self, baseline, params, dtype, sort_keys=(), skip_sorting=False):
         """
         Re-orders the input baseline and parameters based on the x ordering.
 
@@ -157,8 +157,6 @@ class _Algorithm:
         sort_keys : Iterable, optional
             An iterable of keys corresponding to the values in `params` that need
             re-ordering. Default is ().
-        axis : int, optional
-            The axis of the input which defines each unique set of data. Default is -1.
         skip_sorting : bool, optional
             If True, will skip sorting the output baseline. The keys in `sort_keys` will
             still be sorted. Default is False.
@@ -177,7 +175,7 @@ class _Algorithm:
                     # assumes params all all just one dimensional arrays
                     params[key] = params[key][self._inverted_order]
             if not skip_sorting:
-                baseline = _sort_array(baseline, sort_order=self._inverted_order, axis=axis)
+                baseline = _sort_array(baseline, sort_order=self._inverted_order)
 
         baseline = baseline.astype(dtype, copy=False)
 
@@ -185,7 +183,7 @@ class _Algorithm:
 
     @classmethod
     def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True,
-                  axis=-1, skip_sorting=False):
+                  skip_sorting=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -208,8 +206,6 @@ class _Algorithm:
         ensure_1d : bool, optional
             If True (default), will raise an error if the shape of `array` is not a one dimensional
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
-        axis : int, optional
-            The axis of the input on which to check its length. Default is -1.
         skip_sorting : bool, optional
             If True, will skip sorting the inputs and outputs, which is useful for algorithms that use
             other algorithms so that sorting is already internally done. Default is False.
@@ -225,7 +221,7 @@ class _Algorithm:
         if func is None:
             return partial(
                 cls._register, sort_keys=sort_keys, dtype=dtype, order=order,
-                ensure_1d=ensure_1d, axis=axis, skip_sorting=skip_sorting
+                ensure_1d=ensure_1d, skip_sorting=skip_sorting
             )
 
         @wraps(func)
@@ -237,16 +233,16 @@ class _Algorithm:
                 input_y = True
                 y, self.x = _yx_arrays(
                     data, check_finite=self._check_finite, dtype=dtype, order=order,
-                    ensure_1d=ensure_1d, axis=axis
+                    ensure_1d=ensure_1d
                 )
-                self._len = y.shape[axis]
+                self._len = y.shape[-1]
             else:
                 reset_x = True
                 if data is not None:
                     input_y = True
                     y = _check_sized_array(
                         data, self._len, check_finite=self._check_finite, dtype=dtype, order=order,
-                        ensure_1d=ensure_1d, axis=axis, name='data'
+                        ensure_1d=ensure_1d, name='data'
                     )
                 else:
                     y = data
@@ -258,7 +254,7 @@ class _Algorithm:
                 )
 
             if input_y and not skip_sorting:
-                y = _sort_array(y, sort_order=self._sort_order, axis=axis)
+                y = _sort_array(y, sort_order=self._sort_order)
 
             if input_y and self._dtype is None:
                 output_dtype = y.dtype
@@ -269,9 +265,7 @@ class _Algorithm:
             if reset_x:
                 self.x = np.array(self.x, dtype=x_dtype, copy=False)
 
-            return self._return_results(
-                baseline, params, output_dtype, sort_keys, axis, skip_sorting
-            )
+            return self._return_results(baseline, params, output_dtype, sort_keys, skip_sorting)
 
         return inner
 
@@ -813,47 +807,6 @@ class _Algorithm:
 
         """
         return y
-
-
-def _sort_array(array, sort_order=None, axis=-1):
-    """
-    Sorts the input array only if given a non-None sorting order.
-
-    Parameters
-    ----------
-    array : numpy.ndarray
-        The array to sort.
-    sort_order : numpy.ndarray, optional
-        The array defining the sort order for the input array. Default is None, which
-        will not sort the input.
-    axis : int, optional
-        The axis of the input which defines each unique set of data. Default is -1.
-
-    Returns
-    -------
-    output : numpy.ndarray
-        The input array after optionally sorting.
-
-    Raises
-    ------
-    ValueError
-        Raised if the input array has more than two dimensions.
-
-    """
-    if sort_order is None:
-        output = array
-    else:
-        n_dims = array.ndim
-        if n_dims == 1:
-            output = array[sort_order]
-        elif n_dims == 2:
-            axes = [..., ...]
-            axes[axis] = sort_order
-            output = array[tuple(axes)]
-        else:
-            raise ValueError('too many dimensions to sort the data')
-
-    return output
 
 
 def _class_wrapper(klass):

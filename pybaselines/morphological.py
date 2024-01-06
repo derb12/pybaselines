@@ -9,10 +9,10 @@ Created on March 5, 2021
 import numpy as np
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
-from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_lam
 from .utils import (
-    _mollifier_kernel, pad_edges, padded_convolve, relative_difference
+    _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
 )
 
 

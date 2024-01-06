@@ -616,6 +616,49 @@ def _determine_sorts(data):
     return output
 
 
+
+
+def _sort_array(array, sort_order=None):
+    """
+    Sorts the input array only if given a non-None sorting order.
+
+    Parameters
+    ----------
+    array : numpy.ndarray
+        The array to sort.
+    sort_order : numpy.ndarray, optional
+        The array defining the sort order for the input array. Default is None, which
+        will not sort the input.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The input array after optionally sorting.
+
+    Notes
+    -----
+    For all inputs, assumes the last axis corresponds to the data that needs sorted.
+
+    Raises
+    ------
+    ValueError
+        Raised if the input array has more than two dimensions.
+
+    """
+    if sort_order is None:
+        output = array
+    else:
+        n_dims = array.ndim
+        if n_dims == 1:
+            output = array[sort_order]
+        elif n_dims == 2:
+            output = array[:, sort_order]
+        else:
+            raise ValueError('too many dimensions to sort the data')
+
+    return output
+
+
 def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=True):
     """
     Smooths the input data using Whittaker smoothing.

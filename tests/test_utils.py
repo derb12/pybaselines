@@ -530,6 +530,29 @@ def test_determine_sorts(needs_sorting):
         assert_array_equal(data[sort_order][inverted_order], data)
 
 
+@pytest.mark.parametrize('two_d', (True, False))
+def test_sort_array_none(two_d):
+    """Tests the case where the sorting array is None, which should skip sorting."""
+    data = np.linspace(-1, 1, 20)
+    if two_d:
+        data = data[None, :]
+
+    assert_allclose(data, utils._sort_array(data, sort_order=None), atol=0, rtol=1e-14)
+
+
+@pytest.mark.parametrize('two_d', (True, False))
+def test_sort_array(two_d):
+    """Ensures array sorting works with 1d arrays."""
+    data = np.linspace(-1, 1, 20)
+    reversed_data = data[::-1]
+    sort_order = np.arange(len(data))[::-1]
+    if two_d:
+        data = np.array([data, data])
+        reversed_data = np.array([reversed_data, reversed_data])
+
+    assert_allclose(data, utils._sort_array(reversed_data, sort_order), atol=0, rtol=1e-14)
+
+
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 def test_whittaker_smooth(data_fixture, diff_order):
     """Ensures the Whittaker smoothing function performs correctly."""

@@ -16,14 +16,14 @@ from scipy.optimize import curve_fit
 from scipy.sparse import spdiags
 
 from . import _weighting
-from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
 from ._compat import _HAS_NUMBA, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
-    _MIN_FLOAT, _mollifier_kernel, ParameterWarning, gaussian, pad_edges, padded_convolve,
-    relative_difference
+    _MIN_FLOAT, _mollifier_kernel, _sort_array, ParameterWarning, gaussian, pad_edges,
+    padded_convolve, relative_difference
 )
 
 
