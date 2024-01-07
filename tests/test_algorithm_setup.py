@@ -420,15 +420,6 @@ def test_setup_optimizer_copy_kwargs(small_data, algorithm, copy_kwargs):
         assert input_kwargs['a'] == 2
 
 
-def test_setup_optimizer_kwargs_warns(data_fixture):
-    """Ensures a warning is emitted if extra keyword arguments are passed to the setup."""
-    x, y = data_fixture
-    with pytest.warns(DeprecationWarning):
-        _algorithm_setup._Algorithm(x_data=x)._setup_optimizer(
-            y, 'asls', [whittaker], None, True, poly_order=3
-        )
-
-
 @pytest.mark.parametrize('input_x', (True, False))
 @pytest.mark.parametrize('check_finite', (True, False))
 @pytest.mark.parametrize('assume_sorted', (True, False))

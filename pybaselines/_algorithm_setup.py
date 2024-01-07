@@ -730,7 +730,7 @@ class _Algorithm:
 
         return func, func_module, class_object
 
-    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True, **kwargs):
+    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True):
         """
         Sets the starting parameters for doing optimizer algorithms.
 
@@ -749,9 +749,6 @@ class _Algorithm:
         copy_kwargs : bool, optional
             If True (default), will copy the input `method_kwargs` so that the input
             dictionary is not modified within the function.
-        **kwargs
-            Deprecated in version 0.8.0 and will be removed in version 0.10 or 1.0. Pass any
-            keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
         Returns
         -------
@@ -782,15 +779,6 @@ class _Algorithm:
 
         if 'x_data' in method_kws:
             raise KeyError('"x_data" should not be within the method keyword arguments')
-
-        if kwargs:  # TODO remove in version 0.10 or 1.0
-            warnings.warn(
-                ('Passing additional keyword arguments directly to optimizer functions is '
-                 'deprecated and will be removed in version 0.10.0 or version 1.0. Place all '
-                 'keyword arguments into the method_kwargs dictionary instead.'),
-                DeprecationWarning, stacklevel=2
-            )
-            method_kws.update(kwargs)
 
         return (
             _sort_array(y, self._inverted_order), baseline_func, func_module, method_kws,
