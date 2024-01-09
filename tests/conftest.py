@@ -54,6 +54,42 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
 
 
+def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_z=1.0):
+    """
+    Generates a Gaussian distribution based on height, center, and sigma.
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (M, N)
+        The x-values at which to evaluate the distribution.
+    z : numpy.ndarray, shape (M, N)
+        The z-values at which to evaluate the distribution.
+    height : float, optional
+        The maximum height of the distribution. Default is 1.0.
+    center_x : float, optional
+        The center of the distribution in the x-axis. Default is 0.0.
+    sigma_x : float, optional
+        The standard deviation of the distribution in the x-axis. Default is 1.0.
+    center_z : float, optional
+        The center of the distribution in the z-axis. Default is 0.0.
+    sigma_z : float, optional
+        The standard deviation of the distribution in the z-axis. Default is 1.0.
+
+    Returns
+    -------
+    numpy.ndarray
+        The Gaussian distribution evaluated with x.
+
+    Notes
+    -----
+    This is the same code as in pybaselines.utils.gaussian, but
+    this removes the dependence on pybaselines so that if an error
+    with pybaselines occurs, this will be unaffected.
+
+    """
+    return height * gaussian(x, 1, center_x, sigma_x) * gaussian(z, 1, center_z, sigma_z)
+
+
 def get_data(include_noise=True, num_points=1000):
     """Creates x- and y-data for testing.
 
@@ -87,16 +123,97 @@ def get_data(include_noise=True, num_points=1000):
     return x_data, y_data
 
 
+def get_data2d(include_noise=True, num_points=(50, 60)):
+    """Creates x-, z-, and y-data for testing.
+
+    Parameters
+    ----------
+    include_noise : bool, optional
+        If True (default), will include noise with the y-data.
+    num_points : Container(int, int), optional
+        The number of data points to use for x, and z, respectively. Default
+        is (50, 60), which uses different numbers so that any issues caused
+        by not having a square matrix will be seen.
+
+    Returns
+    -------
+    x_data : numpy.ndarray
+        The x-values.
+    z_data : numpy.ndarray
+        The z-values
+    y_data : numpy.ndarray
+        The y-values.
+
+    """
+    # TODO use np.random.default_rng(0) once minimum numpy version is >= 1.17
+    np.random.seed(0)
+    x_num_points, z_num_points = num_points
+    x_data = np.linspace(1, 100, x_num_points)
+    z_data = np.linspace(1, 100, z_num_points)
+    X, Z = np.meshgrid(x_data, z_data)
+    y_data = (
+        500  # constant baseline
+        + gaussian2d(X, Z, 10, 25, 25)
+        + gaussian2d(X, Z, 20, 50, 50)
+        + gaussian2d(X, Z, 10, 75, 75)
+    )
+    if include_noise:
+        y_data += np.random.normal(0, 0.5, y_data.shape)
+
+    return x_data, z_data, y_data
+
+
+def get_2dspline_inputs(num_knots=5, spline_degree=3, lam=1, diff_order=2):
+    """Helper function to handle array-like values for simple cases in testing."""
+    if isinstance(num_knots, int):
+        num_knots_x = num_knots
+        num_knots_z = num_knots
+    else:
+        num_knots_x, num_knots_z = num_knots
+    if isinstance(spline_degree, int):
+        spline_degree_x = spline_degree
+        spline_degree_z = spline_degree
+    else:
+        spline_degree_x, spline_degree_z = spline_degree
+    if isinstance(lam, (int, float)):
+        lam_x = lam
+        lam_z = lam
+    else:
+        lam_x, lam_z = lam
+    if isinstance(diff_order, int):
+        diff_order_x = diff_order
+        diff_order_z = diff_order
+    else:
+        diff_order_x, diff_order_z = diff_order
+
+    return (
+        num_knots_x, num_knots_z, spline_degree_x, spline_degree_z,
+        lam_x, lam_z, diff_order_x, diff_order_z
+    )
+
+
 @pytest.fixture
 def small_data():
     """A small array of data for testing."""
     return np.arange(10, dtype=float)
 
 
+@pytest.fixture
+def small_data2d():
+    """A small array of data for testing."""
+    return np.arange(50, dtype=float).reshape(5, 10)
+
+
 @pytest.fixture()
 def data_fixture():
     """Test fixture for creating x- and y-data for testing."""
     return get_data()
+
+
+@pytest.fixture()
+def data_fixture2d():
+    """Test fixture for creating x-, z-, and y-data for testing."""
+    return get_data2d()
 
 
 @pytest.fixture()

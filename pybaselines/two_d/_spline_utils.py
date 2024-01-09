@@ -27,23 +27,33 @@ class PSpline2D:
 
     Attributes
     ----------
-    basis : scipy.sparse.csr.csr_matrix, shape (N, M)
-        The spline basis. Has a shape of (`N,` `M`), where `N` is the number of points
-        in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
-        or equivalently ``num_knots + spline_degree - 1``).
+    basis_x : scipy.sparse.csr.csr_matrix, shape (N, P)
+        The spline basis for x. Has a shape of (`N,` `P`), where `N` is the number of points
+        in `x`, and `P` is the number of basis functions (equal to ``K - spline_degree - 1``
+        or equivalently ``num_knots[0] + spline_degree[0] - 1``).
+    basis_z : scipy.sparse.csr.csr_matrix, shape (M, Q)
+        The spline basis for z. Has a shape of (`M,` `Q`), where `M` is the number of points
+        in `z`, and `Q` is the number of basis functions (equal to ``K - spline_degree - 1``
+        or equivalently ``num_knots[1] + spline_degree[1] - 1``).
     coef : None or numpy.ndarray, shape (M,)
         The spline coefficients. Is None if :meth:`.solve_pspline` has not been called
         at least once.
-    knots : numpy.ndarray, shape (K,)
+    knots_x : numpy.ndarray, shape (K,)
         The knots for the spline. Has a shape of `K`, which is equal to
-        ``num_knots + 2 * spline_degree``.
-    num_knots : int
-        The number of internal knots (including the endpoints). The total number of knots
-        for the spline, `K`, is equal to ``num_knots + 2 * spline_degree``.
-    spline_degree : int
-        The degree of the spline (eg. a cubic spline would have a `spline_degree` of 3).
+        ``num_knots[0] + 2 * spline_degree[0]``.
+    knots_z : numpy.ndarray, shape (L,)
+        The knots for the spline. Has a shape of `L`, which is equal to
+        ``num_knots[1] + 2 * spline_degree[2]``.
+    num_knots : numpy.ndarray([int, int])
+        The number of internal knots (including the endpoints) for x and z. The total number of
+        knots for the spline, `K`, is equal to ``num_knots + 2 * spline_degree``.
+    spline_degree : numpy.ndarray([int, int])
+        The degree of the spline (eg. a cubic spline would have a `spline_degree` of 3) for
+        x and z.
     x : numpy.ndarray, shape (N,)
         The x-values for the spline.
+    z : numpy.ndarray, shape (M,)
+        The z-values for the spline.
 
     References
     ----------
@@ -61,7 +71,7 @@ class PSpline2D:
         ----------
         x : array-like, shape (N,)
             The x-values for the spline.
-        z : array-like, shape (L,)
+        z : array-like, shape (M,)
             The z-values for the spline.
         num_knots : int or Sequence(int, int), optional
             The number of internal knots for the spline, including the endpoints.
@@ -87,41 +97,29 @@ class PSpline2D:
         """
         self.x = _check_array(x, dtype=float, check_finite=check_finite, ensure_1d=True)
         self.z = _check_array(z, dtype=float, check_finite=check_finite, ensure_1d=True)
-        self.shape = (len(x), len(z))
 
         self.num_knots = _check_scalar(num_knots, 2, True)[0]
-        self.diff_order = _check_scalar(diff_order, 2, True)[0]
         self.spline_degree = _check_scalar(spline_degree, 2, True)[0]
-        self.lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
 
-        self.knots_1 = _spline_knots(self.x, self.num_knots[0], self.spline_degree[0], True)
-        self.basis_1 = _spline_basis(self.x, self.knots_1, self.spline_degree[0])
+        if (self.spline_degree < 0).any():
+            raise ValueError('spline degree must be >= 0')
+        elif (self.spline_degree < 0).any():
+            raise ValueError('spline degree must be greater than or equal to 0')
 
-        self.knots_2 = _spline_knots(self.z, self.num_knots[1], self.spline_degree[1], True)
-        self.basis_2 = _spline_basis(self.z, self.knots_2, self.spline_degree[1])
-        self._num_bases = np.array([self.basis_1.shape[1], self.basis_2.shape[1]])
+        self.knots_x = _spline_knots(self.x, self.num_knots[0], self.spline_degree[0], True)
+        self.basis_x = _spline_basis(self.x, self.knots_x, self.spline_degree[0])
+
+        self.knots_z = _spline_knots(self.z, self.num_knots[1], self.spline_degree[1], True)
+        self.basis_z = _spline_basis(self.z, self.knots_z, self.spline_degree[1])
+        self._num_bases = np.array((self.basis_x.shape[1], self.basis_z.shape[1]))
 
         el = np.ones((self._num_bases[0], 1))
         ek = np.ones((self._num_bases[1], 1))
-        self._G = sparse.kron(self.basis_1, el.T).multiply(sparse.kron(el.T, self.basis_1))
-        self._G2 = sparse.kron(self.basis_2, ek.T).multiply(sparse.kron(ek.T, self.basis_2))
+        self._G = sparse.kron(self.basis_x, el.T).multiply(sparse.kron(el.T, self.basis_x))
+        self._G2 = sparse.kron(self.basis_z, ek.T).multiply(sparse.kron(ek.T, self.basis_z))
 
         self.coef = None
-
-        D1 = difference_matrix(self._num_bases[0], self.diff_order[0])
-        D2 = difference_matrix(self._num_bases[1], self.diff_order[1])
-
-        P1 = self.lam[0] * sparse.kron(D1.T @ D1, sparse.identity(self._num_bases[1]))
-        P2 = self.lam[1] * sparse.kron(sparse.identity(self._num_bases[0]), D2.T @ D2)
-        self.penalty = P1 + P2
-
-        if (self.diff_order >= self._num_bases).any():
-            raise ValueError((
-                'the difference order must be less than the number of basis '
-                'functions, which is the number of knots + spline degree - 1'
-            ))
-        elif (self.spline_degree < 0).any():
-            raise ValueError('spline degree must be greater than or equal to 0')
+        self.reset_penalty(lam, diff_order)
 
     def same_basis(self, num_knots=100, spline_degree=3):
         """
@@ -141,11 +139,19 @@ class PSpline2D:
             spline basis of the object.
 
         """
-        return False  # TODO will need to check both basis matrices
+        # TODO should give a way to update only one of the basis functions, which
+        # would also need to update the penalty
+        num_knots = _check_scalar(num_knots, 2, True)[0]
+        spline_degree = _check_scalar(spline_degree, 2, True)[0]
 
-    def reset_penalty_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=False):
+        return (
+            np.array_equal(num_knots, self.num_knots)
+            and np.array_equal(spline_degree, self.spline_degree)
+        )
+
+    def reset_penalty(self, lam=1, diff_order=2):
         """
-        Resets the penalty diagonals of the system and all of the attributes.
+        Resets the penalty of the system and all of the attributes.
 
         Useful for reusing the penalty diagonals without having to recalculate the spline basis.
 
@@ -174,6 +180,22 @@ class PSpline2D:
         basis and the penalty to speed up calculations when the two are added.
 
         """
+        self.diff_order = _check_scalar(diff_order, 2, True)[0]
+        self.lam = np.array([_check_lam(val) for val in _check_scalar(lam, 2, True)[0]])
+
+        if (self.diff_order < 1).any():
+            raise ValueError('the difference order must be > 0 for penalized splines')
+        elif (self.diff_order >= self._num_bases).any():
+            raise ValueError((
+                'the difference order must be less than the number of basis '
+                'functions, which is the number of knots + spline degree - 1'
+            ))
+        D1 = difference_matrix(self._num_bases[0], self.diff_order[0])
+        D2 = difference_matrix(self._num_bases[1], self.diff_order[1])
+
+        P1 = self.lam[0] * sparse.kron(D1.T @ D1, sparse.identity(self._num_bases[1]))
+        P2 = self.lam[1] * sparse.kron(sparse.identity(self._num_bases[0]), D2.T @ D2)
+        self.penalty = P1 + P2
 
     def solve_pspline(self, y, weights, penalty=None, rhs_extra=None):
         """
@@ -225,10 +247,10 @@ class PSpline2D:
 
         self.coef = spsolve(
             sparse.csr_matrix(F) + self.penalty,
-            (self.basis_2.T @ (weights * y) @ self.basis_1).flatten(),
+            (self.basis_z.T @ (weights * y) @ self.basis_x).flatten(),
             'NATURAL'
         ).reshape(self._num_bases[1], self._num_bases[0])
 
-        output = self.basis_2 @ self.coef @ self.basis_1.T
+        output = self.basis_z @ self.coef @ self.basis_x.T
 
         return output

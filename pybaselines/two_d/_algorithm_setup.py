@@ -15,7 +15,7 @@ import numpy as np
 from scipy.ndimage import grey_opening
 
 from ..utils import (
-    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, pad_edges,
+    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, pad_edges2d,
     relative_difference
 )
 from ._spline_utils import PSpline2D
@@ -65,7 +65,8 @@ class _Algorithm2D:
 
     """
 
-    def __init__(self, x_data=None, z_data=None, check_finite=True, output_dtype=None):
+    def __init__(self, x_data=None, z_data=None, check_finite=True, assume_sorted=False,
+                 output_dtype=None):
         """
         Initializes the algorithm object.
 
@@ -83,6 +84,10 @@ class _Algorithm2D:
             If True (default), will raise an error if any values in input data are not finite.
             Setting to False will skip the check. Note that errors may occur if
             `check_finite` is False and the input data contains non-finite values.
+        assume_sorted : bool, optional
+            If False (default), will sort the input `x_data` and `z_data` values. Otherwise,
+            the input is assumed to be sorted. Note that some functions may raise an error
+            if `x_data` and `z_data` are not sorted.
         output_dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing
             of the input data.
@@ -98,9 +103,10 @@ class _Algorithm2D:
             self.x = _check_array(x_data, check_finite=check_finite)
             self._len[1] = len(self.x)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
-            x_sort_order, x_inverted_order = _determine_sorts(self.x)
-            if x_sort_order is not None:
-                self.x = self.x[x_sort_order]
+            if not assume_sorted:
+                x_sort_order, x_inverted_order = _determine_sorts(self.x)
+                if x_sort_order is not None:
+                    self.x = self.x[x_sort_order]
 
         if z_data is None:
             self.z = None
@@ -109,9 +115,10 @@ class _Algorithm2D:
             self.z = _check_array(z_data, check_finite=check_finite)
             self._len[0] = len(self.z)
             self.z_domain = np.polynomial.polyutils.getdomain(self.z)
-            z_sort_order, z_inverted_order = _determine_sorts(self.z)
-            if z_sort_order is not None:
-                self.z = self.z[z_sort_order]
+            if not assume_sorted:
+                z_sort_order, z_inverted_order = _determine_sorts(self.z)
+                if z_sort_order is not None:
+                    self.z = self.z[z_sort_order]
 
         if x_sort_order is None and z_sort_order is None:
             self._sort_order = None
@@ -225,7 +232,7 @@ class _Algorithm2D:
         """
         if func is None:
             return partial(
-                cls._register, dtype=dtype, order=order, ensure_2d=ensure_2d,
+                cls._register, sort_keys=sort_keys, dtype=dtype, order=order, ensure_2d=ensure_2d,
                 reshape_baseline=reshape_baseline, reshape_keys=reshape_keys
             )
 
@@ -289,8 +296,8 @@ class _Algorithm2D:
                 self.z = np.array(self.z, dtype=z_dtype, copy=False)
 
             return self._return_results(
-                baseline, params, output_dtype, sort_keys, ensure_2d,
-                reshape_baseline, reshape_keys
+                baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_2d=ensure_2d,
+                reshape_baseline=reshape_baseline, reshape_keys=reshape_keys
             )
 
         return inner
@@ -404,11 +411,12 @@ class _Algorithm2D:
             Raised if `diff_order` is greater than 3.
 
         """
-        if diff_order < 1:
+        diff_order = _check_scalar(diff_order, 2, True)[0]
+        if (diff_order < 1).any():
             raise ValueError(
                 'the difference order must be > 0 for Whittaker-smoothing-based methods'
             )
-        elif diff_order > 3:
+        elif (diff_order > 3).any():
             warnings.warn(
                 ('difference orders greater than 3 can have numerical issues;'
                  ' consider using a difference order of 2 or 1 instead'),
@@ -416,13 +424,13 @@ class _Algorithm2D:
             )
         weight_array = _check_optional_array(
             self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False
+            ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
         weight_array = weight_array.ravel()
         if self.whittaker_system is not None:
-            self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
+            self.whittaker_system.reset_diagonals(lam, diff_order)
         else:
             self.whittaker_system = PenalizedSystem2D(
                 self._len, lam, diff_order
@@ -489,7 +497,7 @@ class _Algorithm2D:
         """
         weight_array = _check_optional_array(
             self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False
+            ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
@@ -600,7 +608,7 @@ class _Algorithm2D:
         """
         weight_array = _check_optional_array(
             self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False
+            ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
@@ -618,7 +626,7 @@ class _Algorithm2D:
                     self.x, self.z, num_knots, spline_degree, self._check_finite, lam, diff_order
                 )
             else:
-                self.pspline.reset_penalty_diagonals(lam, diff_order)
+                self.pspline.reset_penalty(lam, diff_order)
 
         return y, weight_array
 
@@ -671,7 +679,7 @@ class _Algorithm2D:
 
         """
         if half_window is not None:
-            output_half_window = _check_half_window(half_window)
+            output_half_window = _check_half_window(half_window, two_d=True)
         else:
             output_half_window = _optimize_window(y, **window_kwargs)
 
@@ -703,8 +711,8 @@ class _Algorithm2D:
             The padded array of data.
 
         """
-        hw = _check_half_window(half_window, allow_zero)
-        return pad_edges(y, hw, **pad_kwargs)
+        hw = _check_half_window(half_window, allow_zero, two_d=False)
+        return pad_edges2d(y, hw, **pad_kwargs)
 
     def _setup_misc(self, y):
         """

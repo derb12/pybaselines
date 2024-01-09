@@ -349,6 +349,32 @@ def test_setup_spline_negative_lam_fails(small_data):
         )
 
 
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+def test_setup_spline_weights(small_data, algorithm, weight_enum):
+    """Ensures output weight array is correct."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones_like(small_data)
+    elif weight_enum == 1:
+        # uniform 1 weighting
+        weights = np.ones_like(small_data)
+        desired_weights = weights.copy()
+    elif weight_enum == 2:
+        # different weights for all points
+        weights = np.arange(small_data.shape[0])
+        desired_weights = np.arange(small_data.shape[0])
+    elif weight_enum == 3:
+        # different weights for all points, and weights input as a list
+        weights = np.arange(small_data.shape[0]).tolist()
+        desired_weights = np.arange(small_data.shape[0])
+
+    _, weight_array = algorithm._setup_spline(small_data, lam=1, diff_order=2, weights=weights)
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
+
+
 def test_setup_spline_array_lam(small_data):
     """Ensures a lam that is a single array passes while larger arrays fail."""
     _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(small_data, lam=[1])
@@ -468,8 +494,7 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
 
     if not assume_sorted and change_order and input_x:
         order = np.arange(len(x))
-        if change_order:
-            order[sort_order] = order[sort_order][::-1]
+        order[sort_order] = order[sort_order][::-1]
         assert_array_equal(algorithm._sort_order, order)
         assert_array_equal(algorithm._inverted_order, order.argsort())
     else:
@@ -548,6 +573,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         # 'a' values will be sorted and 'b' values will be kept the same
         @_algorithm_setup._Algorithm._register(sort_keys=('a',))
         def func(self, data, *args, **kwargs):
+            """For checking sorting of output parameters."""
             expected_x = np.arange(20)
             if change_order and assume_sorted:
                 expected_x[sort_indices] = expected_x[sort_indices][::-1]

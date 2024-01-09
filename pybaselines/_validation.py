@@ -388,7 +388,7 @@ def _check_lam(lam, allow_zero=False):
     return _check_scalar_variable(lam, allow_zero)
 
 
-def _check_half_window(half_window, allow_zero=False):
+def _check_half_window(half_window, allow_zero=False, two_d=False):
     """
     Ensures the half-window is an integer and has an appropriate value.
 
@@ -414,11 +414,20 @@ def _check_half_window(half_window, allow_zero=False):
         `half_window`.
 
     """
-    output_half_window = _check_scalar_variable(
-        half_window, allow_zero, 'half_window', dtype=np.intp
-    )
-    if output_half_window != half_window:
-        raise TypeError('half_window must be an integer')
+    if two_d:
+        output_half_window = _check_scalar(
+            half_window, 2, fill_scalar=True, dtype=np.intp
+        )[0]
+        for val in output_half_window:
+            _check_scalar_variable(
+                val, allow_zero, 'half_window'
+            )
+    else:
+        output_half_window = _check_scalar_variable(
+            half_window, allow_zero, 'half_window', dtype=np.intp
+        )
+        if output_half_window != half_window:
+            raise TypeError('half_window must be an integer')
 
     return output_half_window
 

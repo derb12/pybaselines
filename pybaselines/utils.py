@@ -87,6 +87,36 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     return height * np.exp(-0.5 * ((x - center)**2) / max(sigma, _MIN_FLOAT)**2)
 
 
+def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_z=1.0):
+    """
+    Generates a Gaussian distribution based on height, center, and sigma.
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (M, N)
+        The x-values at which to evaluate the distribution.
+    z : numpy.ndarray, shape (M, N)
+        The z-values at which to evaluate the distribution.
+    height : float, optional
+        The maximum height of the distribution. Default is 1.0.
+    center_x : float, optional
+        The center of the distribution in the x-axis. Default is 0.0.
+    sigma_x : float, optional
+        The standard deviation of the distribution in the x-axis. Default is 1.0.
+    center_z : float, optional
+        The center of the distribution in the z-axis. Default is 0.0.
+    sigma_z : float, optional
+        The standard deviation of the distribution in the z-axis. Default is 1.0.
+
+    Returns
+    -------
+    numpy.ndarray
+        The Gaussian distribution evaluated with x.
+
+    """
+    return height * gaussian(x, 1, center_x, sigma_x) * gaussian(z, 1, center_z, sigma_z)
+
+
 def gaussian_kernel(window_size, sigma=1.0):
     """
     Creates an area-normalized gaussian kernel for convolution.
@@ -276,6 +306,13 @@ def pad_edges(data, pad_length, mode='extrapolate',
         padded_data = np.pad(y, pad_length, mode, **pad_kwargs)
 
     return padded_data
+
+
+def pad_edges2d(data, pad_length, *args, **kwargs):
+    if not _check_scalar(pad_length, None)[1]:
+        raise NotImplementedError('separate pad lengths not yet supported')
+    else:
+        return pad_edges(data, pad_length, *args, **kwargs)
 
 
 def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):

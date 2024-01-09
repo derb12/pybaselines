@@ -410,7 +410,7 @@ def test_pad_edges_extrapolate_windows():
     assert_allclose(output[-pad_len:], np.full(pad_len, 1.), 1e-14)
 
 
-@pytest.mark.parametrize('extrapolate_window', (0, (0, 0), (5, 0), (5, -1)))
+@pytest.mark.parametrize('extrapolate_window', (0, -2, (0, 0), (5, 0), (5, -1)))
 def test_pad_edges_extrapolate_zero_window(extrapolate_window):
     """Ensures an extrapolate_window <= 0 raises an exception."""
     with pytest.raises(ValueError):

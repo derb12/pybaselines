@@ -52,8 +52,7 @@ class PenalizedSystem2D:
 
     """
 
-    def __init__(self, data_size, lam=1, diff_order=2, allow_lower=True,
-                 reverse_diags=None, allow_pentapy=True, padding=0):
+    def __init__(self, data_size, lam=1, diff_order=2):
         """
         Initializes the banded system.
 
@@ -66,35 +65,10 @@ class PenalizedSystem2D:
             smoother results. Must be greater than 0. Default is 1.
         diff_order : int, optional
             The difference order of the penalty. Default is 2 (second order difference).
-        allow_lower : bool, optional
-            If True (default), will allow only using the lower bands of the penalty matrix,
-            which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
-            slower :func:`scipy.linalg.solve_banded`.
-        reverse_diags : {None, False, True}, optional
-            If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False, will never reverse the diagonals. If None (default), will
-            only reverse the diagonals if using pentapy's solver.
-        allow_pentapy : bool, optional
-            If True (default), will allow using pentapy's solver if `diff_order` is 2
-            and pentapy is installed. pentapy's solver is faster than scipy's banded solvers.
-        padding : int, optional
-            The number of extra layers of zeros to add to the bottom and potentially
-            the top if the full bands are used. Default is 0, which adds no extra
-            layers. Negative `padding` is treated as equivalent to 0.
 
         """
-        self.shape = data_size
-        self.original_diagonals = None
-
-        self.diff_order = _check_scalar(diff_order, 2, True)[0]
-        self.lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
-        D1 = difference_matrix(self.shape[0], self.diff_order[0])
-        D2 = difference_matrix(self.shape[1], self.diff_order[1])
-
-        P1 = self.lam[0] * kron(D1.T @ D1, identity(self.shape[1]))
-        P2 = self.lam[1] * kron(identity(self.shape[0]), D2.T @ D2)
-
-        self.penalty = P1 + P2
+        self._num_bases = data_size
+        self.reset_penalty(lam, diff_order)
 
     def add_penalty(self, penalty):
         """
@@ -111,9 +85,9 @@ class PenalizedSystem2D:
             The updated `self.penalty`.
 
         """
+        raise NotImplementedError
 
-    def reset_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=None,
-                        allow_pentapy=True, padding=0):
+    def reset_penalty(self, lam=1, diff_order=2):
         """
         Resets the diagonals of the system and all of the attributes.
 
@@ -126,26 +100,22 @@ class PenalizedSystem2D:
             smoother results. Must be greater than 0. Default is 1.
         diff_order : int, optional
             The difference order of the penalty. Default is 2 (second order difference).
-        allow_lower : bool, optional
-            If True (default), will allow only using the lower bands of the penalty matrix,
-            which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
-            slower :func:`scipy.linalg.solve_banded`.
-        reverse_diags : {None, False, True}, optional
-            If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False, will never reverse the diagonals. If None (default), will
-            only reverse the diagonals if using pentapy's solver.
-        allow_pentapy : bool, optional
-            If True (default), will allow using pentapy's solver if `diff_order` is 2
-            and pentapy is installed. pentapy's solver is faster than scipy's banded solvers.
-        padding : int, optional
-            The number of extra layers of zeros to add to the bottom and potentially
-            the top if the full bands are used. Default is 0, which adds no extra
-            layers. Negative `padding` is treated as equivalent to 0.
 
         """
+        self.diff_order = _check_scalar(diff_order, 2, True)[0]
+        self.lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
 
-    def solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False,
-              check_finite=False, l_and_u=None, check_output=False):
+        if (self.diff_order < 1).any():
+            raise ValueError('the difference order must be > 0')
+
+        D1 = difference_matrix(self._num_bases[0], self.diff_order[0])
+        D2 = difference_matrix(self._num_bases[1], self.diff_order[1])
+
+        P1 = self.lam[0] * kron(D1.T @ D1, identity(self._num_bases[1]))
+        P2 = self.lam[1] * kron(identity(self._num_bases[0]), D2.T @ D2)
+        self.penalty = P1 + P2
+
+    def solve(self, lhs, rhs):
         """
         Solves the equation ``A @ x = rhs``, given `A` in banded format as `lhs`.
 
@@ -196,6 +166,8 @@ class PenalizedSystem2D:
             not make physical sense.
 
         """
+        raise NotImplementedError
+
         if self.lower:
             raise ValueError('cannot reverse diagonals when self.lower is True')
         self.penalty = self.penalty[::-1]
