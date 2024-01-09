@@ -254,3 +254,24 @@ class PSpline2D:
         output = self.basis_z @ self.coef @ self.basis_x.T
 
         return output
+
+    @property
+    def tck(self):
+        """
+        The knots, spline coefficients, and spline degree to reconstruct the spline.
+
+        Convenience function for potentially reconstructing the last solved spline with outside
+        modules, although not such if Scipy has a 2D equiavlent to its `BSpline`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `solve_pspline` has not been called yet, meaning that the spline has not
+            yet been constructed.
+
+        """
+        if self.coef is None:
+            raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
+        return (
+            self.knots_x, self.knots_z, self.coef, self.spline_degree[0], self.spline_degree[1]
+        )
