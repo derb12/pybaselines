@@ -54,7 +54,7 @@ from scipy.signal import convolve
 from scipy.spatial import ConvexHull
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import jit
+from ._compat import jit, trapezoid
 from ._validation import _check_scalar
 from .utils import (
     _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
@@ -660,8 +660,8 @@ class _Classification(_Algorithm):
             bins = 0.5 * (bin_edges[1:] + bin_edges[:-1])
 
         gaussian_mask = np.abs(bins) < 3 * sigma_opt
-        gaus_area = np.trapz(histogram[gaussian_mask], bins[gaussian_mask])
-        num_sigma = 0.6 + 10 * ((np.trapz(histogram, bins) - gaus_area) / gaus_area)
+        gaus_area = trapezoid(histogram[gaussian_mask], bins[gaussian_mask])
+        num_sigma = 0.6 + 10 * ((trapezoid(histogram, bins) - gaus_area) / gaus_area)
 
         wavelet_mask = _refine_mask(abs_wavelet < num_sigma * sigma_opt, min_length)
         np.logical_and(wavelet_mask, weight_array, out=wavelet_mask)

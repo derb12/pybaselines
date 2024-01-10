@@ -11,6 +11,7 @@ from unittest import mock
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy import integrate
 
 from pybaselines import _banded_utils, morphological, spline, utils, whittaker
 
@@ -107,7 +108,12 @@ def test_mixture_pdf(fraction_pos, fraction_neg):
     assert_allclose(expected_pdf, output_pdf, 1e-12, 1e-12)
     # ensure pdf has an area of 1, ie total probability is 100%; accuracy is limited
     # by number of x-values
-    assert_allclose(1.0, np.trapz(output_pdf, x), 1e-3)
+
+    if hasattr(integrate, 'trapezoid'):
+        trapezoid = integrate.trapezoid
+    else:
+        trapezoid = integrate.trapz
+    assert_allclose(1.0, trapezoid(output_pdf, x), 1e-3)
 
 
 def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,

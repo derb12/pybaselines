@@ -18,7 +18,7 @@ from scipy.sparse import spdiags
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
 from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
-from ._compat import _HAS_NUMBA, jit
+from ._compat import _HAS_NUMBA, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
@@ -323,7 +323,7 @@ class _Spline(_Algorithm):
 
         areas = np.zeros(max_iter)
         kept_points = np.zeros(self._len, int)
-        old_area = np.trapz(y, self.x)
+        old_area = trapezoid(y, self.x)
         old_sum = self._len
         ym = y
         xm = self.x
@@ -353,7 +353,7 @@ class _Spline(_Algorithm):
             #     + (xm[2:] - xm[1:-1]) * (ym[2:] + ym[1:-1])
             #     - (xm[2:] - xm[:-2]) * (ym[2:] + ym[:-2])
             # ).sum()
-            area = np.trapz(ym, xm)
+            area = trapezoid(ym, xm)
             areas[i] = (old_area - area) / num_corners
             old_area = area
 

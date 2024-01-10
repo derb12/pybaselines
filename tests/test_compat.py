@@ -8,6 +8,7 @@ Created on March 20, 2021
 
 from numpy.testing import assert_array_equal
 import pytest
+from scipy import integrate
 
 from pybaselines import _compat
 
@@ -135,3 +136,11 @@ def test_jit_signature():
     output = _add4(input_1, input_2)
 
     assert_array_equal(expected, output)
+
+
+def test_trapezoid():
+    """Ensures the trapezoid integration function within scipy is correctly used."""
+    if hasattr(integrate, 'trapezoid'):
+        assert _compat.trapezoid is integrate.trapezoid
+    else:
+        assert _compat.trapezoid is integrate.trapz

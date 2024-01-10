@@ -8,6 +8,8 @@ Created on June 24, 2021
 
 from functools import wraps
 
+from scipy import integrate
+
 
 try:
     from pentapy import solve as _pentapy_solve
@@ -45,3 +47,13 @@ except ImportError:
             return func(*args, **kwargs)
 
         return wrapper
+
+
+# scipy.integrate.trapezoid was introduced in v1.6.0, while
+# scipy.integrate.trapz will be deprecated in v1.14.0.
+# Use scipy instead of numpy since numpy.trapz will be deprecated
+# in v2.0.0
+if hasattr(integrate, 'trapezoid'):
+    trapezoid = integrate.trapezoid
+else:
+    trapezoid = integrate.trapz
