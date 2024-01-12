@@ -150,7 +150,7 @@ def get_data2d(include_noise=True, num_points=(50, 60)):
     x_num_points, z_num_points = num_points
     x_data = np.linspace(1, 100, x_num_points)
     z_data = np.linspace(1, 100, z_num_points)
-    X, Z = np.meshgrid(x_data, z_data)
+    X, Z = np.meshgrid(x_data, z_data, indexing='ij')
     y_data = (
         500  # constant baseline
         + gaussian2d(X, Z, 10, 25, 25)
@@ -491,12 +491,7 @@ class InputWeightsMixin:
     weight_keys = ('weights',)
 
     def test_input_weights(self, assertion_kwargs=None, **kwargs):
-        """
-        Ensures arrays are correctly sorted within the function.
-
-        Returns the output for further testing.
-
-        """
+        """Ensures input weights are correctly sorted within the function."""
         # TODO replace with np.random.default_rng when min numpy version is >= 1.17
         weights = np.random.RandomState(0).normal(0.8, 0.05, len(self.x))
         weights = np.clip(weights, 0, 1).astype(float, copy=False)
@@ -521,6 +516,9 @@ class InputWeightsMixin:
             assertion_kwargs['atol'] = 1e-14
 
         for key in self.weight_keys:
+            assert key in regular_output_params
+            assert key in reverse_output_params
+
             assert_allclose(
                 regular_output_params[key], reverse_output_params[key][::-1],
                 **assertion_kwargs
@@ -528,3 +526,177 @@ class InputWeightsMixin:
         assert_allclose(
             regular_output, self.reverse_array(reverse_output), **assertion_kwargs
         )
+
+
+class BaseTester2D:
+    """
+    A base class for testing all 2D algorithms.
+
+    Attributes
+    ----------
+    kwargs : dict
+        The keyword arguments that will be used as inputs for all default test cases.
+
+    """
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'func'
+    checked_keys = None
+    required_kwargs = None
+    three_d = False
+
+    @classmethod
+    def setup_class(cls):
+        """Sets up the class for testing."""
+        cls.x, cls.z, cls.y = get_data2d()
+        if cls.three_d:
+            cls.y = np.array((cls.y, cls.y))
+        cls.algorithm = cls.algorithm_base(cls.x, cls.z, check_finite=False, assume_sorted=True)
+        cls.class_func = getattr(cls.algorithm, cls.func_name)
+        cls.kwargs = cls.required_kwargs if cls.required_kwargs is not None else {}
+        cls.param_keys = cls.checked_keys if cls.checked_keys is not None else []
+
+    @classmethod
+    def teardown_class(cls):
+        """
+        Resets class attributes after testing.
+
+        Probably not needed, but done anyway to catch changes in how pytest works.
+
+        """
+        cls.x = None
+        cls.z = None
+        cls.y = None
+        cls.algorithm = None
+        cls.class_func = None
+        cls.kwargs = None
+        cls.param_keys = None
+
+    def test_ensure_wrapped(self):
+        """Ensures the class method was wrapped using _Algorithm._register to control inputs."""
+        assert hasattr(self.class_func, '__wrapped__')
+
+    @pytest.mark.parametrize('new_instance', (True, False))
+    def test_unchanged_data(self, new_instance, **kwargs):
+        """Ensures that input data is unchanged by the function."""
+        x, z, y = get_data2d()
+        x2, z2, y2 = get_data2d()
+        if self.three_d:
+            y = np.array((y, y))
+            y2 = np.array((y2, y2))
+
+        if new_instance:
+            getattr(self.algorithm_base(x_data=x, z_data=z), self.func_name)(
+                data=y, **self.kwargs, **kwargs
+            )
+            compared_x = x
+            compared_z = z
+        else:
+            self.class_func(data=y, **self.kwargs, **kwargs)
+            compared_x = self.x
+            compared_z = self.z
+
+        assert_array_equal(y2, y, err_msg='the y-data was changed by the algorithm')
+        assert_array_equal(x2, compared_x, err_msg='the x-data was changed by the algorithm')
+        assert_array_equal(z2, compared_z, err_msg='the z-data was changed by the algorithm')
+
+    def test_repeated_fits(self):
+        """Ensures the setup is properly reset when using class api."""
+        first_output = self.class_func(data=self.y, **self.kwargs)
+        second_output = self.class_func(data=self.y, **self.kwargs)
+
+        assert_allclose(first_output[0], second_output[0], 1e-14)
+
+    def test_list_input(self, **assertion_kwargs):
+        """Ensures that function works the same for both array and list inputs."""
+        output_array = self.class_func(data=self.y, **self.kwargs)
+        output_list = self.class_func(data=self.y.tolist(), **self.kwargs)
+
+        assert_allclose(
+            output_array[0], output_list[0],
+            err_msg='algorithm output is different for arrays vs lists', **assertion_kwargs
+        )
+        for key in output_array[1]:
+            assert key in output_list[1]
+
+    @pytest.mark.parametrize('has_x', (True, False))
+    @pytest.mark.parametrize('has_z', (True, False))
+    def test_no_xz(self, has_x, has_z, **assertion_kwargs):
+        """
+        Ensures that function output is the same when no x and/or z is input.
+
+        Usually only valid for evenly spaced data, such as used for testing.
+
+        """
+        if has_x and has_z:
+            return  # the one test case that would not produce any difference so skip to save time
+        output_with = self.class_func(data=self.y, **self.kwargs)
+
+        input_x = self.x if has_x else None
+        input_z = self.z if has_z else None
+        output_without = getattr(
+            self.algorithm_base(x_data=input_x, z_data=input_z), self.func_name
+        )(data=self.y, **self.kwargs)
+
+        assert_allclose(
+            output_with[0], output_without[0],
+            err_msg='algorithm output is different with no x-values and/or z-values',
+            **assertion_kwargs
+        )
+
+    def test_output(self, additional_keys=None, **kwargs):
+        """
+        Ensures that the output has the desired format.
+
+        Ensures that output has two elements, a numpy array and a param dictionary,
+        and that the output baseline is the same shape as the input y-data.
+
+        Parameters
+        ----------
+        additional_keys : Iterable(str, ...), optional
+            Additional keys to check for in the output parameter dictionary. Default is None.
+        **kwargs
+            Additional keyword arguments to pass to the function.
+
+        """
+        output = self.class_func(data=self.y, **self.kwargs, **kwargs)
+
+        assert len(output) == 2, 'algorithm output should have two items'
+        assert isinstance(output[0], np.ndarray), 'output[0] should be a numpy ndarray'
+        assert isinstance(output[1], dict), 'output[1] should be a dictionary'
+        assert self.y.shape == output[0].shape, 'output[0] must have same shape as y-data'
+
+        if additional_keys is not None:
+            total_keys = list(self.param_keys) + list(additional_keys)
+        else:
+            total_keys = self.param_keys
+        # check all entries in output param dictionary
+        for key in total_keys:
+            if key not in output[1]:
+                assert False, f'key "{key}" missing from param dictionary'
+            output[1].pop(key)
+        if output[1]:
+            assert False, f'unchecked keys in param dictionary: {output[1]}'
+
+    def test_xz_ordering(self, assertion_kwargs=None, **kwargs):
+        """Ensures arrays are correctly sorted within the function."""
+        reverse_fitter = self.algorithm_base(self.x[::-1], self.z[::-1], assume_sorted=False)
+
+        regular_inputs_result = self.class_func(data=self.y, **self.kwargs, **kwargs)[0]
+        reverse_inputs_result = getattr(reverse_fitter, self.func_name)(
+            data=self.reverse_array(self.y), **self.kwargs, **kwargs
+        )[0]
+
+        if assertion_kwargs is None:
+            assertion_kwargs = {}
+        if 'rtol' not in assertion_kwargs:
+            assertion_kwargs['rtol'] = 1e-10
+
+        assert_allclose(
+            regular_inputs_result, self.reverse_array(reverse_inputs_result), **assertion_kwargs
+        )
+
+    def reverse_array(self, array):
+        """Reverses the input along the last two dimensions."""
+        return array[..., ::-1, ::-1]
