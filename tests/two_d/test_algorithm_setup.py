@@ -27,7 +27,7 @@ def algorithm(small_data2d):
     pybaselines.two_d._algorithm_setup._Algorithm2D
         An _Algorithm2D class for testing.
     """
-    num_z, num_x = small_data2d.shape
+    num_x, num_z = small_data2d.shape
     return _algorithm_setup._Algorithm2D(
         x_data=np.arange(num_x), z_data=np.arange(num_z), assume_sorted=True, check_finite=False
     )
@@ -48,11 +48,11 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
         lam=lam, diff_order=diff_order
     )
 
-    D1 = difference_matrix(len(z), diff_order_x)
-    D2 = difference_matrix(len(x), diff_order_z)
+    D1 = difference_matrix(len(x), diff_order_x)
+    D2 = difference_matrix(len(z), diff_order_z)
 
-    P1 = lam_x * kron(D1.T @ D1, identity(len(x)))
-    P2 = lam_z * kron(identity(len(z)), D2.T @ D2)
+    P1 = lam_x * kron(D1.T @ D1, identity(len(z)))
+    P2 = lam_z * kron(identity(len(x)), D2.T @ D2)
     expected_penalty = P1 + P2
 
     assert_allclose(
@@ -119,7 +119,7 @@ def test_setup_whittaker_negative_lam_fails(small_data2d, algorithm):
 
 def test_setup_whittaker_array_lam(small_data2d):
     """Ensures a lam that is a single array of one or two values passes while larger arrays fail."""
-    num_z, num_x = small_data2d.shape
+    num_x, num_z = small_data2d.shape
     _algorithm_setup._Algorithm2D(np.arange(num_x), np.arange(num_z))._setup_whittaker(
         small_data2d, lam=[1]
     )
@@ -202,7 +202,7 @@ def test_setup_polynomial_vandermonde(small_data2d, algorithm, vander_enum, incl
     mapped_x = np.polynomial.polyutils.mapdomain(algorithm.x, algorithm.x_domain, [-1, 1])
     mapped_z = np.polynomial.polyutils.mapdomain(algorithm.z, algorithm.z_domain, [-1, 1])
     desired_vander = np.polynomial.polynomial.polyvander2d(
-        *np.meshgrid(mapped_x, mapped_z), (x_order, z_order)
+        *np.meshgrid(mapped_x, mapped_z, indexing='ij'), (x_order, z_order)
     ).reshape((-1, (x_order + 1) * (z_order + 1)))
     assert_allclose(desired_vander, algorithm.vandermonde, 1e-12)
 
@@ -321,7 +321,7 @@ def test_setup_spline_too_high_diff_order(small_data2d, spline_degree, num_knots
 @pytest.mark.parametrize('num_knots', (0, 1))
 def test_setup_spline_too_few_knots(small_data2d, num_knots):
     """Ensures an error is raised if the number of knots is less than 2."""
-    num_z, num_x = small_data2d.shape
+    num_x, num_z = small_data2d.shape
     with pytest.raises(ValueError):
         _algorithm_setup._Algorithm2D(np.arange(num_x), np.arange(num_z))._setup_spline(
             small_data2d, weights=None, spline_degree=3, num_knots=num_knots,
@@ -332,7 +332,7 @@ def test_setup_spline_too_few_knots(small_data2d, num_knots):
 def test_setup_spline_wrong_weight_shape(small_data2d):
     """Ensures that an exception is raised if input weights and data are different shapes."""
     weights = np.ones(np.array(small_data2d.shape) + 1)
-    num_z, num_x = small_data2d.shape
+    num_x, num_z = small_data2d.shape
     with pytest.raises(ValueError):
         _algorithm_setup._Algorithm2D(np.arange(num_x), np.arange(num_z))._setup_spline(
             small_data2d, weights=weights
@@ -342,7 +342,7 @@ def test_setup_spline_wrong_weight_shape(small_data2d):
 @pytest.mark.parametrize('diff_order', (0, -1))
 def test_setup_spline_diff_matrix_fails(small_data2d, diff_order):
     """Ensures using a diff_order < 1 with _setup_spline raises an exception."""
-    num_z, num_x = small_data2d.shape
+    num_x, num_z = small_data2d.shape
     with pytest.raises(ValueError):
         _algorithm_setup._Algorithm2D(np.arange(num_x), np.arange(num_z))._setup_spline(
             small_data2d, diff_order=diff_order
@@ -352,7 +352,7 @@ def test_setup_spline_diff_matrix_fails(small_data2d, diff_order):
 @pytest.mark.parametrize('diff_order', (5, 6))
 def test_setup_spline_diff_matrix_warns(small_data2d, diff_order):
     """Ensures using a diff_order > 4 with _setup_spline raises a warning."""
-    num_z, num_x = small_data2d.shape
+    num_x, num_z = small_data2d.shape
     with pytest.warns(ParameterWarning):
         _algorithm_setup._Algorithm2D(np.arange(num_x), np.arange(num_z))._setup_spline(
             small_data2d, diff_order=diff_order
@@ -361,7 +361,7 @@ def test_setup_spline_diff_matrix_warns(small_data2d, diff_order):
 
 def test_setup_spline_negative_lam_fails(small_data2d):
     """Ensures a negative lam value fails."""
-    num_z, num_x = small_data2d.shape
+    num_x, num_z = small_data2d.shape
     with pytest.raises(ValueError):
         _algorithm_setup._Algorithm2D(np.arange(num_x), np.arange(num_z))._setup_spline(
             small_data2d, lam=-1
@@ -370,7 +370,7 @@ def test_setup_spline_negative_lam_fails(small_data2d):
 
 def test_setup_spline_array_lam(small_data2d):
     """Ensures a lam that is a single array of one or two values passes while larger arrays fail."""
-    num_z, num_x = small_data2d.shape
+    num_x, num_z = small_data2d.shape
     _algorithm_setup._Algorithm2D(
         np.arange(num_x), np.arange(num_z)
     )._setup_spline(small_data2d, lam=[1])
@@ -455,9 +455,9 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
 
     expected_shape = [None, None]
     if input_x:
-        expected_shape[1] = len(x)
+        expected_shape[0] = len(x)
     if input_z:
-        expected_shape[0] = len(z)
+        expected_shape[1] = len(z)
     assert algorithm._len == expected_shape
 
     if not assume_sorted and change_order and (input_x or input_z):
@@ -468,25 +468,25 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
                 order[sort_order] = order[sort_order][::-1]
 
             for actual, expected in zip(
-                algorithm._sort_order, (z_order[:, None], x_order[None, :])
+                algorithm._sort_order, (x_order[:, None], z_order[None, :])
             ):
                 assert_array_equal(actual, expected)
             for actual, expected in zip(
-                algorithm._inverted_order, (z_order.argsort()[:, None], x_order.argsort()[None, :])
+                algorithm._inverted_order, (x_order.argsort()[:, None], z_order.argsort()[None, :])
             ):
                 assert_array_equal(actual, expected)
         elif input_x:
             order = np.arange(len(x))
             order[sort_order] = order[sort_order][::-1]
+            assert_array_equal(algorithm._sort_order, order)
+            assert_array_equal(algorithm._inverted_order, order.argsort())
+        else:
+            order = np.arange(len(z))
+            order[sort_order] = order[sort_order][::-1]
             assert_array_equal(algorithm._sort_order[1], order)
             assert_array_equal(algorithm._inverted_order[1], order.argsort())
             assert algorithm._sort_order[0] is Ellipsis
             assert algorithm._inverted_order[0] is Ellipsis
-        else:
-            order = np.arange(len(z))
-            order[sort_order] = order[sort_order][::-1]
-            assert_array_equal(algorithm._sort_order, order)
-            assert_array_equal(algorithm._inverted_order, order.argsort())
     else:
         assert algorithm._sort_order is None
         assert algorithm._inverted_order is None

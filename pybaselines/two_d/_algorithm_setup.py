@@ -101,7 +101,7 @@ class _Algorithm2D:
             self.x_domain = np.array([-1., 1.])
         else:
             self.x = _check_array(x_data, check_finite=check_finite)
-            self._len[1] = len(self.x)
+            self._len[0] = len(self.x)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
             if not assume_sorted:
                 x_sort_order, x_inverted_order = _determine_sorts(self.x)
@@ -113,7 +113,7 @@ class _Algorithm2D:
             self.z_domain = np.array([-1., 1.])
         else:
             self.z = _check_array(z_data, check_finite=check_finite)
-            self._len[0] = len(self.z)
+            self._len[1] = len(self.z)
             self.z_domain = np.polynomial.polyutils.getdomain(self.z)
             if not assume_sorted:
                 z_sort_order, z_inverted_order = _determine_sorts(self.z)
@@ -123,15 +123,15 @@ class _Algorithm2D:
         if x_sort_order is None and z_sort_order is None:
             self._sort_order = None
             self._inverted_order = None
-        elif x_sort_order is None:
-            self._sort_order = z_sort_order
-            self._inverted_order = z_inverted_order
         elif z_sort_order is None:
-            self._sort_order = (..., x_sort_order)
-            self._inverted_order = (..., x_inverted_order)
+            self._sort_order = x_sort_order
+            self._inverted_order = x_inverted_order
+        elif x_sort_order is None:
+            self._sort_order = (..., z_sort_order)
+            self._inverted_order = (..., z_inverted_order)
         else:
-            self._sort_order = (z_sort_order[:, None], x_sort_order[None, :])
-            self._inverted_order = (z_inverted_order[:, None], x_inverted_order[None, :])
+            self._sort_order = (x_sort_order[:, None], z_sort_order[None, :])
+            self._inverted_order = (x_inverted_order[:, None], z_inverted_order[None, :])
 
         self.whittaker_system = None
         self.vandermonde = None
@@ -250,11 +250,11 @@ class _Algorithm2D:
                     expected_shape = self._len
                     axis = slice(-2, None)
                 elif reset_x:
-                    expected_shape = self._len[1]
-                    axis = -1
-                else:
                     expected_shape = self._len[0]
                     axis = -2
+                else:
+                    expected_shape = self._len[1]
+                    axis = -1
                 y = _check_sized_array(
                     data, expected_shape, check_finite=self._check_finite, dtype=dtype,
                     order=order, ensure_1d=False, axis=axis, name='data'
@@ -272,16 +272,16 @@ class _Algorithm2D:
                     self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
             else:
-                self._len[1] = y.shape[-1]
-                self.x = np.linspace(-1, 1, self._len[1])
+                self._len[0] = y.shape[-2]
+                self.x = np.linspace(-1, 1, self._len[0])
             if reset_z:
                 z_dtype = self.z.dtype
                 self.z = _check_array(
                     self.z, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
             else:
-                self._len[0] = y.shape[-2]
-                self.z = np.linspace(-1, 1, self._len[0])
+                self._len[1] = y.shape[-1]
+                self.z = np.linspace(-1, 1, self._len[1])
 
             y = _sort_array2d(y, sort_order=self._sort_order)
             if self._dtype is None:
@@ -521,7 +521,7 @@ class _Algorithm2D:
                 # rearrange the vandermonde such that it matches the typical A c = b where b
                 # is the flattened version of y and c are the coefficients
                 self.vandermonde = np.polynomial.polynomial.polyvander2d(
-                    *np.meshgrid(mapped_x, mapped_z), [poly_orders[0], poly_orders[1]]
+                    mapped_x[:, None], mapped_z[None, :], [poly_orders[0], poly_orders[1]]
                 ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
 
                 if max_cross is not None:

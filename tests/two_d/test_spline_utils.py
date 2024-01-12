@@ -53,7 +53,7 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
     weights = np.random.RandomState(0).normal(0.8, 0.05, y.size)
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
-    basis = kron(basis_z, basis_x)
+    basis = kron(basis_x, basis_z)
     CWT = basis.multiply(
         np.repeat(weights.flatten(), num_bases[0] * num_bases[1]).reshape(len(x) * len(z), -1)
     ).T
@@ -74,8 +74,8 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
 
     output = pspline.solve_pspline(y, weights=weights.reshape(y.shape))
 
-    assert_allclose(pspline.coef.flatten(), expected_coeffs, rtol=1e-8, atol=1e-8)
     assert_allclose(output.flatten(), expected_result, rtol=1e-8, atol=1e-8)
+    assert_allclose(pspline.coef.flatten(), expected_coeffs, rtol=1e-8, atol=1e-8)
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, [2, 3]))
@@ -83,15 +83,7 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
 def test_pspline_setup(data_fixture2d, num_knots, spline_degree, diff_order, lam):
-    """
-    Ensure the PSpline setup is correct.
-
-    Since `allow_pentapy` is always False for PSpline, the `lower` attribute of the
-    PenalizedSystem will always equal the input `allow_lower` and the `reversed`
-    attribute will be equal to the bool of the input `reverse_diags` input (ie. None
-    will also be False).
-
-    """
+    """Ensure the PSpline2D setup is correct."""
     x, z, y = data_fixture2d
     (
         num_knots_x, num_knots_z, spline_degree_x, spline_degree_z,
@@ -165,7 +157,7 @@ def test_pspline_same_basis(data_fixture2d):
     assert not pspline.same_basis(10, 1)
 
 
-@pytest.mark.parametrize('diff_order', (0, [0, 0], [1, 0]))
+@pytest.mark.parametrize('diff_order', (0, -1, [0, 0], [1, 0], [0, 1], [-1, 1], [1, -1]))
 def test_pspline_diff_order_zero_fails(data_fixture2d, diff_order):
     """Ensures a difference order of 0 fails."""
     x, z, y = data_fixture2d
@@ -179,6 +171,14 @@ def test_pspline_negative_spline_degree_fails(data_fixture2d, spline_degree):
     x, z, y = data_fixture2d
     with pytest.raises(ValueError):
         _spline_utils.PSpline2D(x, z, spline_degree=spline_degree)
+
+
+@pytest.mark.parametrize('lam', (-2, 0, [-1, 1], [1, -1], [1, 0], [0, 1]))
+def test_pspline_negative_lam_fails(data_fixture2d, lam):
+    """Ensures a lam value less than or equal to 0 fails."""
+    x, z, y = data_fixture2d
+    with pytest.raises(ValueError):
+        _spline_utils.PSpline2D(x, z, lam=lam)
 
 
 def test_pspline_non_finite_fails():

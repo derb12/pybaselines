@@ -111,8 +111,9 @@ class PenalizedSystem2D:
         D1 = difference_matrix(self._num_bases[0], self.diff_order[0])
         D2 = difference_matrix(self._num_bases[1], self.diff_order[1])
 
-        P1 = self.lam[0] * kron(D1.T @ D1, identity(self._num_bases[1]))
-        P2 = self.lam[1] * kron(identity(self._num_bases[0]), D2.T @ D2)
+        # multiplying lam by the Kronecker product is the same as multiplying just D.T @ D with lam
+        P1 = kron(self.lam[0] * D1.T @ D1, identity(self._num_bases[1]))
+        P2 = kron(identity(self._num_bases[0]), self.lam[1] * D2.T @ D2)
         self.penalty = P1 + P2
 
     def solve(self, lhs, rhs):
