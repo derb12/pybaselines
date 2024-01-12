@@ -20,7 +20,9 @@ from ..utils import (
 class _Whittaker(_Algorithm2D):
     """A base class for all Whittaker-smoothing-based algorithms."""
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._register(
+        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
+    )
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
         Fits the baseline using asymmetric least squares (AsLS) fitting.
@@ -79,13 +81,12 @@ class _Whittaker(_Algorithm2D):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
+        main_diagonal = self.whittaker_system.penalty.diagonal()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
+            self.whittaker_system.penalty.setdiag(main_diagonal + weight_array)
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.penalty, weight_array * y
             )
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -98,7 +99,9 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._register(
+        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
+    )
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
@@ -147,19 +150,17 @@ class _Whittaker(_Algorithm2D):
             data, lam, diff_order, weights, copy_weights=True
         )
         y_l1_norm = np.abs(y).sum()
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
+        main_diagonal = self.whittaker_system.penalty.diagonal()
         tol_history = np.empty(max_iter + 1)
         # Have to have extensive error handling since the weights can all become
         # very small due to the exp(i) term if too many iterations are performed;
         # checking the negative residual length usually prevents any errors, but
         # sometimes not so have to also catch any errors from the solvers
         for i in range(1, max_iter + 2):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
+            self.whittaker_system.penalty.setdiag(main_diagonal + weight_array)
             try:
                 output = self.whittaker_system.solve(
-                    self.whittaker_system.penalty, weight_array * y, overwrite_b=True,
-                    check_output=True
+                    self.whittaker_system.penalty, weight_array * y
                 )
             except np.linalg.LinAlgError:
                 warnings.warn(
@@ -264,7 +265,9 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._register(
+        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
+    )
     def iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
         Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
@@ -311,13 +314,12 @@ class _Whittaker(_Algorithm2D):
 
         """
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
+        main_diagonal = self.whittaker_system.penalty.diagonal()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
+            self.whittaker_system.penalty.setdiag(main_diagonal + weight_array)
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.penalty, weight_array * y
             )
             new_weights = _weighting._iarpls(y, baseline, i)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -342,7 +344,9 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._register(
+        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
+    )
     def psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
                weights=None):
         """
@@ -420,13 +424,12 @@ class _Whittaker(_Algorithm2D):
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         if k is None:
             k = np.std(y) / 10
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
+        main_diagonal = self.whittaker_system.penalty.diagonal()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
+            self.whittaker_system.penalty.setdiag(main_diagonal + weight_array)
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.penalty, weight_array * y
             )
             new_weights = _weighting._psalsa(y, baseline, p, k, self._len)
             calc_difference = relative_difference(weight_array, new_weights)
