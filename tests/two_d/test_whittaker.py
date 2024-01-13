@@ -104,7 +104,7 @@ class TestAirPLS(WhittakerTester):
         with pytest.warns(ParameterWarning):
             baseline = self.class_func(y, tol=-1, max_iter=3000)[0]
 
-        assert np.isfinite(baseline.T.dot(baseline).all())
+        assert np.isfinite(baseline.T.dot(baseline)).all()
 
 
 class TestArPLS(WhittakerTester):
@@ -134,7 +134,7 @@ class TestArPLS(WhittakerTester):
         with np.errstate(over='raise'):
             baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
-        assert np.isfinite(baseline.T.dot(baseline).all())
+        assert np.isfinite(baseline.T.dot(baseline)).all()
 
 
 class TestDrPLS(WhittakerTester):
@@ -220,7 +220,7 @@ class TestIArPLS(WhittakerTester):
         with pytest.warns(ParameterWarning):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
-        assert np.isfinite(baseline.T.dot(baseline).all())
+        assert np.isfinite(baseline.T.dot(baseline)).all()
         # ensure last tolerence calculation was non-finite as a double-check that
         # this test is actually doing what it should be doing
         assert not np.isfinite(params['tol_history'][-1])
@@ -265,7 +265,7 @@ class TestAsPLS(WhittakerTester):
         with np.errstate(over='raise'):
             baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
-        assert np.isfinite(baseline.T.dot(baseline).all())
+        assert np.isfinite(baseline.T.dot(baseline)).all()
 
 
 class TestPsalsa(WhittakerTester):

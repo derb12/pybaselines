@@ -269,7 +269,7 @@ class _Spline(_Algorithm2D):
         y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
-        old_coef = np.zeros(self.pspline._num_bases[0] * self.pspline._num_bases[1])
+        old_coef = np.zeros((self.pspline._num_bases[0], self.pspline._num_bases[1]))
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve_pspline(y, weight_array)
@@ -727,7 +727,7 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve_pspline(y, weight_array)
-            new_weights = _weighting._psalsa(y, baseline, p, k, y.shape)  # TODO replace y.shape with self._shape or whatever
+            new_weights = _weighting._psalsa(y, baseline, p, k, self._len)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -822,7 +822,7 @@ def _mapped_histogram(data, num_bins):
         # create zeros array outside of numba function since numba's implementation
         # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259)
         histogram = np.zeros(num_bins)
-        bins, bin_mapping = _numba_mapped_histogram(data.flatten(), num_bins, histogram)
+        bins, bin_mapping = _numba_mapped_histogram(data.ravel(), num_bins, histogram)
     else:
         histogram, bins = np.histogram(data, num_bins, density=True)
         # leave out last bin edge to account for extra index; leave out first

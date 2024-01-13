@@ -215,11 +215,11 @@ class _Morphological(_Algorithm2D):
         """
         y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
         if smooth_half_window is None:
-            smooth_half_window = half_wind
+            smooth_half_window = half_wind  # TODO need to do some verification on smooth_half_window if not None
 
-        rough_baseline = grey_opening(y, [2 * half_wind + 1, 2 * half_wind + 1])
+        rough_baseline = grey_opening(y, 2 * half_wind + 1)
         baseline = uniform_filter(
-            rough_baseline, [2 * smooth_half_window + 1, 2 * smooth_half_window + 1]
+            rough_baseline, 2 * smooth_half_window + 1
         )
 
         return baseline, {'half_window': half_wind}
@@ -311,8 +311,8 @@ def _avg_opening(y, half_window, opening=None):
     """
     window_size = 2 * half_window + 1
     if opening is None:
-        opening = grey_opening(y, [window_size, window_size])
+        opening = grey_opening(y, window_size)
     return 0.5 * (
-        grey_dilation(opening, [window_size, window_size])
-        + grey_erosion(opening, [window_size, window_size])
+        grey_dilation(opening, window_size)
+        + grey_erosion(opening, window_size)
     )
