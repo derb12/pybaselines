@@ -7,7 +7,7 @@ Created on Dec. 11, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import _validation
@@ -34,7 +34,51 @@ def test_yx_arrays_no_x(small_data):
     y, x = _validation._yx_arrays(small_data)
 
     assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
+    assert_allclose(x, np.linspace(-1., 1., y.shape[0]), rtol=1e-12, atol=1e-12)
+    assert isinstance(y, np.ndarray)
+    assert_allclose(y, small_data, rtol=1e-12, atol=1e-12)
+
+@pytest.mark.parametrize('array_enum', (0, 1))
+def test_yxz_arrays_output_array(data_fixture2d, array_enum):
+    """Ensures output y, x, and z are always numpy arrays and that x and z are not scaled."""
+    x, z, y = data_fixture2d
+    if array_enum == 1:
+        x = x.tolist()
+        z = z.tolist()
+        y = y.tolist()
+
+    y_out, x_out, z_out = _validation._yxz_arrays(y, x, z)
+
+    assert isinstance(y_out, np.ndarray)
+    assert_allclose(y_out, y, rtol=1e-12, atol=1e-12)
+    assert isinstance(x_out, np.ndarray)
+    assert_allclose(x_out, x, rtol=1e-12, atol=1e-12)
+    assert isinstance(z_out, np.ndarray)
+    assert_allclose(z_out, z, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('has_x', (True, False))
+@pytest.mark.parametrize('has_z', (True, False))
+def test_yx_arrays_no_xz(data_fixture2d, has_x, has_z):
+    """Ensures an x and/or z array are created if None is input."""
+    x, z, y = data_fixture2d
+    if has_x:
+        expected_x = x
+    else:
+        x = None
+        expected_x = np.linspace(-1, 1, y.shape[0])
+    if has_z:
+        expected_z = z
+    else:
+        z = None
+        expected_z = np.linspace(-1, 1, y.shape[1])
+    y_out, x_out, z_out = _validation._yxz_arrays(y, x, z)
+
+    assert_allclose(y_out, y)
+    assert isinstance(x_out, np.ndarray)
+    assert_allclose(x_out, expected_x, rtol=1e-12, atol=1e-12)
+    assert isinstance(z_out, np.ndarray)
+    assert_allclose(z_out, expected_z, rtol=1e-12, atol=1e-12)
 
 
 @pytest.mark.parametrize('ndim', (0, 1, 2))

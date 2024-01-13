@@ -278,7 +278,7 @@ def _yx_arrays(data, x_data=None, check_finite=False, dtype=None, order=None, en
 
 
 def _yxz_arrays(data, x_data=None, z_data=None, check_finite=False, dtype=None, order=None,
-                ensure_2d=True, x_axis=-1, z_axis=-2):
+                ensure_2d=True, x_axis=-2, z_axis=-1):
     """
     Converts input data into numpy arrays and provides x and z data if none are given.
 
@@ -286,10 +286,10 @@ def _yxz_arrays(data, x_data=None, z_data=None, check_finite=False, dtype=None, 
     ----------
     data : array-like, shape (M, N)
         The y-values of the measured data, with N data points.
-    x_data : array-like, shape (N,), optional
+    x_data : array-like, shape (M,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1. to 1. with N points.
-    z_data : array-like, shape (M,), optional
+    z_data : array-like, shape (N,), optional
         The z-values of the measured data. Default is None, which will create an
         array from -1. to 1. with N points.
     check_finite : bool, optional
@@ -308,9 +308,9 @@ def _yxz_arrays(data, x_data=None, z_data=None, check_finite=False, dtype=None, 
     -------
     y : numpy.ndarray, shape (M, N)
         A numpy array of the y-values of the measured data.
-    x : numpy.ndarray, shape (N,)
+    x : numpy.ndarray, shape (M,)
         A numpy array of the x-values of the measured data, or a created array.
-    z : numpy.ndarray, shape (M,)
+    z : numpy.ndarray, shape (N,)
         A numpy array of the z-values of the measured data, or a created array.
 
     Notes
