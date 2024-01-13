@@ -15,7 +15,7 @@ import pytest
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BasePolyTester, InputWeightsMixin, get_data
+from .conftest import BasePolyTester, InputWeightsMixin
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
     STATSMODELS_QUANTILES
@@ -209,7 +209,6 @@ class TestLoess(IterativePolynomialTester):
     @pytest.mark.parametrize('use_threshold', (True, False))
     def test_unchanged_data(self, use_class, use_threshold, conserve_memory, delta):
         """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
         super().test_unchanged_data(
             use_class, use_threshold=use_threshold,
             conserve_memory=conserve_memory, delta=delta
@@ -460,7 +459,6 @@ class TestGoldindec(PolynomialTester):
     )
     def test_unchanged_data(self, use_class, cost_function):
         """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
         super().test_unchanged_data(use_class, cost_function=cost_function)
 
     @pytest.mark.parametrize('cost_function', ('p_huber', ''))

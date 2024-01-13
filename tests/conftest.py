@@ -149,7 +149,7 @@ def get_data2d(include_noise=True, num_points=(50, 60)):
     np.random.seed(0)
     x_num_points, z_num_points = num_points
     x_data = np.linspace(1, 100, x_num_points)
-    z_data = np.linspace(1, 100, z_num_points)
+    z_data = np.linspace(1, 120, z_num_points)
     X, Z = np.meshgrid(x_data, z_data, indexing='ij')
     y_data = (
         500  # constant baseline
@@ -220,6 +220,12 @@ def data_fixture2d():
 def no_noise_data_fixture():
     """Test fixture that creates x- and y-data without noise for testing."""
     return get_data(include_noise=False)
+
+
+@pytest.fixture()
+def no_noise_data_fixture2d():
+    """Test fixture that creates x-, z-, and y-data without noise for testing."""
+    return get_data2d(include_noise=False)
 
 
 def dummy_wrapper(func):
@@ -486,23 +492,28 @@ class BasePolyTester(BaseTester):
 
 
 class InputWeightsMixin:
-    """A mixin for BaseTester for ensuring input weights are correctly sorted."""
+    """A mixin for BaseTester and BaseTester2D for ensuring input weights are correctly sorted."""
 
     weight_keys = ('weights',)
 
     def test_input_weights(self, assertion_kwargs=None, **kwargs):
         """Ensures input weights are correctly sorted within the function."""
         # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-        weights = np.random.RandomState(0).normal(0.8, 0.05, len(self.x))
+        weights = np.random.RandomState(0).normal(0.8, 0.05, self.y.size)
         weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
-        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
+        if hasattr(self, 'two_d'):
+            reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
+        else:
+            reverse_fitter = self.algorithm_base(self.x[::-1], self.z[::-1], assume_sorted=False)
+            weights = weights.reshape(self.y.shape)
 
         regular_output, regular_output_params = self.class_func(
             data=self.y, weights=weights, **self.kwargs, **kwargs
         )
         reverse_output, reverse_output_params = getattr(reverse_fitter, self.func_name)(
-            data=self.reverse_array(self.y), weights=weights[::-1], **self.kwargs, **kwargs
+            data=self.reverse_array(self.y), weights=self.reverse_array(weights),
+            **self.kwargs, **kwargs
         )
 
         # sanity check, x should always be sorted correctly
@@ -520,7 +531,7 @@ class InputWeightsMixin:
             assert key in reverse_output_params
 
             assert_allclose(
-                regular_output_params[key], reverse_output_params[key][::-1],
+                regular_output_params[key], self.reverse_array(reverse_output_params[key]),
                 **assertion_kwargs
             )
         assert_allclose(
@@ -700,3 +711,52 @@ class BaseTester2D:
     def reverse_array(self, array):
         """Reverses the input along the last two dimensions."""
         return array[..., ::-1, ::-1]
+
+
+class BasePolyTester2D(BaseTester2D):
+    """
+    A base class for testing 2D polynomial algorithms.
+
+    Checks that the polynomial coefficients are correctly returned and that they correspond
+    to the polynomial used to create the baseline.
+
+    """
+
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        """Ensures the polynomial coefficients are output if `return_coef` is True."""
+        if return_coef:
+            additional_keys = ['coef']
+        else:
+            additional_keys = None
+        super().test_output(additional_keys=additional_keys, return_coef=return_coef)
+
+    @pytest.mark.parametrize('poly_order', (1, 2, [2, 3]))
+    def test_output_coefs(self, poly_order):
+        """
+        Ensures the output coefficients can correctly reproduce the baseline.
+
+        Checks both the manual way using the Vandermonde and directly using numpy's polyval2d.
+        """
+        baseline, params = self.class_func(
+            data=self.y, poly_order=poly_order, **self.kwargs, return_coef=True
+        )
+
+        assert 'coef' in params
+
+        if isinstance(poly_order, int):
+            x_order = poly_order
+            z_order = poly_order
+        else:
+            x_order, z_order = poly_order
+
+        X, Z = np.meshgrid(self.x, self.z, indexing='ij')
+        vander = np.polynomial.polynomial.polyvander2d(
+            X, Z, (x_order, z_order)
+        ).reshape((-1, (x_order + 1) * (z_order + 1)))
+
+        recreated_poly = (vander @ params['coef'].flatten()).reshape(self.y.shape)
+        assert_allclose(recreated_poly, baseline, rtol=1e-10, atol=1e-12)
+
+        numpy_poly = np.polynomial.polynomial.polyval2d(X, Z, params['coef'])
+        assert_allclose(numpy_poly, baseline, rtol=1e-10, atol=1e-12)

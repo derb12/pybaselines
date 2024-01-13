@@ -139,7 +139,9 @@ class _Polynomial(_Algorithm2D):
         baseline = self.vandermonde @ coef
         params = {'weights': weight_array}
         if return_coef:
-            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
+            params['coef'] = _convert_coef2d(
+                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+            )
 
         return baseline, params
 
@@ -248,7 +250,9 @@ class _Polynomial(_Algorithm2D):
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
-            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
+            params['coef'] = _convert_coef2d(
+                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+            )
 
         return baseline, params
 
@@ -368,7 +372,9 @@ class _Polynomial(_Algorithm2D):
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
-            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
+            params['coef'] = _convert_coef2d(
+                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+            )
 
         return baseline, params
 
@@ -505,7 +511,9 @@ class _Polynomial(_Algorithm2D):
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
-            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
+            params['coef'] = _convert_coef2d(
+                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+            )
 
         return baseline, params
 
@@ -615,7 +623,9 @@ class _Polynomial(_Algorithm2D):
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
         if return_coef:
-            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
+            params['coef'] = _convert_coef2d(
+                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+            )
 
         return baseline, params
 
@@ -787,7 +797,7 @@ class _Polynomial(_Algorithm2D):
                 j_max = j
 
             up_count = (y > baseline).sum()
-            up_down_ratio = up_count / max(1, self._len - up_count)
+            up_down_ratio = up_count / max(1, self._len[0] * self._len[1] - up_count)
             calc_difference = up_down_ratio - up_down_ratio_goal
             tol_history[0, i] = calc_difference
             if calc_difference > tol_2:
@@ -811,7 +821,9 @@ class _Polynomial(_Algorithm2D):
             'threshold': loss_kwargs['threshold']
         }
         if return_coef:
-            params['coef'] = _convert_coef2d(coef, self.x_domain, self.z_domain)
+            params['coef'] = _convert_coef2d(
+                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+            )
 
         return baseline, params
 

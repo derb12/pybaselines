@@ -216,16 +216,19 @@ def test_convert_coef2d(x, z, coef):
 
     calc_coef = np.linalg.pinv(vandermonde) @ (y_flat)
     calc_y = vandermonde @ calc_coef  # corresponds to mapped domain
-    calc_coef = calc_coef.reshape(coef.shape)
 
     # sanity check; use slightly higher atol than other checks since
     # the fit can potentially be off by a bit
     assert_allclose(calc_y, y_flat, rtol=1e-10, atol=1e-6)
 
-    converted_coef = utils._convert_coef2d(calc_coef, x_domain, z_domain)
+    converted_coef = utils._convert_coef2d(
+        calc_coef, coef.shape[0] - 1, coef.shape[1] - 1, x_domain, z_domain
+    )
 
     mapped_X, mapped_Z = np.meshgrid(mapped_x, mapped_z)
-    mapped_polynomial = np.polynomial.polynomial.polyval2d(mapped_X, mapped_Z, calc_coef)
+    mapped_polynomial = np.polynomial.polynomial.polyval2d(
+        mapped_X, mapped_Z, calc_coef.reshape(coef.shape)
+    )
 
     original_polynomial = np.polynomial.polynomial.polyval2d(X, Z, converted_coef)
 

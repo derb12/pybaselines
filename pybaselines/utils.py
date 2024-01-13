@@ -449,7 +449,7 @@ def _convert_coef(coef, original_domain):
     return transformation @ coef
 
 
-def _convert_coef2d(coef, original_x_domain, original_z_domain):
+def _convert_coef2d(coef, poly_degree_x, poly_degree_z, original_x_domain, original_z_domain):
     """
     Scales the polynomial coefficients back to the original domain of the data.
 
@@ -460,10 +460,14 @@ def _convert_coef2d(coef, original_x_domain, original_z_domain):
 
     Parameters
     ----------
-    coef : numpy.ndarray, shape (a, b)
-        The 2d array of coefficients for the polynomial. Should increase in
-        order. The shape should be (a, b), where a is the polynomial degree + 1 for
-        the x-values and b is the polynomial degree + 1 for the z-values.
+    coef : numpy.ndarray, shape (``a * b``,)
+        The 1d array of coefficients for the polynomial. Should increase in
+        order. The shape should be (``a * b``,), where `a` is the polynomial degree + 1 for
+        the x-values and `b` is the polynomial degree + 1 for the z-values.
+    poly_degree_x : int
+        The polynomial degree for the x-values
+    poly_degree_z : int
+        The polynomial degree for the z-values
     original_x_domain : Container[float, float]
         The domain, [min(x), max(x)], of the original x-values used for fitting.
     original_z_domain : Container[float, float]
@@ -472,13 +476,20 @@ def _convert_coef2d(coef, original_x_domain, original_z_domain):
     Returns
     -------
     numpy.ndarray, shape (a, b)
-        The array of coefficients scaled for the original domains.
+        The 2D array of coefficients scaled for the original domains.
+
+    Notes
+    -----
+    Reshapes the coefficient array into the correct shape for use with
+    :func:`numpy.polynomial.polynomial.polyval2d`.
 
     """
-    transformation_x = _poly_transform_matrix(coef.shape[0], original_x_domain)
-    transformation_z = _poly_transform_matrix(coef.shape[1], original_z_domain)
+    x_order = poly_degree_x + 1
+    z_order = poly_degree_z + 1
+    transformation_x = _poly_transform_matrix(x_order, original_x_domain)
+    transformation_z = _poly_transform_matrix(z_order, original_z_domain)
 
-    return transformation_x @ coef @ transformation_z.T
+    return transformation_x @ coef.reshape((x_order, z_order)) @ transformation_z.T
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
