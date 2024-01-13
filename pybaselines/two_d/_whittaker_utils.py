@@ -39,16 +39,10 @@ class PenalizedSystem2D:
         set up. `original_diagonals` can be either the full or lower bands of the penalty,
         and may be reveresed, it depends on the set up. Reset by calling
         :meth:`.reset_diagonals`.
-    penalty : numpy.ndarray
+    penalty : scipy.sparse.base.spmatrix
         The current penalty. Originally is `original_diagonals` after multiplying by `lam`
         and applying padding, but can also be changed by calling :meth:`.add_penalty`.
         Reset by calling :meth:`.reset_diagonals`.
-    reversed : bool
-        If True, the penalty is reversed of the typical LAPACK banded format. Useful if
-        multiplying the penalty with an array since the rows get shifted, or if using pentapy's
-        solver.
-    using_pentapy : bool
-        If True, will use pentapy's solver when solving.
 
     """
 
@@ -68,7 +62,7 @@ class PenalizedSystem2D:
 
         """
         self._num_bases = data_size
-        self.reset_penalty(lam, diff_order)
+        self.reset_diagonals(lam, diff_order)
 
     def add_penalty(self, penalty):
         """
@@ -87,7 +81,7 @@ class PenalizedSystem2D:
         """
         raise NotImplementedError
 
-    def reset_penalty(self, lam=1, diff_order=2):
+    def reset_diagonals(self, lam=1, diff_order=2):
         """
         Resets the diagonals of the system and all of the attributes.
 
@@ -115,6 +109,7 @@ class PenalizedSystem2D:
         P1 = kron(self.lam[0] * D1.T @ D1, identity(self._num_bases[1]))
         P2 = kron(identity(self._num_bases[0]), self.lam[1] * D2.T @ D2)
         self.penalty = P1 + P2
+        self.main_diagonal = self.penalty.diagonal()
 
     def solve(self, lhs, rhs):
         """
@@ -155,6 +150,28 @@ class PenalizedSystem2D:
         output = spsolve(lhs, rhs, permc_spec='NATURAL')
 
         return output
+
+    def add_diagonal(self, array):
+        """
+        Adds a diagonal array to the original penalty matrix.
+
+        Parameters
+        ----------
+        array : numpy.ndarray
+            The diagonal array to add to the penalty matrix.
+
+        Returns
+        -------
+        scipy.sparse.base.spmatrix
+            The penalty matrix with the main diagonal updated.
+
+        """
+        self.penalty.setdiag(self.main_diagonal + array)
+        return self.penalty
+
+    def reset_diagonal(self):
+        """Sets the main diagonal of the penalty matrix back to its original value."""
+        self.penalty.setdiag(self.main_diagonal)
 
     def reverse_penalty(self):
         """
