@@ -115,7 +115,7 @@ class TestAirPLS(WhittakerTester):
         for finite-ness.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
             baseline = self.class_func(y, tol=-1, max_iter=3000)[0]
 
@@ -145,7 +145,7 @@ class TestArPLS(WhittakerTester):
         case the weighting was not actually stable.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with np.errstate(over='raise'):
             baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
@@ -192,7 +192,7 @@ class TestDrPLS(WhittakerTester):
         for finite-ness.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
@@ -231,7 +231,7 @@ class TestIArPLS(WhittakerTester):
         for finite-ness.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with pytest.warns(ParameterWarning):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 

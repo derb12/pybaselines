@@ -382,7 +382,7 @@ class TestRubberband(ClassificationTester):
         manual_segments = np.arange(segments + 1) * len(self.x) // segments
 
         output_1 = self.class_func(self.y, segments=segments)[0]
-        output_2 =  self.class_func(self.y, segments=manual_segments)[0]
+        output_2 = self.class_func(self.y, segments=manual_segments)[0]
 
         assert_allclose(output_1, output_2, rtol=1e-12)
 
@@ -393,8 +393,8 @@ class TestRubberband(ClassificationTester):
         segments_3 = [0, 250, 500, 750, len(self.x)]
 
         output_1 = self.class_func(self.y, segments=segments_1)[0]
-        output_2 =  self.class_func(self.y, segments=segments_2)[0]
-        output_3 =  self.class_func(self.y, segments=segments_3)[0]
+        output_2 = self.class_func(self.y, segments=segments_2)[0]
+        output_3 = self.class_func(self.y, segments=segments_3)[0]
 
         assert_allclose(output_1, output_2, rtol=1e-12)
         assert_allclose(output_1, output_3, rtol=1e-12)

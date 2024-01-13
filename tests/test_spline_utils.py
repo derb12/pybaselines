@@ -448,3 +448,46 @@ def test_basis_midpoints(spline_degree):
     output_midpoints = _spline_utils._basis_midpoints(knots, spline_degree)
 
     assert_allclose(expected_points, output_midpoints, rtol=1e-10, atol=1e-12)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('lam', (5, 1e2))
+def test_compare_to_whittaker(data_fixture, lam, diff_order):
+    """
+    Ensures Whittaker and PSpline outputs are the same for specific condition.
+
+    If the number of basis functions for splines is equal to the number of data points, and
+    the spline degree is set to 0, then the spline basis becomes the identity function
+    and should produce the same analytical equation as Whittaker smoothing.
+
+    Since PSplines are more complicated for setting up in 1D than Whittaker smoothing, need to
+    verify the PSPline implementation.
+
+    """
+    x, y = data_fixture
+
+    pspline = _spline_utils.PSpline(
+        x, num_knots=len(x) + 1, spline_degree=0, lam=lam, diff_order=diff_order,
+        check_finite=False
+    )
+
+    # sanity check to ensure it was set up correctly
+    assert_array_equal(pspline.basis.shape, (len(x), len(x)))
+
+    whittaker_system = _banded_utils.PenalizedSystem(len(y), lam=lam, diff_order=diff_order)
+
+    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
+    weights = np.random.RandomState(0).normal(0.8, 0.05, len(y))
+    weights = np.clip(weights, 0, 1).astype(float, copy=False)
+
+    main_diag_idx = whittaker_system.main_diagonal_index
+    main_diagonal = whittaker_system.penalty[main_diag_idx]
+    whittaker_system.penalty[main_diag_idx] = main_diagonal + weights
+    whittaker_output = whittaker_system.solve(
+        whittaker_system.penalty, weights * y, overwrite_b=True
+    )
+
+    spline_output = pspline.solve_pspline(y, weights=weights)
+    whittaker_output = whittaker_system.solve(whittaker_system.penalty, weights.ravel() * y.ravel())
+
+    assert_allclose(spline_output, whittaker_output, rtol=1e-12, atol=1e-12)

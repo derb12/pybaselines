@@ -324,7 +324,7 @@ class TestPsplineAirPLS(IterativeSplineTester):
         for finite-ness.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with pytest.warns(utils.ParameterWarning):
             baseline = self.class_func(y, tol=-1, max_iter=7000)[0]
         assert np.isfinite(baseline.dot(baseline))
@@ -346,7 +346,6 @@ class TestPsplineArPLS(IterativeSplineTester):
         lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    @pytest.mark.skip(reason='need to decide how to handle arpls weighting for no negatives')
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
         """
         Ensures no warning is emitted for exponential overflow.
@@ -359,7 +358,7 @@ class TestPsplineArPLS(IterativeSplineTester):
         case the weighting was not actually stable.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with np.errstate(over='raise'):
             baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
@@ -400,7 +399,7 @@ class TestPsplineDrPLS(IterativeSplineTester):
         for finite-ness.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with pytest.warns(utils.ParameterWarning):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
@@ -456,7 +455,7 @@ class TestPsplineIArPLS(IterativeSplineTester):
         for finite-ness.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with pytest.warns(utils.ParameterWarning):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
@@ -502,7 +501,7 @@ class TestPsplineAsPLS(IterativeSplineTester):
         case the weighting was not actually stable.
 
         """
-        y, x = no_noise_data_fixture
+        x, y = no_noise_data_fixture
         with np.errstate(over='raise'):
             baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
