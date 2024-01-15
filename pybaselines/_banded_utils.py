@@ -533,10 +533,14 @@ class PenalizedSystem:
         use :func:`scipy.linalg.solveh_banded` for solving. If False, contains both the upper
         and lower bands of the penalty and will use either :func:`scipy.linalg.solve_banded`
         (if `using_pentapy` is False) or :func:`._pentapy_solver` when solving.
+    main_diagonal : numpy.ndarray
+        The main diagonal of the penalty matrix.  Is updated when adding additional matrices
+        to the penalty through :meth:`.add_penalty`, and takes into account whether the penalty
+        is only the lower bands or the total bands.
     main_diagonal_index : int
         The index of the main diagonal for `penalty`. Is updated when adding additional matrices
-        to the penalty, and takes into account whether the penalty is only the lower bands or
-        the total bands.
+        to the penalty through :meth:`.add_penalty`, and takes into account whether the penalty
+        is only the lower bands or the total bands.
     num_bands : int
         The number of bands in the penalty. The number of bands is assumbed to be symmetric,
         so the number of upper and lower bands should both be equal to `num_bands`.
@@ -632,6 +636,25 @@ class PenalizedSystem:
         else:
             self.num_bands = len(self.penalty) // 2
         self.main_diagonal_index = 0 if self.lower else self.num_bands
+        self.main_diagonal = self.penalty[self.main_diagonal_index].copy()
+
+    def add_diagonal(self, value):
+        """
+        Adds a diagonal array or float to the original penalty matrix.
+
+        Parameters
+        ----------
+        value : float or numpy.ndarray
+            The number or array to add to the main diagonal of the penalty.
+
+        Returns
+        -------
+        numpy.ndarray
+            The penalty with the main diagonal updated.
+
+        """
+        self.penalty[self.main_diagonal_index] = self.main_diagonal + value
+        return self.penalty
 
     def reset_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=None,
                         allow_pentapy=True, padding=0):

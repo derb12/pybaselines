@@ -81,13 +81,11 @@ class _Whittaker(_Algorithm):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -177,8 +175,6 @@ class _Whittaker(_Algorithm):
         if self.whittaker_system.using_pentapy:
             diff_1_diags = diff_1_diags[::-1]
         self.whittaker_system.add_penalty(lambda_1 * diff_1_diags)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
 
         # fast calculation of lam_1 * (D_1.T @ D_1) @ y
         d1_y = y.copy()
@@ -189,9 +185,9 @@ class _Whittaker(_Algorithm):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             weight_squared = weight_array * weight_array
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_squared
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_squared * y + d1_y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_squared), weight_squared * y + d1_y,
+                overwrite_b=True
             )
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -253,19 +249,16 @@ class _Whittaker(_Algorithm):
             data, lam, diff_order, weights, copy_weights=True
         )
         y_l1_norm = np.abs(y).sum()
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         # Have to have extensive error handling since the weights can all become
         # very small due to the exp(i) term if too many iterations are performed;
         # checking the negative residual length usually prevents any errors, but
         # sometimes not so have to also catch any errors from the solvers
         for i in range(1, max_iter + 2):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             try:
                 output = self.whittaker_system.solve(
-                    self.whittaker_system.penalty, weight_array * y, overwrite_b=True,
-                    check_output=True
+                    self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                    overwrite_b=True, check_output=True
                 )
             except np.linalg.LinAlgError:
                 warnings.warn(
@@ -351,13 +344,11 @@ class _Whittaker(_Algorithm):
         """
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         tol_history = np.empty(max_iter + 1)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._arpls(y, baseline)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -521,13 +512,11 @@ class _Whittaker(_Algorithm):
 
         """
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._iarpls(y, baseline, i)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -726,13 +715,11 @@ class _Whittaker(_Algorithm):
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         if k is None:
             k = np.std(y) / 10
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._psalsa(y, baseline, p, k, self._len)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -842,13 +829,11 @@ class _Whittaker(_Algorithm):
         diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
         partial_weights = diff_1_weights * diff_2_weights
 
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._derpsalsa(y, baseline, p, k, self._len, partial_weights)
             calc_difference = relative_difference(weight_array, new_weights)
