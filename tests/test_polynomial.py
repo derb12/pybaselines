@@ -392,7 +392,7 @@ class TestQuantReg(IterativePolynomialTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, quantile=quantile)
 
-    @pytest.mark.parametrize('quantile', [0.1, 0.5, 0.9])
+    @pytest.mark.parametrize('quantile', tuple(STATSMODELS_QUANTILES.keys()))
     def test_compare_to_statsmodels(self, quantile):
         """
         Compares the output of quant_reg to statsmodels's quantile regression implementation.

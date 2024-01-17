@@ -15,6 +15,7 @@ import pytest
 from pybaselines.two_d import polynomial
 
 from ..conftest import BasePolyTester2D, InputWeightsMixin
+from ..data import STATSMODELS_QUANTILES_2D
 
 
 class PolynomialTester(BasePolyTester2D, InputWeightsMixin):
@@ -205,6 +206,64 @@ class TestQuantReg(IterativePolynomialTester):
         """Ensures quantile values outside of (0, 1) raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, quantile=quantile)
+
+    @pytest.mark.parametrize('quantile', tuple(STATSMODELS_QUANTILES_2D.keys()))
+    def test_compare_to_statsmodels(self, quantile):
+        """
+        Compares the output of quant_reg to statsmodels's quantile regression implementation.
+
+        The library statsmodels has a well-tested quantile regression implementation,
+        so can compare the output of polynomial.quant_reg to statsmodels to ensure
+        that the pybaselines implementation is correct.
+
+        The outputs from statsmodels were created using::
+
+            from statsmodels.regression.quantile_regression import QuantReg
+            # map x and z to [-1, 1] to improve numerical stability for the Vandermonde
+            # within statsmodels
+            mapped_x = np.polynomial.polyutils.mapdomain(
+                x, np.polynomial.polyutils.getdomain(x), np.array([-1., 1.])
+            )
+            mapped_z = np.polynomial.polyutils.mapdomain(
+                z, np.polynomial.polyutils.getdomain(z), np.array([-1., 1.])
+            )
+            vander = np.polynomial.polynomial.polyvander2d(
+                *np.meshgrid(mapped_x, mapped_z, indexing='ij'), 1
+            ).reshape((-1, 4))
+            fitter = QuantReg(y.ravel(), vander).fit(quantile, max_iter=1000, p_tol=1e-9).predict()
+
+        with statsmodels version 0.13.2.
+
+        Could also compare with the "true" quantile regression result using linear
+        programming such as detailed in:
+
+        https://stats.stackexchange.com/questions/384909/formulating-quantile-regression-as-
+        linear-programming-problem
+
+        but the comparison to statsmodels is good enough since it uses an iteratively
+        reweighted least squares calculation for the quantile regression similar to the
+        pybaselines implementation, and the linear programming requires a scipy version
+        of at least 1.0 or 1.6 to get a fast, reliable result due to the older solvers not
+        working as well.
+
+        """
+        x = np.linspace(-1000, 1000, 25)
+        z = np.linspace(-200, 301, 31)
+
+        X, Z = np.meshgrid(x, z, indexing='ij')
+        y = (
+            3 + 1e-2 * X - 5e-1 * Z + 1e-2 * X * Z
+        ) + np.random.default_rng(0).normal(0, 200, X.shape)
+
+        output = self.algorithm_base(x, z, check_finite=False, assume_sorted=True).quant_reg(
+            y, poly_order=1, quantile=quantile, tol=1e-9, eps=1e-12
+        )
+
+        # use slightly high rtol since the number of data points is small for 2D to not bog
+        # down the data file; for higher number of points, rtol and atol could be reduced
+        assert_allclose(
+            output[0].ravel(), STATSMODELS_QUANTILES_2D[quantile], rtol=1e-5, atol=1e-10
+        )
 
 
 class TestGoldindec(PolynomialTester):
