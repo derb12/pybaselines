@@ -83,11 +83,14 @@ class _Whittaker(_Algorithm2D):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array = self._setup_whittaker(
+            data, lam, diff_order, weights, use_banded=True, use_lower=True
+        )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_array), weight_array * y
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -163,7 +166,7 @@ class _Whittaker(_Algorithm2D):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        elif diff_order < 2:
+        elif (np.asarray(diff_order) < 2).any():
             raise ValueError('diff_order must be 2 or greater')
 
         if weights is None:
@@ -174,7 +177,7 @@ class _Whittaker(_Algorithm2D):
             weights = _weighting._asls(data.ravel(), baseline, p).reshape(self._len)
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1)
+        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1, use_banded=False)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             penalized_system_1.add_diagonal(weight_array * weight_array)
@@ -243,7 +246,8 @@ class _Whittaker(_Algorithm2D):
 
         """
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, copy_weights=True
+            data, lam, diff_order, weights, copy_weights=True, use_banded=True, use_lower=True
+
         )
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
@@ -254,7 +258,8 @@ class _Whittaker(_Algorithm2D):
         for i in range(1, max_iter + 2):
             try:
                 output = self.whittaker_system.solve(
-                    self.whittaker_system.add_diagonal(weight_array), weight_array * y
+                    self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                    overwrite_b=True
                 )
             except np.linalg.LinAlgError:
                 warnings.warn(
@@ -340,11 +345,14 @@ class _Whittaker(_Algorithm2D):
         penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
         """
-        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array = self._setup_whittaker(
+            data, lam, diff_order, weights, use_banded=True, use_lower=True
+        )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_array), weight_array * y
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._arpls(y, baseline)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -415,11 +423,11 @@ class _Whittaker(_Algorithm2D):
         """
         if not 0 <= eta <= 1:
             raise ValueError('eta must be between 0 and 1')
-        elif diff_order < 2:
+        elif (np.asarray(diff_order) < 2).any():
             raise ValueError('diff_order must be 2 or greater')
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        penalized_system_1 = PenalizedSystem2D(self._len, 1, diff_order=1)
+        penalized_system_1 = PenalizedSystem2D(self._len, 1, diff_order=1, use_banded=False)
         # W + P_1 + (I - eta * W) @ P_n -> P_1 + P_n + W @ (I - eta * P_n)
         partial_penalty = self.whittaker_system.penalty + penalized_system_1.penalty
         partial_penalty_2 = -eta * self.whittaker_system.penalty
@@ -503,11 +511,14 @@ class _Whittaker(_Algorithm2D):
         59, 10933-10943.
 
         """
-        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array = self._setup_whittaker(
+            data, lam, diff_order, weights, use_banded=True, use_lower=True
+        )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_array), weight_array * y
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._iarpls(y, baseline, i)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -704,13 +715,16 @@ class _Whittaker(_Algorithm2D):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array = self._setup_whittaker(
+            data, lam, diff_order, weights, use_banded=True, use_lower=True
+        )
         if k is None:
             k = np.std(y) / 10
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_array), weight_array * y
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._psalsa(y, baseline, p, k, self._len[0] * self._len[1])
             calc_difference = relative_difference(weight_array, new_weights)

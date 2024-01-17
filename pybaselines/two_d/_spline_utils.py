@@ -13,7 +13,7 @@ from scipy.sparse.linalg import spsolve
 from .._banded_utils import difference_matrix
 from .._spline_utils import _spline_basis, _spline_knots
 from .._validation import _check_array, _check_lam, _check_scalar
-
+from ._whittaker_utils import diff_penalty_matrix
 
 class PSpline2D:
     """
@@ -190,12 +190,12 @@ class PSpline2D:
                 'the difference order must be less than the number of basis '
                 'functions, which is the number of knots + spline degree - 1'
             ))
-        D1 = difference_matrix(self._num_bases[0], self.diff_order[0])
-        D2 = difference_matrix(self._num_bases[1], self.diff_order[1])
+        D1 = diff_penalty_matrix(self._num_bases[0], self.diff_order[0])
+        D2 = diff_penalty_matrix(self._num_bases[1], self.diff_order[1])
 
         # multiplying lam by the Kronecker product is the same as multiplying just D.T @ D with lam
-        P1 = sparse.kron(self.lam[0] * D1.T @ D1, sparse.identity(self._num_bases[1]))
-        P2 = sparse.kron(sparse.identity(self._num_bases[0]), self.lam[1] * D2.T @ D2)
+        P1 = sparse.kron(self.lam[0] * D1, sparse.identity(self._num_bases[1]))
+        P2 = sparse.kron(sparse.identity(self._num_bases[0]), self.lam[1] * D2)
         self.penalty = P1 + P2
 
     def solve_pspline(self, y, weights, penalty=None, rhs_extra=None):
@@ -237,17 +237,19 @@ class PSpline2D:
 
         """
         # do not save intermediate results since they are memory intensive for high number of knots
-        F = np.transpose(
-            (self._G.T @ weights @ self._G2).reshape(
-                (self._num_bases[0], self._num_bases[0], self._num_bases[1], self._num_bases[1])
-            ),
-            [0, 2, 1, 3]
-        ).reshape(
-            (self._num_bases[0] * self._num_bases[1], self._num_bases[0] * self._num_bases[1])
+        F = sparse.csr_matrix(
+            np.transpose(
+                (self._G.T @ weights @ self._G2).reshape(
+                    (self._num_bases[0], self._num_bases[0], self._num_bases[1], self._num_bases[1])
+                ),
+                [0, 2, 1, 3]
+            ).reshape(
+                (self._num_bases[0] * self._num_bases[1], self._num_bases[0] * self._num_bases[1])
+            )
         )
 
         self.coef = spsolve(
-            sparse.csr_matrix(F) + self.penalty,
+            F + self.penalty,
             (self.basis_x.T @ (weights * y) @ self.basis_z).flatten(),
             'NATURAL'
         ).reshape(self._num_bases[0], self._num_bases[1])

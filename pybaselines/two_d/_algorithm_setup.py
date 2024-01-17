@@ -364,7 +364,7 @@ class _Algorithm2D:
             self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
-                         allow_lower=True, reverse_diags=None):
+                         use_lower=True, use_banded=False, reverse_diags=None):
         """
         Sets the starting parameters for doing penalized least squares.
 
@@ -385,9 +385,12 @@ class _Algorithm2D:
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
-        allow_lower : boolean, optional
+        use_lower : boolean, optional
             If True (default), will allow using only the lower non-zero diagonals of
             the squared difference matrix. If False, will include all non-zero diagonals.
+        use_banded : bool, optional
+            If True, will setup the penalized system using banded matrices. If False,
+            will use sparse matrices.
         reverse_diags : {None, False, True}, optional
             If True, will reverse the order of the diagonals of the squared difference
             matrix. If False, will never reverse the diagonals. If None (default), will
@@ -430,10 +433,10 @@ class _Algorithm2D:
             weight_array = weight_array[self._sort_order]
         weight_array = weight_array.ravel()
         if self.whittaker_system is not None:
-            self.whittaker_system.reset_diagonals(lam, diff_order)
+            self.whittaker_system.reset_diagonals(lam, diff_order, use_banded, use_lower)
         else:
             self.whittaker_system = PenalizedSystem2D(
-                self._len, lam, diff_order
+                self._len, lam, diff_order, use_banded, use_lower
             )
 
         return y.ravel(), weight_array

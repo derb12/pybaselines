@@ -6,11 +6,58 @@ Created on April 30, 2023
 
 """
 
-from scipy.sparse import identity, kron
+import numpy as np
+from scipy.linalg import solve_banded, solveh_banded
+from scipy.sparse import identity, kron, spdiags
 from scipy.sparse.linalg import spsolve
 
-from .._banded_utils import difference_matrix
+from .._banded_utils import diff_penalty_diagonals
 from .._validation import _check_lam, _check_scalar
+
+
+def diff_penalty_matrix(data_size, diff_order=2):
+    """
+    Creates the finite difference penalty matrix.
+
+    If `D` is the finite difference matrix, then the finite difference penalty
+    matrix is defined as ``D.T @ D``.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
+
+    Returns
+    -------
+    penalty_matrix : scipy.sparse.base.spmatrix
+        The sparse difference penalty matrix.
+
+    Raises
+    ------
+    ValueError
+        Raised if `diff_order` is greater or equal to `data_size`.
+
+    Notes
+    -----
+    Equivalent to calling::
+
+        from pybaselines.utils import difference_matrix
+        diff_matrix = difference_matrix(data_size, diff_order)
+        penalty_matrix = diff_matrix.T @ diff_matrix
+
+    but should be faster since the bands within the penalty matrix can be gotten
+    without the matrix multiplication.
+
+    """
+    if data_size <= diff_order:
+        raise ValueError('data size must be greater than or equal to the difference order.')
+    penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
+    penalty_matrix = spdiags(
+        penalty_bands, np.arange(diff_order, -diff_order - 1, -1), data_size, data_size
+    )
+    return penalty_matrix
 
 
 class PenalizedSystem2D:
@@ -44,25 +91,48 @@ class PenalizedSystem2D:
         and applying padding, but can also be changed by calling :meth:`.add_penalty`.
         Reset by calling :meth:`.reset_diagonals`.
 
+    Notes
+    -----
+    Setting up the linear system using banded matrices is faster, but the number of bands is
+    actually quite large (`data_size[1]`) due to the Kronecker products, although only
+    ``2 * diff_order[0] + 2 * diff_order[1] + 2`` bands are actually nonzero. Despite this, it is
+    still significantly faster than using the sparse solver and does not use more memory as
+    long as it is only lower banded.
+
+    References
+    ----------
+    Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+    Statistics and Data Analysis, 2006, 50(1), 61-76.
+
     """
 
-    def __init__(self, data_size, lam=1, diff_order=2):
+    def __init__(self, data_size, lam=1, diff_order=2, use_banded=True, use_lower=True):
         """
         Initializes the banded system.
 
         Parameters
         ----------
-        data_size : int
+        data_size : Sequence[int, int]
             The number of data points for the system.
         lam : float, optional
             The penalty factor applied to the difference matrix. Larger values produce
             smoother results. Must be greater than 0. Default is 1.
         diff_order : int, optional
             The difference order of the penalty. Default is 2 (second order difference).
+        use_banded : bool, optional
+            If True (default), will do the setup for solving the system using banded
+            matrices rather than sparse matrices.
+        use_lower : bool, optional
+            If True (default), will allow only using the lower bands of the penalty matrix,
+            which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
+            slower :func:`scipy.linalg.solve_banded`. Only relevant if `use_banded` is True.
 
         """
         self._num_bases = data_size
-        self.reset_diagonals(lam, diff_order)
+        self.diff_order = [-1, -1]
+        self.lam = [-1, -1]
+
+        self.reset_diagonals(lam, diff_order, use_banded, use_lower)
 
     def add_penalty(self, penalty):
         """
@@ -81,7 +151,22 @@ class PenalizedSystem2D:
         """
         raise NotImplementedError
 
-    def reset_diagonals(self, lam=1, diff_order=2):
+    def _update_bands(self):
+        """
+        Updates the number of bands and the index of the main diagonal in `self.penalty`.
+
+        Only relevant if setup as a banded matrix.
+
+        """
+        if self.banded:
+            if self.lower:
+                self.num_bands = self.penalty.shape[0] - 1
+            else:
+                self.num_bands = self.penalty.shape[0] // 2
+            self.main_diagonal_index = 0 if self.lower else self.num_bands
+            self.main_diagonal = self.penalty[self.main_diagonal_index].copy()
+
+    def reset_diagonals(self, lam=1, diff_order=2, use_banded=True, use_lower=True):
         """
         Resets the diagonals of the system and all of the attributes.
 
@@ -94,24 +179,44 @@ class PenalizedSystem2D:
             smoother results. Must be greater than 0. Default is 1.
         diff_order : int, optional
             The difference order of the penalty. Default is 2 (second order difference).
+        use_banded : bool, optional
+            If True (default), will do the setup for solving the system using banded
+            matrices rather than sparse matrices.
 
         """
         self.diff_order = _check_scalar(diff_order, 2, True)[0]
         self.lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
-
+        self.lower = use_lower
+        self.banded = use_banded
         if (self.diff_order < 1).any():
             raise ValueError('the difference order must be > 0')
 
-        D1 = difference_matrix(self._num_bases[0], self.diff_order[0])
-        D2 = difference_matrix(self._num_bases[1], self.diff_order[1])
+        penalty_rows = diff_penalty_matrix(self._num_bases[0], self.diff_order[0])
+        penalty_columns = diff_penalty_matrix(self._num_bases[1], self.diff_order[1])
 
         # multiplying lam by the Kronecker product is the same as multiplying just D.T @ D with lam
-        P1 = kron(self.lam[0] * D1.T @ D1, identity(self._num_bases[1]))
-        P2 = kron(identity(self._num_bases[0]), self.lam[1] * D2.T @ D2)
-        self.penalty = P1 + P2
-        self.main_diagonal = self.penalty.diagonal()
+        P1 = kron(self.lam[0] * penalty_rows, identity(self._num_bases[1]))
+        P2 = kron(identity(self._num_bases[0]), self.lam[1] * penalty_columns)
+        penalty = P1 + P2
+        if self.banded:
+            penalty = penalty.todia()
+            sparse_bands = (penalty).data
+            offsets = penalty.offsets
+            index_offset = np.max(offsets)
+            penalty_bands = np.zeros((index_offset * 2 + 1, sparse_bands.shape[1]))
+            for index, banded_index in enumerate(offsets):
+                penalty_bands[abs(banded_index - index_offset)] = sparse_bands[index]
+            self.penalty = penalty_bands
+            if self.lower:
+                self.penalty = self.penalty[self.penalty.shape[0] // 2:]
+            self._update_bands()
+        else:
+            self.penalty = penalty
+            self.main_diagonal = self.penalty.diagonal()
+            self.main_diagonal_index = 0
 
-    def solve(self, lhs, rhs):
+    def solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False,
+              check_finite=False, l_and_u=None):
         """
         Solves the equation ``A @ x = rhs``, given `A` in banded format as `lhs`.
 
@@ -137,9 +242,6 @@ class PenalizedSystem2D:
             The number of lower and upper bands in `lhs` when using
             :func:`scipy.linalg.solve_banded`. Default is None, which uses
             (``len(lhs) // 2``, ``len(lhs) // 2``).
-        check_output : bool, optional
-            If True, will check the output for non-finite values when using
-            :func:`._pentapy_solver`. Default is False.
 
         Returns
         -------
@@ -147,17 +249,32 @@ class PenalizedSystem2D:
             The solution to the linear system, `x`.
 
         """
-        output = spsolve(lhs, rhs, permc_spec='NATURAL')
+        if self.banded:
+            if self.lower:
+                output = solveh_banded(
+                    lhs, rhs, overwrite_ab=overwrite_ab,
+                    overwrite_b=overwrite_b, lower=True, check_finite=check_finite
+                )
+            else:
+                if l_and_u is None:
+                    num_bands = len(lhs) // 2
+                    l_and_u = (num_bands, num_bands)
+                output = solve_banded(
+                    l_and_u, lhs, rhs, overwrite_ab=overwrite_ab,
+                    overwrite_b=overwrite_b, check_finite=check_finite
+                )
+        else:
+            output = spsolve(lhs, rhs, permc_spec='NATURAL')
 
         return output
 
-    def add_diagonal(self, array):
+    def add_diagonal(self, value):
         """
         Adds a diagonal array to the original penalty matrix.
 
         Parameters
         ----------
-        array : numpy.ndarray
+        value : numpy.ndarray
             The diagonal array to add to the penalty matrix.
 
         Returns
@@ -166,12 +283,18 @@ class PenalizedSystem2D:
             The penalty matrix with the main diagonal updated.
 
         """
-        self.penalty.setdiag(self.main_diagonal + array)
+        if self.banded:
+            self.penalty[self.main_diagonal_index] = self.main_diagonal + value
+        else:
+            self.penalty.setdiag(self.main_diagonal + value)
         return self.penalty
 
     def reset_diagonal(self):
         """Sets the main diagonal of the penalty matrix back to its original value."""
-        self.penalty.setdiag(self.main_diagonal)
+        if self.banded:
+            self.penalty[self.main_diagonal_index] = self.main_diagonal
+        else:
+            self.penalty.setdiag(self.main_diagonal)
 
     def reverse_penalty(self):
         """

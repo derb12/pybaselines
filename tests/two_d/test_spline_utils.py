@@ -53,6 +53,9 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
     weights = np.random.RandomState(0).normal(0.8, 0.05, y.size)
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
+    # note: within Eiler's paper, the basis was defined as kron(basis_z, basis_x),
+    # but the rows and columns were switched, ie. it should be kron(basis_rows, basis_columns),
+    # so it is just a nomenclature difference
     basis = kron(basis_x, basis_z)
     CWT = basis.multiply(
         np.repeat(weights.flatten(), num_bases[0] * num_bases[1]).reshape(len(x) * len(z), -1)
