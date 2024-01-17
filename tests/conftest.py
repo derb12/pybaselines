@@ -123,7 +123,7 @@ def get_data(include_noise=True, num_points=1000):
     return x_data, y_data
 
 
-def get_data2d(include_noise=True, num_points=(50, 60)):
+def get_data2d(include_noise=True, num_points=(30, 41)):
     """Creates x-, z-, and y-data for testing.
 
     Parameters
@@ -132,7 +132,7 @@ def get_data2d(include_noise=True, num_points=(50, 60)):
         If True (default), will include noise with the y-data.
     num_points : Container(int, int), optional
         The number of data points to use for x, and z, respectively. Default
-        is (50, 60), which uses different numbers so that any issues caused
+        is (30, 41), which uses different numbers so that any issues caused
         by not having a square matrix will be seen.
 
     Returns
@@ -201,7 +201,7 @@ def small_data():
 @pytest.fixture
 def small_data2d():
     """A small array of data for testing."""
-    return np.arange(50, dtype=float).reshape(5, 10)
+    return np.arange(60, dtype=float).reshape(6, 10)
 
 
 @pytest.fixture()
@@ -224,8 +224,14 @@ def no_noise_data_fixture():
 
 @pytest.fixture()
 def no_noise_data_fixture2d():
-    """Test fixture that creates x-, z-, and y-data without noise for testing."""
-    return get_data2d(include_noise=False)
+    """
+    Test fixture that creates x-, z-, and y-data without noise for testing.
+
+    Reduces the number of data points since this is used for testing that numerical
+    issues are avoided for large iterations in spline and Whittaker functions, which
+    can otherwise be time consuming.
+    """
+    return get_data2d(include_noise=False, num_points=(20, 31))
 
 
 def dummy_wrapper(func):
