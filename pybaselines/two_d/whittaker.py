@@ -185,8 +185,6 @@ class _Whittaker(_Algorithm2D):
                 self.whittaker_system.penalty + penalized_system_1.penalty,
                 penalized_system_1.penalty * y
             )
-            assert y.shape == (self._len[0] * self._len[1],)
-            assert baseline.shape == (self._len[0] * self._len[1],)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -618,7 +616,7 @@ class _Whittaker(_Algorithm2D):
         alpha_matrix = diags(alpha_array.ravel(), format='csr')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            lhs = alpha_matrix * self.whittaker_system.penalty
+            lhs = alpha_matrix @ self.whittaker_system.penalty
             lhs.setdiag(lhs.diagonal() + weight_array)
             baseline = self.whittaker_system.solve(
                 lhs, weight_array * y
