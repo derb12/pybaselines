@@ -11,7 +11,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.sparse import identity, kron
 
-from pybaselines.two_d import _algorithm_setup
+from pybaselines.two_d import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines.utils import ParameterWarning, difference_matrix
 
 from ..conftest import get_data2d, get_2dspline_inputs
@@ -672,3 +672,65 @@ def test_override_x(algorithm):
             assert new_algorithm.vandermonde is None
             assert new_algorithm.whittaker_system is None
             assert new_algorithm.pspline is None
+
+
+@pytest.mark.parametrize(
+    'method_and_outputs', (
+        ('collab_pls', 'collab_pls', 'optimizers'),
+        ('COLLAB_pls', 'collab_pls', 'optimizers'),
+        ('modpoly', 'modpoly', 'polynomial'),
+        ('asls', 'asls', 'whittaker')
+    )
+)
+def test_get_function(algorithm, method_and_outputs):
+    """Ensures _get_function gets the correct method, regardless of case."""
+    method, expected_func, expected_module = method_and_outputs
+    tested_modules = [optimizers, polynomial, whittaker]
+    selected_func, module, class_object = algorithm._get_function(
+        method, tested_modules
+    )
+    assert selected_func.__name__ == expected_func
+    assert module == expected_module
+    assert isinstance(class_object, _algorithm_setup._Algorithm2D)
+
+
+def test_get_function_fails_wrong_method(algorithm):
+    """Ensures _get_function fails when an no function with the input name is available."""
+    with pytest.raises(AttributeError):
+        algorithm._get_function('unknown function', [optimizers])
+
+
+def test_get_function_fails_no_module(algorithm):
+    """Ensures _get_function fails when not given any modules to search."""
+    with pytest.raises(AttributeError):
+        algorithm._get_function('collab_pls', [])
+
+
+@pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))
+def test_setup_optimizer(small_data2d, algorithm, method_kwargs):
+    """Ensures output of _setup_optimizer is correct."""
+    y, fit_func, func_module, output_kwargs, class_object = algorithm._setup_optimizer(
+        small_data2d, 'asls', [whittaker], method_kwargs
+    )
+
+    assert isinstance(y, np.ndarray)
+    assert_allclose(y, small_data2d)
+    assert fit_func.__name__ == 'asls'
+    assert func_module == 'whittaker'
+    assert isinstance(output_kwargs, dict)
+    assert isinstance(class_object, _algorithm_setup._Algorithm2D)
+
+
+@pytest.mark.parametrize('copy_kwargs', (True, False))
+def test_setup_optimizer_copy_kwargs(small_data2d, algorithm, copy_kwargs):
+    """Ensures the copy behavior of the input keyword argument dictionary."""
+    input_kwargs = {'a': 1}
+    y, _, _, output_kwargs, _ = algorithm._setup_optimizer(
+        small_data2d, 'asls', [whittaker], input_kwargs, copy_kwargs
+    )
+
+    output_kwargs['a'] = 2
+    if copy_kwargs:
+        assert input_kwargs['a'] == 1
+    else:
+        assert input_kwargs['a'] == 2

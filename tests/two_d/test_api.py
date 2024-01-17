@@ -11,7 +11,7 @@ from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines.two_d import (
-    api, morphological, polynomial, smooth, spline, whittaker
+    api, morphological, optimizers, polynomial, smooth, spline, whittaker
 )
 
 from ..conftest import get_data2d
@@ -19,6 +19,7 @@ from ..conftest import get_data2d
 
 _ALL_CLASSES = (
     morphological._Morphological,
+    optimizers._Optimizers,
     polynomial._Polynomial,
     smooth._Smooth,
     spline._Spline,
@@ -81,7 +82,7 @@ class TestBaseline2D:
         method, baseline_class = method_and_class
         # collab_pls needs 2D input data
         if method == 'collab_pls':
-            fit_data = np.vstack((self.y, self.y))
+            fit_data = np.array((self.y, self.y))
         else:
             fit_data = self.y
 

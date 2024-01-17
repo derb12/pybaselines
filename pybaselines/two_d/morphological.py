@@ -10,9 +10,7 @@ import numpy as np
 from scipy.ndimage import grey_dilation, grey_erosion, grey_opening, uniform_filter
 
 from ._algorithm_setup import _Algorithm2D
-from ..utils import (
-    relative_difference
-)
+from ..utils import relative_difference
 
 
 class _Morphological(_Algorithm2D):

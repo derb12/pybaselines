@@ -521,7 +521,8 @@ class _Algorithm2D:
                 # rearrange the vandermonde such that it matches the typical A c = b where b
                 # is the flattened version of y and c are the coefficients
                 self.vandermonde = np.polynomial.polynomial.polyvander2d(
-                    mapped_x[:, None], mapped_z[None, :], [poly_orders[0], poly_orders[1]]
+                    *np.meshgrid(mapped_x, mapped_z, indexing='ij'),
+                    [poly_orders[0], poly_orders[1]]
                 ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
 
                 if max_cross is not None:
@@ -713,6 +714,162 @@ class _Algorithm2D:
         """
         hw = _check_half_window(half_window, allow_zero, two_d=False)
         return pad_edges2d(y, hw, **pad_kwargs)
+
+    def _setup_classification(self, y, weights=None):
+        """
+        Sets the starting parameters for doing classification algorithms.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for the data, with boolean dtype.
+
+        """
+        weight_array = _check_optional_array(
+            self._len, weights, check_finite=self._check_finite, dtype=bool,
+            ensure_1d=False, axis=slice(None)
+        )
+        if self._sort_order is not None and weights is not None:
+            weight_array = weight_array[self._sort_order]
+        weight_array = weight_array.ravel()
+
+        return y, weight_array
+
+    def _get_function(self, method, modules):
+        """
+        Tries to retrieve the indicated function from a list of modules.
+
+        Parameters
+        ----------
+        method : str
+            The string name of the desired function. Case does not matter.
+        modules : Sequence
+            A sequence of modules in which to look for the method.
+
+        Returns
+        -------
+        func : Callable
+            The corresponding function.
+        func_module : str
+            The module that `func` belongs to.
+        class_object : pybaselines.two_d_algorithm_setup._Algorithm2D
+            The `_Algorithm2D` object which will be used for fitting.
+
+        Raises
+        ------
+        AttributeError
+            Raised if no matching function is found within the modules.
+
+        """
+        function_string = method.lower()
+        for module in modules:
+            func_module = module.__name__.split('.')[-1]
+            module_class = getattr(module, '_' + func_module.capitalize())
+            if hasattr(module_class, function_string):
+                # if self is a Baseline2D class, can just use its method
+                if hasattr(self, function_string):
+                    func = getattr(self, function_string)
+                    class_object = self
+                else:
+                    # have to reset x and z ordering so that all outputs and parameters are
+                    # correctly sorted
+                    if self._sort_order is None:
+                        x = self.x
+                        z = self.z
+                        assume_sorted = True
+                    else:
+                        assume_sorted = False
+                        if isinstance(self._sort_order, tuple):
+                            if self._sort_order[0] is Ellipsis:
+                                x = self.x
+                                z = self.z[self._inverted_order[1]]
+                            else:
+                                x = self.x[self._inverted_order[0][:, 0]]
+                                z = self.z[self._inverted_order[1][0]]
+                        else:
+                            x = self.x[self._inverted_order]
+                            z = self.z
+
+                    class_object = module_class(
+                        x, z, check_finite=self._check_finite, assume_sorted=assume_sorted,
+                        output_dtype=self._dtype
+                    )
+                    func = getattr(class_object, function_string)
+                break
+        else:  # in case no break
+            mod_names = [module.__name__ for module in modules]
+            raise AttributeError((
+                f'unknown method "{method}" or method is not within the allowed '
+                f'modules: {mod_names}'
+            ))
+
+        return func, func_module, class_object
+
+    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True, **kwargs):
+        """
+        Sets the starting parameters for doing optimizer algorithms.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`._register`.
+        method : str
+            The string name of the desired function, like 'asls'. Case does not matter.
+        modules : Sequence(module, ...)
+            The modules to search for the indicated `method` function.
+        method_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to the fitting function. Default
+            is None, which uses an emtpy dictionary.
+        copy_kwargs : bool, optional
+            If True (default), will copy the input `method_kwargs` so that the input
+            dictionary is not modified within the function.
+        **kwargs
+            Deprecated in version 0.8.0 and will be removed in version 0.10 or 1.0. Pass any
+            keyword arguments for the fitting function in the `method_kwargs` dictionary.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        baseline_func : Callable
+            The function for fitting the baseline.
+        func_module : str
+            The string name of the module that contained `fit_func`.
+        method_kws : dict
+            A dictionary of keyword arguments to pass to `fit_func`.
+        class_object : pybaselines._algorithm_setup._Algorithm
+            The `_Algorithm` object which will be used for fitting.
+
+        Warns
+        -----
+        DeprecationWarning
+            Passed if `kwargs` is not empty.
+
+        """
+        baseline_func, func_module, class_object = self._get_function(method, modules)
+        if method_kwargs is None:
+            method_kws = {}
+        elif copy_kwargs:
+            method_kws = method_kwargs.copy()
+        else:
+            method_kws = method_kwargs
+
+        return (
+            _sort_array2d(y, self._inverted_order), baseline_func, func_module, method_kws,
+            class_object
+        )
 
     def _setup_misc(self, y):
         """

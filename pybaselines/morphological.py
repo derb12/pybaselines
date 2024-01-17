@@ -110,13 +110,13 @@ class _Morphological(_Algorithm):
             indices = np.flatnonzero(
                 ((diff[1:] == 0) | (diff[:-1] == 0)) & ((diff[1:] != 0) | (diff[:-1] != 0))
             )
-            w = np.full(y.shape[0], p)
+            w = np.full(self._len, p)
             # find the index of min(y) in the region between flat regions
             for previous_segment, next_segment in zip(indices[1::2], indices[2::2]):
                 index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
                 w[index] = 1 - p
 
-            # have to invert the weight ordering the matching the original input y ordering
+            # have to invert the weight ordering to match the original input y ordering
             # since it will be sorted within _setup_whittaker
             w = _sort_array(w, self._inverted_order)
 

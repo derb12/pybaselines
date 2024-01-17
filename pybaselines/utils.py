@@ -308,11 +308,11 @@ def pad_edges(data, pad_length, mode='extrapolate',
     return padded_data
 
 
-def pad_edges2d(data, pad_length, *args, **kwargs):
+def pad_edges2d(data, pad_length, *args, mode='edge', **kwargs):
     if not _check_scalar(pad_length, None)[1]:
         raise NotImplementedError('separate pad lengths not yet supported')
     else:
-        return pad_edges(data, pad_length, *args, **kwargs)
+        return pad_edges(data, pad_length, *args, mode=mode, **kwargs)
 
 
 def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
