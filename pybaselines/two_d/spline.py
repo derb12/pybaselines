@@ -16,6 +16,7 @@ from scipy.optimize import curve_fit
 from .. import _weighting
 from ..utils import ParameterWarning, gaussian, relative_difference, _MIN_FLOAT
 from ._algorithm_setup import _Algorithm2D
+from ._whittaker_utils import PenalizedSystem2D
 from .._compat import _HAS_NUMBA, jit
 
 
@@ -364,6 +365,111 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve_pspline(y, weight_array)
+            new_weights = _weighting._asls(y, baseline, p)
+            calc_difference = relative_difference(weight_array, new_weights)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
+            weight_array = new_weights
+
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+
+        return baseline, params
+
+    @_Algorithm2D._register(sort_keys=('weights',))
+    def pspline_iasls(self, data, lam=1e3, p=1e-2, lam_1=1e-4, num_knots=25,
+                      spline_degree=3, max_iter=50, tol=1e-3, weights=None, diff_order=2):
+        """
+        A penalized spline version of the IAsLS algorithm.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points. Must not
+            contain missing data (NaN) or Inf.
+        lam : float, optional
+            The smoothing parameter. Larger values will create smoother baselines.
+            Default is 1e1.
+        p : float, optional
+            The penalizing weighting factor. Must be between 0 and 1. Values greater
+            than the baseline will be given `p` weight, and values less than the baseline
+            will be given `p - 1` weight. Default is 1e-2.
+        lam_1 : float, optional
+            The smoothing parameter for the first derivative of the residual. Default is 1e-4.
+        num_knots : int, optional
+            The number of knots for the spline. Default is 100.
+        spline_degree : int, optional
+            The degree of the spline. Default is 3, which is a cubic spline.
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then the initial weights
+            will be an array with size equal to N and all values set to 1.
+        diff_order : int, optional
+            The order of the differential matrix. Must be greater than 1. Default is 2
+            (second order differential matrix). Typical values are 2 or 3.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+
+        Raises
+        ------
+        ValueError
+            Raised if `p` is not between 0 and 1 or if `diff_order` is less than 2.
+
+        See Also
+        --------
+        pybaselines.whittaker.iasls
+
+        References
+        ----------
+        He, S., et al. Baseline correction for raman spectra using an improved
+        asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
+
+        Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+        Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+        """
+        if not 0 < p < 1:
+            raise ValueError('p must be between 0 and 1')
+        elif np.less(diff_order, 2).any():
+            raise ValueError('diff_order must be 2 or greater')
+
+        if weights is None:
+            _, _, pseudo_inverse = self._setup_polynomial(
+                data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
+            )
+            baseline = self.vandermonde @ (pseudo_inverse @ data.ravel())
+            weights = _weighting._asls(data, baseline.reshape(self._len), p)
+
+        y, weight_array = self._setup_spline(
+            data, weights, spline_degree, num_knots, True, diff_order, lam
+        )
+
+        # B.T @ P_1 @ B and B.T @ P_1 @ y
+        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1, use_banded=False)
+        p1_partial_penalty = self.pspline.basis.T @ penalized_system_1.penalty
+
+        partial_rhs = p1_partial_penalty @ y.ravel()
+        self.pspline.add_penalty(p1_partial_penalty @ self.pspline.basis)
+
+        tol_history = np.empty(max_iter + 1)
+        for i in range(max_iter + 1):
+            baseline = self.pspline.solve_pspline(y, weight_array**2, rhs_extra=partial_rhs)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
