@@ -184,7 +184,7 @@ class _Whittaker(_Algorithm):
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            weight_squared = weight_array * weight_array
+            weight_squared = weight_array**2
             baseline = self.whittaker_system.solve(
                 self.whittaker_system.add_diagonal(weight_squared), weight_squared * y + d1_y,
                 overwrite_b=True

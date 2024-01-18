@@ -166,7 +166,7 @@ class _Whittaker(_Algorithm2D):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        elif (np.asarray(diff_order) < 2).any():
+        elif np.less(diff_order, 2).any():
             raise ValueError('diff_order must be 2 or greater')
 
         if weights is None:
@@ -174,16 +174,20 @@ class _Whittaker(_Algorithm2D):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self.vandermonde @ (pseudo_inverse @ data.ravel())
-            weights = _weighting._asls(data.ravel(), baseline, p).reshape(self._len)
+            weights = _weighting._asls(data, baseline.reshape(self._len), p)
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1, use_banded=False)
+
+        # (W.T @ W + P_1) @ y -> P_1 @ y + W.T @ W @ y
+        self.whittaker_system.add_penalty(penalized_system_1.penalty)
+        p1_y = penalized_system_1.penalty @ y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            penalized_system_1.add_diagonal(weight_array * weight_array)
+            weight_squared = weight_array**2
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty + penalized_system_1.penalty,
-                penalized_system_1.penalty * y
+                self.whittaker_system.add_diagonal(weight_squared),
+                weight_squared * y + p1_y
             )
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -421,7 +425,7 @@ class _Whittaker(_Algorithm2D):
         """
         if not 0 <= eta <= 1:
             raise ValueError('eta must be between 0 and 1')
-        elif (np.asarray(diff_order) < 2).any():
+        elif np.less(diff_order, 2).any():
             raise ValueError('diff_order must be 2 or greater')
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)

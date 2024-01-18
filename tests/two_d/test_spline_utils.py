@@ -78,7 +78,11 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
     output = pspline.solve_pspline(y, weights=weights.reshape(y.shape))
 
     assert_allclose(output.flatten(), expected_result, rtol=1e-8, atol=1e-8)
-    assert_allclose(pspline.coef.flatten(), expected_coeffs, rtol=1e-8, atol=1e-8)
+    assert_allclose(pspline.coef, expected_coeffs, rtol=1e-8, atol=1e-8)
+
+    # also ensure that the pspline's basis can use the solved coefficients
+    basis_output = pspline.basis @ pspline.coef
+    assert_allclose(basis_output, expected_result, rtol=1e-8, atol=1e-8)
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, [2, 3]))
@@ -139,6 +143,14 @@ def test_pspline_setup(data_fixture2d, num_knots, spline_degree, diff_order, lam
     assert pspline.knots_z.shape == (num_knots_z + 2 * spline_degree_z,)
     assert isinstance(pspline.x, np.ndarray)
     assert isinstance(pspline.z, np.ndarray)
+
+    # _basis should be None since the basis attribute has not been accessed yet
+    assert pspline._basis is None
+
+    expected_basis = kron(basis_x, basis_z).toarray()
+
+    assert_allclose(pspline.basis.toarray(), expected_basis, rtol=1e-12, atol=1e-12)
+    assert_allclose(pspline._basis.toarray(), expected_basis, rtol=1e-12, atol=1e-12)
 
 
 def test_pspline_same_basis(data_fixture2d):

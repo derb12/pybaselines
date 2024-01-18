@@ -12,10 +12,10 @@ from scipy.sparse.linalg import spsolve
 
 from .._spline_utils import _spline_basis, _spline_knots
 from .._validation import _check_array, _check_lam, _check_scalar
-from ._whittaker_utils import diff_penalty_matrix
+from ._whittaker_utils import PenalizedSystem2D
 
 
-class PSpline2D:
+class PSpline2D(PenalizedSystem2D):
     """
     A Penalized Spline, which penalizes the difference of the spline coefficients.
 
@@ -95,6 +95,9 @@ class PSpline2D:
             (``num_knots + spline_degree - 1``).
 
         """
+        self.coef = None
+        self._basis = None
+
         self.x = _check_array(x, dtype=float, check_finite=check_finite, ensure_1d=True)
         self.z = _check_array(z, dtype=float, check_finite=check_finite, ensure_1d=True)
 
@@ -103,23 +106,26 @@ class PSpline2D:
 
         if (self.spline_degree < 0).any():
             raise ValueError('spline degree must be >= 0')
-        elif (self.spline_degree < 0).any():
-            raise ValueError('spline degree must be greater than or equal to 0')
 
         self.knots_x = _spline_knots(self.x, self.num_knots[0], self.spline_degree[0], True)
         self.basis_x = _spline_basis(self.x, self.knots_x, self.spline_degree[0])
 
         self.knots_z = _spline_knots(self.z, self.num_knots[1], self.spline_degree[1], True)
         self.basis_z = _spline_basis(self.z, self.knots_z, self.spline_degree[1])
-        self._num_bases = np.array((self.basis_x.shape[1], self.basis_z.shape[1]))
+
+        super().__init__(
+            (self.basis_x.shape[1], self.basis_z.shape[1]), lam, diff_order, use_banded=False
+        )
+        if (self.diff_order >= self._num_bases).any():
+            raise ValueError((
+                'the difference order must be less than the number of basis '
+                'functions, which is the number of knots + spline degree - 1'
+            ))
 
         el = np.ones((self._num_bases[0], 1))
         ek = np.ones((self._num_bases[1], 1))
         self._G = sparse.kron(self.basis_x, el.T).multiply(sparse.kron(el.T, self.basis_x))
         self._G2 = sparse.kron(self.basis_z, ek.T).multiply(sparse.kron(ek.T, self.basis_z))
-
-        self.coef = None
-        self.reset_penalty(lam, diff_order)
 
     def same_basis(self, num_knots=100, spline_degree=3):
         """
@@ -180,23 +186,7 @@ class PSpline2D:
         basis and the penalty to speed up calculations when the two are added.
 
         """
-        self.diff_order = _check_scalar(diff_order, 2, True)[0]
-        self.lam = np.array([_check_lam(val) for val in _check_scalar(lam, 2, True)[0]])
-
-        if (self.diff_order < 1).any():
-            raise ValueError('the difference order must be > 0 for penalized splines')
-        elif (self.diff_order >= self._num_bases).any():
-            raise ValueError((
-                'the difference order must be less than the number of basis '
-                'functions, which is the number of knots + spline degree - 1'
-            ))
-        D1 = diff_penalty_matrix(self._num_bases[0], self.diff_order[0])
-        D2 = diff_penalty_matrix(self._num_bases[1], self.diff_order[1])
-
-        # multiplying lam by the Kronecker product is the same as multiplying just D.T @ D with lam
-        P1 = sparse.kron(self.lam[0] * D1, sparse.identity(self._num_bases[1]))
-        P2 = sparse.kron(sparse.identity(self._num_bases[0]), self.lam[1] * D2)
-        self.penalty = P1 + P2
+        self.reset_diagonals(lam, diff_order, use_banded=False)
 
     def solve_pspline(self, y, weights, penalty=None, rhs_extra=None):
         """
@@ -247,16 +237,31 @@ class PSpline2D:
                 (self._num_bases[0] * self._num_bases[1], self._num_bases[0] * self._num_bases[1])
             )
         )
+        if penalty is None:
+            penalty = self.penalty
 
-        self.coef = spsolve(
-            F + self.penalty,
-            (self.basis_x.T @ (weights * y) @ self.basis_z).flatten(),
-            'NATURAL'
-        ).reshape(self._num_bases[0], self._num_bases[1])
+        rhs = (self.basis_x.T @ (weights * y) @ self.basis_z).ravel()
+        if rhs_extra is not None:
+            rhs = rhs + rhs_extra
 
-        output = self.basis_x @ self.coef @ self.basis_z.T
+        self.coef = spsolve(F + penalty, rhs, permc_spec='NATURAL')
+
+        output = self.basis_x @ self.coef.reshape(self._num_bases) @ self.basis_z.T
 
         return output
+
+    @property
+    def basis(self):
+        """
+        The full spline basis matrix.
+
+        This is a lazy implementation since the full basis is typically not needed for
+        computations.
+
+        """
+        if self._basis is None:
+            self._basis = sparse.kron(self.basis_x, self.basis_z)
+        return self._basis
 
     @property
     def tck(self):

@@ -21,7 +21,8 @@ from ..conftest import get_2dspline_inputs
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
 @pytest.mark.parametrize('use_banded', (True, False))
-def test_solve_penalized_system(small_data2d, diff_order, lam, use_banded):
+@pytest.mark.parametrize('use_lower', (True, False))
+def test_solve_penalized_system(small_data2d, diff_order, lam, use_banded, use_lower):
     """
     Tests the accuracy of the penalized system solver.
 
@@ -43,7 +44,8 @@ def test_solve_penalized_system(small_data2d, diff_order, lam, use_banded):
     penalty = P1 + P2
 
     penalized_system = _whittaker_utils.PenalizedSystem2D(
-        small_data2d.shape, lam=lam, diff_order=diff_order, use_banded=use_banded
+        small_data2d.shape, lam=lam, diff_order=diff_order, use_banded=use_banded,
+        use_lower=use_lower
     )
 
     # TODO replace with np.random.default_rng when min numpy version is >= 1.17
@@ -133,7 +135,8 @@ def test_penalized_system_negative_lam_fails(small_data2d, lam):
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
 @pytest.mark.parametrize('use_banded', (True, False))
-def test_compare_to_psplines(data_fixture2d, lam, diff_order, use_banded):
+@pytest.mark.parametrize('use_lower', (True, False))
+def test_compare_to_psplines(data_fixture2d, lam, diff_order, use_banded, use_lower):
     """
     Ensures 2D Whittaker and PSpline outputs are the same for specific condition.
 
@@ -158,7 +161,7 @@ def test_compare_to_psplines(data_fixture2d, lam, diff_order, use_banded):
     assert_array_equal(pspline.basis_z.shape, (len(z)), len(z))
 
     whittaker_system = _whittaker_utils.PenalizedSystem2D(
-        y.shape, lam=lam, diff_order=diff_order, use_banded=use_banded
+        y.shape, lam=lam, diff_order=diff_order, use_banded=use_banded, use_lower=use_lower
     )
 
     # TODO replace with np.random.default_rng when min numpy version is >= 1.17

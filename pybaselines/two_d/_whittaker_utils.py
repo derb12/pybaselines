@@ -11,7 +11,7 @@ from scipy.linalg import solve_banded, solveh_banded
 from scipy.sparse import identity, kron, spdiags
 from scipy.sparse.linalg import spsolve
 
-from .._banded_utils import diff_penalty_diagonals
+from .._banded_utils import _add_diagonals, diff_penalty_diagonals
 from .._validation import _check_lam, _check_scalar
 
 
@@ -149,7 +149,13 @@ class PenalizedSystem2D:
             The updated `self.penalty`.
 
         """
-        raise NotImplementedError
+        if self.banded:
+            self.penalty = _add_diagonals(self.penalty, penalty, lower_only=self.lower)
+        else:
+            self.penalty = self.penalty + penalty
+        self._update_bands()
+
+        return self.penalty
 
     def _update_bands(self):
         """
@@ -165,6 +171,9 @@ class PenalizedSystem2D:
                 self.num_bands = self.penalty.shape[0] // 2
             self.main_diagonal_index = 0 if self.lower else self.num_bands
             self.main_diagonal = self.penalty[self.main_diagonal_index].copy()
+        else:
+            self.main_diagonal_index = 0
+            self.main_diagonal = self.penalty.diagonal()
 
     def reset_diagonals(self, lam=1, diff_order=2, use_banded=True, use_lower=True):
         """
@@ -212,8 +221,8 @@ class PenalizedSystem2D:
             self._update_bands()
         else:
             self.penalty = penalty
-            self.main_diagonal = self.penalty.diagonal()
-            self.main_diagonal_index = 0
+
+        self._update_bands()
 
     def solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False,
               check_finite=False, l_and_u=None):
