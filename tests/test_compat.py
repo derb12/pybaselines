@@ -52,6 +52,8 @@ def _add(a, b):
     return output
 
 
+# ignore the change of the default nopython value for numba's jit
+@pytest.mark.filterwarnings("ignore:.*The 'nopython' keyword argument was not supplied.*")
 def test_jit():
     """Ensures the jit decorator works regardless of whether or not numba is installed."""
     input_1 = 5
@@ -67,11 +69,13 @@ def test_jit_kwargs():
     input_1 = 5
     input_2 = 6
     expected = input_1 + input_2
-    output = _compat.jit(_add, cache=True)(input_1, b=input_2)
+    output = _compat.jit(_add, cache=True, nopython=True)(input_1, b=input_2)
 
     assert_array_equal(expected, output)
 
 
+# ignore the change of the default nopython value for numba's jit
+@pytest.mark.filterwarnings("ignore:.*The 'nopython' keyword argument was not supplied.*")
 def test_jit_no_parentheses():
     """Ensure the jit decorator works with no parentheses whether or not numba is installed."""
 
@@ -94,6 +98,8 @@ def test_jit_no_parentheses():
     assert_array_equal(expected, output)
 
 
+# ignore the change of the default nopython value for numba's jit
+@pytest.mark.filterwarnings("ignore:.*The 'nopython' keyword argument was not supplied.*")
 def test_jit_no_inputs():
     """Ensure the jit decorator works with no arguments whether or not numba is installed."""
 
@@ -119,7 +125,7 @@ def test_jit_no_inputs():
 def test_jit_signature():
     """Ensure the jit decorator works with a signature whether or not numba is installed."""
 
-    @_compat.jit('int64(int64, int64)')
+    @_compat.jit('int64(int64, int64)', nopython=True)
     def _add4(a, b):
         """
         Simple function that adds two things.
