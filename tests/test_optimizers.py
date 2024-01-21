@@ -370,3 +370,17 @@ class TestCustomBC(OptimizersTester, OptimizerInputWeightsMixin):
     def test_input_weights(self):
         """Ensures weights are correctly sorted within the function."""
         super().test_input_weights(assertion_kwargs={'rtol': 1e-6})
+
+    @pytest.mark.parametrize('lam', (None, 1))
+    def test_lam_inputs(self, lam):
+        """Ensures the smoothing is done properly if specified."""
+        diff_order = 2
+        output = self.class_func(self.y, lam=lam, diff_order=diff_order)[0]
+
+        if lam is not None:
+            non_smooth_output = self.class_func(self.y, lam=None, diff_order=diff_order)[0]
+            smoothed_output = utils.whittaker_smooth(
+                non_smooth_output, lam=lam, diff_order=diff_order
+            )
+
+            assert_allclose(output, smoothed_output, rtol=1e-8, atol=1e-8)

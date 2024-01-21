@@ -528,8 +528,7 @@ def _inverted_sort(sort_order):
     return inverted_order
 
 
-def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=True,
-                     penalized_system=None, pentapy_solver=2):
+def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=True):
     """
     Smooths the input data using Whittaker smoothing.
 
@@ -555,13 +554,6 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
     check_finite : bool, optional
         If True, will raise an error if any values if `data` or `weights` are not finite.
         Default is False, which skips the check.
-    penalized_system : pybaselines._banded_utils.PenalizedSystem, optional
-        If None (default), will create a new PenalizedSystem object for solving the equation.
-        If not None, will use the object's `reset_diagonals` method and then solve.
-    pentapy_solver : int or str, optional
-        The integer or string designating which solver to use if using pentapy. See
-        :func:`pentapy.solve` for available options, although `1` or `2` are the
-        most relevant options. Default is 2.
 
     Returns
     -------
@@ -575,26 +567,19 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
     """
     y = _check_array(data, check_finite=check_finite, ensure_1d=True)
     len_y = len(y)
-    if penalized_system is not None:
-        penalized_system.reset_diagonals(lam=lam, diff_order=diff_order)
-    else:
-        penalized_system = PenalizedSystem(
-            len_y, lam=lam, diff_order=diff_order, pentapy_solver=pentapy_solver
-        )
+    penalized_system = PenalizedSystem(len_y, lam=lam, diff_order=diff_order)
     weight_array = _check_optional_array(len_y, weights, check_finite=check_finite)
 
-    penalized_system.penalty[penalized_system.main_diagonal_index] = (
-        penalized_system.penalty[penalized_system.main_diagonal_index] + weight_array
-    )
     y_smooth = penalized_system.solve(
-        penalized_system.penalty, weight_array * y, overwrite_ab=True, overwrite_b=True
+        penalized_system.add_diagonal(weight_array),
+        weight_array * y, overwrite_ab=True, overwrite_b=True
     )
 
     return y_smooth
 
 
 def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, diff_order=2,
-                   weights=None, check_finite=True, pspline=None):
+                   weights=None, check_finite=True):
     """
     Smooths the input data using Penalized Spline smoothing.
 
@@ -628,9 +613,6 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     check_finite : bool, optional
         If True, will raise an error if any values if `data` or `weights` are not finite.
         Default is False, which skips the check.
-    pspline : pybaselines._spline_utils.PSpline, optional
-        If None (default), will create a new PSpline object for solving the equation.
-        If not None, will use the object's `reset_penalty_diagonals` method and then solve.
 
     Returns
     -------
@@ -647,12 +629,8 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
     """
-    if pspline is None or not pspline.same_basis(num_knots, spline_degree):
-        y, x = _yx_arrays(data, x_data, check_finite=check_finite, ensure_1d=True)
-        pspline = PSpline(x, num_knots, spline_degree, False, lam, diff_order)
-    else:
-        y = _check_array(data, check_finite=check_finite, ensure_1d=True)
-        pspline.reset_penalty_diagonals(lam, diff_order)
+    y, x = _yx_arrays(data, x_data, check_finite=check_finite, ensure_1d=True)
+    pspline = PSpline(x, num_knots, spline_degree, check_finite, lam, diff_order)
 
     weight_array = _check_optional_array(
         len(y), weights, dtype=float, order='C', check_finite=check_finite

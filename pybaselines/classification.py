@@ -58,7 +58,7 @@ from ._compat import jit, trapezoid
 from ._validation import _check_scalar
 from .utils import (
     _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
-    pad_edges, relative_difference, whittaker_smooth
+    pad_edges, relative_difference
 )
 
 
@@ -797,9 +797,9 @@ class _Classification(_Algorithm):
             if self._sort_order is not None:
                 whittaker_weights = whittaker_weights[self._inverted_order]
 
-        baseline = whittaker_smooth(
-            y, lam=lam, diff_order=diff_order, weights=whittaker_weights,
-            check_finite=False, penalized_system=self.whittaker_system
+        baseline = self.whittaker_system.solve(
+            self.whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
+            overwrite_b=True, overwrite_ab=True
         )
         params = {'mask': mask, 'weights': whittaker_weights}
 
@@ -906,12 +906,10 @@ class _Classification(_Algorithm):
         mask[np.unique(total_vertices)] = True
         np.logical_and(mask, weight_array, out=mask)
         if lam is not None and lam != 0:
-            # call setup whittaker so that self.whittaker_system will be initialized
-            # and does not need setup again on repeated function calls
             self._setup_whittaker(y, lam, diff_order, mask)
-            baseline = whittaker_smooth(
-                y, lam=lam, diff_order=diff_order, weights=mask,
-                check_finite=False, penalized_system=self.whittaker_system
+            baseline = self.whittaker_system.solve(
+                self.whittaker_system.add_diagonal(mask), mask * y,
+                overwrite_b=True, overwrite_ab=True
             )
         else:
             baseline = np.interp(self.x, self.x[mask], y[mask])

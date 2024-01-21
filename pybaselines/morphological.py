@@ -12,7 +12,7 @@ from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_openin
 from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
 from ._validation import _check_lam
 from .utils import (
-    _mollifier_kernel, pad_edges, padded_convolve, relative_difference, whittaker_smooth
+    _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 )
 
 
@@ -121,9 +121,9 @@ class _Morphological(_Algorithm):
             w = _sort_array(w, self._inverted_order)
 
         _, weight_array = self._setup_whittaker(y, lam, diff_order, w)
-        baseline = whittaker_smooth(
-            y, lam=lam, diff_order=diff_order, weights=weight_array,
-            check_finite=False, penalized_system=self.whittaker_system
+        baseline = self.whittaker_system.solve(
+            self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+            overwrite_ab=True, overwrite_b=True
         )
 
         params = {'weights': weight_array, 'half_window': half_wind}

@@ -23,7 +23,7 @@ from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
     _MIN_FLOAT, _mollifier_kernel, ParameterWarning, gaussian, pad_edges, padded_convolve,
-    pspline_smooth, relative_difference
+    relative_difference
 )
 
 
@@ -1390,11 +1390,7 @@ class _Spline(_Algorithm):
             w = _sort_array(w, self._inverted_order)
 
         _, weight_array = self._setup_spline(y, w, spline_degree, num_knots, True, diff_order, lam)
-        baseline = pspline_smooth(
-            y, x_data=self.x, lam=lam, num_knots=num_knots, spline_degree=spline_degree,
-            diff_order=diff_order, weights=weight_array, check_finite=self._check_finite,
-            pspline=self.pspline
-        )[0]
+        baseline = self.pspline.solve_pspline(y, weight_array)
 
         params = {'weights': weight_array, 'half_window': half_wind}
         return baseline, params

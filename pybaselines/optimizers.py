@@ -16,7 +16,7 @@ import numpy as np
 from . import classification, misc, morphological, polynomial, smooth, spline, whittaker
 from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, gaussian, whittaker_smooth
+from .utils import _check_scalar, _get_edges, gaussian
 
 
 class _Optimizers(_Algorithm):
@@ -549,7 +549,7 @@ class _Optimizers(_Algorithm):
         References
         ----------
         .. [31] Liland, K., et al. Customized baseline correction. Chemometrics and
-               Intelligent Laboratory Systems, 2011, 109(1), 51-56.
+                Intelligent Laboratory Systems, 2011, 109(1), 51-56.
 
         """
         y, baseline_func, _, method_kws, fitting_object = self._setup_optimizer(
@@ -583,17 +583,16 @@ class _Optimizers(_Algorithm):
         y_fit = y[indices]
         x_fit = self.x[indices]
 
-        # TODO what about the sort ordering?
         with fitting_object._override_x(x_fit):
             baseline_fit, params = baseline_func(y_fit, **method_kws)
 
         baseline = np.interp(self.x, x_fit, baseline_fit)
         params.update({'x_fit': x_fit, 'y_fit': y_fit})
         if lam is not None and lam != 0:
-            _, weights = self._setup_whittaker(y, lam=lam, diff_order=diff_order)
-            baseline = whittaker_smooth(
-                baseline, lam=lam, diff_order=diff_order, weights=weights,
-                check_finite=self._check_finite, penalized_system=self.whittaker_system
+            self._setup_whittaker(y, lam=lam, diff_order=diff_order)
+            baseline = self.whittaker_system.solve(
+                self.whittaker_system.add_diagonal(1.), baseline,
+                overwrite_ab=True, overwrite_b=True
             )
 
         return _sort_array(baseline, self._sort_order), params
