@@ -16,7 +16,9 @@ from scipy.special import binom
 from ._banded_utils import PenalizedSystem, difference_matrix as _difference_matrix
 from ._compat import jit
 from ._spline_utils import PSpline
-from ._validation import _check_array, _check_scalar, _check_optional_array, _yx_arrays
+from ._validation import (
+    _check_array, _check_scalar, _check_optional_array, _get_row_col_values, _yx_arrays
+)
 
 
 # the minimum positive float values such that a + _MIN_FLOAT != a
@@ -308,11 +310,194 @@ def pad_edges(data, pad_length, mode='extrapolate',
     return padded_data
 
 
-def pad_edges2d(data, pad_length, *args, mode='edge', **kwargs):
-    if not _check_scalar(pad_length, None)[1]:
-        raise NotImplementedError('separate pad lengths not yet supported')
+def _extrapolate2d(y, total_padding, extrapolate_window=None):
+    """
+    Extrapolates each edge of two dimensional data.
+
+    Corners are calculated by averaging linear fits of the extended data.
+
+    Parameters
+    ----------
+    y : numpy.ndarray
+        _description_
+    total_padding : Sequence[int, int, int, int]
+        The padding for the top, bottom, left, and right. The padding of top and
+        bottom are assumed to be equal, as are the left and right.
+    extrapolate_window : int or Sequence[int, int] or Sequence[int, int, int, int], optional
+        The number of values to use for linear fitting on the top, bottom, left, and right
+        edges. Default is None, which will set the extrapolate window size equal
+        to `total_padding`.
+
+    Returns
+    -------
+    output : numpy.ndarray
+        The data with padding
+
+    Raises
+    ------
+    NotImplementedError
+        Raised if any value in `total_padding` is zero.
+    ValueError
+        Raised if any extrapolation window is less than 1.
+
+    Notes
+    -----
+    Uses the Moore-Penrose pseudo-inverse to speed up the calculation of the linear fits
+    for each edge. Using the Vandermonde with `numpy.linalg.lstsq` would also work but is
+    a little slower.
+
+    """
+    if np.equal(total_padding, 0).any():
+        raise NotImplementedError('pad length of 0 is not supported in 2D')
+    elif np.less(total_padding, 0).any():
+        raise ValueError('pad length must be greater or equal to 0')
+
+    if extrapolate_window is None:
+        extrapolate_windows = total_padding
     else:
-        return pad_edges(data, pad_length, *args, mode=mode, **kwargs)
+        extrapolate_windows = _get_row_col_values(extrapolate_window).reshape((2, 2))
+
+    if np.less_equal(extrapolate_windows, 0).any():
+        raise ValueError('extrapolate_window must be greater than 0')
+    # pad length for left and right or top and bottom should be equal, so ignore the repeats
+    total_padding = [total_padding[0][0], total_padding[1][0]]
+
+    output = np.empty(
+        (y.shape[0] + total_padding[0] * 2, y.shape[1] + total_padding[1] * 2)
+    )
+    output[total_padding[0]:-total_padding[0], total_padding[1]:-total_padding[1]] = y
+
+    x = np.arange(y.shape[0] + 2 * total_padding[0])
+    z = np.arange(y.shape[1] + 2 * total_padding[1])
+
+    vander_x = np.polynomial.polynomial.polyvander(x, 1)
+    vander_z = np.polynomial.polynomial.polyvander(z, 1)
+    pinv_top = np.linalg.pinv(
+        vander_x[total_padding[0]:-total_padding[0]][:extrapolate_windows[0][0]]
+    )
+    pinv_bottom = np.linalg.pinv(
+        vander_x[total_padding[0]:-total_padding[0]][-extrapolate_windows[0][1]:]
+    )
+    pinv_left = np.linalg.pinv(
+        vander_z[total_padding[1]:-total_padding[1]][:extrapolate_windows[1][0]]
+    )
+    pinv_right = np.linalg.pinv(
+        vander_z[total_padding[1]:-total_padding[1]][-extrapolate_windows[1][1]:]
+    )
+
+    top = vander_x[:total_padding[0]] @ (pinv_top @ y[:extrapolate_windows[0][0]])
+    bottom = vander_x[-total_padding[0]:] @ (pinv_bottom @ y[-extrapolate_windows[0][1]:])
+
+    output[:total_padding[0], total_padding[1]:-total_padding[1]] = top
+    output[-total_padding[0]:, total_padding[1]:-total_padding[1]] = bottom
+
+    left = vander_z[:total_padding[1]] @ (pinv_left @ y[:, :extrapolate_windows[1][0]].T)
+    right = vander_z[-total_padding[1]:] @ (pinv_right @ y[:, -extrapolate_windows[1][1]:].T)
+
+    output[total_padding[0]:-total_padding[0], :total_padding[1]] = left.T
+    output[total_padding[0]:-total_padding[0], -total_padding[1]:] = right.T
+
+    # now fill the corners by averaging the extensions of the corners
+    top_left = vander_z[:total_padding[1]] @ (
+        pinv_left @ output[
+            :total_padding[0], total_padding[1]:-total_padding[1]
+        ][:, :extrapolate_windows[1][0]].T
+    )
+    top_right = vander_z[-total_padding[1]:] @ (
+        pinv_right @ output[
+            :total_padding[0], total_padding[1]:-total_padding[1]
+        ][:, -extrapolate_windows[1][1]:].T
+    )
+
+    bottom_left = vander_z[:total_padding[1]] @ (
+        pinv_left @ output[
+            -total_padding[0]:, total_padding[1]:-total_padding[1]
+        ][:, :extrapolate_windows[1][0]].T
+    )
+    bottom_right = vander_z[-total_padding[1]:] @ (
+        pinv_right @ output[
+            -total_padding[0]:, total_padding[1]:-total_padding[1]
+        ][:, -extrapolate_windows[1][1]:].T
+    )
+
+    left_top = vander_x[:total_padding[0]] @ (
+        pinv_top @ output[
+            total_padding[0]:-total_padding[0], :total_padding[1]
+        ][:extrapolate_windows[0][0]]
+    )
+    left_bottom = vander_x[-total_padding[0]:] @ (
+        pinv_bottom @ output[
+            total_padding[0]:-total_padding[0], :total_padding[1]:
+        ][-extrapolate_windows[0][1]:]
+    )
+
+    right_top = vander_x[:total_padding[0]] @ (
+        pinv_top @ output[
+            total_padding[0]:-total_padding[0], -total_padding[1]:
+        ][:extrapolate_windows[0][0]]
+    )
+    right_bottom = vander_x[-total_padding[0]:] @ (
+        pinv_bottom @ output[
+            total_padding[0]:-total_padding[0], -total_padding[1]:
+        ][-extrapolate_windows[0][1]:]
+    )
+
+    output[:total_padding[0], :total_padding[1]] = 0.5 * (top_left.T + left_top)
+    output[:total_padding[0], -total_padding[1]:] = 0.5 * (top_right.T + right_top)
+    output[-total_padding[0]:, :total_padding[1]] = 0.5 * (bottom_left.T + left_bottom)
+    output[-total_padding[0]:, -total_padding[1]:] = 0.5 * (bottom_right.T + right_bottom)
+
+    return output
+
+
+def pad_edges2d(data, pad_length, mode='edge', extrapolate_window=None, **pad_kwargs):
+    """
+    Adds left, right, top, and bottom edges to the data.
+
+    Parameters
+    ----------
+    data : array-like, shape (M, N)
+        The 2D array of the data.
+    pad_length : int or Sequence[int, int]
+        The number of points to add to the top, bottom, left, and right edges. If a single
+        value is given, all edges have the same padding. If a sequence of two values is
+        given, the first value will be the padding on the top and bottom (rows), and the second
+        value will pad the left and right (columns).
+    mode : str or Callable, optional
+        The method for padding. Default is 'edge'. Any method other than
+        'extrapolate' will use :func:`numpy.pad`.
+    extrapolate_window : int or Sequence[int, int] or Sequence[int, int, int, int], optional
+        The number of values to use for linear fitting on the top, bottom, left, and right
+        edges. Default is None, which will set the extrapolate window size equal
+        to `pad_length`.
+    **pad_kwargs
+        Any keyword arguments to pass to :func:`numpy.pad`, which will be used if `mode`
+        is not 'extrapolate'.
+
+    Returns
+    -------
+    padded_data : numpy.ndarray
+        The data with padding on the top, bottom, left, and right edges.
+
+    Notes
+    -----
+    If mode is 'extrapolate', then each edge will be extended by linear fits along each
+    row and column, and the corners are calculated by averaging the linear sections.
+
+    """
+    y = np.asarray(data)
+    if y.ndim != 2:
+        raise ValueError('input data must be two dimensional')
+    total_padding = _get_row_col_values(pad_length).reshape((2, 2))
+
+    if isinstance(mode, str):
+        mode = mode.lower()
+    if mode == 'extrapolate':
+        output = _extrapolate2d(y, total_padding, extrapolate_window)
+    else:
+        output = np.pad(data, total_padding, mode=mode, **pad_kwargs)
+
+    return output
 
 
 def padded_convolve(data, kernel, mode='reflect', **pad_kwargs):
@@ -578,16 +763,18 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
     """
     y = np.asarray(data)
     if max_half_window is None:
-        max_half_window = (y.shape[0] - 1) // 2
+        max_half_window = (y.shape[-1] - 1) // 2
     if min_half_window is None:
         min_half_window = 1
 
+    y_dims = y.ndim
     # TODO would it be better to allow padding the data?
-    opening = grey_opening(y, [2 * min_half_window + 1])
+    opening = grey_opening(y, [2 * min_half_window + 1] * y_dims)
     hits = 0
+    half_window = 1  # in case min_half_window is set incorrectly
     best_half_window = min_half_window
     for half_window in range(min_half_window + increment, max_half_window, increment):
-        new_opening = grey_opening(y, [half_window * 2 + 1])
+        new_opening = grey_opening(y, [half_window * 2 + 1] * y_dims)
         if relative_difference(opening, new_opening) < window_tol:
             if hits == 0:
                 # keep just the first window that fits tolerance
@@ -600,7 +787,11 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
             hits = 0
         opening = new_opening
 
-    return max(half_window, 1)  # ensure half window is at least 1
+    if y_dims == 2:
+        output = np.maximum([half_window, half_window], [1, 1])
+    else:
+        output = max(half_window, 1)  # ensure half window is at least 1
+    return output
 
 
 def _inverted_sort(sort_order):

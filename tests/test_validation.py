@@ -457,3 +457,24 @@ def test_optional_array_no_input():
 
     assert isinstance(output, np.ndarray)
     assert_array_equal(output, np.ones(length))
+
+
+def test_get_row_col_values():
+    """Ensures multiple inputs can work for _get_row_col_values."""
+    assert_array_equal(_validation._get_row_col_values(1), [1, 1, 1, 1])
+    assert_array_equal(_validation._get_row_col_values(np.array(1)), [1, 1, 1, 1])
+    assert_array_equal(_validation._get_row_col_values(np.array([1])), [1, 1, 1, 1])
+    assert_array_equal(_validation._get_row_col_values([1.1]), [1.1, 1.1, 1.1, 1.1])
+    assert_array_equal(_validation._get_row_col_values([[1.1]]), [1.1, 1.1, 1.1, 1.1])
+    assert_array_equal(_validation._get_row_col_values([1, 2]), [1, 1, 2, 2])
+    assert_array_equal(_validation._get_row_col_values([[1], [2]]), [1, 1, 2, 2])
+    assert_array_equal(_validation._get_row_col_values(np.array([1, 2, 3, 4])), [1, 2, 3, 4])
+    assert_array_equal(_validation._get_row_col_values([1, 2, 3, 4]), [1, 2, 3, 4])
+    assert_array_equal(_validation._get_row_col_values([[1, 2], [3, 4]]), [1, 2, 3, 4])
+
+
+@pytest.mark.parametrize('values', ([1, 2, 3], [1, 2, 3, 4, 5]))
+def test_get_row_col_values_fails(values):
+    """Ensures _get_row_col_values raises an exception with incorrectly sized inputs.."""
+    with pytest.raises(ValueError):
+        _validation._get_row_col_values(values)

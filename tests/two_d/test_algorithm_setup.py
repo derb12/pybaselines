@@ -214,10 +214,11 @@ def test_setup_polynomial_vandermonde(small_data2d, algorithm, vander_enum, incl
 def test_setup_smooth_shape(small_data2d, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4
-    y = algorithm._setup_smooth(small_data2d, pad_length, mode='edge')
+    y, hw = algorithm._setup_smooth(small_data2d, pad_length, mode='edge')
     assert_array_equal(
         y.shape, (small_data2d.shape[0] + 2 * pad_length, small_data2d.shape[1] + 2 * pad_length)
     )
+    assert_array_equal(hw, [pad_length, pad_length])
 
 
 @pytest.mark.parametrize('num_knots', (10, 30, (20, 30)))

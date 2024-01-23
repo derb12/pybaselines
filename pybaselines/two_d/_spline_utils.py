@@ -11,7 +11,7 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 
 from .._spline_utils import _spline_basis, _spline_knots
-from .._validation import _check_array, _check_lam, _check_scalar
+from .._validation import _check_array, _check_scalar
 from ._whittaker_utils import PenalizedSystem2D
 
 

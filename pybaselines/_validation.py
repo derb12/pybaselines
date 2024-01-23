@@ -478,3 +478,37 @@ def _check_optional_array(data_size, array=None, dtype=None, order=None, check_f
             output_array = output_array.copy()
 
     return output_array
+
+
+def _get_row_col_values(value, **asarray_kwargs):
+    """
+    Determines the row and column values for an input that can be scalar or up to length 4.
+
+    Parameters
+    ----------
+    value : numpy.number or Sequence[numpy.number, ...]
+        _description_
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (4,)
+        The array of length 4 with values first row, last row, first column, last column.
+
+    Raises
+    ------
+    ValueError
+        Raised if the input value was a sequence with 1, 2, or 4 values.
+
+    """
+    # can either be len 1, 2, or 4
+    output, scalar_input = _check_scalar(value, None, **asarray_kwargs)
+    if scalar_input:
+        output = np.full(4, output)
+    else:
+        len_input = len(output)
+        if len_input not in (2, 4):
+            raise ValueError('input must either be a single value or an array with length 2 or 4')
+        elif len_input == 2:
+            output = np.array([output[0], output[0], output[1], output[1]])
+
+    return output

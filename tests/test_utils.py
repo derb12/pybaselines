@@ -407,7 +407,9 @@ def test_pad_edges_extrapolate_windows():
     input_array[-10:] = 1.
     extrapolate_windows = [40, 10]
     pad_len = 20
-    output = utils.pad_edges(input_array, pad_len, extrapolate_window=extrapolate_windows)
+    output = utils.pad_edges(
+        input_array, pad_len, mode='extrapolate', extrapolate_window=extrapolate_windows
+    )
 
     assert_allclose(output[:pad_len], np.full(pad_len, 0.), 1e-14)
     assert_allclose(output[-pad_len:], np.full(pad_len, 1.), 1e-14)
@@ -417,7 +419,9 @@ def test_pad_edges_extrapolate_windows():
 def test_pad_edges_extrapolate_zero_window(extrapolate_window):
     """Ensures an extrapolate_window <= 0 raises an exception."""
     with pytest.raises(ValueError):
-        utils.pad_edges(np.arange(10), 10, extrapolate_window=extrapolate_window)
+        utils.pad_edges(
+            np.arange(10), 10, mode='extrapolate', extrapolate_window=extrapolate_window
+        )
 
 
 @pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
@@ -445,7 +449,7 @@ def test_pad_edges_custom_pad_func():
 
     actual_output = utils.pad_edges(input_array, pad_length, pad_func, pad_val=pad_val)
 
-    assert_array_equal(actual_output, expected_output)
+    assert_allclose(actual_output, expected_output, rtol=1e-12, atol=0)
 
 
 def test_get_edges_custom_pad_func():
@@ -499,6 +503,111 @@ def test_get_edges(pad_mode, pad_length, list_input, data_fixture):
     if check_output:
         assert_allclose(left, expected_left)
         assert_allclose(right, expected_right)
+
+
+@pytest.mark.parametrize(
+    'pad_mode', ('reflect', 'REFLECT', 'extrapolate', 'edge', 'constant', pad_func)
+)
+@pytest.mark.parametrize('pad_length', (1, 2, 20, 53))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_pad_edges2d(pad_mode, pad_length, list_input, data_fixture2d):
+    """Tests various inputs for utils.pad_edges2d."""
+    *_, data = data_fixture2d
+    data_shape = data.shape
+    if list_input:
+        data = data.tolist()
+
+    if not callable(pad_mode):
+        np_pad_mode = pad_mode.lower()
+    else:
+        np_pad_mode = pad_mode
+    if np_pad_mode != 'extrapolate':
+        expected_output = np.pad(data, pad_length, np_pad_mode)
+    else:
+        expected_output = None
+
+    output = utils.pad_edges2d(data, pad_length, pad_mode)
+    assert isinstance(output, np.ndarray)
+    assert output.ndim == 2
+    assert output.shape[0] == data_shape[0] + 2 * pad_length
+    assert output.shape[1] == data_shape[1] + 2 * pad_length
+
+    if expected_output is not None:
+        assert_allclose(output, expected_output)
+
+
+@pytest.mark.parametrize('pad_length', (0, 1, 2, 20, 53))
+@pytest.mark.parametrize('extrapolate_window', (None, 1, 2, 10, 1001, (10, 20), (1, 1)))
+@pytest.mark.parametrize('list_input', (False, True))
+def test_pad_edges2d_extrapolate(pad_length, list_input, extrapolate_window, data_fixture2d):
+    """Ensures extrapolation works for utils.pad_edges."""
+    *_, data = data_fixture2d
+    data_shape = data.shape
+    if list_input:
+        data = data.tolist()
+
+    if np.less_equal(pad_length, 0).any():
+        with pytest.raises(NotImplementedError):
+            utils.pad_edges2d(data, pad_length, 'extrapolate', extrapolate_window)
+    else:
+        output = utils.pad_edges2d(data, pad_length, 'extrapolate', extrapolate_window)
+        assert isinstance(output, np.ndarray)
+        assert output.shape[0] == data_shape[0] + 2 * pad_length
+        assert output.shape[1] == data_shape[1] + 2 * pad_length
+
+
+def test_pad_edges2d_extrapolate_windows():
+    """Ensures the separate extrapolate windows are correctly interpreted."""
+    input_array = np.zeros(400).reshape(20, 20)
+    input_array[-10:] = 1.
+    extrapolate_windows = [5, 10]
+    pad_len = 5
+    output = utils.pad_edges2d(
+        input_array, pad_len, mode='extrapolate', extrapolate_window=extrapolate_windows
+    )
+
+    assert_allclose(
+        output[:pad_len, pad_len:-pad_len], np.full((pad_len, input_array.shape[1]), 0.), 1e-14
+    )
+    assert_allclose(
+        output[-pad_len:, pad_len:-pad_len], np.full((pad_len, input_array.shape[1]), 1.), 1e-14
+    )
+
+
+@pytest.mark.parametrize('extrapolate_window', (0, -2, (0, 0), (5, 0), (5, -1)))
+def test_pad_edges2d_extrapolate_zero_window(small_data2d, extrapolate_window):
+    """Ensures an extrapolate_window <= 0 raises an exception."""
+    with pytest.raises(ValueError):
+        utils.pad_edges2d(
+            small_data2d, 10, mode='extrapolate', extrapolate_window=extrapolate_window
+        )
+
+
+@pytest.mark.parametrize('pad_mode', ('reflect', 'extrapolate'))
+def test_pad_edges2d_negative_pad_length(pad_mode, data_fixture2d):
+    """Ensures a negative pad length raises an exception."""
+    with pytest.raises(ValueError):
+        utils.pad_edges2d(data_fixture2d[-1], -5, pad_mode)
+
+
+def test_pad_edges2d_custom_pad_func():
+    """Ensures pad_edges works with a callable padding function, same as numpy.pad."""
+    input_array = np.arange(2000).reshape(50, 40)
+    pad_val = 20
+    pad_length = 10
+
+    expected_output = np.empty(
+        (input_array.shape[0] + 2 * pad_length, input_array.shape[1] + 2 * pad_length)
+    )
+    expected_output[:pad_length] = pad_val
+    expected_output[-pad_length:] = pad_val
+    expected_output[:, :pad_length] = pad_val
+    expected_output[:, -pad_length:] = pad_val
+    expected_output[pad_length:-pad_length, pad_length:-pad_length] = input_array
+
+    actual_output = utils.pad_edges(input_array, pad_length, pad_func, pad_val=pad_val)
+
+    assert_allclose(actual_output, expected_output, rtol=1e-12, atol=0)
 
 
 @pytest.mark.parametrize('seed', (123, 98765))
@@ -665,3 +774,18 @@ def test_pspline_smooth(data_fixture, diff_order, num_knots, spline_degree):
     recreated_spline = BSpline(*tck)(x)
 
     assert_allclose(recreated_spline, output, rtol=1e-10)
+
+
+@pytest.mark.parametrize('two_d', (True, False))
+def test_optimize_window(small_data2d, two_d):
+    """Ensures optimize_window has the correct outputs for the dimesions of the input."""
+    data = small_data2d
+    if not two_d:
+        data = data.flatten()
+
+    output = utils.optimize_window(data)
+    if two_d:
+        assert output.shape == (2,)
+        assert isinstance(output, np.ndarray)
+    else:
+        assert isinstance(output, int)

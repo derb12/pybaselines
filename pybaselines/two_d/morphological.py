@@ -65,7 +65,7 @@ class _Morphological(_Algorithm2D):
 
         """
         y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
-        opening = grey_opening(y, [2 * half_wind + 1, 2 * half_wind + 1])
+        opening = grey_opening(y, 2 * half_wind + 1)
         baseline = np.minimum(opening, _avg_opening(y, half_wind, opening))
 
         return baseline, {'half_window': half_wind}
@@ -277,7 +277,7 @@ class _Morphological(_Algorithm2D):
 
         """
         y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
-        baseline = grey_opening(y, [2 * half_wind + 1, 2 * half_wind + 1])
+        baseline = grey_opening(y, 2 * half_wind + 1)
 
         return baseline, {'half_window': half_wind}
 

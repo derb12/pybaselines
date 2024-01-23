@@ -6,6 +6,7 @@ Created on March 20, 2021
 
 """
 
+import numpy as np
 import pytest
 
 from pybaselines.two_d import morphological
@@ -19,6 +20,11 @@ class MorphologicalTester(BaseTester2D):
     module = morphological
     algorithm_base = morphological._Morphological
     checked_keys = ('half_window',)
+
+    @pytest.mark.parametrize('half_window', (None, 10, [10, 12], np.array([12, 10])))
+    def test_half_window(self, half_window):
+        """Ensures that different inputs for half_window work."""
+        self.class_func(self.y, half_window=half_window)
 
 
 class IterativeMorphologicalTester(MorphologicalTester):

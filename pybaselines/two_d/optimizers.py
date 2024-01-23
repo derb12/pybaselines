@@ -15,7 +15,7 @@ import numpy as np
 
 from . import classification, morphological, polynomial, spline, whittaker
 from ._algorithm_setup import _Algorithm2D
-from .._validation import _check_optional_array
+from .._validation import _check_optional_array, _get_row_col_values
 from ..utils import _check_scalar, _sort_array2d
 
 
@@ -217,20 +217,8 @@ class _Optimizers(_Algorithm2D):
 
         # use high weighting rather than Lagrange multipliers to constrain the points
         # to better work with noisy data
-        # allow either 4 or 2 inputs for constrained weight and fraction
-        try:
-            weightings = _check_scalar(constrained_weight, 4, True)[0]
-        except ValueError:
-            weightings = _check_scalar(constrained_weight, 2, True)[0]
-            weightings = np.array([weightings[0], weightings[0], weightings[1], weightings[1]])
-        try:
-            constrained_fractions = _check_scalar(constrained_fraction, 4, True)[0]
-        except ValueError:
-            constrained_fractions = _check_scalar(constrained_fraction, 2, True)[0]
-            constrained_fractions = np.array([
-                constrained_fractions[0], constrained_fractions[0],
-                constrained_fractions[1], constrained_fractions[1]
-            ])
+        weightings = _get_row_col_values(constrained_weight)
+        constrained_fractions = _get_row_col_values(constrained_fraction)
         if np.any(constrained_fractions < 0) or np.any(constrained_fractions > 1):
             raise ValueError('constrained_fraction must be between 0 and 1')
 

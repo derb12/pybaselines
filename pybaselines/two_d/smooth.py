@@ -6,9 +6,11 @@ Created on April 8, 2023
 
 """
 
+import numpy as np
 from scipy.ndimage import gaussian_filter, median_filter
 
-from ._algorithm_setup import _Algorithm2D, _optimize_window
+from ._algorithm_setup import _Algorithm2D
+
 
 class _Smooth(_Algorithm2D):
     """A base class for all smoothing algorithms."""
@@ -38,7 +40,7 @@ class _Smooth(_Algorithm2D):
             The standard deviation of the smoothing Gaussian kernel. Default is None,
             which will use (2 * `smooth_half_window` + 1) / 6.
         **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
+            Additional keyword arguments to pass to :func:`.pad_edges2d` for padding
             the edges of the data to prevent edge effects from convolution.
 
         Returns
@@ -54,15 +56,11 @@ class _Smooth(_Algorithm2D):
         artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
         """
-        if half_window is None:
-            half_window = 2 * _optimize_window(data)
+        y, half_window = self._setup_smooth(data, half_window, False, 2, **pad_kwargs)
         window_size = 2 * half_window + 1
-        median = median_filter(
-            self._setup_smooth(data, half_window, **pad_kwargs),
-            [window_size, window_size], mode='nearest'
-        )
+        median = median_filter(y, window_size, mode='nearest')
         if smooth_half_window is None:
-            smooth_window = window_size
+            smooth_window = np.mean(window_size)  # truncate can only be a single value
         else:
             smooth_window = 2 * smooth_half_window + 1
         if sigma is None:
@@ -70,4 +68,4 @@ class _Smooth(_Algorithm2D):
             sigma = smooth_window / 6
 
         baseline = gaussian_filter(median, sigma, truncate=smooth_window)  # TODO check truncate value
-        return baseline[half_window:-half_window, half_window:-half_window], {}
+        return baseline[half_window[0]:-half_window[0], half_window[1]:-half_window[1]], {}

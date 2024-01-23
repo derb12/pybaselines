@@ -12,11 +12,10 @@ import itertools
 import warnings
 
 import numpy as np
-from scipy.ndimage import grey_opening
 
 from ..utils import (
-    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, pad_edges2d,
-    relative_difference
+    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, optimize_window,
+    pad_edges2d
 )
 from ._spline_utils import PSpline2D
 from .._validation import (
@@ -685,11 +684,11 @@ class _Algorithm2D:
         if half_window is not None:
             output_half_window = _check_half_window(half_window, two_d=True)
         else:
-            output_half_window = _optimize_window(y, **window_kwargs)
+            output_half_window = optimize_window(y, **window_kwargs)
 
         return y, output_half_window
 
-    def _setup_smooth(self, y, half_window=0, allow_zero=True, **pad_kwargs):
+    def _setup_smooth(self, y, half_window=0, allow_zero=True, hw_multiplier=2, **pad_kwargs):
         """
         Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -705,6 +704,9 @@ class _Algorithm2D:
         allow_zero : bool, optional
             If True (default), allows `half_window` to be 0; otherwise, `half_window`
             must be at least 1.
+        hw_multiplier : int, optional
+            The value to multiply the output of :func:`.optimize_window` if half_window
+            is None.
         **pad_kwargs
             Additional keyword arguments to pass to :func:`.pad_edges` for padding
             the edges of the data to prevent edge effects from smoothing.
@@ -713,10 +715,16 @@ class _Algorithm2D:
         -------
         numpy.ndarray, shape (``N + 2 * half_window``,)
             The padded array of data.
+        output_hw : int
+            The accepted half window size.
 
         """
-        hw = _check_half_window(half_window, allow_zero, two_d=False)
-        return pad_edges2d(y, hw, **pad_kwargs)
+        if half_window is not None:
+            output_hw = _check_half_window(half_window, allow_zero, two_d=True)
+        else:
+            output_hw = hw_multiplier * optimize_window(y)
+
+        return pad_edges2d(y, output_hw, **pad_kwargs), output_hw
 
     def _setup_classification(self, y, weights=None):
         """
@@ -896,71 +904,3 @@ class _Algorithm2D:
 
         """
         return y
-
-
-# TODO maybe just make a way to merge the 1D and 2D versions
-def _optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
-                     max_half_window=None, min_half_window=None):
-    """
-    Optimizes the morphological half-window size.
-
-    Parameters
-    ----------
-    data : array-like, shape (N,)
-        The measured data values.
-    increment : int, optional
-        The step size for iterating half windows. Default is 1.
-    max_hits : int, optional
-        The number of consecutive half windows that must produce the same
-        morphological opening before accepting the half window as the optimum
-        value. Default is 3.
-    window_tol : float, optional
-        The tolerance value for considering two morphological openings as
-        equivalent. Default is 1e-6.
-    max_half_window : int, optional
-        The maximum allowable half-window size. If None (default), will be set
-        to (len(data) - 1) / 2.
-    min_half_window : int, optional
-        The minimum half-window size. If None (default), will be set to 1.
-
-    Returns
-    -------
-    half_window : int
-        The optimized half window size.
-
-    Notes
-    -----
-    May only provide good results for some morphological algorithms, so use with
-    caution.
-
-    References
-    ----------
-    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
-    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
-
-    """
-    y = np.asarray(data)
-    if max_half_window is None:
-        max_half_window = (y.shape[0] - 1) // 2
-    if min_half_window is None:
-        min_half_window = 1
-
-    # TODO would it be better to allow padding the data?
-    opening = grey_opening(y, [2 * min_half_window + 1, 2 * min_half_window + 1])
-    hits = 0
-    best_half_window = min_half_window
-    for half_window in range(min_half_window + increment, max_half_window, increment):
-        new_opening = grey_opening(y, [half_window * 2 + 1, half_window * 2 + 1])
-        if relative_difference(opening, new_opening) < window_tol:
-            if hits == 0:
-                # keep just the first window that fits tolerance
-                best_half_window = half_window - increment
-            hits += 1
-            if hits >= max_hits:
-                half_window = best_half_window
-                break
-        elif hits:
-            hits = 0
-        opening = new_opening
-
-    return max(half_window, 1)  # ensure half window is at least 1
