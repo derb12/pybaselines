@@ -66,7 +66,7 @@ Algorithms
 mixture_model (Mixture Model)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.mixture_model` considers the data as a mixture model composed of
+:meth:`~.Baseline.mixture_model` considers the data as a mixture model composed of
 a baseline with noise and peaks. The weighting for the penalized spline fitting
 the baseline is iteratively determined by fitting the residual with a normal
 distribution centered at 0 (representing the noise), and a uniform distribution
@@ -203,7 +203,7 @@ residual belonging to the noise's normal distribution.
 irsqr (Iterative Reweighted Spline Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.irsqr` uses penalized splines and iterative reweighted least squares
+:meth:`~.Baseline.irsqr` uses penalized splines and iterative reweighted least squares
 to perform quantile regression on the data.
 
 .. plot::
@@ -227,7 +227,7 @@ to perform quantile regression on the data.
 corner_cutting (Corner-Cutting Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.corner_cutting` iteratively removes corner points and then creates
+:meth:`~.Baseline.corner_cutting` iteratively removes corner points and then creates
 a quadratic Bezier spline from the remaining points. Continuity between
 the individual Bezier curves is maintained by adding control points halfway
 between all but the first and last non-corner points.
@@ -253,7 +253,7 @@ between all but the first and last non-corner points.
 pspline_asls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_asls` is a penalized spline version of :meth:`.asls`.
+:meth:`~.Baseline.pspline_asls` is a penalized spline version of :meth:`~.Baseline.asls`.
 
 Minimized function:
 
@@ -301,7 +301,7 @@ Weighting:
 pspline_iasls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_iasls` is a penalized spline version of :meth:`.iasls`.
+:meth:`~.Baseline.pspline_iasls` is a penalized spline version of :meth:`~.Baseline.iasls`.
 
 Minimized function:
 
@@ -354,7 +354,7 @@ Weighting:
 pspline_airpls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_airpls` is a penalized spline version of :meth:`.airpls`.
+:meth:`~.Baseline.pspline_airpls` is a penalized spline version of :meth:`~.Baseline.airpls`.
 
 Minimized function:
 
@@ -401,7 +401,7 @@ values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z
 pspline_arpls (Penalized Spline Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_arpls` is a penalized spline version of :meth:`.arpls`.
+:meth:`~.Baseline.pspline_arpls` is a penalized spline version of :meth:`~.Baseline.arpls`.
 
 Minimized function:
 
@@ -445,7 +445,7 @@ values in the residual vector :math:`\mathbf r`.
 pspline_drpls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_drpls` is a penalized spline version of :meth:`.drpls`.
+:meth:`~.Baseline.pspline_drpls` is a penalized spline version of :meth:`~.Baseline.drpls`.
 
 Minimized function:
 
@@ -501,7 +501,7 @@ respectively, of the negative values in the residual vector :math:`\mathbf r`.
 pspline_iarpls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_iarpls` is a penalized spline version of :meth:`.iarpls`.
+:meth:`~.Baseline.pspline_iarpls` is a penalized spline version of :meth:`~.Baseline.iarpls`.
 
 Minimized function:
 
@@ -549,7 +549,7 @@ the residual vector :math:`\mathbf r`.
 pspline_aspls (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_aspls` is a penalized spline version of :meth:`.aspls`.
+:meth:`~.Baseline.pspline_aspls` is a penalized spline version of :meth:`~.Baseline.aspls`.
 
 Minimized function:
 
@@ -614,7 +614,7 @@ of the asPLS paper closer than the factor of 2 and fits noisy data much better).
 pspline_psalsa (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_psalsa` is a penalized spline version of :meth:`.psalsa`.
+:meth:`~.Baseline.pspline_psalsa` is a penalized spline version of :meth:`~.Baseline.psalsa`.
 
 Minimized function:
 
@@ -661,7 +661,7 @@ be considered a peak.
 pspline_derpsalsa (Penalized Spline Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_derpsalsa` is a penalized spline version of :meth:`.derpsalsa`.
+:meth:`~.Baseline.pspline_derpsalsa` is a penalized spline version of :meth:`~.Baseline.derpsalsa`.
 
 Minimized function:
 
@@ -723,7 +723,7 @@ respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the roo
 pspline_mpls (Penalized Spline Morphological Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.pspline_mpls` is a penalized spline version of :meth:`.mpls`.
+:meth:`~.Baseline.pspline_mpls` is a penalized spline version of :meth:`~.Baseline.mpls`.
 
 Minimized function:
 

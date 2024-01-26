@@ -1163,7 +1163,7 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
 
     Decomposes the input data into baseline and pure, noise-free signal by modeling
     the baseline as a low pass filter and by considering the signal and its derivatives
-    as sparse [1]_.
+    as sparse [4]_.
 
     Parameters
     ----------
@@ -1207,14 +1207,14 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
         derivatives are close to zero. Default is 1e-6.
     fit_parabola : bool, optional
         If True (default), will fit a parabola to the data and subtract it before
-        performing the beads fit as suggested in [2]_. This ensures the endpoints of
+        performing the beads fit as suggested in [5]_. This ensures the endpoints of
         the fit data are close to 0, which is required by beads. If the data is already
         close to 0 on both endpoints, set `fit_parabola` to False.
     smooth_half_window : int, optional
         The half-window to use for smoothing the derivatives of the data with a moving
         average and full window size of `2 * smooth_half_window + 1`. Smoothing can
         improve the convergence of the calculation, and make the calculation less sensitive
-        to small changes in `lam_1` and `lam_2`, as noted in the pybeads package [3]_.
+        to small changes in `lam_1` and `lam_2`, as noted in the pybeads package [6]_.
         Default is None, which will not perform any smoothing.
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
@@ -1243,7 +1243,7 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
 
     When finding the best parameters for fitting, it is usually best to find the optimal
     `freq_cutoff` for the noise in the data before adjusting any other parameters since
-    it has the largest effect [2]_.
+    it has the largest effect [5]_.
 
     Raises
     ------
@@ -1252,10 +1252,10 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
 
     References
     ----------
-    .. [1] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+    .. [4] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
            (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
-    .. [2] Navarro-Huerta, J.A., et al. Assisted baseline subtraction in complex chromatograms
+    .. [5] Navarro-Huerta, J.A., et al. Assisted baseline subtraction in complex chromatograms
            using the BEADS algorithm. Journal of Chromatography A, 2017, 1507, 1-10.
-    .. [3] https://github.com/skotaro/pybeads.
+    .. [6] https://github.com/skotaro/pybeads.
 
     """

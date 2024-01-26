@@ -646,7 +646,7 @@ class PSpline(PenalizedSystem):
         in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots + spline_degree - 1``).
     coef : None or numpy.ndarray, shape (M,)
-        The spline coefficients. Is None if :meth:`.solve_pspline` has not been called
+        The spline coefficients. Is None if :meth:`~PSpline.solve_pspline` has not been called
         at least once.
     knots : numpy.ndarray, shape (K,)
         The knots for the spline. Has a shape of `K`, which is equal to

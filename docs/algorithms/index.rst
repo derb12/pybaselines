@@ -5,7 +5,7 @@ Algorithms
 The currently available baseline correction algorithms in pybaselines are split into
 polynomial, whittaker, morphological, smooth, spline, classification, optimizers,
 and miscellaneous (misc). Note that this is more for grouping code and not meant as
-a hard-classification of the algorithms.
+a hard-classification of the algorithms or the general field of baseline correction.
 
 This section of the documentation is to help provide some context for each algorithm.
 In addition, most algorithms will have a figure that shows how well the algorithm fits

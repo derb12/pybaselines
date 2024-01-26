@@ -85,11 +85,12 @@ class PenalizedSystem2D:
         Maintained so that repeated computations with different `lam` values can be quickly
         set up. `original_diagonals` can be either the full or lower bands of the penalty,
         and may be reveresed, it depends on the set up. Reset by calling
-        :meth:`.reset_diagonals`.
+        :meth:`~PenalizedSystem2D.reset_diagonals`.
     penalty : scipy.sparse.base.spmatrix
         The current penalty. Originally is `original_diagonals` after multiplying by `lam`
-        and applying padding, but can also be changed by calling :meth:`.add_penalty`.
-        Reset by calling :meth:`.reset_diagonals`.
+        and applying padding, but can also be changed by calling
+        :meth:`~PenalizedSystem2D.add_penalty`. Reset by calling
+        :meth:`~PenalizedSystem2D.reset_diagonals`.
 
     Notes
     -----

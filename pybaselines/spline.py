@@ -1084,7 +1084,7 @@ class _Spline(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -1180,7 +1180,7 @@ class _Spline(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -2384,7 +2384,7 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional
@@ -2463,7 +2463,7 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional

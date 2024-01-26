@@ -25,12 +25,12 @@ Algorithms
 mpls (Morphological Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.mpls` uses both morphological operations and Whittaker-smoothing
+:meth:`~.Baseline.mpls` uses both morphological operations and Whittaker-smoothing
 to create the baseline. First, a morphological opening is performed on the
 data. Then, the index of the minimum data value between each flat region of the
 opened data is selected as a baseline anchor point and given a weighting of
 :math:`1 - p`, while all other points are given a weight of :math:`p`. The data
-and weights are then used to calculate the baseline, similar to the :meth:`.asls`
+and weights are then used to calculate the baseline, similar to the :meth:`~.Baseline.asls`
 method.
 
 .. plot::
@@ -156,7 +156,7 @@ method.
 mor (Morphological)
 ~~~~~~~~~~~~~~~~~~~
 
-:meth:`.mor` performs a morphological opening on the data and then selects
+:meth:`~.Baseline.mor` performs a morphological opening on the data and then selects
 the element-wise minimum between the opening and the average of a morphological
 erosion and dilation of the opening to create the baseline.
 
@@ -183,7 +183,7 @@ erosion and dilation of the opening to create the baseline.
 imor (Improved Morphological)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.imor` is an attempt to improve the mor method, and iteratively selects the element-wise
+:meth:`~.Baseline.imor` is an attempt to improve the mor method, and iteratively selects the element-wise
 minimum between the original data and the average of a morphological erosion and dilation
 of the opening of either the data (first iteration) or previous iteration's baseline to
 create the baseline.
@@ -202,7 +202,7 @@ create the baseline.
 mormol (Morphological and Mollified Baseline)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.mormol` iteratively convolves the erosion of the data with a mollifying (smoothing)
+:meth:`~.Baseline.mormol` iteratively convolves the erosion of the data with a mollifying (smoothing)
 kernel, to produce a smooth baseline.
 
 .. plot::
@@ -225,7 +225,7 @@ kernel, to produce a smooth baseline.
 amormol (Averaging Morphological and Mollified Baseline)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.amormol` iteratively convolves a mollifying (smoothing) kernel with the
+:meth:`~.Baseline.amormol` iteratively convolves a mollifying (smoothing) kernel with the
 element-wise minimum of the data and the average of the morphological closing
 and opening of either the data (first iteration) or previous iteration's baseline.
 
@@ -243,7 +243,7 @@ and opening of either the data (first iteration) or previous iteration's baselin
 rolling_ball (Rolling Ball)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.rolling_ball` performs a morphological opening on the data and
+:meth:`~.Baseline.rolling_ball` performs a morphological opening on the data and
 then smooths the result with a moving average, giving a baseline that
 resembles rolling a ball across the data.
 
@@ -265,7 +265,7 @@ resembles rolling a ball across the data.
 mwmv (Moving Window Minimum Value)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.mwmv` performs a morphological erosion on the data and
+:meth:`~.Baseline.mwmv` performs a morphological erosion on the data and
 then smooths the result with a moving average.
 
 .. plot::
@@ -286,7 +286,7 @@ then smooths the result with a moving average.
 tophat (Top-hat Transformation)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.tophat` performs a morphological opening on the data.
+:meth:`~.Baseline.tophat` performs a morphological opening on the data.
 
 .. note::
    The baseline from the tophat method is not smooth. Smoothing is left to the
@@ -311,13 +311,13 @@ tophat (Top-hat Transformation)
 mpspline (Morphology-Based Penalized Spline)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.mpspline` uses both morphological operations and penalized splines
+:meth:`~.Baseline.mpspline` uses both morphological operations and penalized splines
 to create the baseline. First, the data is smoothed by fitting a penalized
 spline to the closing of the data with a window of 3. Then baseline points are
 identified where the smoothed data is equal to the element-wise minimum between the
 opening of the smoothed data and the average of a morphological erosion and dilation
 of the opening. The baseline points are given a weighting of :math:`1 - p`, while all
-other points are given a weight of :math:`p`, similar to the :meth:`.mpls` method.
+other points are given a weight of :math:`p`, similar to the :meth:`~.Baseline.mpls` method.
 Finally, a penalized spline is fit to the smoothed data with the assigned weighting.
 
 .. plot::
@@ -349,7 +349,7 @@ Finally, a penalized spline is fit to the smoothed data with the assigned weight
 jbcd (Joint Baseline Correction and Denoising)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.jbcd` uses regularized least-squares fitting combined with morphological operations
+:meth:`~.Baseline.jbcd` uses regularized least-squares fitting combined with morphological operations
 to simultaneously obtain the baseline and denoised signal.
 
 Minimized function:

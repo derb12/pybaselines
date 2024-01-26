@@ -9,7 +9,7 @@ However, these values are deceptive since the `lam` value required for a particu
 Whittaker-smoothing-based algorithm is dependent on the number of data points. Thus,
 this can cause issues when adapting an algorithm to a new set of data since the published
 optimal `lam` value is not universal. This example shows an analysis of this dependence
-for all available functions in the :mod:`.whittaker` module.
+for all available functions in the :mod:`pybaselines.whittaker` module.
 
 Note that the exact optimal `lam` values reported in this example are not of significant
 use since they depend on many other factors such as the baseline curvature, noise, peaks,

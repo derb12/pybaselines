@@ -171,11 +171,11 @@ class _Polynomial(_Algorithm2D):
             size equal to N and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [8]_ when choosing minimum values. If True,
-            will compare the baseline with the original y-values given by `data` [9]_.
+            the y-values of that iteration [33]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [34]_.
         mask_initial_peaks : bool, optional
             If True, will mask any data where the initial baseline fit + the standard
-            deviation of the residual is less than measured data [10]_. Default is False.
+            deviation of the residual is less than measured data [35]_. Default is False.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
@@ -206,17 +206,17 @@ class _Polynomial(_Algorithm2D):
 
         Notes
         -----
-        Algorithm originally developed in [9]_ and then slightly modified in [8]_.
+        Algorithm originally developed in [34]_ and then slightly modified in [33]_.
 
         References
         ----------
-        .. [8] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [33] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-        .. [9] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [34] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
-        .. [10] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+        .. [35] Zhao, J., et al. Automated Autofluorescence Background Subtraction
             Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
             2007, 61(11), 1225-1232.
 
@@ -280,11 +280,11 @@ class _Polynomial(_Algorithm2D):
             size equal to N and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [11]_ when choosing minimum values. If True,
-            will compare the baseline with the original y-values given by `data` [12]_.
+            the y-values of that iteration [36]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [37]_.
         mask_initial_peaks : bool, optional
             If True (default), will mask any data where the initial baseline fit +
-            the standard deviation of the residual is less than measured data [13]_.
+            the standard deviation of the residual is less than measured data [38]_.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
@@ -323,17 +323,17 @@ class _Polynomial(_Algorithm2D):
 
         Notes
         -----
-        Algorithm originally developed in [13]_.
+        Algorithm originally developed in [38]_.
 
         References
         ----------
-        .. [11] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [36] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-        .. [12] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [37] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
-        .. [13] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+        .. [38] Zhao, J., et al. Automated Autofluorescence Background Subtraction
             Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
             2007, 61(11), 1225-1232.
 
@@ -412,12 +412,12 @@ class _Polynomial(_Algorithm2D):
             'symmetric' for symmetric loss. Default is 'asymmetric_truncated_quadratic'.
             Available methods, and their associated reference, are:
 
-                * 'asymmetric_truncated_quadratic'[14]_
-                * 'symmetric_truncated_quadratic'[14]_
-                * 'asymmetric_huber'[14]_
-                * 'symmetric_huber'[14]_
-                * 'asymmetric_indec'[15]_
-                * 'symmetric_indec'[15]_
+                * 'asymmetric_truncated_quadratic'[39]_
+                * 'symmetric_truncated_quadratic'[39]_
+                * 'asymmetric_huber'[39]_
+                * 'symmetric_huber'[39]_
+                * 'asymmetric_indec'[40]_
+                * 'symmetric_indec'[40]_
 
         threshold : float, optional
             The threshold value for the loss method, where the function goes from
@@ -469,10 +469,10 @@ class _Polynomial(_Algorithm2D):
 
         References
         ----------
-        .. [14] Mazet, V., et al. Background removal from spectra by designing and
+        .. [39] Mazet, V., et al. Background removal from spectra by designing and
             minimising a non-quadratic cost function. Chemometrics and Intelligent
             Laboratory Systems, 2005, 76(2), 121-133.
-        .. [15] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+        .. [40] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
             Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
         """
@@ -582,17 +582,17 @@ class _Polynomial(_Algorithm2D):
 
         Notes
         -----
-        Application of quantile regression for baseline fitting ss described in [23]_.
+        Application of quantile regression for baseline fitting ss described in [41]_.
 
         Performs quantile regression using iteratively reweighted least squares (IRLS)
-        as described in [24]_.
+        as described in [42]_.
 
         References
         ----------
-        .. [23] Komsta, Ł. Comparison of Several Methods of Chromatographic
+        .. [41] Komsta, Ł. Comparison of Several Methods of Chromatographic
                 Baseline Removal with a New Approach Based on Quantile Regression.
                 Chromatographia, 2011, 73, 721-731.
-        .. [24] Schnabel, S., et al. Simultaneous estimation of quantile curves using
+        .. [42] Schnabel, S., et al. Simultaneous estimation of quantile curves using
                 quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
 
         """
@@ -660,9 +660,9 @@ class _Polynomial(_Algorithm2D):
             ('a' or 'asymmetric') is optional (eg. 'indec' and 'a_indec' are the same). Default
             is 'asymmetric_indec'. Available methods, and their associated reference, are:
 
-                * 'asymmetric_indec'[25]_
-                * 'asymmetric_truncated_quadratic'[26]_
-                * 'asymmetric_huber'[26]_
+                * 'asymmetric_indec'[43]_
+                * 'asymmetric_truncated_quadratic'[44]_
+                * 'asymmetric_huber'[44]_
 
         peak_ratio : float, optional
             A value between 0 and 1 that designates how many points in the data belong
@@ -723,9 +723,9 @@ class _Polynomial(_Algorithm2D):
 
         References
         ----------
-        .. [25] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+        .. [43] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
                 Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
-        .. [26] Mazet, V., et al. Background removal from spectra by designing and
+        .. [44] Mazet, V., et al. Background removal from spectra by designing and
                 minimising a non-quadratic cost function. Chemometrics and Intelligent
                 Laboratory Systems, 2005, 76(2), 121-133.
 

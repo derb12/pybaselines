@@ -44,10 +44,11 @@ class _Algorithm:
         that no polynomial fitting has been performed.
     pspline : PSpline or None
         The PSpline object for setting up and solving penalized spline algorithms. Is None
-        if no penalized spline setup has been performed (typically done in :meth:`._setup_spline`).
+        if no penalized spline setup has been performed (typically done in
+        :meth:`~_Algorithm._setup_spline`).
     vandermonde : numpy.ndarray or None
         The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`._setup_polynomial`).
+        setup has been performed (typically done in :meth:`~_Algorithm._setup_polynomial`).
     whittaker_system : PenalizedSystem or None
         The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
         algorithms. Is None if no Whittaker setup has been performed (typically done in
@@ -337,7 +338,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         lam : float, optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
@@ -411,7 +412,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -487,7 +488,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -570,7 +571,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
@@ -625,7 +626,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         half_window : int, optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
@@ -654,7 +655,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -741,7 +742,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
         modules : Sequence(module, ...)
@@ -793,7 +794,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
 
         Returns
         -------

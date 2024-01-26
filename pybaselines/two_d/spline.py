@@ -772,7 +772,7 @@ class _Spline(_Algorithm2D):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline2D.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 25.
         spline_degree : int, optional

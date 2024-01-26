@@ -36,7 +36,8 @@ extensions = [
     #'sphinx.ext.autosummary',
     'autoapi.extension',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.napoleon',
+    #'sphinx.ext.napoleon',
+    'numpydoc',
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
@@ -136,15 +137,28 @@ autoapi_options = [
     #'special-members', # show things like __str__
     #'imported-members', # document things imported within each module
 ]
-autoapi_member_order = 'groupwise' # groups into classes, functions, etc.
-autoapi_python_class_content = 'class' # include class docstring from class and/or __init__
-#autoapi_keep_files = True # keep the files after generation
-#autoapi_add_toctree_entry = False # need to manually add to toctree if False
-#autoapi_generate_api_docs = False # will not generate new docs when False
+autoapi_member_order = 'groupwise'  # groups into classes, functions, etc.
+autoapi_python_class_content = 'class'  # include class docstring from class and/or __init__
+autoapi_keep_files = False  # keep the files after generation
+autoapi_add_toctree_entry = True  # need to manually add to toctree if False
+autoapi_generate_api_docs = True  # will not generate new docs when False
 
 # ignore an import warning from sphinx-autoapi due to double import of utils
-suppress_warnings = ['autoapi.python_import_resolution']
+suppress_warnings = ['autoapi.python_import_resolution', 'autosectionlabel']
 
+# -- Settings for matplotlib plot_directive extension ----------------------------
+
+plot_include_source = False
+
+plot_formats = ['png']
+
+# -- Settings for numpydoc extension ----------------------------
+
+# uses the matplotlib plot_directive extension when "import matplotlib" is in a docstring
+numpydoc_use_plots = True
+
+# creates cross references for types in docstrings
+numpydoc_xref_param_type = False
 
 # -- Settings for sphinx-gallery extension ----------------------------
 
@@ -196,7 +210,7 @@ except ImportError:
     html_theme = 'nature'
 else:
     html_theme = 'sphinx_rtd_theme'
-    del sphinx_rtd_theme
+
 
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
@@ -212,7 +226,6 @@ html_theme_options = {
 html_static_path = [
     #'_static'
 ]
-
 
 # -- Options for HTMLHelp output ---------------------------------------
 

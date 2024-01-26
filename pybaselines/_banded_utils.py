@@ -549,11 +549,12 @@ class PenalizedSystem:
         Maintained so that repeated computations with different `lam` values can be quickly
         set up. `original_diagonals` can be either the full or lower bands of the penalty,
         and may be reveresed, it depends on the set up. Reset by calling
-        :meth:`.reset_diagonals`.
+        :meth:`~PenalizedSystem.reset_diagonals`.
     penalty : numpy.ndarray
         The current penalty. Originally is `original_diagonals` after multiplying by `lam`
-        and applying padding, but can also be changed by calling :meth:`.add_penalty`.
-        Reset by calling :meth:`.reset_diagonals`.
+        and applying padding, but can also be changed by calling
+        :meth:`~PenalizedSystem.add_penalty`.
+        Reset by calling :meth:`~PenalizedSystem.reset_diagonals`.
     pentapy_solver : int or str
         The integer or string designating which solver to use if using pentapy. See
         :func:`pentapy.solve` for available options, although `1` or `2` are the

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+=============================================
 Baseline Correction for Two Dimensional Data.
 =============================================
 
@@ -30,7 +31,6 @@ Baseline Correction for Two Dimensional Data.
     * mor (Morphological)
     * imor (Improved Morphological)
     * rolling_ball (Rolling Ball Baseline)
-    * mwmv (Moving Window Minimum Value)
     * tophat (Top-hat Transformation)
 
 * Spline methods (:mod:`pybaselines.two_d.spline`)
@@ -41,18 +41,12 @@ Baseline Correction for Two Dimensional Data.
     * pspline_iasls (Penalized Spline Version of iasls)
     * pspline_airpls (Penalized Spline Version of airpls)
     * pspline_arpls (Penalized Spline Version of arpls)
-    * pspline_drpls (Penalized Spline Version of drpls)
     * pspline_iarpls (Penalized Spline Version of iarpls)
-    * pspline_aspls (Penalized Spline Version of aspls)
     * pspline_psalsa (Penalized Spline Version of psalsa)
 
 * Smoothing-based methods (:mod:`pybaselines.two_d.smooth`)
 
     * noise_median (Noise Median method)
-
-* Baseline/Peak Classification methods (:mod:`pybaselines.two_d.classification`)
-
-    * None yet
 
 * Optimizers (:mod:`pybaselines.two_d.optimizers`)
 

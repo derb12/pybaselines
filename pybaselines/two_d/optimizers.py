@@ -13,7 +13,7 @@ from math import ceil
 
 import numpy as np
 
-from . import classification, morphological, polynomial, spline, whittaker
+from . import morphological, polynomial, spline, whittaker
 from ._algorithm_setup import _Algorithm2D
 from .._validation import _check_optional_array, _get_row_col_values
 from ..utils import _check_scalar, _sort_array2d
@@ -78,7 +78,7 @@ class _Optimizers(_Algorithm2D):
 
         """
         dataset, baseline_func, _, method_kws, _ = self._setup_optimizer(
-            data, method, (whittaker, morphological, classification, spline), method_kwargs,
+            data, method, (whittaker, morphological, spline), method_kwargs,
             True
         )
         data_shape = dataset.shape
@@ -151,7 +151,7 @@ class _Optimizers(_Algorithm2D):
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
-            and then select the appropriate polynomial orders according to [7]_.
+            and then select the appropriate polynomial orders according to [32]_.
         method : {'modpoly', 'imodpoly'}, optional
             The method to use for fitting each polynomial. Default is 'modpoly'.
         weights : array-like, shape (N,), optional
@@ -174,8 +174,7 @@ class _Optimizers(_Algorithm2D):
             Default is 2.
         method_kwargs : dict, optional
             Additional keyword arguments to pass to
-            :meth:`~pybaselines.polynomial.Polynomial.modpoly` or
-            :meth:`~pybaselines.polynomial.Polynomial.imodpoly`. These include
+            :meth:`~Baseline.modpoly` or :meth:`~Baseline.imodpoly`. These include
             `tol`, `max_iter`, `use_original`, `mask_initial_peaks`, and `num_std`.
 
         Returns
@@ -194,7 +193,7 @@ class _Optimizers(_Algorithm2D):
 
         References
         ----------
-        .. [7] Cao, A., et al. A robust method for automated background subtraction
+        .. [32] Cao, A., et al. A robust method for automated background subtraction
             of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
             1199-1205.
 
