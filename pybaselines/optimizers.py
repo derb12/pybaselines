@@ -22,7 +22,7 @@ from .utils import _check_scalar, _get_edges, gaussian
 class _Optimizers(_Algorithm):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm._register(ensure_1d=False)
+    @_Algorithm._register(ensure_1d=False, skip_sorting=True)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).
@@ -131,9 +131,9 @@ class _Optimizers(_Algorithm):
                 else:
                     params[key] = [value]
 
-        return _sort_array(baselines, self._sort_order), params
+        return baselines, params
 
-    @_Algorithm._register
+    @_Algorithm._register(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
                                 height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
                                 step=1, pad_kwargs=None, method_kwargs=None):
@@ -278,8 +278,10 @@ class _Optimizers(_Algorithm):
 
         if pad_kwargs is None:
             pad_kwargs = {}
-        # use data rather than y since data is sorted correctly
-        added_left, added_right = _get_edges(data, added_window, **pad_kwargs)
+
+        added_left, added_right = _get_edges(
+            _sort_array(y, self._sort_order), added_window, **pad_kwargs
+        )
         added_gaussian = gaussian(
             np.linspace(-added_window / 2, added_window / 2, added_window),
             height_scale * abs(y.max()), 0, added_window * sigma_scale
@@ -310,21 +312,19 @@ class _Optimizers(_Algorithm):
             new_sort_order = None
         else:
             if side == 'right':
-                new_sort_order = np.empty(self._len + added_len, dtype=np.intp)
-                new_sort_order[:self._len] = self._sort_order
-                new_sort_order[self._len:] = np.arange(
-                    self._len, self._len + added_len, dtype=np.intp
-                )
+                new_sort_order = np.concatenate((
+                    self._sort_order, np.arange(self._len, self._len + added_len, dtype=np.intp)
+                ), dtype=np.intp)
             elif side == 'left':
-                new_sort_order = np.empty(self._len + added_len, dtype=np.intp)
-                new_sort_order[added_len:] = self._sort_order + added_len
-                new_sort_order[:added_len] = np.arange(added_len, dtype=np.intp)
+                new_sort_order = np.concatenate((
+                    np.arange(added_len, dtype=np.intp), self._sort_order + added_len
+                ), dtype=np.intp)
             else:
                 new_sort_order = np.concatenate((
                     np.arange(added_window, dtype=np.intp),
                     self._sort_order + added_window,
                     np.arange(self._len + added_window, self._len + added_len, dtype=np.intp)
-                ))
+                ), dtype=np.intp)
 
         # TODO maybe switch to linspace since arange is inconsistent when using floats
         with fit_object._override_x(fit_x_data, new_sort_order=new_sort_order):
@@ -357,9 +357,9 @@ class _Optimizers(_Algorithm):
                     None if side == 'left' else -added_window
                 ]
 
-        return _sort_array(baseline, self._sort_order), params
+        return baseline, params
 
-    @_Algorithm._register
+    @_Algorithm._register(skip_sorting=True)
     def adaptive_minmax(self, data, poly_order=None, method='modpoly', weights=None,
                         constrained_fraction=0.01, constrained_weight=1e5,
                         estimation_poly_order=2, method_kwargs=None):
@@ -486,7 +486,7 @@ class _Optimizers(_Algorithm):
             'poly_order': poly_orders
         }
 
-        return _sort_array(np.maximum.reduce(baselines), self._sort_order), params
+        return np.maximum.reduce(baselines), params
 
     @_Algorithm._register
     def custom_bc(self, data, method='asls', rois=(None, None), sampling=1, lam=None,
@@ -583,6 +583,8 @@ class _Optimizers(_Algorithm):
         y_fit = y[indices]
         x_fit = self.x[indices]
 
+        # param sorting will be wrong, but most params that need sorting will have
+        # no meaning since they correspond to a truncated dataset
         with fitting_object._override_x(x_fit):
             baseline_fit, params = baseline_func(y_fit, **method_kws)
 
@@ -595,7 +597,7 @@ class _Optimizers(_Algorithm):
                 overwrite_ab=True, overwrite_b=True
             )
 
-        return _sort_array(baseline, self._sort_order), params
+        return baseline, params
 
 
 _optimizers_wrapper = _class_wrapper(_Optimizers)

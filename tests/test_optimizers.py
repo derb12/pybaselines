@@ -48,7 +48,7 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
 
         for key in self.weight_keys:
             assert_allclose(
-                regular_output_params[key], reverse_output_params[key][::-1],
+                regular_output_params[key], self.reverse_array(reverse_output_params[key]),
                 **assertion_kwargs
             )
         assert_allclose(
@@ -72,7 +72,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     # will need to change checked_keys if default method is changed
     checked_keys = ('average_weights', 'weights', 'tol_history')
     two_d = True
-    weight_keys = ('average_weights',)
+    weight_keys = ('average_weights', 'weights')
 
     @pytest.mark.parametrize(
         'method',
@@ -100,12 +100,22 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     @pytest.mark.parametrize('average_dataset', (True, False))
     def test_input_weights(self, average_dataset):
         """Ensures the input weights are sorted correctly."""
-        output = super().test_input_weights(average_dataset=average_dataset)
-        regular_output, regular_output_params, reverse_output, reverse_output_params = output
+        super().test_input_weights(average_dataset=average_dataset)
+
+    @pytest.mark.parametrize('average_dataset', (True, False))
+    def test_output_alpha(self, average_dataset):
+        """Ensures the output alpha values are sorted correctly when using aspls."""
+        regular_output, regular_output_params = self.class_func(
+            data=self.y, average_dataset=average_dataset, method='aspls',
+        )
+        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
+        reverse_output, reverse_output_params = getattr(reverse_fitter, self.func_name)(
+            data=self.reverse_array(self.y), average_dataset=average_dataset, method='aspls',
+        )
 
         assert_allclose(
-            regular_output_params['weights'],
-            np.asarray(reverse_output_params['weights'])[..., ::-1],
+            regular_output_params['alpha'],
+            self.reverse_array(reverse_output_params['alpha']),
             rtol=1e-12, atol=1e-14
         )
 
@@ -337,13 +347,13 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
         )
 
 
-class TestCustomBC(OptimizersTester, OptimizerInputWeightsMixin):
+class TestCustomBC(OptimizersTester):
     """Class for testing custom_bc baseline."""
 
     func_name = 'custom_bc'
     # will need to change checked_keys if default method is changed
     checked_keys = ('weights', 'tol_history', 'y_fit', 'x_fit')
-    weight_keys = ('weights',)
+    required_kwargs = {'sampling': 5}
 
     @pytest.mark.parametrize(
         'method',
@@ -366,10 +376,6 @@ class TestCustomBC(OptimizersTester, OptimizerInputWeightsMixin):
     def test_x_ordering(self):
         """Ensures arrays are correctly sorted within the function."""
         super().test_x_ordering(assertion_kwargs={'rtol': 1e-6})
-
-    def test_input_weights(self):
-        """Ensures weights are correctly sorted within the function."""
-        super().test_input_weights(assertion_kwargs={'rtol': 1e-6})
 
     @pytest.mark.parametrize('lam', (None, 1))
     def test_lam_inputs(self, lam):

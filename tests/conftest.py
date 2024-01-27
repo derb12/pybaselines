@@ -337,12 +337,7 @@ class BaseTester:
 
     def reverse_array(self, array):
         """Reverses the input along the last dimension."""
-        if self.two_d:
-            reversed_array = array[..., ::-1]
-        else:
-            reversed_array = array[::-1]
-
-        return reversed_array
+        return np.asarray(array)[..., ::-1]
 
 
 class BasePolyTester(BaseTester):
@@ -397,6 +392,9 @@ class InputWeightsMixin:
         reverse_output, reverse_output_params = getattr(reverse_fitter, self.func_name)(
             data=self.reverse_array(self.y), weights=weights[::-1], **self.kwargs, **kwargs
         )
+
+        # sanity check, x should always be sorted correctly
+        assert_allclose(reverse_fitter.x, self.x, rtol=1e-14, atol=1e-14)
 
         if assertion_kwargs is None:
             assertion_kwargs = {}

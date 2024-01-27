@@ -138,7 +138,7 @@ class _Algorithm:
             self.whittaker_system.pentapy_solver = value
         self._pentapy_solver = value
 
-    def _return_results(self, baseline, params, dtype, sort_keys=(), axis=-1):
+    def _return_results(self, baseline, params, dtype, sort_keys=(), axis=-1, skip_sorting=False):
         """
         Re-orders the input baseline and parameters based on the x ordering.
 
@@ -157,6 +157,9 @@ class _Algorithm:
             re-ordering. Default is ().
         axis : int, optional
             The axis of the input which defines each unique set of data. Default is -1.
+        skip_sorting : bool, optional
+            If True, will skip sorting the output baseline. The keys in `sort_keys` will
+            still be sorted. Default is False.
 
         Returns
         -------
@@ -171,7 +174,8 @@ class _Algorithm:
                 if key in params:  # some parameters are conditionally output
                     # assumes params all all just one dimensional arrays
                     params[key] = params[key][self._inverted_order]
-            baseline = _sort_array(baseline, sort_order=self._inverted_order, axis=axis)
+            if not skip_sorting:
+                baseline = _sort_array(baseline, sort_order=self._inverted_order, axis=axis)
 
         baseline = baseline.astype(dtype, copy=False)
 
@@ -179,7 +183,7 @@ class _Algorithm:
 
     @classmethod
     def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True,
-                  axis=-1):
+                  axis=-1, skip_sorting=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -204,6 +208,9 @@ class _Algorithm:
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
         axis : int, optional
             The axis of the input on which to check its length. Default is -1.
+        skip_sorting : bool, optional
+            If True, will skip sorting the inputs and outputs, which is useful for algorithms that use
+            other algorithms so that sorting is already internally done. Default is False.
 
         Returns
         -------
@@ -216,7 +223,7 @@ class _Algorithm:
         if func is None:
             return partial(
                 cls._register, sort_keys=sort_keys, dtype=dtype, order=order,
-                ensure_1d=ensure_1d, axis=axis
+                ensure_1d=ensure_1d, axis=axis, skip_sorting=skip_sorting
             )
 
         @wraps(func)
@@ -248,7 +255,7 @@ class _Algorithm:
                     self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
 
-            if input_y:
+            if input_y and not skip_sorting:
                 y = _sort_array(y, sort_order=self._sort_order, axis=axis)
 
             if input_y and self._dtype is None:
@@ -261,7 +268,7 @@ class _Algorithm:
                 self.x = np.array(self.x, dtype=x_dtype, copy=False)
 
             return self._return_results(
-                baseline, params, output_dtype, sort_keys, axis
+                baseline, params, output_dtype, sort_keys, axis, skip_sorting
             )
 
         return inner
@@ -780,10 +787,7 @@ class _Algorithm:
         if 'x_data' in method_kws:
             raise KeyError('"x_data" should not be within the method keyword arguments')
 
-        return (
-            _sort_array(y, self._inverted_order), baseline_func, func_module, method_kws,
-            class_object
-        )
+        return y, baseline_func, func_module, method_kws, class_object
 
     def _setup_misc(self, y):
         """

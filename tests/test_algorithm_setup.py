@@ -390,6 +390,21 @@ def test_get_function_fails_no_module(algorithm):
         algorithm._get_function('collab_pls', [])
 
 
+def test_get_function_sorting():
+    """Ensures the sort order is correct for the output class object."""
+    num_points = 10
+    x = np.arange(num_points)
+    ordering = np.arange(num_points)
+    algorithm = _algorithm_setup._Algorithm(x[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+
+    assert_array_equal(class_object.x, x)
+    assert_array_equal(class_object._sort_order, ordering[::-1])
+    assert_array_equal(class_object._inverted_order, ordering[::-1])
+    assert_array_equal(class_object._sort_order, algorithm._sort_order)
+    assert_array_equal(class_object._inverted_order, algorithm._inverted_order)
+
+
 @pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))
 def test_setup_optimizer(small_data, algorithm, method_kwargs):
     """Ensures output of _setup_optimizer is correct."""
@@ -512,7 +527,8 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
 @pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
-def test_algorithm_register(assume_sorted, output_dtype, change_order, list_input):
+@pytest.mark.parametrize('skip_sorting', (True, False))
+def test_algorithm_register(assume_sorted, output_dtype, change_order, list_input, skip_sorting):
     """
     Ensures the _register wrapper method returns the correctly sorted outputs.
 
@@ -523,19 +539,24 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     is False.
 
     """
-    x, y = get_data()
-    sort_indices = slice(0, 100)
+    x = np.arange(20)
+    y = 5 * x
+    y_dtype = y.dtype
+    sort_indices = slice(0, 10)
 
     class SubClass(_algorithm_setup._Algorithm):
         # 'a' values will be sorted and 'b' values will be kept the same
         @_algorithm_setup._Algorithm._register(sort_keys=('a',))
         def func(self, data, *args, **kwargs):
-            expected_input = y.copy()
-            if change_order and not assume_sorted:
-                expected_input[sort_indices] = expected_input[sort_indices][::-1]
+            expected_x = np.arange(20)
+            if change_order and assume_sorted:
+                expected_x[sort_indices] = expected_x[sort_indices][::-1]
+            expected_input = 5 * expected_x
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_input, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, expected_x, 1e-16, 1e-16)
 
             params = {
                 'a': np.arange(len(x)),
@@ -543,10 +564,33 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
             }
             return 1 * data, params
 
+        @_algorithm_setup._Algorithm._register(sort_keys=('a',), skip_sorting=skip_sorting)
+        def func2(self, data, *args, **kwargs):
+            expected_x = np.arange(20)
+            expected_input = 5 * expected_x
+            if change_order and assume_sorted:
+                expected_x[sort_indices] = expected_x[sort_indices][::-1]
+            if change_order and (assume_sorted or skip_sorting):
+                expected_input[sort_indices] = expected_input[sort_indices][::-1]
+
+            assert_allclose(data, expected_input, 1e-14, 1e-14)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+
+            params = {
+                'a': np.arange(len(x)),
+                'b': np.arange(len(x))
+            }
+            return 1 * data, params
+
+
     if change_order:
         x[sort_indices] = x[sort_indices][::-1]
         y[sort_indices] = y[sort_indices][::-1]
     expected_baseline = (1 * y).astype(output_dtype)
+    if output_dtype is None:
+        expected_dtype = y_dtype
+    else:
+        expected_dtype = expected_baseline.dtype
     if list_input:
         x = x.tolist()
         y = y.tolist()
@@ -569,9 +613,18 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     # function
     assert_allclose(output, expected_baseline, 1e-16, 1e-16)
     assert isinstance(output, np.ndarray)
-    assert output.dtype == output_dtype
+    assert output.dtype == expected_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key])
+
+    output2, output_params2 = algorithm.func2(y)
+
+    # baseline should always match y-order on the output; only sorted within the
+    # function
+    assert_allclose(output2, expected_baseline, 1e-16, 1e-16)
+    assert isinstance(output2, np.ndarray)
+    for key, value in expected_params.items():
+        assert_array_equal(value, output_params2[key])
 
 
 def test_class_wrapper():
