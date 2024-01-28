@@ -489,10 +489,14 @@ class _Optimizers(_Algorithm):
         return np.maximum.reduce(baselines), params
 
     @_Algorithm._register
-    def custom_bc(self, data, method='asls', rois=(None, None), sampling=1, lam=None,
+    def custom_bc(self, data, method='asls', regions=((None, None),), sampling=1, lam=None,
                   diff_order=2, method_kwargs=None):
         """
         Customized baseline correction for fine tuned stiffness of the baseline at specific regions.
+
+        Divides the data into regions with variable number of data points and then uses other
+        baseline algorithms to fit the truncated data. Regions with less points effectively
+        makes the fit baseline more stiff in those regions.
 
         Parameters
         ----------
@@ -501,15 +505,15 @@ class _Optimizers(_Algorithm):
         method : str, optional
             A string indicating the algorithm to use for fitting the baseline; can be any
             non-optimizer algorithm in pybaselines. Default is 'asls'.
-        rois : array-like, shape (M, 2), optional
+        regions : array-like, shape (M, 2), optional
             The two dimensional array containing the start and stop indices for each region of
-            interest. Each region is defined as ``data[start:stop]``. Default is (None, None),
+            interest. Each region is defined as ``data[start:stop]``. Default is ((None, None),),
             which will use all points.
         sampling : int or array-like, optional
-            The sampling step size for each region defined in `rois`. If `sampling` is an integer,
-            then all regions in `rois` will use the same index step size; if `sampling` is an
-            array-like, its length must be equal to `M`, the first dimension in `rois`. Default
-            is 1, which will use all points.
+            The sampling step size for each region defined in `regions`. If `sampling` is an
+            integer, then all regions will use the same index step size; if `sampling` is an
+            array-like, its length must be equal to `M`, the first dimension in `regions`.
+            Default is 1, which will use all points.
         lam : float or None, optional
             The value for smoothing the calculated interpolated baseline using Whittaker
             smoothing, in order to reduce the kinks between regions. Default is None, which
@@ -537,14 +541,18 @@ class _Optimizers(_Algorithm):
         Raises
         ------
         ValueError
-            Raised if `rois` is not two dimensional or if `sampling` is not the same length
-            as `rois.shape[0]`.
+            Raised if `regions` is not two dimensional, if `sampling` is not the same length
+            as `rois.shape[0]`, if any values in `sampling` or `regions` is less than 1, if
+            segments in `regions` overlap, or if any value in `regions` is greater than the
+            length of the input data.
 
         Notes
         -----
         Uses Whittaker smoothing to smooth the transitions between regions rather than LOESS
-        as used in [31]_ since LOESS introduces additional kinks in the regions between the
-        smoothed and non-smoothed regions.
+        as used in [31]_.
+
+        Uses binning rather than direct truncation of the regions in order to get better
+        results for noisy data.
 
         References
         ----------
@@ -557,8 +565,8 @@ class _Optimizers(_Algorithm):
             (classification, misc, morphological, polynomial, smooth, spline, whittaker),
             method_kwargs, True
         )
-        roi_array = np.atleast_2d(rois)
-        roi_shape = roi_array.shape
+        roi = np.atleast_2d(regions)
+        roi_shape = roi.shape
         if len(roi_shape) != 2 or roi_shape[1] != 2:
             raise ValueError('rois must be a two dimensional sequence of (start, stop) values')
 
@@ -566,22 +574,50 @@ class _Optimizers(_Algorithm):
         if np.any(steps < 1):
             raise ValueError('all step sizes in "sampling" must be >= 1')
 
-        # TODO maybe use binning (sum or average) to get a better signal to noise ratio rather
-        # than just indexing
-        # TODO should ensure steps are in increasing index order and do not overlap
         x_sections = []
+        y_sections = []
         x_mask = np.ones(self._len, dtype=bool)
-        for (start, stop), step in zip(roi_array, steps):
+        last_stop = -1
+        include_first = True
+        include_last = True
+        for (start, stop), step in zip(roi, steps):
             if start is None:
                 start = 0
             if stop is None:
                 stop = self._len
-            x_sections.append(np.arange(start, stop, step, dtype=np.intp))
+            if start < last_stop:
+                raise ValueError('Sections cannot overlap')
+            else:
+                last_stop = stop
+            if start < 0 or stop < 0:
+                raise ValueError('values in regions must be positive')
+            elif stop > self._len:
+                raise ValueError('values in regions must be less than len(data)')
+
+            sections = (stop - start) // step
+            if sections == 0:
+                sections = 1  # will create one section using the midpoint
+            indices = np.linspace(start, stop, sections + 1, dtype=np.intp)
+            for left_idx, right_idx in zip(indices[:-1], indices[1:]):
+                if left_idx == 0 and right_idx == 1:
+                    include_first = False
+                elif right_idx == self._len and left_idx == self._len - 1:
+                    include_last = False
+                y_sections.append(np.mean(y[left_idx:right_idx]))
+                x_sections.append(np.mean(self.x[left_idx:right_idx]))
             x_mask[start:stop] = False
-        x_sections.append(np.arange(self._len, dtype=np.intp)[x_mask])
-        indices = np.unique(np.clip(np.concatenate(x_sections), 0, self._len - 1))
-        y_fit = y[indices]
-        x_fit = self.x[indices]
+
+        # ensure first and last indices are included in the fit to avoid edge effects
+        if include_first:
+            x_mask[0] = True
+        if include_last:
+            x_mask[-1] = True
+        x_sections.extend(self.x[x_mask])
+        y_sections.extend(y[x_mask])
+        x_fit = np.array(x_sections)
+        sort_order = np.argsort(x_fit, kind='mergesort')
+        x_fit = x_fit[sort_order]
+        y_fit = np.array(y_sections)[sort_order]
 
         # param sorting will be wrong, but most params that need sorting will have
         # no meaning since they correspond to a truncated dataset
@@ -889,29 +925,31 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
 
 
 @_optimizers_wrapper
-def custom_bc(data, x_data=None, method='asls', rois=(None, None), sampling=1, lam=None,
+def custom_bc(data, x_data=None, method='asls', regions=((None, None),), sampling=1, lam=None,
               diff_order=2, method_kwargs=None):
     """
     Customized baseline correction for fine tuned stiffness of the baseline at specific regions.
+
+    Divides the data into regions with variable number of data points and then uses other
+    baseline algorithms to fit the truncated data. Regions with less points effectively
+    makes the fit baseline more stiff in those regions.
 
     Parameters
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
-    x_data : array-like, shape (N,), optional
-        The x-values of the measured data. Default is None, which will create an
-        array from -1 to 1 with N points.
     method : str, optional
-        [description]. Default is 'asls'.
-    rois : array-like, shape (M, 2), optional
+        A string indicating the algorithm to use for fitting the baseline; can be any
+        non-optimizer algorithm in pybaselines. Default is 'asls'.
+    regions : array-like, shape (M, 2), optional
         The two dimensional array containing the start and stop indices for each region of
-        interest. Each region is defined as ``data[start:stop]``. Default is (None, None),
+        interest. Each region is defined as ``data[start:stop]``. Default is ((None, None),),
         which will use all points.
     sampling : int or array-like, optional
-        The sampling step size for each region defined in `rois`. If `sampling` is an integer,
-        then all regions in `rois` will use the same index step size; if `sampling` is an
-        array-like, its length must be equal to `M`, the first dimension in `rois`. Default
-        is 1, which will use all points.
+        The sampling step size for each region defined in `regions`. If `sampling` is an
+        integer, then all regions will use the same index step size; if `sampling` is an
+        array-like, its length must be equal to `M`, the first dimension in `regions`.
+        Default is 1, which will use all points.
     lam : float or None, optional
         The value for smoothing the calculated interpolated baseline using Whittaker
         smoothing, in order to reduce the kinks between regions. Default is None, which
@@ -939,14 +977,18 @@ def custom_bc(data, x_data=None, method='asls', rois=(None, None), sampling=1, l
     Raises
     ------
     ValueError
-        Raised if `rois` is not two dimensional or if `sampling` is not the same length
-        as `rois.shape[0]`.
+        Raised if `regions` is not two dimensional, if `sampling` is not the same length
+        as `rois.shape[0]`, if any values in `sampling` or `regions` is less than 1, if
+        segments in `regions` overlap, or if any value in `regions` is greater than the
+        length of the input data.
 
     Notes
     -----
     Uses Whittaker smoothing to smooth the transitions between regions rather than LOESS
-    as used in [4]_ since LOESS introduces additional kinks in the regions between the
-    smoothed and non-smoothed regions.
+    as used in [4]_.
+
+    Uses binning rather than direct truncation of the regions in order to get better
+    results for noisy data.
 
     References
     ----------

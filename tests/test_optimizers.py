@@ -10,7 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import optimizers, polynomial, utils
+from pybaselines import optimizers, polynomial, utils, Baseline
 
 from .conftest import BaseTester, InputWeightsMixin
 
@@ -378,15 +378,65 @@ class TestCustomBC(OptimizersTester):
         super().test_x_ordering(assertion_kwargs={'rtol': 1e-6})
 
     @pytest.mark.parametrize('lam', (None, 1))
-    def test_lam_inputs(self, lam):
+    def test_output_smoothing(self, lam):
         """Ensures the smoothing is done properly if specified."""
         diff_order = 2
-        output = self.class_func(self.y, lam=lam, diff_order=diff_order)[0]
+        output, params = self.class_func(self.y, method='asls', lam=lam, diff_order=diff_order)
 
+        truncated_baseline = Baseline(params['x_fit']).asls(params['y_fit'])[0]
+        expected_baseline = np.interp(self.x, params['x_fit'], truncated_baseline)
         if lam is not None:
-            non_smooth_output = self.class_func(self.y, lam=None, diff_order=diff_order)[0]
-            smoothed_output = utils.whittaker_smooth(
-                non_smooth_output, lam=lam, diff_order=diff_order
+            expected_baseline = utils.whittaker_smooth(
+                expected_baseline, lam=lam, diff_order=diff_order
             )
 
-            assert_allclose(output, smoothed_output, rtol=1e-8, atol=1e-8)
+        assert_allclose(output, expected_baseline, rtol=1e-8, atol=1e-8)
+
+    @pytest.mark.parametrize('roi_and_samplings', (
+        [((None, None),), 5],
+        [((None, None),), 1],
+        [((None, None),), 10000000],
+        [((0, 20), (20, 30)), (3, 2)],
+        [((0, 1), (20, 30)), (3, 2)],
+        [((0, 20), (20, 30)), (33,)],
+        [((0, 20), (20, 30), (30, None)), (33, 5, 50)],
+    ))
+    def test_unique_x(self, roi_and_samplings):
+        """Ensures the fit uses only unique values and that x and y match dimensions."""
+        regions, sampling = roi_and_samplings
+        output, params = self.class_func(self.y, regions=regions, sampling=sampling)
+
+        assert_allclose(params['x_fit'], np.unique(params['x_fit']), rtol=1e-12, atol=1e-14)
+        assert params['x_fit'].shape == params['y_fit'].shape
+        assert len(params['x_fit']) > 2  # should at least include first, middle, and last values
+
+    def test_roi_sampling_mixmatch_fails(self):
+        """Ensures an exception is raised if regions and sampling do not have the same shape."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=((None, None),), sampling=[1, 2])
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=((None, 10), (20, 30), (30, 40)), sampling=[1, 2])
+
+    @pytest.mark.parametrize('sampling', (-1, [-1], [5, -5]))
+    def test_negative_sampling_fails(self, sampling):
+        """Ensures an exception is raised if sampling is negative."""
+        if isinstance(sampling, int):
+            num_samplings = 1
+        else:
+            num_samplings = len(sampling)
+        regions = []
+        for i in range(num_samplings):
+            regions.append([i * 10, (i + 1) * 10])
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=regions, sampling=sampling)
+
+    @pytest.mark.parametrize('regions', (((-1, 5),), ((0, 10), (20, -30)), ((0, 10000),)))
+    def test_bad_region_values_fails(self, regions):
+        """Ensures an exception is raised if regions has a negative value or a too large value."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=regions)
+
+    def test_overlapping_regions_fails(self):
+        """Ensures an exception is raised if regions overlap."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=((0, 10), (9, 13)))
