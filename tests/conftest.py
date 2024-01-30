@@ -716,7 +716,7 @@ class BaseTester2D:
 
     def reverse_array(self, array):
         """Reverses the input along the last two dimensions."""
-        return array[..., ::-1, ::-1]
+        return np.asarray(array)[..., ::-1, ::-1]
 
 
 class BasePolyTester2D(BaseTester2D):

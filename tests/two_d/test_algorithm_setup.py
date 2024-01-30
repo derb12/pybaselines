@@ -548,7 +548,7 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
         ensure_2d=not three_d
     )
 
-    assert_allclose(output, expected_baseline, 1e-16, 1e-16)
+    assert_allclose(output, expected_baseline, 1e-14, 1e-14)
     assert output.dtype == output_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key])
@@ -557,8 +557,9 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
 @pytest.mark.parametrize('assume_sorted', (True, False))
 @pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
+@pytest.mark.parametrize('skip_sorting', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
-def test_algorithm_register(assume_sorted, output_dtype, change_order, list_input):
+def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sorting, list_input):
     """
     Ensures the _register wrapper method returns the correctly sorted and shaped outputs.
 
@@ -576,16 +577,22 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         @_algorithm_setup._Algorithm2D._register(sort_keys=('a', 'd'), reshape_keys=('c', 'd'))
         def func(self, data, *args, **kwargs):
             """For checking sorting and reshaping output parameters."""
-            expected_input = y.copy()
-            if change_order and not assume_sorted:
-                expected_input = np.asarray(expected_input)[::-1, ::-1]
+            expected_x, expected_z, expected_y = get_data2d()
+            if change_order and assume_sorted:
+                expected_y = expected_y[::-1, ::-1]
+                expected_x = expected_x[::-1]
+                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
-            assert_allclose(data, expected_input, 1e-16, 1e-16)
+            assert_allclose(data, expected_y, 1e-14, 1e-14)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, expected_z, 1e-14, 1e-14)
 
             params = {
                 'a': np.arange(data.size).reshape(data.shape),
-                'b': np.arange(len(x)),
+                'b': np.arange(len(self.x)),
                 'c': np.arange(data.size),
                 'd': np.arange(data.size)
             }
@@ -594,26 +601,66 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         @_algorithm_setup._Algorithm2D._register(reshape_baseline=True)
         def func2(self, data, *args, **kwargs):
             """For checking reshaping output baseline."""
-            expected_input = y.copy()
-            if change_order and not assume_sorted:
-                expected_input = np.asarray(expected_input)[::-1, ::-1]
+            expected_x, expected_z, expected_y = get_data2d()
+            if change_order and assume_sorted:
+                expected_y = expected_y[::-1, ::-1]
+                expected_x = expected_x[::-1]
+                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
-            assert_allclose(data, expected_input, 1e-16, 1e-16)
+            assert_allclose(data, expected_y, 1e-14, 1e-14)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, expected_z, 1e-14, 1e-14)
 
             return 1 * data.flatten(), {}
 
         @_algorithm_setup._Algorithm2D._register
         def func3(self, data, *args, **kwargs):
             """For checking empty decorator."""
-            expected_input = y.copy()
-            if change_order and not assume_sorted:
-                expected_input = np.asarray(expected_input)[::-1, ::-1]
+            expected_x, expected_z, expected_y = get_data2d()
+            if change_order and assume_sorted:
+                expected_y = expected_y[::-1, ::-1]
+                expected_x = expected_x[::-1]
+                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
-            assert_allclose(data, expected_input, 1e-16, 1e-16)
+            assert_allclose(data, expected_y, 1e-14, 1e-14)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, expected_z, 1e-14, 1e-14)
 
             return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._register(
+            sort_keys=('a', 'd'), reshape_keys=('c', 'd'), skip_sorting=skip_sorting
+        )
+        def func4(self, data, *args, **kwargs):
+            """For checking skip_sorting key."""
+            expected_x, expected_z, expected_y = get_data2d()
+            if change_order and (assume_sorted or skip_sorting):
+                expected_y = expected_y[::-1, ::-1]
+            if change_order and assume_sorted:
+                expected_x = expected_x[::-1]
+                expected_z = expected_z[::-1]
+
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_y, 1e-14, 1e-14)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, expected_z, 1e-14, 1e-14)
+
+            params = {
+                'a': np.arange(data.size).reshape(data.shape),
+                'b': np.arange(len(self.x)),
+                'c': np.arange(data.size),
+                'd': np.arange(data.size)
+            }
+
+            return 1 * data, params
 
     if change_order:
         x = x[::-1]
@@ -626,6 +673,10 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         'd': np.arange(y.size).reshape(y.shape),
     }
     expected_baseline = (1 * y).astype(output_dtype)
+    if output_dtype is None:
+        expected_dtype = y.dtype
+    else:
+        expected_dtype = expected_baseline.dtype
     if list_input:
         x = x.tolist()
         z = z.tolist()
@@ -644,21 +695,28 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
 
     # baseline should always match y-order on the output; only sorted within the
     # function
-    assert_allclose(output, expected_baseline, 1e-16, 1e-16)
+    assert_allclose(output, expected_baseline, 1e-14, 1e-14)
     assert isinstance(output, np.ndarray)
-    assert output.dtype == output_dtype
+    assert output.dtype == expected_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key], err_msg=f'{key} failed')
 
     output2, _ = algorithm.func2(y)
-    assert_allclose(output2, expected_baseline, 1e-16, 1e-16)
+    assert_allclose(output2, expected_baseline, 1e-14, 1e-14)
     assert isinstance(output2, np.ndarray)
-    assert output2.dtype == output_dtype
+    assert output2.dtype == expected_dtype
 
     output3, _ = algorithm.func3(y)
-    assert_allclose(output3, expected_baseline, 1e-16, 1e-16)
+    assert_allclose(output3, expected_baseline, 1e-14, 1e-14)
     assert isinstance(output3, np.ndarray)
-    assert output3.dtype == output_dtype
+    assert output3.dtype == expected_dtype
+
+    output4, output_params4 = algorithm.func4(y)
+    assert_allclose(output4, expected_baseline, 1e-14, 1e-14)
+    assert isinstance(output4, np.ndarray)
+    assert output4.dtype == expected_dtype
+    for key, value in expected_params.items():
+        assert_array_equal(value, output_params4[key], err_msg=f'{key} failed')
 
 
 def test_override_x(algorithm):
@@ -705,6 +763,64 @@ def test_get_function_fails_no_module(algorithm):
     """Ensures _get_function fails when not given any modules to search."""
     with pytest.raises(AttributeError):
         algorithm._get_function('collab_pls', [])
+
+
+def test_get_function_sorting_x():
+    """Ensures the sort order is correct for the output class object when x is reversed."""
+    num_points = 10
+    x = np.arange(num_points)
+    ordering = np.arange(num_points)
+    algorithm = _algorithm_setup._Algorithm2D(x[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+
+    assert_array_equal(class_object.x, x)
+    assert_array_equal(class_object._sort_order, ordering[::-1])
+    assert_array_equal(class_object._inverted_order, ordering[::-1])
+    assert_array_equal(class_object._sort_order, algorithm._sort_order)
+    assert_array_equal(class_object._inverted_order, algorithm._inverted_order)
+
+
+def test_get_function_sorting_z():
+    """Ensures the sort order is correct for the output class object when z is reversed."""
+    num_points = 10
+    z = np.arange(num_points)
+    ordering = np.arange(num_points)
+    algorithm = _algorithm_setup._Algorithm2D(None, z[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+
+    assert_array_equal(class_object.z, z)
+    assert class_object._sort_order[0] is Ellipsis
+    assert class_object._inverted_order[0] is Ellipsis
+    assert algorithm._sort_order[0] is Ellipsis
+    assert algorithm._inverted_order[0] is Ellipsis
+    assert_array_equal(class_object._sort_order[1], ordering[::-1])
+    assert_array_equal(class_object._inverted_order[1], ordering[::-1])
+    assert_array_equal(class_object._sort_order[1], algorithm._sort_order[1])
+    assert_array_equal(class_object._inverted_order[1], algorithm._inverted_order[1])
+
+
+def test_get_function_sorting_xz():
+    """Ensures the sort order is correct for the output class object when x and z are reversed."""
+    num_x_points = 10
+    num_z_points = 11
+    x = np.arange(num_x_points)
+    x_ordering = np.arange(num_x_points)
+    z = np.arange(num_z_points)
+    z_ordering = np.arange(num_z_points)
+
+    algorithm = _algorithm_setup._Algorithm2D(x[::-1], z[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+
+    assert_array_equal(class_object.x, x)
+    assert_array_equal(class_object.z, z)
+    assert_array_equal(class_object._sort_order[0], x_ordering[::-1][:, None])
+    assert_array_equal(class_object._sort_order[1], z_ordering[::-1][None, :])
+    assert_array_equal(class_object._inverted_order[0], x_ordering[::-1][:, None])
+    assert_array_equal(class_object._inverted_order[1], z_ordering[::-1][None, :])
+    assert_array_equal(class_object._sort_order[0], algorithm._sort_order[0])
+    assert_array_equal(class_object._sort_order[1], algorithm._sort_order[1])
+    assert_array_equal(class_object._inverted_order[0], algorithm._inverted_order[0])
+    assert_array_equal(class_object._inverted_order[1], algorithm._inverted_order[1])
 
 
 @pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))

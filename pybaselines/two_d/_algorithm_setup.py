@@ -141,7 +141,7 @@ class _Algorithm2D:
         self._dtype = output_dtype
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), ensure_2d=False,
-                        reshape_baseline=False, reshape_keys=()):
+                        reshape_baseline=False, reshape_keys=(), skip_sorting=False):
         """
         Re-orders the input baseline and parameters based on the x ordering.
 
@@ -158,6 +158,20 @@ class _Algorithm2D:
         sort_keys : Iterable, optional
             An iterable of keys corresponding to the values in `params` that need
             re-ordering. Default is ().
+        ensure_2d : bool, optional
+            If True (default), will raise an error if the shape of `array` is not a two dimensional
+            array with shape (M, N) or a three dimensional array with shape (M, N, 1), (M, 1, N),
+            or (1, M, N).
+        reshape_baseline : bool, optional
+            If True, will reshape the output baseline back into the shape of the input data. If
+            False (default), will not modify the output baseline shape.
+        reshape_keys : tuple, optional
+            The keys within the output parameter dictionary that will need reshaped to match the
+            shape of the data. For example, used to convert weights for polynomials from 1D back
+            into the original shape. Default is ().
+        skip_sorting : bool, optional
+            If True, will skip sorting the output baseline. The keys in `sort_keys` will
+            still be sorted. Default is False.
 
         Returns
         -------
@@ -183,14 +197,15 @@ class _Algorithm2D:
                     # assumes params all all two dimensional arrays
                     params[key] = params[key][self._inverted_order]
 
-            baseline = _sort_array2d(baseline, sort_order=self._inverted_order)
+            if not skip_sorting:
+                baseline = _sort_array2d(baseline, sort_order=self._inverted_order)
         baseline = baseline.astype(dtype, copy=False)
 
         return baseline, params
 
     @classmethod
     def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_2d=True,
-                  reshape_baseline=False, reshape_keys=()):
+                  reshape_baseline=False, reshape_keys=(), skip_sorting=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -221,6 +236,9 @@ class _Algorithm2D:
             The keys within the output parameter dictionary that will need reshaped to match the
             shape of the data. For example, used to convert weights for polynomials from 1D back
             into the original shape. Default is ().
+        skip_sorting : bool, optional
+            If True, will skip sorting the output baseline. The keys in `sort_keys` will
+            still be sorted. Default is False.
 
         Returns
         -------
@@ -233,7 +251,8 @@ class _Algorithm2D:
         if func is None:
             return partial(
                 cls._register, sort_keys=sort_keys, dtype=dtype, order=order, ensure_2d=ensure_2d,
-                reshape_baseline=reshape_baseline, reshape_keys=reshape_keys
+                reshape_baseline=reshape_baseline, reshape_keys=reshape_keys,
+                skip_sorting=skip_sorting
             )
 
         @wraps(func)
@@ -283,7 +302,8 @@ class _Algorithm2D:
                 self._len[1] = y.shape[-1]
                 self.z = np.linspace(-1, 1, self._len[1])
 
-            y = _sort_array2d(y, sort_order=self._sort_order)
+            if not skip_sorting:
+                y = _sort_array2d(y, sort_order=self._sort_order)
             if self._dtype is None:
                 output_dtype = y.dtype
             else:
@@ -297,7 +317,8 @@ class _Algorithm2D:
 
             return self._return_results(
                 baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_2d=ensure_2d,
-                reshape_baseline=reshape_baseline, reshape_keys=reshape_keys
+                reshape_baseline=reshape_baseline, reshape_keys=reshape_keys,
+                skip_sorting=skip_sorting
             )
 
         return inner
@@ -878,10 +899,7 @@ class _Algorithm2D:
         else:
             method_kws = method_kwargs
 
-        return (
-            _sort_array2d(y, self._inverted_order), baseline_func, func_module, method_kws,
-            class_object
-        )
+        return y, baseline_func, func_module, method_kws, class_object
 
     def _setup_misc(self, y):
         """

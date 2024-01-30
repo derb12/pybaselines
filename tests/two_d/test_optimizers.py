@@ -56,8 +56,6 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
             regular_output, self.reverse_array(reverse_output), **assertion_kwargs
         )
 
-        return regular_output, regular_output_params, reverse_output, reverse_output_params
-
 
 class OptimizersTester(BaseTester2D):
     """Base testing class for optimizer functions."""
@@ -73,7 +71,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     # will need to change checked_keys if default method is changed
     checked_keys = ('average_weights', 'weights', 'tol_history')
     three_d = True
-    weight_keys = ('average_weights',)
+    weight_keys = ('average_weights', 'weights')
 
     @pytest.mark.parametrize(
         'method',
@@ -97,18 +95,6 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
         """Ensures an error is raised if the input has the shape (M, N)."""
         with pytest.raises(ValueError, match='the input data must'):
             self.class_func(np.arange(self.y[0].size).reshape(self.y.shape[-2:]))
-
-    @pytest.mark.parametrize('average_dataset', (True, False))
-    def test_input_weights(self, average_dataset):
-        """Ensures the input weights are sorted correctly."""
-        output = super().test_input_weights(average_dataset=average_dataset)
-        regular_output, regular_output_params, reverse_output, reverse_output_params = output
-
-        assert_allclose(
-            regular_output_params['weights'],
-            self.reverse_array(np.asarray(reverse_output_params['weights'])),
-            rtol=1e-12, atol=1e-14
-        )
 
 
 @pytest.mark.parametrize(

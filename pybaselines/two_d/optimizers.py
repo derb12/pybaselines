@@ -22,7 +22,7 @@ from ..utils import _check_scalar, _sort_array2d
 class _Optimizers(_Algorithm2D):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm2D._register(ensure_2d=False)
+    @_Algorithm2D._register(ensure_2d=False, skip_sorting=True)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).
@@ -131,9 +131,9 @@ class _Optimizers(_Algorithm2D):
                 else:
                     params[key] = [value]
 
-        return _sort_array2d(baselines, self._sort_order), params
+        return baselines, params
 
-    @_Algorithm2D._register
+    @_Algorithm2D._register(skip_sorting=True)
     def adaptive_minmax(self, data, poly_order=None, method='modpoly', weights=None,
                         constrained_fraction=0.01, constrained_weight=1e5,
                         estimation_poly_order=2, method_kwargs=None):
@@ -264,7 +264,7 @@ class _Optimizers(_Algorithm2D):
             'poly_order': poly_orders
         }
 
-        return _sort_array2d(np.maximum.reduce(baselines), self._sort_order), params
+        return np.maximum.reduce(baselines), params
 
 
 def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
