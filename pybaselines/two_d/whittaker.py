@@ -32,35 +32,36 @@ class _Whittaker(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e6.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e6.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
             will be given `p - 1` weight. Default is 1e-2.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 2
-            (second order differential matrix). Typical values are 2 or 1.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 2 (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
-            will be an array with size equal to N and all values set to 1.
+            will be an array with shape equal to (M, N) and all values set to 1.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -115,37 +116,39 @@ class _Whittaker(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with `N` data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e6.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e6.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
             will be given `p - 1` weight. Default is 1e-2.
-        lam_1 : float, optional
-            The smoothing parameter for the first derivative of the residual. Default is 1e-4.
+        lam_1 : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively, of the first
+            derivative of the residual. Default is 1e-4.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be set by fitting the data with a second order polynomial.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 1. Default is 2
-            (second order differential matrix). Typical values are 2 or 3.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 1.
+            Default is 2 (second order differential matrix). Typical values are 2 or 3.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -209,31 +212,32 @@ class _Whittaker(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e6.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 2
-            (second order differential matrix). Typical values are 2 or 1.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e6.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 2 (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
-            will be an array with size equal to N and all values set to 1.
+            will be an array with shape equal to (M, N) and all values set to 1.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -309,31 +313,32 @@ class _Whittaker(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e5.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 2
-            (second order differential matrix). Typical values are 2 or 1.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e3.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 2 (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
-            will be an array with size equal to N and all values set to 1.
+            will be an array with shape equal to (M, N) and all values set to 1.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -376,12 +381,12 @@ class _Whittaker(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e5.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e5.
         eta : float
             A term for controlling the value of lam; should be between 0 and 1.
             Low values will produce smoother baselines, while higher values will
@@ -393,18 +398,19 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 1. Default is 2
-            (second order differential matrix). Typical values are 2 or 3.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 1.
+            Default is 2 (second order differential matrix). Typical values are 2 or 3.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -474,31 +480,32 @@ class _Whittaker(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e5.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 2
-            (second order differential matrix). Typical values are 2 or 1.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e5.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 2 (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
-            will be an array with size equal to N and all values set to 1.
+            will be an array with shape equal to (M, N) and all values set to 1.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -556,37 +563,38 @@ class _Whittaker(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e5.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 2
-            (second order differential matrix). Typical values are 2 or 1.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e5.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 2 (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
-            will be an array with size equal to N and all values set to 1.
-        alpha : array-like, shape (N,), optional
+            will be an array with shape equal to (M, N) and all values set to 1.
+        alpha : array-like, shape (M, N), optional
             An array of values that control the local value of `lam` to better
             fit peak and non-peak regions. If None (default), then the initial values
-            will be an array with size equal to N and all values set to 1.
+            will be an array with shape equal to (M, N) and all values set to 1.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
-            * 'alpha': numpy.ndarray, shape (N,)
+            * 'alpha': numpy.ndarray, shape (M, N)
                 The array of alpha values used for fitting the data in the final iteration.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -654,12 +662,12 @@ class _Whittaker(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e6.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e5.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
@@ -670,25 +678,26 @@ class _Whittaker(_Algorithm2D):
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
             will produce similar results to :meth:`~Baseline2D.asls`.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 2
-            (second order differential matrix). Typical values are 2 or 1.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 2 (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
-            will be an array with size equal to N and all values set to 1.
+            will be an array with shape equal to (M, N) and all values set to 1.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for

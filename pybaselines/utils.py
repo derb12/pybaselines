@@ -571,7 +571,7 @@ def _poly_transform_matrix(num_coefficients, original_domain):
     ----------
     num_coefficients : int
         The number of polynomial coefficients, ie. the polynomial degree + 1.
-    original_domain : Container[float, float]
+    original_domain : Sequence[float, float]
         The domain, [min(x), max(x)], of the original data used for fitting.
 
     Returns
@@ -615,7 +615,7 @@ def _convert_coef(coef, original_domain):
     coef : numpy.ndarray, shape (a,)
         The array of coefficients for the polynomial. Should increase in
         order, for example (c0, c1, c2) from `y = c0 + c1 * x + c2 * x**2`.
-    original_domain : Container[float, float]
+    original_domain : Sequence[float, float]
         The domain, [min(x), max(x)], of the original data used for fitting.
 
     Returns
@@ -653,9 +653,9 @@ def _convert_coef2d(coef, poly_degree_x, poly_degree_z, original_x_domain, origi
         The polynomial degree for the x-values
     poly_degree_z : int
         The polynomial degree for the z-values
-    original_x_domain : Container[float, float]
+    original_x_domain : Sequence[float, float]
         The domain, [min(x), max(x)], of the original x-values used for fitting.
-    original_z_domain : Container[float, float]
+    original_z_domain : Sequence[float, float]
         The domain, [min(z), max(z)], of the original z-values used for fitting.
 
     Returns

@@ -73,18 +73,18 @@ class PSpline2D(PenalizedSystem2D):
             The x-values for the spline.
         z : array-like, shape (M,)
             The z-values for the spline.
-        num_knots : int or Sequence(int, int), optional
+        num_knots : int or Sequence[int, int], optional
             The number of internal knots for the spline, including the endpoints.
             Default is 100.
-        spline_degree : int or Sequence(int, int), optional
+        spline_degree : int or Sequence[int, int], optional
             The degree of the spline. Default is 3, which is a cubic spline.
         check_finite : bool, optional
             If True, will raise an error if any values in `x` are not finite. Default
             is False, which skips the check.
-        lam : float or Sequence(float, float), optional
+        lam : float or Sequence[float, float], optional
             The penalty factor applied to the difference matrix. Larger values produce
             smoother results. Must be greater than 0. Default is 1.
-        diff_order : int or Sequence(int, int), optional
+        diff_order : int or Sequence[int, int], optional
             The difference order of the penalty. Default is 2 (second order difference).
 
         Raises
@@ -122,10 +122,10 @@ class PSpline2D(PenalizedSystem2D):
                 'functions, which is the number of knots + spline degree - 1'
             ))
 
-        el = np.ones((self._num_bases[0], 1))
-        ek = np.ones((self._num_bases[1], 1))
-        self._G = sparse.kron(self.basis_x, el.T).multiply(sparse.kron(el.T, self.basis_x))
-        self._G2 = sparse.kron(self.basis_z, ek.T).multiply(sparse.kron(ek.T, self.basis_z))
+        el = np.ones((1, self._num_bases[0]))
+        ek = np.ones((1, self._num_bases[1]))
+        self._G = sparse.kron(self.basis_x, el).multiply(sparse.kron(el, self.basis_x))
+        self._G2 = sparse.kron(self.basis_z, ek).multiply(sparse.kron(ek, self.basis_z))
 
     def same_basis(self, num_knots=100, spline_degree=3):
         """
@@ -133,9 +133,9 @@ class PSpline2D(PenalizedSystem2D):
 
         Parameters
         ----------
-        num_knots : int, optional
+        num_knots : int or Sequence[int, int], optional
             The number of knots for the new spline. Default is 100.
-        spline_degree : int, optional
+        spline_degree : int or Sequence[int, int], optional
             The degree of the new spline. Default is 3.
 
         Returns
@@ -163,10 +163,10 @@ class PSpline2D(PenalizedSystem2D):
 
         Parameters
         ----------
-        lam : float, optional
+        lam : float or Sequence[float, float], optional
             The penalty factor applied to the difference matrix. Larger values produce
             smoother results. Must be greater than 0. Default is 1.
-        diff_order : int, optional
+        diff_order : int or Sequence[int, int], optional
             The difference order of the penalty. Default is 2 (second order difference).
         allow_lower : bool, optional
             If True (default), will allow only using the lower bands of the penalty matrix,
@@ -178,12 +178,7 @@ class PSpline2D(PenalizedSystem2D):
 
         Notes
         -----
-        `allow_pentapy` is always set to False since the time needed to go from a lower to full
-        banded matrix and shifting the rows removes any speedup from using pentapy's solver. It
-        also reduces the complexity of setting up the equations.
-
-        Adds padding to the penalty diagonals to accomodate the different shapes of the spline
-        basis and the penalty to speed up calculations when the two are added.
+        `use_banded` is always set to False since the banded structure in 2D is not small.
 
         """
         self.reset_diagonals(lam, diff_order, use_banded=False)
@@ -200,21 +195,21 @@ class PSpline2D(PenalizedSystem2D):
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
             The y-values for fitting the spline.
-        weights : numpy.ndarray, shape (N,)
+        weights : numpy.ndarray, shape (M, N)
             The weights for each y-value.
-        penalty : numpy.ndarray, shape (D, N)
+        penalty : numpy.ndarray, shape (``M * N``, ``M * N``)
             The finite difference penalty matrix, in LAPACK's lower banded format (see
             :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
             format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
-        rhs_extra : float or numpy.ndarray, shape (N,), optional
+        rhs_extra : float or numpy.ndarray, shape (``M * N``,), optional
             If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
             of the equation before solving. Default is None, which adds nothing.
 
         Returns
         -------
-        numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (M, N)
             The spline, corresponding to ``B @ c``, where `c` are the solved spline
             coefficients and `B` is the spline basis.
 

@@ -34,7 +34,7 @@ class _Algorithm2D:
 
     Attributes
     ----------
-    poly_order : int
+    poly_order : Sequence[int, int]
         The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
         that no polynomial fitting has been performed.
     pspline : PSpline2D or None
@@ -50,14 +50,14 @@ class _Algorithm2D:
         :meth:`_setup_whittaker`).
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
-        first function call to have the same size as the input `data.shape[-1]` and has min
+        first function call to have the same size as the input `data.shape[-2]` and has min
         and max values of -1 and 1, respectively.
     x_domain : numpy.ndarray
         The minimum and maximum values of `x`. If `x_data` is None during initialization, then
         set to numpy.ndarray([-1, 1]).
     z : numpy.ndarray or None
         The z-values for the object. If initialized with None, then `z` is initialized the
-        first function call to have the same size as the input `data.shape[-2]` and has min
+        first function call to have the same size as the input `data.shape[-1]` and has min
         and max values of -1 and 1, respectively.
     z_domain : numpy.ndarray
         The minimum and maximum values of `z`. If `z_data` is None during initialization, then
@@ -72,11 +72,11 @@ class _Algorithm2D:
 
         Parameters
         ----------
-        x_data : array-like, shape (N,), optional
+        x_data : array-like, shape (M,), optional
             The x-values of the measured data. Default is None, which will create an
             array from -1 to 1 during the first function call with length equal to the
             input data length.
-        z_data : array-like, shape (M,), optional
+        z_data : array-like, shape (N,), optional
             The z-values of the measured data. Default is None, which will create an
             array from -1 to 1 during the first function call with length equal to the
             input data length.
@@ -153,7 +153,7 @@ class _Algorithm2D:
             The baseline output by the baseline function.
         params : dict
             The parameter dictionary output by the baseline function.
-        dtype : [type]
+        dtype : type or numpy.dtype, optional
             The desired output dtype for the baseline.
         sort_keys : Iterable, optional
             An iterable of keys corresponding to the values in `params` that need
@@ -385,24 +385,24 @@ class _Algorithm2D:
             self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
-                         use_lower=True, use_banded=False, reverse_diags=None):
+                         use_lower=True, use_banded=False):
         """
         Sets the starting parameters for doing penalized least squares.
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M ,N)
             The y-values of the measured data, already converted to a numpy
             array by :meth:`~_Algorithm2D._register`.
-        lam : float, optional
+        lam : float or Sequence[float, float], optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
             and the differential order. Default is 1.
-        diff_order : int, optional
+        diff_order : int or Sequence[int, int], optional
             The integer differential order; must be greater than 0. Default is 2.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            shape (N,) and all values set to 1.
+            shape (M, N) and all values set to 1.
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
@@ -412,17 +412,13 @@ class _Algorithm2D:
         use_banded : bool, optional
             If True, will setup the penalized system using banded matrices. If False,
             will use sparse matrices.
-        reverse_diags : {None, False, True}, optional
-            If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False, will never reverse the diagonals. If None (default), will
-            only reverse the diagonals if using pentapy's solver.
 
         Returns
         -------
-        y : numpy.ndarray, shape (N,)
-            The y-values of the measured data, converted to a numpy array.
-        weight_array : numpy.ndarray, shape (N,), optional
-            The weighting array.
+        y : numpy.ndarray, shape (``M * N``)
+            The y-values of the measured data after flattening.
+        weight_array : numpy.ndarray, shape (``M * N``)
+            The weight array after flattening.
 
         Raises
         ------
@@ -469,14 +465,14 @@ class _Algorithm2D:
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
             array by :meth:`~_Algorithm2D._register`.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
-        poly_order : int or Container[int, int], optional
-            The polynomial orders for x and z. Default is 2.
+            shape equal to (M, N) and all values set to 1.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for the rows and columns. Default is 2.
         calc_vander : bool, optional
             If True, will calculate and the Vandermonde matrix. Default is False.
         calc_pinv : bool, optional
@@ -492,10 +488,10 @@ class _Algorithm2D:
 
         Returns
         -------
-        y : numpy.ndarray, shape (N,)
-            The y-values of the measured data, converted to a numpy array.
-        weight_array : numpy.ndarray, shape (N,)
-            The weight array for fitting a polynomial to the data.
+        y : numpy.ndarray, shape (``M * N``)
+            The y-values of the measured data after flattening.
+        weight_array : numpy.ndarray, shape (``M * N``)
+            The weight array for fitting a polynomial to the data after flattening.
         pseudo_inverse : numpy.ndarray
             Only returned if `calc_pinv` is True. The pseudo-inverse of the
             Vandermonde matrix, calculated with singular value decomposition (SVD).
@@ -581,23 +577,23 @@ class _Algorithm2D:
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
             array by :meth:`~_Algorithm2D._register`.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
-        spline_degree : int, optional
+            shape equal to (M, N) and all values set to 1.
+        spline_degree : int or Sequence[int, int], optional
             The degree of the spline. Default is 3, which is a cubic spline.
-        num_knots : int, optional
+        num_knots : int or Sequence[int, int], optional
             The number of interior knots for the splines. Default is 10.
         penalized : bool, optional
             Whether the basis matrix should be for a penalized spline or a regular
             B-spline. Default is True, which creates the basis for a penalized spline.
-        diff_order : int, optional
+        diff_order : int or Sequence[int, int], optional
             The integer differential order for the spline penalty; must be greater than 0.
             Default is 3. Only used if `penalized` is True.
-        lam : float, optional
+        lam : float or Sequence[float, float], optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the number of knots and the difference order.
             Default is 1.
@@ -615,9 +611,9 @@ class _Algorithm2D:
 
         Returns
         -------
-        y : numpy.ndarray, shape (N,)
-            The y-values of the measured data, converted to a numpy array.
-        weight_array : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
+            The y-values of the measured data.
+        weight_array : numpy.ndarray, shape (M, N)
             The weight array for fitting the spline to the data.
 
         Warns
@@ -661,10 +657,10 @@ class _Algorithm2D:
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
             array by :meth:`~_Algorithm2D._register`.
-        half_window : int, optional
+        half_window : int or Sequence[int, int], optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
             half-window size using pybaselines.morphological.optimize_window.
@@ -689,10 +685,10 @@ class _Algorithm2D:
 
         Returns
         -------
-        y : numpy.ndarray, shape (N,)
-            The y-values of the measured data, converted to a numpy array.
-        output_half_window : int
-            The accepted half window size.
+        y : numpy.ndarray, shape (M, N)
+            The y-values of the measured data.
+        output_half_window : np.ndarray[int, int]
+            The accepted half windows.
 
         Notes
         -----
@@ -716,10 +712,10 @@ class _Algorithm2D:
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
             array by :meth:`~_Algorithm2D._register`.
-        half_window : int, optional
+        half_window : int or Sequence[int, int], optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
             effects. Default is 0, which provides no padding.
@@ -735,10 +731,10 @@ class _Algorithm2D:
 
         Returns
         -------
-        numpy.ndarray, shape (``N + 2 * half_window``,)
+        numpy.ndarray, shape (``M + 2 * half_window[0]``, ``N + 2 * half_window[1]`)
             The padded array of data.
-        output_hw : int
-            The accepted half window size.
+        output_hw : np.ndarray[int, int]
+            The accepted half windows.
 
         """
         if half_window is not None:
@@ -754,18 +750,18 @@ class _Algorithm2D:
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
             array by :meth:`~_Algorithm2D._register`.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
+            shape equal to (M, N) and all values set to 1.
 
         Returns
         -------
-        y : numpy.ndarray, shape (N,)
-            The y-values of the measured data, converted to a numpy array.
-        weight_array : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
+            The y-values of the measured data.
+        weight_array : numpy.ndarray, shape (M, N)
             The weight array for the data, with boolean dtype.
 
         """
@@ -775,7 +771,7 @@ class _Algorithm2D:
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
-        weight_array = weight_array.ravel()
+        weight_array = weight_array
 
         return y, weight_array
 
@@ -849,18 +845,18 @@ class _Algorithm2D:
 
         return func, func_module, class_object
 
-    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True, **kwargs):
+    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True):
         """
         Sets the starting parameters for doing optimizer algorithms.
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray
             The y-values of the measured data, already converted to a numpy
             array by :meth:`~_Algorithm2D._register`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
-        modules : Sequence(module, ...)
+        modules : Sequence[module, ...]
             The modules to search for the indicated `method` function.
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the fitting function. Default
@@ -868,14 +864,11 @@ class _Algorithm2D:
         copy_kwargs : bool, optional
             If True (default), will copy the input `method_kwargs` so that the input
             dictionary is not modified within the function.
-        **kwargs
-            Deprecated in version 0.8.0 and will be removed in version 0.10 or 1.0. Pass any
-            keyword arguments for the fitting function in the `method_kwargs` dictionary.
 
         Returns
         -------
-        y : numpy.ndarray, shape (N,)
-            The y-values of the measured data, converted to a numpy array.
+        y : numpy.ndarray
+            The y-values of the measured data.
         baseline_func : Callable
             The function for fitting the baseline.
         func_module : str
@@ -907,14 +900,14 @@ class _Algorithm2D:
 
         Parameters
         ----------
-        y : numpy.ndarray, shape (N,)
+        y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
             array by :meth:`~_Algorithm2D._register`.
 
         Returns
         -------
-        y : numpy.ndarray, shape (N,)
-            The y-values of the measured data, converted to a numpy array.
+        y : numpy.ndarray, shape (M, N)
+            The y-values of the measured data.
 
         Notes
         -----

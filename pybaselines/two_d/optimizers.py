@@ -32,9 +32,9 @@ class _Optimizers(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (M, N)
-            An array with shape (M, N) where M is the number of entries in
-            the dataset and N is the number of data points in each entry.
+        data : array-like, shape (L, M, N)
+            An array with shape (L, M, N) where L is the number of entries in
+            the dataset and (M, N) is the shape of each data entry.
         average_dataset : bool, optional
             If True (default) will average the dataset before fitting to get the
             weighting. If False, will fit each individual entry in the dataset and
@@ -48,18 +48,17 @@ class _Optimizers(_Algorithm2D):
 
         Returns
         -------
-        baselines : np.ndarray, shape (M, N)
+        baselines : np.ndarray, shape (L, M, N)
             An array of all of the baselines.
         params : dict
             A dictionary with the following items:
 
-            * 'average_weights': numpy.ndarray, shape (N,)
+            * 'average_weights': numpy.ndarray, shape (M, N)
                 The weight array used to fit all of the baselines.
-            * 'average_alpha': numpy.ndarray, shape (N,)
-                Only returned if `method` is 'aspls' or 'pspline_aspls'. The
+            * 'average_alpha': numpy.ndarray, shape (M, N)
+                Only returned if `method` is 'aspls'. The
                 `alpha` array used to fit all of the baselines for the
-                :meth:`~pybaselines.whittaker.Whittaker.aspls` or
-                :meth:`~pybaselines.spline.Spline.pspline_aspls` methods.
+                :meth:`~Baseline2D.aspls`.
 
             Additional items depend on the output of the selected method. Every
             other key will have a list of values, with each item corresponding to a
@@ -67,7 +66,7 @@ class _Optimizers(_Algorithm2D):
 
         Notes
         -----
-        If `method` is 'aspls' or 'pspline_aspls', `collab_pls` will also calculate
+        If `method` is 'aspls', `collab_pls` will also calculate
         the `alpha` array for the entire dataset in the same manner as the weights.
 
         References
@@ -145,24 +144,24 @@ class _Optimizers(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        poly_order : int or Sequence(int, int) or None, optional
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int] or None, optional
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
             and then select the appropriate polynomial orders according to [32]_.
         method : {'modpoly', 'imodpoly'}, optional
             The method to use for fitting each polynomial. Default is 'modpoly'.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
-        constrained_fraction : float or Sequence(float, float), optional
+            shape equal to (M, N) and all values set to 1.
+        constrained_fraction : float or Sequence[float, float], optional
             The fraction of points at the left and right edges to use for the
             constrained fit. Default is 0.01. If `constrained_fraction` is a sequence,
             the first item is the fraction for the left edge and the second is the
             fraction for the right edge.
-        constrained_weight : float or Sequence(float, float), optional
+        constrained_weight : float or Sequence[float, float], optional
             The weighting to give to the endpoints. Higher values ensure that the
             end points are fit, but can cause large fluctuations in the other sections
             of the polynomial. Default is 1e5. If `constrained_weight` is a sequence,
@@ -179,14 +178,14 @@ class _Optimizers(_Algorithm2D):
 
         Returns
         -------
-        numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
-            * 'constrained_weights': numpy.ndarray, shape (N,)
+            * 'constrained_weights': numpy.ndarray, shape (M, N)
                 The weight array used for the endpoint-constrained fits.
             * 'poly_order': numpy.ndarray, shape (2,)
                 An array of the two polynomial orders used for the fitting.

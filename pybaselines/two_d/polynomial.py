@@ -36,50 +36,13 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
-
-The function loess was adapted from code from https://gist.github.com/agramfort/850437
-(accessed March 25, 2021), which was licensed under the BSD-3-clause below.
-
-# Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
-#
-# License: BSD (3-clause)
-Copyright (c) 2015, Alexandre Gramfort
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 """
 
 import numpy as np
 
 from .. import _weighting
 from ._algorithm_setup import _Algorithm2D
-from ..utils import (
-    _MIN_FLOAT, _convert_coef2d, relative_difference
-)
+from ..utils import _MIN_FLOAT, _convert_coef2d, relative_difference
 
 
 class _Polynomial(_Algorithm2D):
@@ -94,16 +57,17 @@ class _Polynomial(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        poly_order : int or Container[int, int], optional
-            The polynomial orders for x and z. Default is 2.
-        weights : array-like, shape (N,), optional
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for x and z. If a single value, will use that for both x and
+            z. Default is 2.
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
+            shape equal to (M, N) and all values set to 1.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the input x_data and return them in the params dictionary.
+            a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
         max_cross: int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
@@ -112,14 +76,14 @@ class _Polynomial(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
-            * 'coef': numpy.ndarray, shape (poly_order,)
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
@@ -155,20 +119,21 @@ class _Polynomial(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
         x_data : array-like, shape (N,), optional
             The x-values of the measured data. Default is None, which will create an
             array from -1 to 1 with N points.
-        poly_order : int or Container[int, int], optional
-            The polynomial orders for x and z. Default is 2.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for x and z. If a single value, will use that for both x and
+            z. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
             The maximum number of iterations. Default is 250.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
+            shape equal to (M, N) and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
             the y-values of that iteration [33]_ when choosing minimum values. If True,
@@ -178,7 +143,7 @@ class _Polynomial(_Algorithm2D):
             deviation of the residual is less than measured data [35]_. Default is False.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the input x_data and return them in the params dictionary.
+            a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
         max_cross: int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
@@ -187,19 +152,19 @@ class _Polynomial(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
@@ -267,17 +232,18 @@ class _Polynomial(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        poly_order : int or Container[int, int], optional
-            The polynomial orders for x and z. Default is 2.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for x and z. If a single value, will use that for both x and
+            z. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
             The maximum number of iterations. Default is 250.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
+            shape equal to (M, N) and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
             the y-values of that iteration [36]_ when choosing minimum values. If True,
@@ -287,7 +253,7 @@ class _Polynomial(_Algorithm2D):
             the standard deviation of the residual is less than measured data [38]_.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the input x_data and return them in the params dictionary.
+            a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
         num_std : float, optional
             The number of standard deviations to include when thresholding. Default
@@ -299,19 +265,19 @@ class _Polynomial(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
@@ -395,17 +361,18 @@ class _Polynomial(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        poly_order : int or Container[int, int], optional
-            The polynomial orders for x and z. Default is 2.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for x and z. If a single value, will use that for both x and
+            z. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
             The maximum number of iterations. Default is 250.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
+            shape equal to (M, N) and all values set to 1.
         cost_function : str, optional
             The non-quadratic cost function to minimize. Must indicate symmetry of the
             method by appending 'a' or 'asymmetric' for asymmetric loss, and 's' or
@@ -432,7 +399,7 @@ class _Polynomial(_Algorithm2D):
             0.99. Typically should not need to change this value.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the input x_data and return them in the params dictionary.
+            a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
         max_cross: int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
@@ -441,19 +408,19 @@ class _Polynomial(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
@@ -527,10 +494,11 @@ class _Polynomial(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        poly_order : int or Container[int, int], optional
-            The polynomial orders for x and z. Default is 2.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for x and z. If a single value, will use that for both x and
+            z. Default is 2.
         quantile : float, optional
             The quantile at which to fit the baseline. Default is 0.05.
         tol : float, optional
@@ -540,16 +508,16 @@ class _Polynomial(_Algorithm2D):
             The maximum number of iterations. Default is 250. For extreme quantiles
             (`quantile` < 0.01 or `quantile` > 0.99), may need to use a higher value to
             ensure convergence.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
+            shape equal to (M, N) and all values set to 1.
         eps : float, optional
             A small value added to the square of the residual to prevent dividing by 0.
             Default is None, which uses the square of the maximum-absolute-value of the
             fit each iteration multiplied by 1e-6.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the input `x_data` and return them in the params dictionary.
+            a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
         max_cross: int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
@@ -558,19 +526,19 @@ class _Polynomial(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
@@ -643,17 +611,18 @@ class _Polynomial(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        poly_order : int or Container[int, int], optional
-            The polynomial orders for x and z. Default is 2.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for x and z. If a single value, will use that for both x and
+            z. Default is 2.
         tol : float, optional
             The exit criteria for the fitting with a given threshold value. Default is 1e-3.
         max_iter : int, optional
             The maximum number of iterations for fitting a threshold value. Default is 250.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
-            size equal to N and all values set to 1.
+            shape equal to (M, N) and all values set to 1.
         cost_function : str, optional
             The non-quadratic cost function to minimize. Unlike :func:`.penalized_poly`,
             this function only works with asymmetric cost functions, so the symmetry prefix
@@ -681,7 +650,7 @@ class _Polynomial(_Algorithm2D):
             Default is 100.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the input x_data and return them in the params dictionary.
+            a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
         max_cross: int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
@@ -690,12 +659,12 @@ class _Polynomial(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray, shape (J, K)
                 An array containing the calculated tolerance values for each iteration
@@ -710,7 +679,7 @@ class _Polynomial(_Algorithm2D):
             * 'threshold' : float
                 The optimal threshold value. Could be used in :func:`.penalized_poly`
                 for fitting other similar data.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.

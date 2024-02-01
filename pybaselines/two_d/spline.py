@@ -34,31 +34,34 @@ class _Spline(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e5.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e3.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
             will be given `p - 1` weight. Used to set the initial weights before performing
             expectation-maximization. Default is 1e-2.
-        num_knots : int, optional
-            The number of knots for the spline. Default is 100.
-        spline_degree : int, optional
-            The degree of the spline. Default is 3, which is a cubic spline.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 3
-            (third order differential matrix). Typical values are 2 or 3.
+        num_knots : int or Sequence[int, int], optional
+            The number of knots for the splines along the rows and columns, respectively. If a
+            single value is given, both will use the same value. Default is 25.
+        spline_degree : int or Sequence[int, int], optional
+            The degree of the splines along the rows and columns, respectively. If a single
+            value is given, both will use the same value. Default is 3, which is a cubic spline.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 3 (third order differential matrix). Typical values are 2 or 3.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
-            will be an array with size equal to N and all values set to 1, and then
+            will be an array with shape equal to (M, N) and all values set to 1, and then
             two iterations of reweighted least-squares are performed to provide starting
             weights for the expectation-maximization of the mixture model.
         symmetric : bool, optional
@@ -69,16 +72,16 @@ class _Spline(_Algorithm2D):
             to True when peaks are both positive and negative.
         num_bins : int, optional
             The number of bins to use when transforming the residuals into a probability
-            density distribution. Default is None, which uses ``ceil(sqrt(N))``.
+            density distribution. Default is None, which uses ``ceil(sqrt(M * N))``.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -104,7 +107,7 @@ class _Spline(_Algorithm2D):
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         # scale y between -1 and 1 so that the residual fit is more numerically stable
-        y_domain = np.polynomial.polyutils.getdomain(y.flatten())
+        y_domain = np.polynomial.polyutils.getdomain(y.ravel())
         y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
         if weights is not None:
@@ -131,7 +134,7 @@ class _Spline(_Algorithm2D):
         # directly estimates sigma from that, and then calculates the percentages, maybe
         # that would be faster/more stable?
         if num_bins is None:
-            num_bins = ceil(np.sqrt(y.size))
+            num_bins = ceil(np.sqrt(self._len[0] * self._len[1]))
 
         # uniform probability density distribution for positive residuals, constant
         # from 0 to max(residual), and 0 for residuals < 0
@@ -180,7 +183,7 @@ class _Spline(_Algorithm2D):
             # need to clip since a bad initial start can erroneously set the sum of the fractions
             # of each distribution to > 1
             np.clip(posterior_prob, 0, 1, out=posterior_prob)
-            new_weights = posterior_prob[bin_mapping].reshape(y.shape)  # TODO replace with self._shape
+            new_weights = posterior_prob[bin_mapping].reshape(self._len)
 
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -210,28 +213,31 @@ class _Spline(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e3.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e3.
         quantile : float, optional
             The quantile at which to fit the baseline. Default is 0.05.
-        num_knots : int, optional
-            The number of knots for the spline. Default is 25.
-        spline_degree : int, optional
-            The degree of the spline. Default is 3, which is a cubic spline.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 3
-            (third order differential matrix). Typical values are 3, 2, or 1.
+        num_knots : int or Sequence[int, int], optional
+            The number of knots for the splines along the rows and columns, respectively. If a
+            single value is given, both will use the same value. Default is 25.
+        spline_degree : int or Sequence[int, int], optional
+            The degree of the splines along the rows and columns, respectively. If a single
+            value is given, both will use the same value. Default is 3, which is a cubic spline.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 3 (third order differential matrix). Typical values are 2 or 3.
         max_iter : int, optional
             The max number of fit iterations. Default is 100.
         tol : float, optional
             The exit criteria. Default is 1e-6.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
-            will be an array with size equal to N and all values set to 1.
+            will be an array with shape equal to (M, N) and all values set to 1.
         eps : float, optional
             A small value added to the square of the residual to prevent dividing by 0.
             Default is None, which uses the square of the maximum-absolute-value of the
@@ -239,12 +245,12 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
@@ -293,42 +299,42 @@ class _Spline(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
-        lam : float, optional
-            The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e3.
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e3.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
             will be given `p - 1` weight. Default is 1e-2.
-        num_knots : int, optional
-            The number of knots for the spline. Default is 25.
-        spline_degree : int, optional
-            The degree of the spline. Default is 3, which is a cubic spline.
-        diff_order : int, optional
-            The order of the differential matrix. Must be greater than 0. Default is 2
-            (second order differential matrix). Typical values are 2 or 1.
+        num_knots : int or Sequence[int, int], optional
+            The number of knots for the splines along the rows and columns, respectively. If a
+            single value is given, both will use the same value. Default is 25.
+        spline_degree : int or Sequence[int, int], optional
+            The degree of the splines along the rows and columns, respectively. If a single
+            value is given, both will use the same value. Default is 3, which is a cubic spline.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 2 (second order differential matrix). Typical values are 1 or 2.
         max_iter : int, optional
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        weights : array-like, shape (N,), optional
+        weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
+            * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for

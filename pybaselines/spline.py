@@ -402,9 +402,6 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
 
         Returns
         -------
@@ -894,9 +891,6 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
 
         Returns
         -------

@@ -654,7 +654,7 @@ class _Whittaker(_Algorithm):
             contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e6.
+            Default is 1e5.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
@@ -1272,7 +1272,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
         contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
-        Default is 1e6.
+        Default is 1e5.
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline

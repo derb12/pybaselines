@@ -58,8 +58,7 @@ class _Optimizers(_Algorithm):
             * 'average_alpha': numpy.ndarray, shape (N,)
                 Only returned if `method` is 'aspls' or 'pspline_aspls'. The
                 `alpha` array used to fit all of the baselines for the
-                :meth:`~pybaselines.whittaker.Whittaker.aspls` or
-                :meth:`~pybaselines.spline.Spline.pspline_aspls` methods.
+                :meth:`~Baseline.aspls` or :meth:`~Baseline.pspline_aspls` methods.
 
             Additional items depend on the output of the selected method. Every
             other key will have a list of values, with each item corresponding to a

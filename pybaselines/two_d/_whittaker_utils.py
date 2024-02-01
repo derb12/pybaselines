@@ -66,7 +66,10 @@ class PenalizedSystem2D:
 
     Attributes
     ----------
-    diff_order : int
+    banded : bool
+        If True, the penalty is an array of the bands within the sparse matrix. If False,
+        the penalty is a sparse matrix.
+    diff_order : numpy.array([int, int])
         The difference order of the penalty.
     lower : bool
         If True, the penalty uses only the lower bands of the symmetric banded penalty. Will
@@ -115,11 +118,14 @@ class PenalizedSystem2D:
         ----------
         data_size : Sequence[int, int]
             The number of data points for the system.
-        lam : float, optional
-            The penalty factor applied to the difference matrix. Larger values produce
-            smoother results. Must be greater than 0. Default is 1.
-        diff_order : int, optional
-            The difference order of the penalty. Default is 2 (second order difference).
+        lam : float or Sequence[int, int], optional
+            The penalty factor applied to the difference matrix for the rows and columns,
+            respectively. If a single value is given, both will use the same value. Larger
+            values produce smoother results. Must be greater than 0. Default is 1.
+        diff_order : int or Sequence[int, int], optional
+            The difference order of the penalty for the rows and columns, respectively. If
+            a single value is given, both will use the same value.
+            Default is 2 (second order difference).
         use_banded : bool, optional
             If True (default), will do the setup for solving the system using banded
             matrices rather than sparse matrices.
@@ -184,11 +190,14 @@ class PenalizedSystem2D:
 
         Parameters
         ----------
-        lam : float, optional
-            The penalty factor applied to the difference matrix. Larger values produce
-            smoother results. Must be greater than 0. Default is 1.
-        diff_order : int, optional
-            The difference order of the penalty. Default is 2 (second order difference).
+        lam : float or Sequence[int, int], optional
+            The penalty factor applied to the difference matrix for the rows and columns,
+            respectively. If a single value is given, both will use the same value. Larger
+            values produce smoother results. Must be greater than 0. Default is 1.
+        diff_order : int or Sequence[int, int], optional
+            The difference order of the penalty for the rows and columns, respectively. If
+            a single value is given, both will use the same value.
+            Default is 2 (second order difference).
         use_banded : bool, optional
             If True (default), will do the setup for solving the system using banded
             matrices rather than sparse matrices.
@@ -219,7 +228,6 @@ class PenalizedSystem2D:
             self.penalty = penalty_bands
             if self.lower:
                 self.penalty = self.penalty[self.penalty.shape[0] // 2:]
-            self._update_bands()
         else:
             self.penalty = penalty
 
@@ -284,7 +292,7 @@ class PenalizedSystem2D:
 
         Parameters
         ----------
-        value : numpy.ndarray
+        value : float or numpy.ndarray
             The diagonal array to add to the penalty matrix.
 
         Returns
@@ -305,22 +313,3 @@ class PenalizedSystem2D:
             self.penalty[self.main_diagonal_index] = self.main_diagonal
         else:
             self.penalty.setdiag(self.main_diagonal)
-
-    def reverse_penalty(self):
-        """
-        Reverses the penalty and original diagonals for the system.
-
-        Raises
-        ------
-        ValueError
-            Raised if `self.lower` is True, since reversing the half diagonals does
-            not make physical sense.
-
-        """
-        raise NotImplementedError
-
-        if self.lower:
-            raise ValueError('cannot reverse diagonals when self.lower is True')
-        self.penalty = self.penalty[::-1]
-        self.original_diagonals = self.original_diagonals[::-1]
-        self.reversed = not self.reversed

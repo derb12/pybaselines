@@ -24,12 +24,13 @@ class _Morphological(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        half_window : int, optional
-            The half-window used for the morphology functions. If a value is input,
-            then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        half_window : int or Sequence[int, int], optional
+            The half-window used for the rows and columns, respectively, for the morphology
+            functions. If a single value is given, rows and columns will use the same value.
+            Default is None, which will optimize the half-window size using
+            :func:`.optimize_window` and `window_kwargs`.
         **window_kwargs
             Values for setting the half window used for the morphology operations.
             Items include:
@@ -51,13 +52,13 @@ class _Morphological(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         dict
             A dictionary with the following items:
 
-            * 'half_window': int
-                The half window used for the morphological calculations.
+            * 'half_window': np.ndarray[int, int]
+                The half windows used for the morphological calculations.
 
         References
         ----------
@@ -78,12 +79,13 @@ class _Morphological(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        half_window : int, optional
-            The half-window used for the morphology functions. If a value is input,
-            then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        half_window : int or Sequence[int, int], optional
+            The half-window used for the rows and columns, respectively, for the morphology
+            functions. If a single value is given, rows and columns will use the same value.
+            Default is None, which will optimize the half-window size using
+            :func:`.optimize_window` and `window_kwargs`.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -109,13 +111,13 @@ class _Morphological(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
-            * 'half_window': int
-                The half window used for the morphological calculations.
+            * 'half_window': np.ndarray[int, int]
+                The half windows used for the morphological calculations.
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
@@ -153,12 +155,13 @@ class _Morphological(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        half_window : int, optional
-            The half-window used for the morphology functions. If a value is input,
-            then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        half_window : int or Sequence[int, int], optional
+            The half-window used for the rows and columns, respectively, for the morphology
+            functions. If a single value is given, rows and columns will use the same value.
+            Default is None, which will optimize the half-window size using
+            :func:`.optimize_window` and `window_kwargs`.
         smooth_half_window : int, optional
             The half-window to use for smoothing the data after performing the
             morphological operation. Default is None, which will use the same
@@ -187,7 +190,7 @@ class _Morphological(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         dict
             A dictionary with the following items:
@@ -225,12 +228,13 @@ class _Morphological(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        half_window : int, optional
-            The half-window used for the morphological opening. If a value is input,
-            then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        half_window : int or Sequence[int, int], optional
+            The half-window used for the rows and columns, respectively, for the morphology
+            functions. If a single value is given, rows and columns will use the same value.
+            Default is None, which will optimize the half-window size using
+            :func:`.optimize_window` and `window_kwargs`.
         **window_kwargs
             Values for setting the half window used for the morphology operations.
             Items include:
@@ -252,13 +256,13 @@ class _Morphological(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         dict
             A dictionary with the following items:
 
-            * 'half_window': int
-                The half window used for the morphological calculations.
+            * 'half_window': np.ndarray[int, int]
+                The half windows used for the morphological calculations.
 
         Notes
         -----
@@ -284,17 +288,17 @@ def _avg_opening(y, half_window, opening=None):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (M, N)
         The array of the measured data.
-    half_window : int, optional
-        The half window size to use for the operations.
+    half_window : numpy.ndarray([int, int]), optional
+        The half window size for the rows and columns, respectively, to use for the operations.
     opening : numpy.ndarray, optional
         The output of scipy.ndimage.grey_opening(y, window_size). Default is
         None, which will compute the value.
 
     Returns
     -------
-    numpy.ndarray, shape (N,)
+    numpy.ndarray, shape (M, N)
         The average of the dilation and erosion of the opening.
 
     References
@@ -303,6 +307,7 @@ def _avg_opening(y, half_window, opening=None):
     Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64 595-600.
 
     """
+    # TODO should find a way to merge this with its 1D counterpart
     window_size = 2 * half_window + 1
     if opening is None:
         opening = grey_opening(y, window_size)

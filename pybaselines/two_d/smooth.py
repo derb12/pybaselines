@@ -26,16 +26,17 @@ class _Smooth(_Algorithm2D):
 
         Parameters
         ----------
-        data : array-like, shape (N,)
-            The y-values of the measured data, with N data points.
-        half_window : int, optional
-            The index-based size to use for the median window. The total window
-            size will range from [-half_window, ..., half_window] with size
-            2 * half_window + 1. Default is None, which will use twice the output from
-            :func:`.optimize_window`, which is an okay starting value.
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        half_window : int or Sequence[int, int], optional
+            The index-based size to use for the median window on the rows and columns,
+            respectively. The total window size in each dimension will range from
+            [-half_window, ..., half_window] with size 2 * half_window + 1. Default is
+            None, which will use twice the output from :func:`.optimize_window`,
+            which is an okay starting value.
         smooth_half_window : int, optional
             The half window to use for smoothing. Default is None, which will use
-            the same value as `half_window`.
+            the average of the values in `half_window`.
         sigma : float, optional
             The standard deviation of the smoothing Gaussian kernel. Default is None,
             which will use (2 * `smooth_half_window` + 1) / 6.
@@ -45,7 +46,7 @@ class _Smooth(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        baseline : numpy.ndarray, shape (M, N)
             The calculated and smoothed baseline.
         dict
             An empty dictionary, just to match the output of all other algorithms.

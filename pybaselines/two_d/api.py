@@ -20,16 +20,16 @@ class Baseline2D(
     """
     A class for all 2D baseline correction algorithms.
 
-    Contains all available baseline correction algorithms in pybaselines as methods to
+    Contains all available 2D baseline correction algorithms in pybaselines as methods to
     allow a single interface for easier usage.
 
     Parameters
     ----------
-    x_data : array-like, shape (N,), optional
+    x_data : array-like, shape (M,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 during the first function call with length equal to the
         input data length.
-    z_data : array-like, shape (M,), optional
+    z_data : array-like, shape (N,), optional
         The z-values of the measured data. Default is None, which will create an
         array from -1 to 1 during the first function call with length equal to the
         input data length.
@@ -43,7 +43,7 @@ class Baseline2D(
 
     Attributes
     ----------
-    poly_order : int
+    poly_order : Sequence[int, int]
         The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
         that no polynomial fitting has been performed.
     pspline : pybaselines.two_d._spline_utils.PSpline2D or None
@@ -57,14 +57,14 @@ class Baseline2D(
         algorithms. Is None if no Whittaker setup has been performed.
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
-        first function call to have the same size as the input `data.shape[-1]` and has min
+        first function call to have the same size as the input `data.shape[-2]` and has min
         and max values of -1 and 1, respectively.
     x_domain : numpy.ndarray
         The minimum and maximum values of `x`. If `x_data` is None during initialization, then
         set to numpy.ndarray([-1, 1]).
     z : numpy.ndarray or None
         The z-values for the object. If initialized with None, then `z` is initialized the
-        first function call to have the same size as the input `data.shape[-2]` and has min
+        first function call to have the same size as the input `data.shape[-1]` and has min
         and max values of -1 and 1, respectively.
     z_domain : numpy.ndarray
         The minimum and maximum values of `z`. If `z_data` is None during initialization, then

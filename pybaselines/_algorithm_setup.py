@@ -153,7 +153,7 @@ class _Algorithm:
             The baseline output by the baseline function.
         params : dict
             The parameter dictionary output by the baseline function.
-        dtype : [type]
+        dtype : type or numpy.dtype, optional
             The desired output dtype for the baseline.
         sort_keys : Iterable, optional
             An iterable of keys corresponding to the values in `params` that need
