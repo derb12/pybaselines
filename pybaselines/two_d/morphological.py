@@ -11,6 +11,7 @@ from scipy.ndimage import grey_dilation, grey_erosion, grey_opening, uniform_fil
 
 from ._algorithm_setup import _Algorithm2D
 from ..utils import relative_difference
+from .._validation import _check_half_window
 
 
 class _Morphological(_Algorithm2D):
@@ -191,15 +192,8 @@ class _Morphological(_Algorithm2D):
         dict
             A dictionary with the following items:
 
-            * 'half_window': int or numpy.ndarray(int)
-                The half window or array of half windows used for the
-                morphological calculations.
-
-        Notes
-        -----
-        To use a changing window size for either the morphological or smoothing
-        operations, the half windows must be arrays. Otherwise, the size of the
-        rolling ball is assumed to be constant.
+            * 'half_window': np.ndarray[int, int]
+                The half windows used for the morphological calculations.
 
         References
         ----------
@@ -213,7 +207,9 @@ class _Morphological(_Algorithm2D):
         """
         y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
         if smooth_half_window is None:
-            smooth_half_window = half_wind  # TODO need to do some verification on smooth_half_window if not None
+            smooth_half_window = half_wind
+        else:
+            smooth_half_window = _check_half_window(smooth_half_window, allow_zero=True, two_d=True)
 
         rough_baseline = grey_opening(y, 2 * half_wind + 1)
         baseline = uniform_filter(

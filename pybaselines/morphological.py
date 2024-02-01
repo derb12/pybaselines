@@ -486,15 +486,8 @@ class _Morphological(_Algorithm):
         dict
             A dictionary with the following items:
 
-            * 'half_window': int or numpy.ndarray(int)
-                The half window or array of half windows used for the
-                morphological calculations.
-
-        Notes
-        -----
-        To use a changing window size for either the morphological or smoothing
-        operations, the half windows must be arrays. Otherwise, the size of the
-        rolling ball is assumed to be constant.
+            * 'half_window': int
+                The half window used for the morphological calculations.
 
         References
         ----------
@@ -1336,15 +1329,8 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     dict
         A dictionary with the following items:
 
-        * 'half_window': int or numpy.ndarray(int)
-            The half window or array of half windows used for the
-            morphological calculations.
-
-    Notes
-    -----
-    To use a changing window size for either the morphological or smoothing
-    operations, the half windows must be arrays. Otherwise, the size of the
-    rolling ball is assumed to be constant.
+        * 'half_window': int
+            The half window used for the morphological calculations.
 
     References
     ----------

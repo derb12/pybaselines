@@ -66,12 +66,18 @@ class TestRollingBall(MorphologicalTester):
             new_instance, half_window=half_window, smooth_half_window=smooth_half_window
         )
 
-    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10))
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 10, [0, 0], [10, 10]))
     def test_smooth_half_windows(self, smooth_half_window):
         """Ensures smooth-half-window is correctly processed."""
         output = self.class_func(self.y, smooth_half_window=smooth_half_window)
 
         assert output[0].shape == self.y.shape
+
+    @pytest.mark.parametrize('smooth_half_window', (-1, [5, -1], [-1, 5], [-2, -3]))
+    def test_negative_smooth_half_window_fails(self, smooth_half_window):
+        """Ensures a negative smooth-half-window raises an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, smooth_half_window=smooth_half_window)
 
 
 class TestTophat(MorphologicalTester):
