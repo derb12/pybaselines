@@ -38,17 +38,17 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
     """
     x, z, y = data_fixture2d
     (
-        num_knots_x, num_knots_z, spline_degree_x, spline_degree_z,
+        num_knots_r, num_knots_c, spline_degree_x, spline_degree_z,
         lam_x, lam_z, diff_order_x, diff_order_z
     ) = get_2dspline_inputs(num_knots, spline_degree, lam, diff_order)
 
-    knots_x = _spline_utils._spline_knots(x, num_knots_x, spline_degree_x, True)
-    basis_x = _spline_utils._spline_basis(x, knots_x, spline_degree_x)
+    knots_r = _spline_utils._spline_knots(x, num_knots_r, spline_degree_x, True)
+    basis_r = _spline_utils._spline_basis(x, knots_r, spline_degree_x)
 
-    knots_z = _spline_utils._spline_knots(z, num_knots_z, spline_degree_z, True)
-    basis_z = _spline_utils._spline_basis(z, knots_z, spline_degree_z)
+    knots_c = _spline_utils._spline_knots(z, num_knots_c, spline_degree_z, True)
+    basis_c = _spline_utils._spline_basis(z, knots_c, spline_degree_z)
 
-    num_bases = (basis_x.shape[1], basis_z.shape[1])
+    num_bases = (basis_r.shape[1], basis_c.shape[1])
     # TODO replace with np.random.default_rng when min numpy version is >= 1.17
     weights = np.random.RandomState(0).normal(0.8, 0.05, y.size)
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
@@ -56,7 +56,7 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
     # note: within Eiler's paper, the basis was defined as kron(basis_z, basis_x),
     # but the rows and columns were switched, ie. it should be kron(basis_rows, basis_columns),
     # so it is just a nomenclature difference
-    basis = kron(basis_x, basis_z)
+    basis = kron(basis_r, basis_c)
     CWT = basis.multiply(
         np.repeat(weights.flatten(), num_bases[0] * num_bases[1]).reshape(len(x) * len(z), -1)
     ).T
@@ -93,17 +93,17 @@ def test_pspline_setup(data_fixture2d, num_knots, spline_degree, diff_order, lam
     """Ensure the PSpline2D setup is correct."""
     x, z, y = data_fixture2d
     (
-        num_knots_x, num_knots_z, spline_degree_x, spline_degree_z,
+        num_knots_r, num_knots_c, spline_degree_x, spline_degree_z,
         lam_x, lam_z, diff_order_x, diff_order_z
     ) = get_2dspline_inputs(num_knots, spline_degree, lam, diff_order)
 
-    knots_x = _spline_utils._spline_knots(x, num_knots_x, spline_degree_x, True)
-    basis_x = _spline_utils._spline_basis(x, knots_x, spline_degree_x)
+    knots_r = _spline_utils._spline_knots(x, num_knots_r, spline_degree_x, True)
+    basis_r = _spline_utils._spline_basis(x, knots_r, spline_degree_x)
 
-    knots_z = _spline_utils._spline_knots(z, num_knots_z, spline_degree_z, True)
-    basis_z = _spline_utils._spline_basis(z, knots_z, spline_degree_z)
+    knots_c = _spline_utils._spline_knots(z, num_knots_c, spline_degree_z, True)
+    basis_c = _spline_utils._spline_basis(z, knots_c, spline_degree_z)
 
-    num_bases = (basis_x.shape[1], basis_z.shape[1])
+    num_bases = (basis_r.shape[1], basis_c.shape[1])
 
     D1 = difference_matrix(num_bases[0], diff_order_x)
     D2 = difference_matrix(num_bases[1], diff_order_z)
@@ -117,37 +117,37 @@ def test_pspline_setup(data_fixture2d, num_knots, spline_degree, diff_order, lam
         lam=lam, diff_order=diff_order, check_finite=False
     )
 
-    assert pspline.basis_x.shape == (len(x), len(knots_x) - spline_degree_x - 1)
-    assert pspline.basis_z.shape == (len(z), len(knots_z) - spline_degree_z - 1)
+    assert pspline.basis_r.shape == (len(x), len(knots_r) - spline_degree_x - 1)
+    assert pspline.basis_c.shape == (len(z), len(knots_c) - spline_degree_z - 1)
     assert_array_equal(pspline._num_bases, num_bases)
 
-    assert issparse(pspline.basis_x)
-    assert issparse(pspline.basis_z)
+    assert issparse(pspline.basis_r)
+    assert issparse(pspline.basis_c)
 
-    assert_allclose(pspline.basis_x.toarray(), basis_x.toarray(), rtol=1e-12, atol=1e-12)
-    assert_allclose(pspline.basis_z.toarray(), basis_z.toarray(), rtol=1e-12, atol=1e-12)
+    assert_allclose(pspline.basis_r.toarray(), basis_r.toarray(), rtol=1e-12, atol=1e-12)
+    assert_allclose(pspline.basis_c.toarray(), basis_c.toarray(), rtol=1e-12, atol=1e-12)
     assert_allclose(pspline.penalty.toarray(), penalty.toarray(), rtol=1e-12, atol=1e-12)
 
     assert_array_equal(pspline.diff_order, (diff_order_x, diff_order_z))
-    assert_array_equal(pspline.num_knots, (num_knots_x, num_knots_z))
+    assert_array_equal(pspline.num_knots, (num_knots_r, num_knots_c))
     assert_array_equal(pspline.spline_degree, (spline_degree_x, spline_degree_z))
     assert_array_equal(pspline.lam, (lam_x, lam_z))
     assert pspline.coef is None  # None since the solve method has not been called
-    assert pspline.basis_x.shape == (len(x), num_knots_x + spline_degree_x - 1)
-    assert pspline.basis_z.shape == (len(z), num_knots_z + spline_degree_z - 1)
+    assert pspline.basis_r.shape == (len(x), num_knots_r + spline_degree_x - 1)
+    assert pspline.basis_c.shape == (len(z), num_knots_c + spline_degree_z - 1)
     assert_array_equal(
         pspline._num_bases,
-        (num_knots_x + spline_degree_x - 1, num_knots_z + spline_degree_z - 1)
+        (num_knots_r + spline_degree_x - 1, num_knots_c + spline_degree_z - 1)
     )
-    assert pspline.knots_x.shape == (num_knots_x + 2 * spline_degree_x,)
-    assert pspline.knots_z.shape == (num_knots_z + 2 * spline_degree_z,)
+    assert pspline.knots_r.shape == (num_knots_r + 2 * spline_degree_x,)
+    assert pspline.knots_c.shape == (num_knots_c + 2 * spline_degree_z,)
     assert isinstance(pspline.x, np.ndarray)
     assert isinstance(pspline.z, np.ndarray)
 
     # _basis should be None since the basis attribute has not been accessed yet
     assert pspline._basis is None
 
-    expected_basis = kron(basis_x, basis_z).toarray()
+    expected_basis = kron(basis_r, basis_c).toarray()
 
     assert_allclose(pspline.basis.toarray(), expected_basis, rtol=1e-12, atol=1e-12)
     assert_allclose(pspline._basis.toarray(), expected_basis, rtol=1e-12, atol=1e-12)
@@ -229,10 +229,10 @@ def test_pspline_tck(data_fixture2d, num_knots, spline_degree, diff_order, lam):
 
     # ensure tck is the knots, coefficients, and spline degree
     assert len(pspline.tck) == 5
-    knots_x, knots_z, coeffs, degree_x, degree_z = pspline.tck
+    knots_r, knots_c, coeffs, degree_x, degree_z = pspline.tck
 
-    assert_allclose(knots_x, pspline.knots_x, rtol=1e-12)
-    assert_allclose(knots_z, pspline.knots_z, rtol=1e-12)
+    assert_allclose(knots_r, pspline.knots_r, rtol=1e-12)
+    assert_allclose(knots_c, pspline.knots_c, rtol=1e-12)
     assert_allclose(coeffs, pspline.coef, rtol=1e-12)
     if isinstance(spline_degree, int):
         assert degree_x == spline_degree

@@ -27,22 +27,22 @@ class PSpline2D(PenalizedSystem2D):
 
     Attributes
     ----------
-    basis_x : scipy.sparse.csr.csr_matrix, shape (N, P)
-        The spline basis for x. Has a shape of (`N,` `P`), where `N` is the number of points
-        in `x`, and `P` is the number of basis functions (equal to ``K - spline_degree - 1``
+    basis_r : scipy.sparse.csr.csr_matrix, shape (N, P)
+        The spline basis for the rows. Has a shape of (`N,` `P`), where `N` is the number of
+        points in `x`, and `P` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[0] + spline_degree[0] - 1``).
-    basis_z : scipy.sparse.csr.csr_matrix, shape (M, Q)
-        The spline basis for z. Has a shape of (`M,` `Q`), where `M` is the number of points
-        in `z`, and `Q` is the number of basis functions (equal to ``K - spline_degree - 1``
+    basis_c : scipy.sparse.csr.csr_matrix, shape (M, Q)
+        The spline basis for the columns. Has a shape of (`M,` `Q`), where `M` is the number of
+        points in `z`, and `Q` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[1] + spline_degree[1] - 1``).
     coef : None or numpy.ndarray, shape (M,)
         The spline coefficients. Is None if :meth:`~PSpline2D.solve_pspline` has not been called
         at least once.
-    knots_x : numpy.ndarray, shape (K,)
-        The knots for the spline. Has a shape of `K`, which is equal to
+    knots_r : numpy.ndarray, shape (K,)
+        The knots for the spline along the rows. Has a shape of `K`, which is equal to
         ``num_knots[0] + 2 * spline_degree[0]``.
-    knots_z : numpy.ndarray, shape (L,)
-        The knots for the spline. Has a shape of `L`, which is equal to
+    knots_c : numpy.ndarray, shape (L,)
+        The knots for the spline along the columns. Has a shape of `L`, which is equal to
         ``num_knots[1] + 2 * spline_degree[2]``.
     num_knots : numpy.ndarray([int, int])
         The number of internal knots (including the endpoints) for x and z. The total number of
@@ -107,14 +107,14 @@ class PSpline2D(PenalizedSystem2D):
         if (self.spline_degree < 0).any():
             raise ValueError('spline degree must be >= 0')
 
-        self.knots_x = _spline_knots(self.x, self.num_knots[0], self.spline_degree[0], True)
-        self.basis_x = _spline_basis(self.x, self.knots_x, self.spline_degree[0])
+        self.knots_r = _spline_knots(self.x, self.num_knots[0], self.spline_degree[0], True)
+        self.basis_r = _spline_basis(self.x, self.knots_r, self.spline_degree[0])
 
-        self.knots_z = _spline_knots(self.z, self.num_knots[1], self.spline_degree[1], True)
-        self.basis_z = _spline_basis(self.z, self.knots_z, self.spline_degree[1])
+        self.knots_c = _spline_knots(self.z, self.num_knots[1], self.spline_degree[1], True)
+        self.basis_c = _spline_basis(self.z, self.knots_c, self.spline_degree[1])
 
         super().__init__(
-            (self.basis_x.shape[1], self.basis_z.shape[1]), lam, diff_order, use_banded=False
+            (self.basis_r.shape[1], self.basis_c.shape[1]), lam, diff_order, use_banded=False
         )
         if (self.diff_order >= self._num_bases).any():
             raise ValueError((
@@ -124,8 +124,8 @@ class PSpline2D(PenalizedSystem2D):
 
         el = np.ones((1, self._num_bases[0]))
         ek = np.ones((1, self._num_bases[1]))
-        self._G = sparse.kron(self.basis_x, el).multiply(sparse.kron(el, self.basis_x))
-        self._G2 = sparse.kron(self.basis_z, ek).multiply(sparse.kron(ek, self.basis_z))
+        self._G_r = sparse.kron(self.basis_r, el).multiply(sparse.kron(el, self.basis_r))
+        self._G_c = sparse.kron(self.basis_c, ek).multiply(sparse.kron(ek, self.basis_c))
 
     def same_basis(self, num_knots=100, spline_degree=3):
         """
@@ -224,7 +224,7 @@ class PSpline2D(PenalizedSystem2D):
         # do not save intermediate results since they are memory intensive for high number of knots
         F = sparse.csr_matrix(
             np.transpose(
-                (self._G.T @ weights @ self._G2).reshape(
+                (self._G_r.T @ weights @ self._G_c).reshape(
                     (self._num_bases[0], self._num_bases[0], self._num_bases[1], self._num_bases[1])
                 ),
                 [0, 2, 1, 3]
@@ -235,13 +235,13 @@ class PSpline2D(PenalizedSystem2D):
         if penalty is None:
             penalty = self.penalty
 
-        rhs = (self.basis_x.T @ (weights * y) @ self.basis_z).ravel()
+        rhs = (self.basis_r.T @ (weights * y) @ self.basis_c).ravel()
         if rhs_extra is not None:
             rhs = rhs + rhs_extra
 
         self.coef = spsolve(F + penalty, rhs, permc_spec='NATURAL')
 
-        output = self.basis_x @ self.coef.reshape(self._num_bases) @ self.basis_z.T
+        output = self.basis_r @ self.coef.reshape(self._num_bases) @ self.basis_c.T
 
         return output
 
@@ -255,7 +255,7 @@ class PSpline2D(PenalizedSystem2D):
 
         """
         if self._basis is None:
-            self._basis = sparse.kron(self.basis_x, self.basis_z)
+            self._basis = sparse.kron(self.basis_r, self.basis_c)
         return self._basis
 
     @property
@@ -264,7 +264,7 @@ class PSpline2D(PenalizedSystem2D):
         The knots, spline coefficients, and spline degree to reconstruct the spline.
 
         Convenience function for potentially reconstructing the last solved spline with outside
-        modules, although not such if Scipy has a 2D equiavlent to its `BSpline`.
+        modules, although not sure if Scipy has a 2D equiavlent to its `BSpline`.
 
         Raises
         ------
@@ -276,5 +276,5 @@ class PSpline2D(PenalizedSystem2D):
         if self.coef is None:
             raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
         return (
-            self.knots_x, self.knots_z, self.coef, self.spline_degree[0], self.spline_degree[1]
+            self.knots_r, self.knots_c, self.coef, self.spline_degree[0], self.spline_degree[1]
         )

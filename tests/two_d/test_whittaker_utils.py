@@ -157,8 +157,8 @@ def test_compare_to_psplines(data_fixture2d, lam, diff_order, use_banded, use_lo
     )
 
     # sanity check to ensure it was set up correctly
-    assert_array_equal(pspline.basis_x.shape, (len(x), len(x)))
-    assert_array_equal(pspline.basis_z.shape, (len(z)), len(z))
+    assert_array_equal(pspline.basis_r.shape, (len(x), len(x)))
+    assert_array_equal(pspline.basis_c.shape, (len(z)), len(z))
 
     whittaker_system = _whittaker_utils.PenalizedSystem2D(
         y.shape, lam=lam, diff_order=diff_order, use_banded=use_banded, use_lower=use_lower

@@ -234,10 +234,10 @@ def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
     )
 
     if isinstance(num_knots, int):
-        num_knots_x = num_knots
-        num_knots_z = num_knots
+        num_knots_r = num_knots
+        num_knots_c = num_knots
     else:
-        num_knots_x, num_knots_z = num_knots
+        num_knots_r, num_knots_c = num_knots
     if isinstance(spline_degree, int):
         spline_degree_x = spline_degree
         spline_degree_z = spline_degree
@@ -245,12 +245,12 @@ def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
         spline_degree_x, spline_degree_z = spline_degree
 
     assert_array_equal(
-        fitter.pspline.basis_x.shape,
-        (len(x), num_knots_x + spline_degree_x - 1)
+        fitter.pspline.basis_r.shape,
+        (len(x), num_knots_r + spline_degree_x - 1)
     )
     assert_array_equal(
-        fitter.pspline.basis_z.shape,
-        (len(z), num_knots_z + spline_degree_z - 1)
+        fitter.pspline.basis_c.shape,
+        (len(z), num_knots_c + spline_degree_z - 1)
     )
 
 
@@ -269,14 +269,14 @@ def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree
     )
 
     (
-        num_knots_x, num_knots_z, spline_degree_x, spline_degree_z,
+        num_knots_r, num_knots_c, spline_degree_x, spline_degree_z,
         lam_x, lam_z, diff_order_x, diff_order_z
     ) = get_2dspline_inputs(
         num_knots=num_knots, spline_degree=spline_degree, lam=lam, diff_order=diff_order
     )
 
-    num_bases_x = num_knots_x + spline_degree_x - 1
-    num_bases_z = num_knots_z + spline_degree_z - 1
+    num_bases_x = num_knots_r + spline_degree_x - 1
+    num_bases_z = num_knots_c + spline_degree_z - 1
 
     D1 = difference_matrix(num_bases_x, diff_order_x)
     D2 = difference_matrix(num_bases_z, diff_order_z)

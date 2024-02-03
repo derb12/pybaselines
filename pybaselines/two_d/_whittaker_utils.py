@@ -214,9 +214,9 @@ class PenalizedSystem2D:
         penalty_columns = diff_penalty_matrix(self._num_bases[1], self.diff_order[1])
 
         # multiplying lam by the Kronecker product is the same as multiplying just D.T @ D with lam
-        P1 = kron(self.lam[0] * penalty_rows, identity(self._num_bases[1]))
-        P2 = kron(identity(self._num_bases[0]), self.lam[1] * penalty_columns)
-        penalty = P1 + P2
+        P_rows = kron(self.lam[0] * penalty_rows, identity(self._num_bases[1]))
+        P_columns = kron(identity(self._num_bases[0]), self.lam[1] * penalty_columns)
+        penalty = P_rows + P_columns
         if self.banded:
             penalty = penalty.todia()
             sparse_bands = (penalty).data
