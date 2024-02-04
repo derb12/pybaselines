@@ -112,10 +112,22 @@ def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_
 
     Returns
     -------
-    numpy.ndarray
-        The Gaussian distribution evaluated with x.
+    numpy.ndarray, shape (M, N)
+        The Gaussian distribution evaluated with x and z.
+
+    Raises
+    ------
+    ValueError
+        Raised if the input `x` or `z` are not two dimensional.
+
+    Notes
+    -----
+    The input `x` and `z` should be two dimensional arrays, which can be gotten
+    from their one dimensional counterparts by using :func:`numpy.meshgrid`.
 
     """
+    if x.ndim != 2 or z.ndim != 2:
+        raise ValueError('x and z should be two dimensional')
     return height * gaussian(x, 1, center_x, sigma_x) * gaussian(z, 1, center_z, sigma_z)
 
 
@@ -728,8 +740,8 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
 
     Parameters
     ----------
-    data : array-like, shape (N,)
-        The measured data values.
+    data : array-like
+        The measured data values. Can be one or two dimensional.
     increment : int, optional
         The step size for iterating half windows. Default is 1.
     max_hits : int, optional
@@ -747,8 +759,10 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
 
     Returns
     -------
-    half_window : int
-        The optimized half window size.
+    half_window : int or numpy.ndarray[int, int]
+        The optimized half window size(s). If `data` is one dimensional, the
+        output is a single integer, and if `data` is two dimensional, the output
+        is an array of two integers.
 
     Notes
     -----

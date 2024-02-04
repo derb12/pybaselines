@@ -22,6 +22,7 @@ pybaselines is a library of algorithms for the baseline correction of experiment
    installation
    quickstart
    algorithms/index
+   algorithms_2d/index
    examples/index
    api/index
    contributing

@@ -21,7 +21,13 @@ from .conftest import gaussian
 @pytest.fixture(scope='module')
 def _x_data():
     """x-values for testing."""
-    return np.linspace(-20, 20)
+    return np.linspace(-20, 20, 50)
+
+
+@pytest.fixture(scope='module')
+def _z_data():
+    """z-values for testing."""
+    return np.linspace(-10, 10, 30)
 
 
 @pytest.mark.parametrize('sigma', [0.1, 1, 10])
@@ -66,6 +72,33 @@ def test_gaussian_kernel_0_windowsize(data_fixture):
     x, y = data_fixture
     out = utils.padded_convolve(y, kernel)
     assert_array_equal(y, out)
+
+
+@pytest.mark.parametrize('sigma_x', [0.1, 1, 10])
+@pytest.mark.parametrize('center_x', [-10, 0, 10])
+@pytest.mark.parametrize('sigma_z', [0.1, 1, 10])
+@pytest.mark.parametrize('center_z', [-10, 0, 10])
+@pytest.mark.parametrize('height', [0.1, 1, 10])
+def test_gaussian2d(_x_data, _z_data, height, center_x, center_z, sigma_x, sigma_z):
+    """Ensures that gaussian2d function in pybaselines.utils is correct."""
+    X, Z = np.meshgrid(_x_data, _z_data)
+
+    expected = height * gaussian(X, 1, center_x, sigma_x) * gaussian(Z, 1, center_z, sigma_z)
+    assert_allclose(
+        utils.gaussian2d(X, Z, height, center_x, center_z, sigma_x, sigma_z),
+        expected, 1e-12, 1e-12
+    )
+
+
+def test_gaussian2d_1d_raises(_x_data, _z_data):
+    """Ensures that gaussian2d function raises an error if the input is one dimensional."""
+    X, Z = np.meshgrid(_x_data, _z_data)
+    with pytest.raises(ValueError):
+        utils.gaussian2d(_x_data, _z_data)
+    with pytest.raises(ValueError):
+        utils.gaussian2d(X, _z_data)
+    with pytest.raises(ValueError):
+        utils.gaussian2d(_x_data, Z)
 
 
 @pytest.mark.parametrize('sign', (1, -1))

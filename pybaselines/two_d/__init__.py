@@ -13,7 +13,6 @@ Baseline Correction for Two Dimensional Data.
     * imodpoly (Improved Modified Polynomial)
     * penalized_poly (Penalized Polynomial)
     * quant_reg (Quantile Regression)
-    * goldindec (Goldindec Method)
 
 * Whittaker-smoothing-based methods (:mod:`pybaselines.two_d.whittaker`)
 

@@ -8,13 +8,15 @@ algorithms for fitting the baseline.
 Introduction
 ------------
 
-Whittaker-smoothing-based (WSB) algorithms are usually referred to in literature
+Whittaker-smoothing-based algorithms are usually referred to in literature
 as weighted least squares, penalized least squares, or asymmetric least squares,
-but are referred to as WSB in pybaselines to distinguish them from polynomial
+but are referred to as Whittaker-smoothing-based in pybaselines to distinguish them from polynomial
 techniques that also take advantage of weighted least squares (like :meth:`~.Baseline.loess`)
 and penalized least squares (like :meth:`~.Baseline.penalized_poly`).
 
-The general idea behind WSB algorithms is to make the baseline match the measured
+A great introduction to Whittaker smoothing is Paul Eilers's
+`A Perfect Smoother paper <https://doi.org/10.1021/ac034173t>`_. The general idea behind Whittaker
+smoothing algorithms is to make the baseline match the measured
 data as well as it can while also penalizing the roughness of the baseline. The
 resulting general function that is minimized to determine the baseline is then
 
@@ -57,21 +59,21 @@ and :math:`D_2` (second order difference matrix) is:
     0 & 0 & 1 & -2 & 1 \\
     \end{bmatrix}
 
-Most WSB techniques recommend using the second order difference matrix, although
-some techniques use both the first and second order difference matrices.
+Most Whittaker-smoothing-based techniques recommend using the second order difference matrix,
+although some techniques use both the first and second order difference matrices.
 
 The baseline is iteratively calculated using the linear system above by solving for
 the baseline, :math:`z`, updating the weights, solving for the baseline using the new
 weights, and repeating until some exit criteria.
-The difference between WSB algorithms is the selection of weights and/or the
-function that is minimized.
+The difference between Whittaker-smoothing-based algorithms is the selection of weights
+and/or the function that is minimized.
 
 .. note::
-   The :math:`\lambda` (``lam``) value required to fit a particular baseline for all WSB
-   methods will increase as the number of data points increases, with the relationship
-   being roughly :math:`\log(\lambda) \propto \log(\text{number of data points})`. For example,
-   a ``lam`` value of :math:`10^3` that fits a dataset with 100 points may have to be :math:`10^7`
-   to fit the same data with 1000 points, and :math:`10^{11}` for 10000 points.
+   The :math:`\lambda` (``lam``) value required to fit a particular baseline for all
+   Whittaker-smoothing-based methods will increase as the number of data points increases, with
+   the relationship being roughly :math:`\log(\lambda) \propto \log(\text{number of data points})`.
+   For example, a ``lam`` value of :math:`10^3` that fits a dataset with 100 points may have to
+   be :math:`10^7` to fit the same data with 1000 points, and :math:`10^{11}` for 10000 points.
 
 
 Algorithms

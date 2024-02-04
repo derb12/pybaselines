@@ -349,7 +349,7 @@ class _Spline(_Algorithm2D):
 
         See Also
         --------
-        pybaselines.whittaker.asls
+        Baseline2D.asls
 
         References
         ----------
@@ -439,7 +439,7 @@ class _Spline(_Algorithm2D):
 
         See Also
         --------
-        pybaselines.whittaker.iasls
+        Baseline2D.iasls
 
         References
         ----------
@@ -533,7 +533,7 @@ class _Spline(_Algorithm2D):
 
         See Also
         --------
-        pybaselines.whittaker.airpls
+        Baseline2D.airpls
 
         References
         ----------
@@ -637,7 +637,7 @@ class _Spline(_Algorithm2D):
 
         See Also
         --------
-        pybaselines.whittaker.arpls
+        Baseline2D.arpls
 
         References
         ----------
@@ -714,7 +714,7 @@ class _Spline(_Algorithm2D):
 
         See Also
         --------
-        pybaselines.whittaker.iarpls
+        Baseline2D.iarpls
 
         References
         ----------
@@ -816,7 +816,7 @@ class _Spline(_Algorithm2D):
 
         See Also
         --------
-        pybaselines.whittaker.psalsa
+        Baseline2D.psalsa
 
         References
         ----------

@@ -425,7 +425,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.asls
+        Baseline.asls
 
         References
         ----------
@@ -515,7 +515,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.iasls
+        Baseline.iasls
 
         References
         ----------
@@ -615,7 +615,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.airpls
+        Baseline.airpls
 
         References
         ----------
@@ -719,7 +719,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.arpls
+        Baseline.arpls
 
         References
         ----------
@@ -802,7 +802,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.drpls
+        Baseline.drpls
 
         References
         ----------
@@ -909,7 +909,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.iarpls
+        Baseline.iarpls
 
         References
         ----------
@@ -1002,7 +1002,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.aspls
+        Baseline.aspls
 
         Notes
         -----
@@ -1116,7 +1116,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.psalsa
+        Baseline.psalsa
 
         References
         ----------
@@ -1221,7 +1221,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.derpsalsa
+        Baseline.derpsalsa
 
         References
         ----------
@@ -1345,6 +1345,10 @@ class _Spline(_Algorithm):
         ------
         ValueError
             Raised if p is not between 0 and 1.
+
+        See Also
+        --------
+        Baseline.mpls
 
         References
         ----------

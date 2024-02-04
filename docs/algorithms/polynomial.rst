@@ -35,7 +35,7 @@ thresholding, or 3) penalyzing outliers.
 Selective Masking
 ~~~~~~~~~~~~~~~~~
 
-Selective masking is the oldest and most basic of the techniques. There
+Selective masking is the simplest of the techniques. There
 are two ways to use selective masking in pybaselines.
 
 First, the input dataset can be trimmed/masked (easy to do with numpy) to not
