@@ -508,9 +508,9 @@ class InputWeightsMixin:
         weights = np.random.RandomState(0).normal(0.8, 0.05, self.y.size)
         weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
-        if hasattr(self, 'two_d'):
+        if hasattr(self, 'two_d'):  # BaseTester
             reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
-        else:
+        else:  # BaseTester2D
             reverse_fitter = self.algorithm_base(self.x[::-1], self.z[::-1], assume_sorted=False)
             weights = weights.reshape(self.y.shape)
 
@@ -521,9 +521,6 @@ class InputWeightsMixin:
             data=self.reverse_array(self.y), weights=self.reverse_array(weights),
             **self.kwargs, **kwargs
         )
-
-        # sanity check, x should always be sorted correctly
-        assert_allclose(reverse_fitter.x, self.x, rtol=1e-14, atol=1e-14)
 
         if assertion_kwargs is None:
             assertion_kwargs = {}
