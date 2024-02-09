@@ -972,7 +972,7 @@ class _Spline(_Algorithm):
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
-            The max number of fit iterations. Default is 50.
+            The max number of fit iterations. Default is 100.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         weights : array-like, shape (N,), optional
@@ -2305,7 +2305,7 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
-        The max number of fit iterations. Default is 50.
+        The max number of fit iterations. Default is 100.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     weights : array-like, shape (N,), optional

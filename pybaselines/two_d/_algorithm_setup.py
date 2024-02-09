@@ -22,7 +22,7 @@ from .._validation import (
     _check_array, _check_half_window, _check_optional_array, _check_scalar, _check_scalar_variable,
     _check_sized_array, _yxz_arrays
 )
-from ._whittaker_utils import PenalizedSystem2D
+from ._whittaker_utils import WhittakerSystem2D
 
 
 class _Algorithm2D:
@@ -386,7 +386,7 @@ class _Algorithm2D:
             self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
-                         use_lower=True, use_banded=False):
+                         eigenvalues=None):
         """
         Sets the starting parameters for doing penalized least squares.
 
@@ -449,15 +449,18 @@ class _Algorithm2D:
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
-        weight_array = weight_array.ravel()
-        if self.whittaker_system is not None:
-            self.whittaker_system.reset_diagonals(lam, diff_order, use_banded, use_lower)
-        else:
-            self.whittaker_system = PenalizedSystem2D(
-                self._len, lam, diff_order, use_banded, use_lower
-            )
 
-        return y.ravel(), weight_array
+        if self.whittaker_system is not None and self.whittaker_system.same_basis(diff_order, eigenvalues):
+            self.whittaker_system.update_penalty(lam)
+        else:
+            self.whittaker_system = WhittakerSystem2D(
+                self._len, lam, diff_order, eigenvalues
+            )
+        if not self.whittaker_system._using_svd:
+            y = y.ravel()
+            weight_array = weight_array.ravel()
+
+        return y, weight_array
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
                           calc_pinv=False, copy_weights=False, max_cross=None):

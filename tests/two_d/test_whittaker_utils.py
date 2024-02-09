@@ -20,9 +20,7 @@ from ..conftest import get_2dspline_inputs
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
-@pytest.mark.parametrize('use_banded', (True, False))
-@pytest.mark.parametrize('use_lower', (True, False))
-def test_solve_penalized_system(small_data2d, diff_order, lam, use_banded, use_lower):
+def test_solve_penalized_system(small_data2d, diff_order, lam):
     """
     Tests the accuracy of the penalized system solver.
 
@@ -44,8 +42,7 @@ def test_solve_penalized_system(small_data2d, diff_order, lam, use_banded, use_l
     penalty = P1 + P2
 
     penalized_system = _whittaker_utils.PenalizedSystem2D(
-        small_data2d.shape, lam=lam, diff_order=diff_order, use_banded=use_banded,
-        use_lower=use_lower
+        small_data2d.shape, lam=lam, diff_order=diff_order
     )
 
     # TODO replace with np.random.default_rng when min numpy version is >= 1.17
@@ -55,18 +52,14 @@ def test_solve_penalized_system(small_data2d, diff_order, lam, use_banded, use_l
     penalty.setdiag(penalty.diagonal() + weights)
 
     expected_result = spsolve(penalty, weights * small_data2d.flatten())
-    output = penalized_system.solve(
-        penalized_system.add_diagonal(weights), weights * small_data2d.flatten()
-    )
+    output = penalized_system.solve(small_data2d.flatten(), weights)
 
     assert_allclose(output.flatten(), expected_result, rtol=1e-8, atol=1e-8)
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
-@pytest.mark.parametrize('use_banded', (True, False))
-@pytest.mark.parametrize('use_lower', (True, False))
-def test_penalized_system_setup(small_data2d, diff_order, lam, use_banded, use_lower):
+def test_penalized_system_setup(small_data2d, diff_order, lam):
     """Ensure the PenalizedSystem2D setup is correct."""
     *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
         lam=lam, diff_order=diff_order
@@ -82,37 +75,15 @@ def test_penalized_system_setup(small_data2d, diff_order, lam, use_banded, use_l
     penalty = P1 + P2
 
     penalized_system = _whittaker_utils.PenalizedSystem2D(
-        small_data2d.shape, lam=lam, diff_order=diff_order, use_banded=use_banded,
-        use_lower=use_lower
+        small_data2d.shape, lam=lam, diff_order=diff_order
     )
 
     assert_array_equal(penalized_system._num_bases, num_bases)
 
-    if use_banded:
-        assert isinstance(penalized_system.penalty, np.ndarray)
-        penalty = penalty.todia()
-        penalty_bands = penalty.data[::-1]
-        # PenalizedSystem2D uses a more efficient way to assign bands, but
-        # this way is more clear of what is going on
-        offsets = list(penalty.offsets)
-        filler = np.zeros(penalty_bands.shape[1])
-        values = []
-        for i in range(offsets[0], offsets[-1] + 1):
-            if i in offsets:
-                values.append(penalty_bands[offsets.index(i)])
-            else:
-                values.append(filler)
-        full_penalty_bands = np.vstack(values)
-        if use_lower:
-            full_penalty_bands = full_penalty_bands[full_penalty_bands.shape[0] // 2:]
-        assert_allclose(
-            penalized_system.penalty, full_penalty_bands, rtol=1e-12, atol=1e-12
-        )
-    else:
-        assert issparse(penalized_system.penalty)
-        assert_allclose(
-            penalized_system.penalty.toarray(), penalty.toarray(), rtol=1e-12, atol=1e-12
-        )
+    assert issparse(penalized_system.penalty)
+    assert_allclose(
+        penalized_system.penalty.toarray(), penalty.toarray(), rtol=1e-12, atol=1e-12
+    )
 
     assert_array_equal(penalized_system.diff_order, (diff_order_x, diff_order_z))
     assert_array_equal(penalized_system.lam, (lam_x, lam_z))
@@ -134,9 +105,7 @@ def test_penalized_system_negative_lam_fails(small_data2d, lam):
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
-@pytest.mark.parametrize('use_banded', (True, False))
-@pytest.mark.parametrize('use_lower', (True, False))
-def test_compare_to_psplines(data_fixture2d, lam, diff_order, use_banded, use_lower):
+def test_compare_to_psplines(data_fixture2d, lam, diff_order):
     """
     Ensures 2D Whittaker and PSpline outputs are the same for specific condition.
 
@@ -161,46 +130,37 @@ def test_compare_to_psplines(data_fixture2d, lam, diff_order, use_banded, use_lo
     assert_array_equal(pspline.basis_c.shape, (len(z)), len(z))
 
     whittaker_system = _whittaker_utils.PenalizedSystem2D(
-        y.shape, lam=lam, diff_order=diff_order, use_banded=use_banded, use_lower=use_lower
+        y.shape, lam=lam, diff_order=diff_order
     )
 
     # TODO replace with np.random.default_rng when min numpy version is >= 1.17
     weights = np.random.RandomState(0).normal(0.8, 0.05, y.shape)
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
-    spline_output = pspline.solve_pspline(y, weights=weights)
-    whittaker_output = whittaker_system.solve(
-        whittaker_system.add_diagonal(weights.ravel()), weights.ravel() * y.ravel()
-    )
+    spline_output = pspline.solve(y, weights=weights)
+    whittaker_output = whittaker_system.solve(y.ravel(), weights=weights.ravel())
 
     assert_allclose(whittaker_output.reshape(y.shape), spline_output, rtol=1e-12, atol=1e-12)
 
 
-@pytest.mark.parametrize('data_size', (10, 51))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
-def test_diff_penalty_matrix(data_size, diff_order):
-    """Ensures the penalty matrix shortcut works correctly."""
-    diff_matrix = difference_matrix(data_size, diff_order)
-    expected_matrix = diff_matrix.T @ diff_matrix
+def test_penalized_system_add_penalty(diff_order):
+    """Tests adding a penalty to a PenalizedSystem2D."""
+    data_size = (40, 51)
+    lam = 5
 
-    output = _whittaker_utils.diff_penalty_matrix(data_size, diff_order)
+    whittaker_system = _whittaker_utils.PenalizedSystem2D(
+        data_size, lam=lam, diff_order=diff_order
+    )
+    added_penalty = 5 * identity(np.prod(data_size))
 
-    assert_allclose(expected_matrix.toarray(), output.toarray(), rtol=1e-12, atol=1e-12)
+    expected_output = (added_penalty + whittaker_system.penalty).toarray()
+    expected_diagonal = expected_output.diagonal()
 
+    output = whittaker_system.add_penalty(added_penalty)
 
-@pytest.mark.parametrize('data_size', (3, 6))
-@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
-def test_diff_penalty_matrix_too_few_data(data_size, diff_order):
-    """Ensures the penalty matrix shortcut works correctly."""
-    diff_matrix = difference_matrix(data_size, diff_order)
-    expected_matrix = diff_matrix.T @ diff_matrix
-
-    if data_size <= diff_order:
-        with pytest.raises(ValueError):
-            _whittaker_utils.diff_penalty_matrix(data_size, diff_order)
-        # the actual matrix should be just zeros
-        actual_result = np.zeros((data_size, data_size))
-        assert_allclose(actual_result, expected_matrix.toarray(), rtol=1e-12, atol=1e-12)
-    else:
-        output = _whittaker_utils.diff_penalty_matrix(data_size, diff_order)
-        assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-12, atol=1e-12)
+    assert_allclose(output.toarray(), expected_output, rtol=1e-12, atol=1e-13)
+    # should also modify the penalty attribute
+    assert_allclose(whittaker_system.penalty.toarray(), expected_output, rtol=1e-12, atol=1e-13)
+    # and the main diagonal
+    assert_allclose(whittaker_system.main_diagonal, expected_diagonal, rtol=1e-12, atol=1e-13)

@@ -112,7 +112,7 @@ def test_mixture_pdf(fraction_pos, fraction_neg):
 
 
 def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
-                              test_rtol=1e-6, test_atol=1e-12, **kwargs):
+                              test_rtol=1e-6, test_atol=1e-12, uses_eigenvalues=True, **kwargs):
     """
     Compares the output of the penalized spline (P-spline) versions of Whittaker functions.
 
@@ -122,9 +122,13 @@ def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
     the weighting and linear systems were correctly set up.
 
     """
+    if uses_eigenvalues:
+        added_kwargs = {'eigenvalues': None}
+    else:
+        added_kwargs = {}
     whittaker_output = getattr(
         whittaker._Whittaker(pspline_class.x, pspline_class.z), whittaker_func
-    )(data, lam=lam, **kwargs)[0]
+    )(data, lam=lam, **kwargs, **added_kwargs)[0]
 
     num_knots = np.array(data.shape) + 1
     if hasattr(pspline_class, 'class_func'):
@@ -288,7 +292,8 @@ class TestPsplineIAsLS(IterativeSplineTester):
     def test_whittaker_comparison(self, lam, lam_1, p, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
         compare_pspline_whittaker(
-            self, 'iasls', self.y, lam=lam, lam_1=lam_1, p=p, diff_order=diff_order, test_rtol=1e-5
+            self, 'iasls', self.y, lam=lam, lam_1=lam_1, p=p, diff_order=diff_order,
+            uses_eigenvalues=False, test_rtol=1e-5
         )
 
 

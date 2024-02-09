@@ -111,7 +111,7 @@ class _Spline(_Algorithm2D):
         y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
         if weights is not None:
-            baseline = self.pspline.solve_pspline(y, weight_array)
+            baseline = self.pspline.solve(y, weight_array)
         else:
             # perform 2 iterations: first is a least-squares fit and second is initial
             # reweighted fit; 2 fits are needed to get weights to have a decent starting
@@ -124,7 +124,7 @@ class _Spline(_Algorithm2D):
                     ParameterWarning, stacklevel=2
                 )
             for _ in range(2):
-                baseline = self.pspline.solve_pspline(y, weight_array)
+                baseline = self.pspline.solve(y, weight_array)
                 weight_array = _weighting._asls(y, baseline, p)
 
         # now perform the expectation-maximization
@@ -191,7 +191,7 @@ class _Spline(_Algorithm2D):
                 break
 
             weight_array = new_weights
-            baseline = self.pspline.solve_pspline(y, weight_array)
+            baseline = self.pspline.solve(y, weight_array)
             residual = y - baseline
 
         # TODO could potentially return a BSpline object from scipy.interpolate
@@ -279,7 +279,7 @@ class _Spline(_Algorithm2D):
         old_coef = np.zeros(self.pspline._num_bases[0] * self.pspline._num_bases[1])
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve_pspline(y, weight_array)
+            baseline = self.pspline.solve(y, weight_array)
             calc_difference = relative_difference(old_coef, self.pspline.coef)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -370,7 +370,7 @@ class _Spline(_Algorithm2D):
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve_pspline(y, weight_array)
+            baseline = self.pspline.solve(y, weight_array)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -467,7 +467,7 @@ class _Spline(_Algorithm2D):
         )
 
         # B.T @ P_1 @ B and B.T @ P_1 @ y
-        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1, use_banded=False)
+        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1)
         p1_partial_penalty = self.pspline.basis.T @ penalized_system_1.penalty
 
         partial_rhs = p1_partial_penalty @ y.ravel()
@@ -475,7 +475,7 @@ class _Spline(_Algorithm2D):
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve_pspline(y, weight_array**2, rhs_extra=partial_rhs)
+            baseline = self.pspline.solve(y, weight_array**2, rhs_extra=partial_rhs)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -552,7 +552,7 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             try:
-                output = self.pspline.solve_pspline(y, weight_array)
+                output = self.pspline.solve(y, weight_array)
             except np.linalg.LinAlgError:
                 warnings.warn(
                     ('error occurred during fitting, indicating that "tol"'
@@ -653,7 +653,7 @@ class _Spline(_Algorithm2D):
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve_pspline(y, weight_array)
+            baseline = self.pspline.solve(y, weight_array)
             new_weights = _weighting._arpls(y, baseline)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -731,7 +731,7 @@ class _Spline(_Algorithm2D):
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.pspline.solve_pspline(y, weight_array)
+            baseline = self.pspline.solve(y, weight_array)
             new_weights = _weighting._iarpls(y, baseline, i)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
@@ -838,7 +838,7 @@ class _Spline(_Algorithm2D):
             k = np.std(y) / 10
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve_pspline(y, weight_array)
+            baseline = self.pspline.solve(y, weight_array)
             new_weights = _weighting._psalsa(y, baseline, p, k, self._len)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference

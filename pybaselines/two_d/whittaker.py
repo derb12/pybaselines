@@ -14,19 +14,16 @@ from scipy.sparse import diags
 from .. import _weighting
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
-from ..utils import (
-    ParameterWarning, relative_difference
-)
+from ..utils import ParameterWarning, relative_difference
 from .._validation import _check_optional_array
 
 
 class _Whittaker(_Algorithm2D):
     """A base class for all Whittaker-smoothing-based algorithms."""
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
-    )
-    def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+    @_Algorithm2D._register(sort_keys=('weights',))
+    def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None,
+             eigenvalues=(10, 10)):
         """
         Fits the baseline using asymmetric least squares (AsLS) fitting.
 
@@ -53,6 +50,12 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
+        eigenvalues : int or Sequence[int, int] or None
+            The maximum number of eigenvalues for the rows and columns, respectively, to use
+            for eigendecomposition. Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower.
+            Default is (10, 10).
 
         Returns
         -------
@@ -81,24 +84,28 @@ class _Whittaker(_Algorithm2D):
         Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
         Leiden University Medical Centre Report, 2005, 1(1).
 
+        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+        (Preprint), 2023.
+
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, use_banded=True, use_lower=True
+            data, lam, diff_order, weights, eigenvalues=eigenvalues
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = self.whittaker_system.solve(y, weight_array)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
             weight_array = new_weights
+
+        if not self.whittaker_system._using_svd:
+            baseline = baseline.reshape(self._len)
+            weight_array = weight_array.reshape(self._len)
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
@@ -180,18 +187,14 @@ class _Whittaker(_Algorithm2D):
             weights = _weighting._asls(data, baseline.reshape(self._len), p)
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1, use_banded=False)
+        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1)
 
         # (W.T @ W + P_1) @ y -> P_1 @ y + W.T @ W @ y
         self.whittaker_system.add_penalty(penalized_system_1.penalty)
         p1_y = penalized_system_1.penalty @ y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            weight_squared = weight_array**2
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_squared),
-                weight_squared * y + p1_y
-            )
+            baseline = self.whittaker_system.solve(y, weight_array**2, rhs_extra=p1_y)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -203,10 +206,9 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
-    )
-    def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+    @_Algorithm2D._register(sort_keys=('weights',))
+    def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
+               eigenvalues=(10, 10)):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -229,6 +231,12 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
+        eigenvalues : int or Sequence[int, int] or None
+            The maximum number of eigenvalues for the rows and columns, respectively, to use
+            for eigendecomposition. Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower.
+            Default is (10, 10).
 
         Returns
         -------
@@ -250,9 +258,12 @@ class _Whittaker(_Algorithm2D):
         Zhang, Z.M., et al. Baseline correction using adaptive iteratively
         reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
+        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+        (Preprint), 2023.
+
         """
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, copy_weights=True, use_banded=True, use_lower=True
+            data, lam, diff_order, weights, copy_weights=True, eigenvalues=eigenvalues
 
         )
         y_l1_norm = np.abs(y).sum()
@@ -263,10 +274,7 @@ class _Whittaker(_Algorithm2D):
         # sometimes not so have to also catch any errors from the solvers
         for i in range(1, max_iter + 2):
             try:
-                output = self.whittaker_system.solve(
-                    self.whittaker_system.add_diagonal(weight_array), weight_array * y,
-                    overwrite_b=True
-                )
+                output = self.whittaker_system.solve(y, weight_array)
             except np.linalg.LinAlgError:
                 warnings.warn(
                     ('error occurred during fitting, indicating that "tol"'
@@ -280,7 +288,7 @@ class _Whittaker(_Algorithm2D):
             residual = y - baseline
             neg_mask = residual < 0
             neg_residual = residual[neg_mask]
-            if len(neg_residual) < 2:
+            if neg_residual.size < 2:
                 # exit if there are < 2 negative residuals since all points or all but one
                 # point would get a weight of 0, which fails the solver
                 warnings.warn(
@@ -300,14 +308,17 @@ class _Whittaker(_Algorithm2D):
             weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
             weight_array[~neg_mask] = 0
 
+        if not self.whittaker_system._using_svd:
+            baseline = baseline.reshape(self._len)
+            weight_array = weight_array.reshape(self._len)
+
         params = {'weights': weight_array, 'tol_history': tol_history[:i]}
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
-    )
-    def arpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+    @_Algorithm2D._register(sort_keys=('weights',))
+    def arpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
+              eigenvalues=(10, 10)):
         """
         Asymmetrically reweighted penalized least squares smoothing (arPLS).
 
@@ -330,6 +341,12 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
+        eigenvalues : int or Sequence[int, int] or None
+            The maximum number of eigenvalues for the rows and columns, respectively, to use
+            for eigendecomposition. Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower.
+            Default is (10, 10).
 
         Returns
         -------
@@ -351,22 +368,26 @@ class _Whittaker(_Algorithm2D):
         Baek, S.J., et al. Baseline correction using asymmetrically reweighted
         penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
+        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+        (Preprint), 2023.
+
         """
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, use_banded=True, use_lower=True
+            data, lam, diff_order, weights, eigenvalues=eigenvalues
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = self.whittaker_system.solve(y, weight_array)
             new_weights = _weighting._arpls(y, baseline)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
             weight_array = new_weights
+
+        if not self.whittaker_system._using_svd:
+            baseline = baseline.reshape(self._len)
+            weight_array = weight_array.reshape(self._len)
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 
@@ -435,7 +456,7 @@ class _Whittaker(_Algorithm2D):
             raise ValueError('diff_order must be 2 or greater')
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        penalized_system_1 = PenalizedSystem2D(self._len, 1, diff_order=1, use_banded=False)
+        penalized_system_1 = PenalizedSystem2D(self._len, 1, diff_order=1)
         # W + P_1 + (I - eta * W) @ P_n -> P_1 + P_n + W @ (I - eta * P_n)
         partial_penalty = self.whittaker_system.penalty + penalized_system_1.penalty
         partial_penalty_2 = -eta * self.whittaker_system.penalty
@@ -443,8 +464,8 @@ class _Whittaker(_Algorithm2D):
         weight_matrix = diags(weight_array)
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.whittaker_system.solve(
-                partial_penalty + weight_matrix @ partial_penalty_2, weight_array * y,
+            baseline = self.whittaker_system.direct_solve(
+                partial_penalty + weight_matrix @ partial_penalty_2, weight_array * y
             )
             new_weights = _weighting._drpls(y, baseline, i)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -471,10 +492,9 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
-    )
-    def iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+    @_Algorithm2D._register(sort_keys=('weights',))
+    def iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
+               eigenvalues=(10, 10)):
         """
         Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
 
@@ -497,6 +517,12 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
+        eigenvalues : int or Sequence[int, int] or None
+            The maximum number of eigenvalues for the rows and columns, respectively, to use
+            for eigendecomposition. Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower.
+            Default is (10, 10).
 
         Returns
         -------
@@ -519,16 +545,16 @@ class _Whittaker(_Algorithm2D):
         reweighted penalized least squares for Raman spectrum. Applied Optics, 2020,
         59, 10933-10943.
 
+        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+        (Preprint), 2023.
+
         """
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, use_banded=True, use_lower=True
+            data, lam, diff_order, weights, eigenvalues=eigenvalues
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = self.whittaker_system.solve(y, weight_array)
             new_weights = _weighting._iarpls(y, baseline, i)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
@@ -548,6 +574,10 @@ class _Whittaker(_Algorithm2D):
             elif calc_difference < tol:
                 break
             weight_array = new_weights
+
+        if not self.whittaker_system._using_svd:
+            baseline = baseline.reshape(self._len)
+            weight_array = weight_array.reshape(self._len)
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i]}
 
@@ -628,11 +658,8 @@ class _Whittaker(_Algorithm2D):
         alpha_matrix = diags(alpha_array.ravel(), format='csr')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            lhs = alpha_matrix @ self.whittaker_system.penalty
-            lhs.setdiag(lhs.diagonal() + weight_array)
-            baseline = self.whittaker_system.solve(
-                lhs, weight_array * y
-            )
+            penalty = alpha_matrix @ self.whittaker_system.penalty
+            baseline = self.whittaker_system.solve(y, weight_array, penalty=penalty)
             new_weights, residual = _weighting._aspls(y, baseline)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -648,11 +675,9 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
-    )
+    @_Algorithm2D._register(sort_keys=('weights',))
     def psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
-               weights=None):
+               weights=None, eigenvalues=(10, 10)):
         """
         Peaked Signal's Asymmetric Least Squares Algorithm (psalsa).
 
@@ -689,6 +714,12 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
+        eigenvalues : int or Sequence[int, int] or None
+            The maximum number of eigenvalues for the rows and columns, respectively, to use
+            for eigendecomposition. Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower.
+            Default is (10, 10).
 
         Returns
         -------
@@ -723,26 +754,32 @@ class _Whittaker(_Algorithm2D):
         for analytical instruments. 2014 IEEE 11th International Multi-Conference on
         Systems, Signals, and Devices, 2014, 1-5.
 
+        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+        (Preprint), 2023.
+
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, use_banded=True, use_lower=True
+            data, lam, diff_order, weights, eigenvalues=eigenvalues
         )
         if k is None:
             k = np.std(y) / 10
+
+        shape = self._len if self.whittaker_system._using_svd else np.prod(self._len)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
-            new_weights = _weighting._psalsa(y, baseline, p, k, self._len[0] * self._len[1])
+            baseline = self.whittaker_system.solve(y, weight_array)
+            new_weights = _weighting._psalsa(y, baseline, p, k, shape)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
             weight_array = new_weights
+
+        if not self.whittaker_system._using_svd:
+            baseline = baseline.reshape(self._len)
+            weight_array = weight_array.reshape(self._len)
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
 

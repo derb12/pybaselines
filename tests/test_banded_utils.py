@@ -107,6 +107,37 @@ def test_diff_penalty_diagonals_datasize_too_small():
         _banded_utils.diff_penalty_diagonals(-1)
 
 
+
+@pytest.mark.parametrize('data_size', (10, 51))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+def test_diff_penalty_matrix(data_size, diff_order):
+    """Ensures the penalty matrix shortcut works correctly."""
+    diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
+    expected_matrix = diff_matrix.T @ diff_matrix
+
+    output = _banded_utils.diff_penalty_matrix(data_size, diff_order)
+
+    assert_allclose(expected_matrix.toarray(), output.toarray(), rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('data_size', (3, 6))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+def test_diff_penalty_matrix_too_few_data(data_size, diff_order):
+    """Ensures the penalty matrix shortcut works correctly."""
+    diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
+    expected_matrix = diff_matrix.T @ diff_matrix
+
+    if data_size <= diff_order:
+        with pytest.raises(ValueError):
+            _banded_utils.diff_penalty_matrix(data_size, diff_order)
+        # the actual matrix should be just zeros
+        actual_result = np.zeros((data_size, data_size))
+        assert_allclose(actual_result, expected_matrix.toarray(), rtol=1e-12, atol=1e-12)
+    else:
+        output = _banded_utils.diff_penalty_matrix(data_size, diff_order)
+        assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-12, atol=1e-12)
+
+
 def test_shift_rows_2_diags():
     """Ensures rows are correctly shifted for a matrix with two off-diagonals on either side."""
     matrix = np.array([

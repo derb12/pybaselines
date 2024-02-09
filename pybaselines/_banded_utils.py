@@ -8,7 +8,7 @@ Created on December 8, 2021
 
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
-from scipy.sparse import identity, diags
+from scipy.sparse import identity, diags, spdiags
 
 from ._compat import _HAS_PENTAPY, _pentapy_solve
 from ._validation import _check_lam
@@ -482,6 +482,54 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
     diagonals = _pad_diagonals(diagonals, padding, lower_only=lower_only)
 
     return diagonals
+
+
+def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
+    """
+    Creates the finite difference penalty matrix.
+
+    If `D` is the finite difference matrix, then the finite difference penalty
+    matrix is defined as ``D.T @ D``.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
+    diff_format : str or None, optional
+        The sparse format to use for the difference matrix. Default is 'csr'.
+
+    Returns
+    -------
+    penalty_matrix : scipy.sparse.base.spmatrix
+        The sparse difference penalty matrix.
+
+    Raises
+    ------
+    ValueError
+        Raised if `diff_order` is greater or equal to `data_size`.
+
+    Notes
+    -----
+    Equivalent to calling::
+
+        from pybaselines.utils import difference_matrix
+        diff_matrix = difference_matrix(data_size, diff_order)
+        penalty_matrix = diff_matrix.T @ diff_matrix
+
+    but should be faster since the bands within the penalty matrix can be gotten
+    without the matrix multiplication.
+
+    """
+    if data_size <= diff_order:
+        raise ValueError('data size must be greater than or equal to the difference order.')
+    penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
+    penalty_matrix = spdiags(
+        penalty_bands, np.arange(diff_order, -diff_order - 1, -1), data_size, data_size,
+        format=diff_format
+    )
+    return penalty_matrix
 
 
 def _pentapy_solver(ab, y, check_output=False, pentapy_solver=2):

@@ -75,7 +75,7 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
         lam=lam, diff_order=diff_order, check_finite=False
     )
 
-    output = pspline.solve_pspline(y, weights=weights.reshape(y.shape))
+    output = pspline.solve(y, weights=weights.reshape(y.shape))
 
     assert_allclose(output.flatten(), expected_result, rtol=1e-8, atol=1e-8)
     assert_allclose(pspline.coef, expected_coeffs, rtol=1e-8, atol=1e-8)
@@ -225,7 +225,7 @@ def test_pspline_tck(data_fixture2d, num_knots, spline_degree, diff_order, lam):
     pspline = _spline_utils.PSpline2D(
         x, z, num_knots=num_knots, spline_degree=spline_degree, diff_order=diff_order, lam=lam
     )
-    _ = pspline.solve_pspline(y, weights=np.ones_like(y))
+    fit_spline = pspline.solve(y, weights=np.ones_like(y))
 
     # ensure tck is the knots, coefficients, and spline degree
     assert len(pspline.tck) == 5
@@ -260,6 +260,6 @@ def test_pspline_tck_readonly(data_fixture2d):
     with pytest.raises(AttributeError):
         pspline.tck = (1, 2, 3)
 
-    pspline.solve_pspline(y, np.ones_like(y))
+    pspline.solve(y, np.ones_like(y))
     with pytest.raises(AttributeError):
         pspline.tck = (1, 2, 3)

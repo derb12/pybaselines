@@ -7,57 +7,12 @@ Created on April 30, 2023
 """
 
 import numpy as np
-from scipy.linalg import solve_banded, solveh_banded
-from scipy.sparse import identity, kron, spdiags
+from scipy.linalg import eig_banded, eigh_tridiagonal, solve
+from scipy.sparse import identity, kron
 from scipy.sparse.linalg import spsolve
 
-from .._banded_utils import _add_diagonals, diff_penalty_diagonals
+from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
 from .._validation import _check_lam, _check_scalar
-
-
-def diff_penalty_matrix(data_size, diff_order=2):
-    """
-    Creates the finite difference penalty matrix.
-
-    If `D` is the finite difference matrix, then the finite difference penalty
-    matrix is defined as ``D.T @ D``.
-
-    Parameters
-    ----------
-    data_size : int
-        The number of data points.
-    diff_order : int, optional
-        The integer differential order; must be >= 0. Default is 2.
-
-    Returns
-    -------
-    penalty_matrix : scipy.sparse.base.spmatrix
-        The sparse difference penalty matrix.
-
-    Raises
-    ------
-    ValueError
-        Raised if `diff_order` is greater or equal to `data_size`.
-
-    Notes
-    -----
-    Equivalent to calling::
-
-        from pybaselines.utils import difference_matrix
-        diff_matrix = difference_matrix(data_size, diff_order)
-        penalty_matrix = diff_matrix.T @ diff_matrix
-
-    but should be faster since the bands within the penalty matrix can be gotten
-    without the matrix multiplication.
-
-    """
-    if data_size <= diff_order:
-        raise ValueError('data size must be greater than or equal to the difference order.')
-    penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
-    penalty_matrix = spdiags(
-        penalty_bands, np.arange(diff_order, -diff_order - 1, -1), data_size, data_size
-    )
-    return penalty_matrix
 
 
 class PenalizedSystem2D:
@@ -66,29 +21,10 @@ class PenalizedSystem2D:
 
     Attributes
     ----------
-    banded : bool
-        If True, the penalty is an array of the bands within the sparse matrix. If False,
-        the penalty is a sparse matrix.
-    diff_order : numpy.array([int, int])
+    diff_order : numpy.ndarray[int, int]
         The difference order of the penalty.
-    lower : bool
-        If True, the penalty uses only the lower bands of the symmetric banded penalty. Will
-        use :func:`scipy.linalg.solveh_banded` for solving. If False, contains both the upper
-        and lower bands of the penalty and will use either :func:`scipy.linalg.solve_banded`
-        (if `using_pentapy` is False) or :func:`._pentapy_solver` when solving.
-    main_diagonal_index : int
-        The index of the main diagonal for `penalty`. Is updated when adding additional matrices
-        to the penalty, and takes into account whether the penalty is only the lower bands or
-        the total bands.
-    num_bands : int
-        The number of bands in the penalty. The number of bands is assumbed to be symmetric,
-        so the number of upper and lower bands should both be equal to `num_bands`.
-    original_diagonals : numpy.ndarray
-        The original penalty diagonals before multiplying by `lam` or adding any padding.
-        Maintained so that repeated computations with different `lam` values can be quickly
-        set up. `original_diagonals` can be either the full or lower bands of the penalty,
-        and may be reveresed, it depends on the set up. Reset by calling
-        :meth:`~PenalizedSystem2D.reset_diagonals`.
+    main_diagonal : numpy.ndarray
+        The values along the main diagonal of the penalty matrix.
     penalty : scipy.sparse.base.spmatrix
         The current penalty. Originally is `original_diagonals` after multiplying by `lam`
         and applying padding, but can also be changed by calling
@@ -97,11 +33,10 @@ class PenalizedSystem2D:
 
     Notes
     -----
-    Setting up the linear system using banded matrices is faster, but the number of bands is
-    actually quite large (`data_size[1]`) due to the Kronecker products, although only
-    ``2 * diff_order[0] + 2 * diff_order[1] + 2`` bands are actually nonzero. Despite this, it is
-    still significantly faster than using the sparse solver and does not use more memory as
-    long as it is only lower banded.
+    If the penalty is symmetric, the sparse system could be solved much faster using
+    CHOLMOD from SuiteSparse (https://github.com/DrTimothyAldenDavis/SuiteSparse) through
+    the python bindings provided by scikit-sparse (https://github.com/scikit-sparse/scikit-sparse),
+    but it is not worth implementing here since this code will rarely be used.
 
     References
     ----------
@@ -110,7 +45,7 @@ class PenalizedSystem2D:
 
     """
 
-    def __init__(self, data_size, lam=1, diff_order=2, use_banded=True, use_lower=True):
+    def __init__(self, data_size, lam=1, diff_order=2):
         """
         Initializes the banded system.
 
@@ -126,20 +61,10 @@ class PenalizedSystem2D:
             The difference order of the penalty for the rows and columns, respectively. If
             a single value is given, both will use the same value.
             Default is 2 (second order difference).
-        use_banded : bool, optional
-            If True (default), will do the setup for solving the system using banded
-            matrices rather than sparse matrices.
-        use_lower : bool, optional
-            If True (default), will allow only using the lower bands of the penalty matrix,
-            which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
-            slower :func:`scipy.linalg.solve_banded`. Only relevant if `use_banded` is True.
 
         """
         self._num_bases = data_size
-        self.diff_order = [-1, -1]
-        self.lam = [-1, -1]
-
-        self.reset_diagonals(lam, diff_order, use_banded, use_lower)
+        self.reset_diagonals(lam, diff_order)
 
     def add_penalty(self, penalty):
         """
@@ -156,10 +81,7 @@ class PenalizedSystem2D:
             The updated `self.penalty`.
 
         """
-        if self.banded:
-            self.penalty = _add_diagonals(self.penalty, penalty, lower_only=self.lower)
-        else:
-            self.penalty = self.penalty + penalty
+        self.penalty = self.penalty + penalty
         self._update_bands()
 
         return self.penalty
@@ -171,18 +93,9 @@ class PenalizedSystem2D:
         Only relevant if setup as a banded matrix.
 
         """
-        if self.banded:
-            if self.lower:
-                self.num_bands = self.penalty.shape[0] - 1
-            else:
-                self.num_bands = self.penalty.shape[0] // 2
-            self.main_diagonal_index = 0 if self.lower else self.num_bands
-            self.main_diagonal = self.penalty[self.main_diagonal_index].copy()
-        else:
-            self.main_diagonal_index = 0
-            self.main_diagonal = self.penalty.diagonal()
+        self.main_diagonal = self.penalty.diagonal()
 
-    def reset_diagonals(self, lam=1, diff_order=2, use_banded=True, use_lower=True):
+    def reset_diagonals(self, lam=1, diff_order=2):
         """
         Resets the diagonals of the system and all of the attributes.
 
@@ -198,15 +111,10 @@ class PenalizedSystem2D:
             The difference order of the penalty for the rows and columns, respectively. If
             a single value is given, both will use the same value.
             Default is 2 (second order difference).
-        use_banded : bool, optional
-            If True (default), will do the setup for solving the system using banded
-            matrices rather than sparse matrices.
 
         """
         self.diff_order = _check_scalar(diff_order, 2, True)[0]
         self.lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
-        self.lower = use_lower
-        self.banded = use_banded
         if (self.diff_order < 1).any():
             raise ValueError('the difference order must be > 0')
 
@@ -216,75 +124,47 @@ class PenalizedSystem2D:
         # multiplying lam by the Kronecker product is the same as multiplying just D.T @ D with lam
         P_rows = kron(self.lam[0] * penalty_rows, identity(self._num_bases[1]))
         P_columns = kron(identity(self._num_bases[0]), self.lam[1] * penalty_columns)
-        penalty = P_rows + P_columns
-        if self.banded:
-            penalty = penalty.todia()
-            sparse_bands = (penalty).data
-            offsets = penalty.offsets
-            index_offset = np.max(offsets)
-            penalty_bands = np.zeros((index_offset * 2 + 1, sparse_bands.shape[1]))
-            for index, banded_index in enumerate(offsets):
-                penalty_bands[abs(banded_index - index_offset)] = sparse_bands[index]
-            self.penalty = penalty_bands
-            if self.lower:
-                self.penalty = self.penalty[self.penalty.shape[0] // 2:]
-        else:
-            self.penalty = penalty
+        self.penalty = P_rows + P_columns
 
         self._update_bands()
 
-    def solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False,
-              check_finite=False, l_and_u=None):
+    def solve(self, y, weights, penalty=None, rhs_extra=None):
         """
-        Solves the equation ``A @ x = rhs``, given `A` in banded format as `lhs`.
+        Solves the equation ``A @ x = b``.
 
         Parameters
         ----------
-        lhs : array-like, shape (M, N)
-            The left-hand side of the equation, in banded format. `lhs` is assumed to be
-            some slight modification of `self.penalty` in the same format (reversed, lower,
-            number of bands, etc. are all the same).
-        rhs : array-like, shape (N,)
-            The right-hand side of the equation.
-        overwrite_ab : bool, optional
-            Whether to overwrite `lhs` when using :func:`scipy.linalg.solveh_banded` or
-            :func:`scipy.linalg.solve_banded`. Default is False.
-        overwrite_b : bool, optional
-            Whether to overwrite `rhs` when using :func:`scipy.linalg.solveh_banded` or
-            :func:`scipy.linalg.solve_banded`. Default is False.
-        check_finite : bool, optional
-            Whether to check if the inputs are finite when using
-            :func:`scipy.linalg.solveh_banded` or :func:`scipy.linalg.solve_banded`.
-            Default is False.
-        l_and_u : Container(int, int), optional
-            The number of lower and upper bands in `lhs` when using
-            :func:`scipy.linalg.solve_banded`. Default is None, which uses
-            (``len(lhs) // 2``, ``len(lhs) // 2``).
+        y : numpy.ndarray
+            The y-values for fitting the spline.
+        weights : numpy.ndarray
+            The weights for each y-value. Will also be added to the diagonal of the
+            penalty.
+        penalty : numpy.ndarray
+            The penalty to use for solving. Default is None which uses the object's
+            penalty.
+        rhs_extra : float or numpy.ndarray, optional
+            If supplied, `rhs_extra` will be added to the right hand side
+            of the equation before solving. Default is None, which adds nothing.
 
         Returns
         -------
-        output : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The solution to the linear system, `x`.
 
         """
-        if self.banded:
-            if self.lower:
-                output = solveh_banded(
-                    lhs, rhs, overwrite_ab=overwrite_ab,
-                    overwrite_b=overwrite_b, lower=True, check_finite=check_finite
-                )
-            else:
-                if l_and_u is None:
-                    num_bands = len(lhs) // 2
-                    l_and_u = (num_bands, num_bands)
-                output = solve_banded(
-                    l_and_u, lhs, rhs, overwrite_ab=overwrite_ab,
-                    overwrite_b=overwrite_b, check_finite=check_finite
-                )
+        if penalty is None:
+            lhs = self.add_diagonal(weights)
         else:
-            output = spsolve(lhs, rhs, permc_spec='NATURAL')
+            penalty.setdiag(penalty.diagonal() + weights)
+            lhs = penalty
+        rhs = weights * y
+        if rhs_extra is not None:
+            rhs = rhs + rhs_extra
 
-        return output
+        return self.direct_solve(lhs, rhs)
+
+    def direct_solve(self, lhs, rhs):
+        return spsolve(lhs, rhs)
 
     def add_diagonal(self, value):
         """
@@ -301,15 +181,333 @@ class PenalizedSystem2D:
             The penalty matrix with the main diagonal updated.
 
         """
-        if self.banded:
-            self.penalty[self.main_diagonal_index] = self.main_diagonal + value
-        else:
-            self.penalty.setdiag(self.main_diagonal + value)
+        self.penalty.setdiag(self.main_diagonal + value)
         return self.penalty
 
     def reset_diagonal(self):
         """Sets the main diagonal of the penalty matrix back to its original value."""
-        if self.banded:
-            self.penalty[self.main_diagonal_index] = self.main_diagonal
+        self.penalty.setdiag(self.main_diagonal)
+
+
+class WhittakerSystem2D(PenalizedSystem2D):
+    """
+    Sets up and solves Whittaker smoothing using the analytical solution or eigendecomposition.
+
+    Attributes
+    ----------
+    basis_r : scipy.sparse.csr.csr_matrix, shape (N, P)
+        The spline basis for the rows. Has a shape of (`N,` `P`), where `N` is the number of
+        points in `x`, and `P` is the number of basis functions (equal to ``K - spline_degree - 1``
+        or equivalently ``num_knots[0] + spline_degree[0] - 1``).
+    basis_c : scipy.sparse.csr.csr_matrix, shape (M, Q)
+        The spline basis for the columns. Has a shape of (`M,` `Q`), where `M` is the number of
+        points in `z`, and `Q` is the number of basis functions (equal to ``K - spline_degree - 1``
+        or equivalently ``num_knots[1] + spline_degree[1] - 1``).
+    coef : None or numpy.ndarray, shape (M,)
+        The spline coefficients. Is None if :meth:`~PSpline2D.solve_pspline` has not been called
+        at least once.
+
+    References
+    ----------
+    Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+    Statistics and Data Analysis, 2006, 50(1), 61-76.
+
+    Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+    (Preprint), 2023.
+
+    """
+
+    def __init__(self, data_size, lam=1, diff_order=2, max_eigens=None):
+        """
+        Initializes the penalized spline by calculating the basis and penalty.
+
+        Parameters
+        ----------
+        data_size : Sequence[int, int]
+            The number of data points for the system.
+        lam : float or Sequence[int, int], optional
+            The penalty factor applied to the difference matrix for the rows and columns,
+            respectively. If a single value is given, both will use the same value. Larger
+            values produce smoother results. Must be greater than 0. Default is 1.
+        diff_order : int or Sequence[int, int], optional
+            The difference order of the penalty for the rows and columns, respectively. If
+            a single value is given, both will use the same value.
+            Default is 2 (second order difference).
+        max_eigens : int or Sequence[int, int] or None
+            The maximum number of eigenvalues for the rows and columns, respectively, to use
+            for the eigendecomposition. If None, will solve the linear system using the full
+            analytical solution, which is typically much slower.
+
+        """
+        # TODO should figure out a way to better merge PenalizedSystem2D, PSpline2D, and this class
+        self.coef = None
+        self._basis = None
+        self._num_points = data_size
+        self.diff_order = _check_scalar(diff_order, 2, True)[0]
+        if max_eigens is None or None in max_eigens:
+            self._num_bases = data_size
+            self._using_svd = False
         else:
-            self.penalty.setdiag(self.main_diagonal)
+            # TODO need to check to ensure max_eigens is <= data_size and otherwise emit
+            # an error; if max_eigens is >~ 40 should emit an error saying too many
+            self._num_bases = _check_scalar(max_eigens, 2, True, dtype=int)[0]
+            self._using_svd = True
+        self.reset_diagonals(lam, diff_order)
+
+        if self._using_svd:
+            el = np.ones((1, self._num_bases[0]))
+            ek = np.ones((1, self._num_bases[1]))
+            self._G_r = kron(self.basis_r, el).multiply(kron(el, self.basis_r))
+            self._G_c = kron(self.basis_c, ek).multiply(kron(ek, self.basis_c))
+
+    def reset_diagonals(self, lam=1, diff_order=2):
+        """
+        Resets the diagonals of the system and all of the attributes.
+
+        Useful for reusing the penalized system for a different `lam` value.
+
+        Parameters
+        ----------
+        lam : float or Sequence[int, int], optional
+            The penalty factor applied to the difference matrix for the rows and columns,
+            respectively. If a single value is given, both will use the same value. Larger
+            values produce smoother results. Must be greater than 0. Default is 1.
+        diff_order : int or Sequence[int, int], optional
+            The difference order of the penalty for the rows and columns, respectively. If
+            a single value is given, both will use the same value.
+            Default is 2 (second order difference).
+
+        """
+        if not self._using_svd:
+            super().reset_diagonals(lam, diff_order)
+            return
+
+        self.lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
+        self.diff_order = _check_scalar(diff_order, 2, True)[0]
+        if (self.diff_order < 1).any():
+            raise ValueError('the difference order must be > 0')
+
+        # initially need num_bases to point to the data shape; maybe set a second
+        # attribute insteaad
+        values_rows, vectors_rows = self._calc_eigenvalues(
+            self._num_points[0], self.diff_order[0], self._num_bases[0]
+        )
+        # TODO if all else matches, just calc the max eigens and use indexing for the lower one
+        if (
+            self.diff_order[0] == self.diff_order[1]
+            and self._num_points[0] == self._num_points[1]
+            and self._num_bases[0] == self._num_bases[1]
+        ):
+            values_columns, vectors_columns = values_rows, vectors_rows
+        else:
+            values_columns, vectors_columns = self._calc_eigenvalues(
+                self._num_points[1], self.diff_order[1], self._num_bases[1]
+            )
+        # the eigenvalues are a diagonal matrix, so can simplify since
+        # kron(diagonal, identity(N)) == np.repeat(diagonal, N) and
+        # kron(identity(M), diaonal2) == np.tile(diagonal2, M)
+        self.penalty_rows = np.repeat(self.lam[0] * values_rows, self._num_bases[1])
+        self.penalty_columns = np.tile(self.lam[1] * values_columns, self._num_bases[0])
+        # penalty is a (_num_bases[0] * _num_bases[1],) array
+        self.penalty = self.penalty_rows + self.penalty_columns
+
+        self.basis_r = vectors_rows
+        self.basis_c = vectors_columns
+
+    def _calc_eigenvalues(self, data_points, diff_order, num_eigens):
+        # TODO the lowest diff_order eigenvalues should be zero, while they end up being
+        # ~ +- 1e-15, will this affect any calculations or can it be left as it? If it does
+        # need set to 0, do the eigenvectors likewise need updated for that?
+        penalty_bands = diff_penalty_diagonals(data_points, diff_order, lower_only=True)
+        if diff_order == 1:
+            eigenvalues, eigenvectors = eigh_tridiagonal(
+                penalty_bands[0], penalty_bands[1, :-1], select='i',
+                select_range=(0, num_eigens - 1)
+            )
+        else:
+            eigenvalues, eigenvectors = eig_banded(
+                penalty_bands, lower=True, select='i',
+                select_range=(0, num_eigens - 1), overwrite_a_band=True
+            )
+        return eigenvalues, eigenvectors
+
+    def update_penalty(self, lam):
+        if not self._using_svd:
+            raise ValueError('Must call reset_diagonals if not using eigendecomposition')
+        lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
+        self.penalty_rows = (lam[0] / self.lam[0]) * self.penalty_rows
+        self.penalty_columns = (lam[1] / self.lam[1]) * self.penalty_columns
+
+        self.lam = lam
+        self.penalty = self.penalty_rows + self.penalty_columns
+
+    def same_basis(self, diff_order=2, max_eigens=None):
+        """
+        Sees if the current basis is equivalent to the input number of eigenvalues and diff order.
+
+        Always returns False if the previous setup did not use eigendecomposition or if
+        the input maximum number of eigenvalues is None.
+
+        Parameters
+        ----------
+        diff_order : int or Sequence[int, int], optional
+            The difference order of the penalty for the rows and columns, respectively. If
+            a single value is given, both will use the same value.
+            Default is 2 (second order difference).
+        max_eigens : int or Sequence[int, int] or None
+            The maximum number of eigenvalues for the rows and columns, respectively, to use
+            for the eigendecomposition. If None, will solve the linear system using the full
+            analytical solution, which is typically much slower.
+
+        Returns
+        -------
+        bool
+            True if the input number of eigenvalues and difference order are equivalent to the
+            current setup for the object.
+
+        """
+        # TODO should give a way to update only one of the basis functions, which
+        # would also need to update the penalty
+        if max_eigens is None or not self._using_svd:
+            return False
+
+        max_eigens = _check_scalar(max_eigens, 2, True)[0]
+        diff_order = _check_scalar(diff_order, 2, True)[0]
+        return (
+            np.array_equal(diff_order, self.diff_order)
+            and np.array_equal(max_eigens, self._num_bases)
+        )
+
+    def reset_penalty(self, lam=1, diff_order=2):
+        """
+        Resets the penalty of the system and all of the attributes.
+
+        Useful for reusing the penalty diagonals without having to recalculate the spline basis.
+
+        Parameters
+        ----------
+        lam : float or Sequence[float, float], optional
+            The penalty factor applied to the difference matrix. Larger values produce
+            smoother results. Must be greater than 0. Default is 1.
+        diff_order : int or Sequence[int, int], optional
+            The difference order of the penalty. Default is 2 (second order difference).
+
+        """
+        # TODO is this even needed?
+        self.reset_diagonals(lam, diff_order)
+
+    def _make_btwb(self, weights):
+        """Computes ``Basis.T @ Weights @ Basis`` using a more efficient method.
+
+        References
+        ----------
+        Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+        Statistics and Data Analysis, 2006, 50(1), 61-76.
+
+        """
+        # do not save intermediate results since they are memory intensive for high number of bases
+        # note to self: F is not sparse when the basis functions are eigenvectors since the
+        # eigenvector matrices are fully dense; it is however symmetric and positive definite
+        F = np.transpose(
+                (self._G_r.T @ weights @ self._G_c).reshape(
+                    (self._num_bases[0], self._num_bases[0], self._num_bases[1], self._num_bases[1])
+                ),
+                [0, 2, 1, 3]
+            ).reshape(
+                (self._num_bases[0] * self._num_bases[1], self._num_bases[0] * self._num_bases[1])
+        )
+
+        return F
+
+    def solve(self, y, weights, penalty=None, rhs_extra=None, assume_a='pos'):
+        """
+        Solves the coefficients for a weighted penalized spline.
+
+        Solves the linear equation ``(B.T @ W @ B + P) c = B.T @ W @ y`` for the spline
+        coefficients, `c`, given the spline basis, `B`, the weights (diagonal of `W`), the
+        penalty `P`, and `y`, and returns the resulting spline, ``B @ c``. Attempts to
+        calculate ``B.T @ W @ B`` and ``B.T @ W @ y`` as a banded system to speed up
+        the calculation.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (M, N)
+            The y-values for fitting the spline.
+        weights : numpy.ndarray, shape (M, N)
+            The weights for each y-value.
+        penalty : numpy.ndarray, shape (``M * N``, ``M * N``)
+            The finite difference penalty matrix, in LAPACK's lower banded format (see
+            :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
+            format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
+        rhs_extra : float or numpy.ndarray, shape (``M * N``,), optional
+            If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
+            of the equation before solving. Default is None, which adds nothing.
+
+        Returns
+        -------
+        numpy.ndarray, shape (M, N)
+            The spline, corresponding to ``B @ c``, where `c` are the solved spline
+            coefficients and `B` is the spline basis.
+
+        Notes
+        -----
+        Uses the more efficient algorithm from Eilers's paper, although the memory usage
+        is higher than the straigtforward method when the number of knots is high; however,
+        it is significantly faster and memory efficient when the number of knots is lower,
+        which will be the more typical use case.
+
+        """
+        if not self._using_svd:
+            return super().solve(y, weights, penalty, rhs_extra)
+
+        rhs = (self.basis_r.T @ (weights * y) @ self.basis_c).ravel()
+        if rhs_extra is not None:
+            rhs = rhs + rhs_extra
+
+        if penalty is None:
+            penalty = self.penalty
+
+        lhs = self._make_btwb(weights)
+        # TODO could use cho_factor and save the factorization to call within _calc_dof to make
+        # the call save time since it would only be used after the weights are finalized
+        np.fill_diagonal(lhs, lhs.diagonal() + penalty)
+        self.coef = solve(
+            lhs, rhs, lower=True, overwrite_a=True, overwrite_b=True, check_finite=False,
+            assume_a=assume_a
+        )
+
+        output = self.basis_r @ self.coef.reshape(self._num_bases) @ self.basis_c.T
+
+        return output
+
+    @property
+    def basis(self):
+        """
+        The full spline basis matrix.
+
+        This is a lazy implementation since the full basis is typically not needed for
+        computations.
+
+        """
+        if not self._using_svd:
+            # Could maybe just make a basis using identities? But this should not be called
+            # from outside so no reason to implement
+            raise ValueError('No basis matrix when not using eigendecomposition')
+
+        if self._basis is None:
+            self._basis = kron(self.basis_r, self.basis_c)
+        return self._basis
+
+    def _calc_dof(self, weights, assume_a='pos'):
+        if not self._using_svd:
+            # Could maybe just output a matrix of ones?
+            raise ValueError('Cannot calculate degrees of freedom when not using eigendecomposition')
+        lhs = self._make_btwb(weights)
+        rhs = lhs.copy()
+        np.fill_diagonal(lhs, lhs.diagonal() + self.penalty)
+        dof = solve(
+            lhs, rhs, lower=True, overwrite_a=True, overwrite_b=True, check_finite=False,
+            assume_a=assume_a
+        )
+
+        return dof.diagonal().reshape(self._num_bases)

@@ -55,6 +55,13 @@ class PSpline2D(PenalizedSystem2D):
     z : numpy.ndarray, shape (M,)
         The z-values for the spline.
 
+    Notes
+    -----
+    If the penalty is symmetric, the sparse system could be solved much faster using
+    CHOLMOD from SuiteSparse (https://github.com/DrTimothyAldenDavis/SuiteSparse) through
+    the python bindings provided by scikit-sparse (https://github.com/scikit-sparse/scikit-sparse),
+    but it is not worth implementing here since this code will rarely be used.
+
     References
     ----------
     Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
@@ -113,9 +120,8 @@ class PSpline2D(PenalizedSystem2D):
         self.knots_c = _spline_knots(self.z, self.num_knots[1], self.spline_degree[1], True)
         self.basis_c = _spline_basis(self.z, self.knots_c, self.spline_degree[1])
 
-        super().__init__(
-            (self.basis_r.shape[1], self.basis_c.shape[1]), lam, diff_order, use_banded=False
-        )
+        super().__init__((self.basis_r.shape[1], self.basis_c.shape[1]), lam, diff_order)
+
         if (self.diff_order >= self._num_bases).any():
             raise ValueError((
                 'the difference order must be less than the number of basis '
@@ -168,22 +174,11 @@ class PSpline2D(PenalizedSystem2D):
             smoother results. Must be greater than 0. Default is 1.
         diff_order : int or Sequence[int, int], optional
             The difference order of the penalty. Default is 2 (second order difference).
-        allow_lower : bool, optional
-            If True (default), will allow only using the lower bands of the penalty matrix,
-            which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
-            slower :func:`scipy.linalg.solve_banded`.
-        reverse_diags : bool, optional
-            If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False (default), will never reverse the diagonals.
-
-        Notes
-        -----
-        `use_banded` is always set to False since the banded structure in 2D is not small.
 
         """
-        self.reset_diagonals(lam, diff_order, use_banded=False)
+        self.reset_diagonals(lam, diff_order)
 
-    def solve_pspline(self, y, weights, penalty=None, rhs_extra=None):
+    def solve(self, y, weights, penalty=None, rhs_extra=None):
         """
         Solves the coefficients for a weighted penalized spline.
 
@@ -239,8 +234,7 @@ class PSpline2D(PenalizedSystem2D):
         if rhs_extra is not None:
             rhs = rhs + rhs_extra
 
-        self.coef = spsolve(F + penalty, rhs, permc_spec='NATURAL')
-
+        self.coef = spsolve(F + penalty, rhs)
         output = self.basis_r @ self.coef.reshape(self._num_bases) @ self.basis_c.T
 
         return output
