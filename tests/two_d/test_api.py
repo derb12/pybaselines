@@ -42,7 +42,15 @@ def get_public_methods(klass):
         The list of all public methods of the input class.
 
     """
-    return [method for method in dir(klass) if not method.startswith('_')]
+    methods = []
+    for method in dir(klass):
+        if (
+            not (method.startswith('_')
+            or method.startswith('pentapy_solver')
+            or method.startswith('get_method'))
+        ):
+            methods.append(method)
+    return methods
 
 
 # will be like [('asls', whittaker._Whittaker), ('modpoly', polynomial._Polynomial), ...]
@@ -129,3 +137,17 @@ class TestBaseline2D:
 
         # no additional methods should be available
         assert len(total_methods) == 0
+
+    def test_get_method(self):
+        """Ensures the get_method helper function works as intended."""
+        method = self.algorithm._get_method('asls')
+        assert method == self.algorithm.asls
+
+        # also ensure capitalization does not matter
+        method2 = self.algorithm._get_method('AsLS')
+        assert method2 == self.algorithm.asls
+
+    def test_get_method_fails(self):
+        """Ensures the get_method helper function fails when an incorrect name is given."""
+        with pytest.raises(AttributeError):
+            self.algorithm._get_method('aaaaaaaaaaaaa')

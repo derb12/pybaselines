@@ -61,3 +61,32 @@ class Baseline(
         set to numpy.ndarray([-1, 1]).
 
     """
+
+    def _get_method(self, method):
+        """
+        A helper function to allow accessing methods by their string.
+
+        Parameters
+        ----------
+        method : str
+            The name of the desired method as a string. Capitalization is ignored. For
+            example, both 'asls' and 'AsLS' would return :meth:`~.Baseline.asls`.
+
+        Returns
+        -------
+        output : Callable
+            The callable method corresponding to the input string.
+
+        Raises
+        ------
+        AttributeError
+            Raised if the input method does not exist.
+
+        """
+        method_string = method.lower()
+        if hasattr(self, method_string):
+            output = getattr(self, method_string)
+        else:
+            raise AttributeError(f'unknown method "{method}"')
+
+        return output
