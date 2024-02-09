@@ -40,6 +40,12 @@ def test_gaussian(_x_data, height, center, sigma):
         gaussian(_x_data, height, center, sigma), 1e-12, 1e-12
     )
 
+@pytest.mark.parametrize('sigma', (0, -1))
+def test_gaussian_non_positive_sigma(_x_data, sigma):
+    """Ensures a sigma value not greater than 0 raises an exception."""
+    with pytest.raises(ValueError):
+        utils.gaussian(_x_data, sigma=sigma)
+
 
 @pytest.mark.parametrize('window_size', (1, 20, 100))
 @pytest.mark.parametrize('sigma', (1, 2, 5))

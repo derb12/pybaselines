@@ -276,7 +276,8 @@ class _Algorithm2D:
                     axis = -1
                 y = _check_sized_array(
                     data, expected_shape, check_finite=self._check_finite, dtype=dtype,
-                    order=order, ensure_1d=False, axis=axis, name='data'
+                    order=order, ensure_1d=False, axis=axis, name='data', ensure_2d=ensure_2d,
+                    two_d=True
                 )
             else:
                 y, self.x, self.z = _yxz_arrays(

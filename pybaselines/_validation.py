@@ -113,7 +113,7 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarr
 
 
 def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=True,
-                 ensure_2d=False):
+                 ensure_2d=False, two_d=False):
     """
     Validates the shape and values of the input array and controls the output parameters.
 
@@ -162,21 +162,27 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
             output = output.reshape(-1)
         elif dimensions != 1:
             raise ValueError('must be a one dimensional array')
-    elif ensure_2d:
+    elif two_d:
         output = np.array(output, copy=False, ndmin=2)
         dimensions = output.ndim
-        if dimensions == 3 and 1 in output.shape:
-            output_shape = np.array(output.shape)
-            flat_dims = ~np.equal(output_shape, 1)
-            output = output.reshape(output_shape[flat_dims]).shape
-        elif dimensions != 2:
-            raise ValueError('must be a two dimensional array')
+        if dimensions == 2 and 1 in output.shape:
+            raise ValueError(
+                'input data must be a two dimensional array with more than just one row or column'
+            )
+        if ensure_2d:
+            if dimensions == 3 and 1 in output.shape:
+                output_shape = np.array(output.shape)
+                flat_dims = ~np.equal(output_shape, 1)
+                output = output.reshape(output_shape[flat_dims]).shape
+            elif dimensions != 2:
+                raise ValueError('must be a two dimensional array')
 
     return output
 
 
 def _check_sized_array(array, length, dtype=None, order=None, check_finite=False,
-                       ensure_1d=True, axis=-1, name='weights'):
+                       ensure_1d=True, axis=-1, name='weights', ensure_2d=False,
+                       two_d=False):
     """
     Validates the input array and ensures its length is correct.
 
@@ -214,7 +220,8 @@ def _check_sized_array(array, length, dtype=None, order=None, check_finite=False
 
     """
     output = _check_array(
-        array, dtype=dtype, order=order, check_finite=check_finite, ensure_1d=ensure_1d
+        array, dtype=dtype, order=order, check_finite=check_finite, ensure_1d=ensure_1d,
+        ensure_2d=ensure_2d, two_d=two_d
     )
     if not np.equal(output.shape[axis], length).all():
         raise ValueError(
@@ -321,7 +328,7 @@ def _yxz_arrays(data, x_data=None, z_data=None, check_finite=False, dtype=None, 
     """
     y = _check_array(
         data, dtype=dtype, order=order, check_finite=check_finite, ensure_1d=False,
-        ensure_2d=ensure_2d
+        ensure_2d=ensure_2d, two_d=True
     )
     x_len = y.shape[x_axis]
     z_len = y.shape[z_axis]

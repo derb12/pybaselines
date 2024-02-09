@@ -85,8 +85,15 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     numpy.ndarray
         The Gaussian distribution evaluated with x.
 
+    Raises
+    ------
+    ValueError
+        Raised if `sigma` is not greater than 0.
+
     """
-    return height * np.exp(-0.5 * ((x - center)**2) / max(sigma, _MIN_FLOAT)**2)
+    if sigma <= 0:
+        raise ValueError('sigma must be greater than 0')
+    return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
 
 
 def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_z=1.0):

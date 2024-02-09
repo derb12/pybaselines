@@ -719,6 +719,85 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         assert_array_equal(value, output_params4[key], err_msg=f'{key} failed')
 
 
+def test_algorithm_register_no_data_fails():
+    """Ensures an error is raised if the input data is None."""
+
+    class SubClass(_algorithm_setup._Algorithm2D):
+
+        @_algorithm_setup._Algorithm2D._register
+        def func(self, data, *args, **kwargs):
+            """For checking empty decorator."""
+            return data, {}
+
+        @_algorithm_setup._Algorithm2D._register()
+        def func2(self, data, *args, **kwargs):
+            """For checking closed decorator."""
+            return data, {}
+
+    with pytest.raises(TypeError, match='"data" cannot be None'):
+        SubClass().func()
+    with pytest.raises(TypeError, match='"data" cannot be None'):
+        SubClass().func2()
+
+
+def test_algorithm_register_1d_fails(data_fixture):
+    """Ensures an error is raised if 1D data is used for 2D algorithms."""
+
+    class SubClass(_algorithm_setup._Algorithm2D):
+
+        @_algorithm_setup._Algorithm2D._register
+        def func(self, data, *args, **kwargs):
+            """For checking empty decorator."""
+            return data, {}
+
+        @_algorithm_setup._Algorithm2D._register()
+        def func2(self, data, *args, **kwargs):
+            """For checking closed decorator."""
+            return data, {}
+
+    x, y = data_fixture
+    algorithm = SubClass()
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func(y)
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func2(y)
+
+    # also test when given x values
+    algorithm = SubClass(None, x)  # x would correspond to the columns in 2D y
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func(y)
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func2(y)
+
+    # and when y is 2D but only has one row
+    y_2d = np.atleast_2d(y)
+    algorithm = SubClass()
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func(y_2d)
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func2(y_2d)
+
+    algorithm = SubClass(None, x)  # x would correspond to the columns in 2D y
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func(y_2d)
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func2(y_2d)
+
+    # and when y is 2D but only has one column
+    y_2d_transposed = np.atleast_2d(y).T
+    algorithm = SubClass()
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func(y_2d_transposed)
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func2(y_2d_transposed)
+
+    algorithm = SubClass(x)  # x now correspond to the rows in 2D y
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func(y_2d_transposed)
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func2(y_2d_transposed)
+
+
 def test_override_x(algorithm):
     """Ensures the `override_x` method correctly initializes with the new x values."""
     new_len = 20
