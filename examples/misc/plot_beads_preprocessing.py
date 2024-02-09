@@ -9,7 +9,7 @@ main drawbacks of the original algorithm is that it requires that both ends of
 the data to be at zero. This example will explore the consequences of this as
 well as a preprocessing step proposed by `Navarro-Huerta, J.A., et al. Assisted baseline
 subtraction in complex chromatograms using the BEADS algorithm. Journal of Chromatography
-A, 2017, 1507, 1-10` that helps to address this issue.
+A, 2017, 1507, 1-10` implemented in pybaselines that helps to address this issue.
 
 """
 # sphinx_gallery_thumbnail_number = 4

@@ -17,6 +17,10 @@ Compared to the time required to solve using sparse matrices, Scipy's banded sol
 is ~50-70% faster and pentapy's banded solver is ~70-90% faster, ultimately reducing
 the computation time by about an order of magnitude.
 
+Note that the performance of solving the sparse system can be improved by using
+`CHOLMOD from SuiteSparse <https://github.com/DrTimothyAldenDavis/SuiteSparse>`_, which has
+Python bindings provided by `scikit-sparse <https://github.com/scikit-sparse/scikit-sparse>`_.
+
 """
 
 import time
@@ -24,7 +28,6 @@ import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.sparse import spdiags
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import whittaker, _banded_utils
@@ -51,12 +54,11 @@ def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weig
 
     diff_matrix = difference_matrix(num_y, diff_order, 'csc')
     penalty_matrix = lam * (diff_matrix.T @ diff_matrix)
+    original_diag = penalty_matrix.diagonal()
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
-        baseline = spsolve(
-            spdiags(weight_array, 0, num_y, num_y, 'csr') + penalty_matrix,
-            weight_array * y, 'NATURAL'
-        )
+        penalty_matrix.setdiag(weight_array + original_diag)
+        baseline = spsolve(penalty_matrix, weight_array * y, 'NATURAL')
         mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
         calc_difference = relative_difference(weight_array, new_weights)

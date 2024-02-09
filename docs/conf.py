@@ -41,9 +41,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
-    # austosectionlabel allows referencing sections by their titles, but was throwing lots of duplicate object warnings
-    # since changes.rst and CHANGELOG.rst have the same section headers
-    #'sphinx.ext.autosectionlabel',
+    'sphinx.ext.autosectionlabel',
     'matplotlib.sphinxext.plot_directive',
     'sphinx_gallery.gen_gallery'
 ]
