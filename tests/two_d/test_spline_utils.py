@@ -228,18 +228,31 @@ def test_pspline_tck(data_fixture2d, num_knots, spline_degree, diff_order, lam):
     fit_spline = pspline.solve(y, weights=np.ones_like(y))
 
     # ensure tck is the knots, coefficients, and spline degree
-    assert len(pspline.tck) == 5
-    knots_r, knots_c, coeffs, degree_x, degree_z = pspline.tck
+    assert len(pspline.tck) == 3
+    (knots_r, knots_c), coeffs, (degree_x, degree_z) = pspline.tck
 
-    assert_allclose(knots_r, pspline.knots_r, rtol=1e-12)
-    assert_allclose(knots_c, pspline.knots_c, rtol=1e-12)
-    assert_allclose(coeffs, pspline.coef, rtol=1e-12)
+    assert_allclose(knots_r, pspline.knots_r, rtol=1e-12, atol=1e-12)
+    assert_allclose(knots_c, pspline.knots_c, rtol=1e-12, atol=1e-12)
+    assert_allclose(coeffs, pspline.coef.reshape(pspline._num_bases), rtol=1e-12, atol=1e-12)
     if isinstance(spline_degree, int):
         assert degree_x == spline_degree
         assert degree_z == spline_degree
     else:
         assert degree_x == spline_degree[0]
         assert degree_z == spline_degree[1]
+
+    # Now recreate the spline with scipy's NdBSpline and ensure it is the same;
+    # NdBSpline was introduced in scipy 1.12.0
+    import scipy
+    major, minor = [int(val) for val in scipy.__version__.split('.')[:2]]
+    if major > 1 or (major == 1 and minor >= 12):
+        from scipy.interpolate import NdBSpline
+        # np.array(np.meshgrid(x, z)).T is the same as doing
+        # np.array(np.meshgrid(x, z, indexing='ij')).transpose([1, 2, 0]), which
+        # is just zipping the meshgrid of each x and z value
+        recreated_spline = NdBSpline(*pspline.tck)(np.array(np.meshgrid(x, z)).T)
+
+        assert_allclose(recreated_spline, fit_spline, rtol=1e-10, atol=1e-12)
 
 
 def test_pspline_tck_none(data_fixture2d):

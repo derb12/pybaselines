@@ -257,8 +257,9 @@ class PSpline2D(PenalizedSystem2D):
         """
         The knots, spline coefficients, and spline degree to reconstruct the spline.
 
-        Convenience function for potentially reconstructing the last solved spline with outside
-        modules, although not sure if Scipy has a 2D equiavlent to its `BSpline`.
+        Convenience function for easily reconstructing the last solved spline with outside
+        modules, such as with Scipy's `NdBSpline`, to allow for other usages such as evaulating
+        with different x- and z-values.
 
         Raises
         ------
@@ -266,9 +267,19 @@ class PSpline2D(PenalizedSystem2D):
             Raised if `solve_pspline` has not been called yet, meaning that the spline has not
             yet been constructed.
 
+        Notes
+        -----
+        To use with :class:`scipy.interpolate.NdBSpline`, the setup would look like:
+
+            from scipy.interpolate import NdBspline
+            pspline = Pspline2D(x, z, ...)
+            pspline_fit = pspline.solve(...)
+            XZ = np.array(np.meshgrid(x, z)).T  # same as zipping the meshgrid and rearranging
+            fit = NdBSpline(pspline.tck)(XZ)  # fit == pspline_fit
+
         """
         if self.coef is None:
             raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
         return (
-            self.knots_r, self.knots_c, self.coef, self.spline_degree[0], self.spline_degree[1]
+            (self.knots_r, self.knots_c), self.coef.reshape(self._num_bases), self.spline_degree
         )
