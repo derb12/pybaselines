@@ -15,6 +15,7 @@ from .. import _weighting
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
 from ..utils import ParameterWarning, relative_difference
+from ..utils import _MIN_FLOAT, ParameterWarning, relative_difference
 from .._validation import _check_optional_array
 
 
@@ -461,7 +462,7 @@ class _Whittaker(_Algorithm2D):
         partial_penalty = self.whittaker_system.penalty + penalized_system_1.penalty
         partial_penalty_2 = -eta * self.whittaker_system.penalty
         partial_penalty_2.setdiag(partial_penalty_2.diagonal() + 1)
-        weight_matrix = diags(weight_array)
+        weight_matrix = diags(weight_array, format='csr')
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = self.whittaker_system.direct_solve(
@@ -654,7 +655,9 @@ class _Whittaker(_Algorithm2D):
         if self._sort_order is not None and alpha is not None:
             alpha_array = alpha_array[self._sort_order]
 
-        # use a sparse matrix to maintain sparsity after multiplication
+        # use a sparse matrix to maintain sparsity after multiplication; implementation note:
+        # could skip making an alpha matrix and just use alpha_array[:, None] * penalty once
+        # the scipy sparse_arrays become standard -> will have to check if timing is affected
         alpha_matrix = diags(alpha_array.ravel(), format='csr')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
@@ -666,8 +669,11 @@ class _Whittaker(_Algorithm2D):
             if calc_difference < tol:
                 break
             weight_array = new_weights
-            abs_d = np.abs(residual)
+            # add _MIN_FLOAT so that no values are 0; otherwise, the sparsity of alpha @ penalty
+            # can change, which is inefficient
+            abs_d = np.abs(residual) + _MIN_FLOAT
             alpha_array = abs_d / abs_d.max()
+            alpha_matrix.setdiag(alpha_array)
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1]

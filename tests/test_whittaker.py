@@ -11,6 +11,7 @@ from unittest import mock
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
+from scipy.sparse import diags
 
 from pybaselines import _banded_utils, whittaker
 from pybaselines.utils import ParameterWarning
@@ -277,6 +278,23 @@ class TestAsPLS(WhittakerTester):
             baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
         assert np.isfinite(baseline.dot(baseline))
+
+    @pytest.mark.parametrize('diff_order', (1, 2, 3))
+    def test_alpha_multiplication(self, diff_order):
+        """Ensures multiplication of the alpha array and banded penalty is handled correctly."""
+        lam = 5.
+        num_points = len(self.y)
+        alpha = np.arange(num_points, dtype=float)
+        penalized_system = _banded_utils.PenalizedSystem(
+            num_points, lam=lam, diff_order=diff_order, allow_lower=False, reverse_diags=True
+        )
+        penalty_matrix = lam * _banded_utils.diff_penalty_matrix(num_points, diff_order=diff_order)
+
+        expected_result = (diags(alpha) @ penalty_matrix).todia().data[::-1]
+
+        result = alpha * penalized_system.penalty
+        result = _banded_utils._shift_rows(result, diff_order, diff_order)
+        assert_allclose(result, expected_result, rtol=1e-13, atol=1e-13)
 
 
 class TestPsalsa(WhittakerTester):
