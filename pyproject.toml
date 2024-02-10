@@ -1,9 +1,89 @@
 [build-system]
-# setuptools v42.0.0 was first version to allow multiple license files
-# (the license_files metadata field in setup.cfg). Also covers pep-517
-# and pep-518 since support was added to setuptools in v40.8.0.
-requires = ["setuptools>=42", "wheel"]
+# setuptools v61.2.0 was first version to allow using the project section to specify metadata.
+requires = ["setuptools>=61.2"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pybaselines"
+version = "1.0.0"
+authors = [
+    {name = "Donald Erb", email = "donnie.erb@gmail.com"},
+]
+description = "A library of algorithms for the baseline correction of experimental data."
+readme = "README.rst"
+license = {file = "LICENSE.txt"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+keywords = [
+    "materials characterization",
+    "materials science",
+    "baseline",
+    "background",
+    "baseline correction",
+    "baseline subtraction",
+    "chemistry",
+    "spectroscopy",
+    "raman",
+]
+requires-python = ">=3.8"
+dependencies = [
+    # lowest versions supported for python 3.8
+    "numpy>=1.18",
+    "scipy>=1.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/derb12/pybaselines"
+Documentation = "https://pybaselines.readthedocs.io"
+
+[project.optional-dependencies]
+full = [
+    "pentapy>=1.0",  # first version with PTRANS-II solver and MIT license
+    "numba>=0.49",  # first to allow usage with python 3.8
+]
+test = [
+    "pytest",
+    "ruff",
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinx-autoapi",
+    "sphinx-gallery",
+    "matplotlib",
+    "numpydoc",
+]
+release = [
+    "build",
+    "bump-my-version",
+    "twine",
+]
+dev = ["pybaselines[full, docs, test, release]"]
+
+[tool.setuptools]
+# TODO license-files usage may change in the future once PEP 639 is accepted
+license-files = [
+    "LICENSE.txt",
+    "LICENSES_bundled.txt",
+]
+
+[tool.setuptools.packages.find]
+include = ["pybaselines", "pybaselines.*"]
 
 [tool.isort]
 skip = "pybaselines/__init__.py"
@@ -15,3 +95,75 @@ multi_line_output = 5
 src_paths = ["pybaselines", "tests"]
 # example_helpers are locally used in doc examples
 known_local_folder = ["example_helpers"]
+
+[tool.ruff]
+exclude = ["docs/*"]
+ignore = [
+    "D401",  # D401 first line should be in imperative mood; try rephrasing
+    "E731",  # E731 do not assign a lambda expression, use a def
+]
+line-length = 100
+task-tags = ["TODO"]
+select = [
+    "B",  # flake8-bugbear
+    "D",
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    #"I",  # isort
+    "W",  # pycodestyle warnings
+]
+
+[tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
+
+[tool.ruff.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = [
+    "F401",  # F401: module imported but unused
+    "D205",  # D205: 1 blank line required between summary line and description
+
+]
+"examples/*" = [
+    "B007",  # B007: Loop control variable `name` not used within loop body; want to be explicit in examples
+    "D205",  # D205: 1 blank line required between summary line and description
+    "D400",  # D400: first line should end with a period
+]
+"tests/*" = [
+    "F841",  # F841: Local variable 'name' is assigned to but never used; want to be explicit within tests
+]
+
+[tool.ruff.lint]
+preview = true  # for using experimental rules
+
+[tool.bumpversion]
+current_version = "1.0.0"
+commit = false
+tag = false
+message = "Bump version: {current_version} -> {new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "pybaselines/__init__.py"
+search = "__version__ = '{current_version}'"
+replace = "__version__ = '{new_version}'"
+
+[[tool.bumpversion.files]]
+filename = "docs/conf.py"
+search = "version = '{current_version}'"
+replace = "version = '{new_version}'"
+
+[[tool.bumpversion.files]]
+filename = "CITATION.cff"
+search = "version: {current_version}"
+replace = "version: {new_version}"
+
+[[tool.bumpversion.files]]
+filename = "docs/citing.rst"
+search = "version = {{{current_version}}}"
+replace = "version = {{{new_version}}}"

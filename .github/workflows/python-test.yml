@@ -46,32 +46,16 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install "numpy>=1.18" "scipy>=1.5" pytest
 
-    # Only lint a single version; pick a recent, stable version
-    - name: Install linting dependencies
-      id: install-linters
-      if: matrix.python-version == '3.10'
-      run: |
-        python -m pip install flake8 flake8-comprehensions flake8-docstrings
-
-    - name: Lint
-      if: steps.install-linters.outcome == 'success'
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings.
-        flake8 . --count --exit-zero --statistics
-
     - name: Test with required dependencies
       run: pytest .
 
     - name: Install optional dependencies
       id: install-optional
-      # uncomment below in case this step ever needs skipped again
+      # uncomment below to allow skipping future versions
       #if: matrix.python-version != '3.13'
       run: python -m pip install "pentapy>=1.0" "numba>=0.49"
 
     - name: Test with optional dependencies
-      # uncomment below in case this step ever needs skipped again
       if: steps.install-optional.outcome == 'success'
       run: pytest .
 
@@ -105,3 +89,25 @@ jobs:
 
     - name: Test with minimum optional dependencies
       run: pytest .
+
+  lint:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install linting dependencies
+      run: python -m pip install ruff
+
+    - name: Lint
+      run: ruff check . --show-source

@@ -8,4 +8,5 @@ sphinx-autoapi==1.8.4
 sphinx-gallery==0.10.1
 matplotlib==3.3.3
 pentapy==1.1.2
-numba==0.54.1
+numba==0.56.0
+numpydoc

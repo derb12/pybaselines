@@ -2,14 +2,12 @@
 -r requirements-documentation.txt
 
 # for linting
-flake8==6.0.0
-flake8-comprehensions==3.7.0
-flake8-docstrings==1.6.0
+ruff
 
 # for testing
 pytest==6.2.5
 
 # for creating releases
-bump2version==1.0.1
+bump-my-version
 twine==3.6.0
-wheel==0.37.0
+build
