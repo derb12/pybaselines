@@ -11,9 +11,9 @@ from unittest import mock
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy import integrate
 
 from pybaselines import _banded_utils, morphological, spline, utils, whittaker
+from pybaselines._compat import trapezoid
 
 from .conftest import BaseTester, InputWeightsMixin
 
@@ -108,11 +108,6 @@ def test_mixture_pdf(fraction_pos, fraction_neg):
     assert_allclose(expected_pdf, output_pdf, rtol=1e-12, atol=1e-12)
     # ensure pdf has an area of 1, ie total probability is 100%; accuracy is limited
     # by number of x-values
-
-    if hasattr(integrate, 'trapezoid'):
-        trapezoid = integrate.trapezoid
-    else:
-        trapezoid = integrate.trapz
     assert_allclose(1.0, trapezoid(output_pdf, x), rtol=1e-3, atol=1e-10)
 
 
