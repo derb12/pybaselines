@@ -712,7 +712,7 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Returns
     -------
-    diff_matrix : scipy.sparse.base.spmatrix
+    diff_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
         The sparse difference matrix.
 
     Raises

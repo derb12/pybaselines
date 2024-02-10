@@ -7,9 +7,10 @@ Created on April 25, 2023
 """
 
 import numpy as np
-from scipy import sparse
+from scipy.sparse import kron
 from scipy.sparse.linalg import spsolve
 
+from .._compat import csr_object
 from .._spline_utils import _spline_basis, _spline_knots
 from .._validation import _check_array, _check_scalar
 from ._whittaker_utils import PenalizedSystem2D
@@ -130,8 +131,8 @@ class PSpline2D(PenalizedSystem2D):
 
         el = np.ones((1, self._num_bases[0]))
         ek = np.ones((1, self._num_bases[1]))
-        self._G_r = sparse.kron(self.basis_r, el).multiply(sparse.kron(el, self.basis_r))
-        self._G_c = sparse.kron(self.basis_c, ek).multiply(sparse.kron(ek, self.basis_c))
+        self._G_r = kron(self.basis_r, el).multiply(kron(el, self.basis_r))
+        self._G_c = kron(self.basis_c, ek).multiply(kron(ek, self.basis_c))
 
     def same_basis(self, num_knots=100, spline_degree=3):
         """
@@ -217,7 +218,7 @@ class PSpline2D(PenalizedSystem2D):
 
         """
         # do not save intermediate results since they are memory intensive for high number of knots
-        F = sparse.csr_matrix(
+        F = csr_object(
             np.transpose(
                 (self._G_r.T @ weights @ self._G_c).reshape(
                     (self._num_bases[0], self._num_bases[0], self._num_bases[1], self._num_bases[1])
@@ -249,7 +250,7 @@ class PSpline2D(PenalizedSystem2D):
 
         """
         if self._basis is None:
-            self._basis = sparse.kron(self.basis_r, self.basis_c)
+            self._basis = kron(self.basis_r, self.basis_c)
         return self._basis
 
     @property

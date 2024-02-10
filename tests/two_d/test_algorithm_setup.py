@@ -9,8 +9,9 @@ Created on January 5, 2024
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import identity, kron
+from scipy.sparse import kron
 
+from pybaselines._compat import identity
 from pybaselines.two_d import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines.utils import ParameterWarning, difference_matrix
 

@@ -8,9 +8,8 @@ Created on December 8, 2021
 
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
-from scipy.sparse import identity, diags, spdiags
 
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._compat import _HAS_PENTAPY, _pentapy_solve, identity, diags, dia_object
 from ._validation import _check_lam
 
 
@@ -205,7 +204,7 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Returns
     -------
-    diff_matrix : scipy.sparse.base.spmatrix
+    diff_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
         The sparse difference matrix.
 
     Raises
@@ -502,7 +501,7 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
 
     Returns
     -------
-    penalty_matrix : scipy.sparse.base.spmatrix
+    penalty_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
         The sparse difference penalty matrix.
 
     Raises
@@ -525,10 +524,10 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
     if data_size <= diff_order:
         raise ValueError('data size must be greater than or equal to the difference order.')
     penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
-    penalty_matrix = spdiags(
-        penalty_bands, np.arange(diff_order, -diff_order - 1, -1), data_size, data_size,
-        format=diff_format
-    )
+    penalty_matrix = dia_object(
+        (penalty_bands, np.arange(diff_order, -diff_order - 1, -1)), shape=(data_size, data_size),
+    ).asformat(diff_format)
+
     return penalty_matrix
 
 

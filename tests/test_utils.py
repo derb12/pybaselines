@@ -10,10 +10,10 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.interpolate import BSpline
-from scipy.sparse import diags, identity, spdiags
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils, utils
+from pybaselines._compat import diags, dia_object, identity
 
 from .conftest import gaussian
 
@@ -795,10 +795,10 @@ def test_pspline_smooth(data_fixture, diff_order, num_knots, spline_degree):
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
     num_bases = basis.shape[1]
-    penalty_matrix = spdiags(
-        _banded_utils.diff_penalty_diagonals(num_bases, diff_order, lower_only=False),
-        np.arange(diff_order, -(diff_order + 1), -1), num_bases, num_bases, 'csr'
-    )
+    penalty_matrix = dia_object(
+        (_banded_utils.diff_penalty_diagonals(num_bases, diff_order, lower_only=False),
+        np.arange(diff_order, -(diff_order + 1), -1)), shape=(num_bases, num_bases)
+    ).tocsr()
     weights = diags(np.ones(len_y), format='csr')
 
     # solve the simple case for all weights are 1

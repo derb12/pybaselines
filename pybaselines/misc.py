@@ -68,11 +68,10 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.linalg import get_blas_funcs, solve_banded, solveh_banded
 from scipy.ndimage import uniform_filter1d
-from scipy.sparse import spdiags
 from scipy.sparse.linalg import splu, spsolve
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import _HAS_NUMBA, jit
+from ._compat import _HAS_NUMBA, dia_object, jit
 from ._validation import _check_array, _check_lam
 from .utils import _MIN_FLOAT, relative_difference
 
@@ -640,8 +639,8 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     b_diags = np.repeat(b.reshape(1, -1), data_size, axis=0).T
     if full_matrix:
         offsets = np.arange(-filter_type, filter_type + 1)
-        A = spdiags(a_diags, offsets, data_size, data_size, 'csr')
-        B = spdiags(b_diags, offsets, data_size, data_size, 'csr')
+        A = dia_object((a_diags, offsets), shape=(data_size, data_size)).tocsr()
+        B = dia_object((b_diags, offsets), shape=(data_size, data_size)).tocsr()
     else:
         # add zeros on edges to create the actual banded structure;
         # creates same structure as diags(a[b]_diags, offsets).todia().data[::-1]
@@ -915,7 +914,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     # factorize A since A is unchanged in the function and its factorization
     # is used repeatedly; much faster than calling spsolve each time
     A_factor = splu(A.tocsc(), permc_spec='NATURAL')
-    BTB = B * B
+    BTB = B @ B
 
     x = y
     d1_x, d2_x = _abs_diff(x, smooth_half_window)
@@ -929,7 +928,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
         # calculate line 6 of Table 3 in beads paper using banded matrices rather
-        # than sparse matrices since it is much faster; Gamma + D.T * Lambda * D
+        # than sparse matrices since it is much faster; Gamma + D.T @ Lambda @ D
 
         # row 1 and 3 instead of 0 and 2 to account for zeros on top and bottom
         d1_diags[1][1:] = d1_diags[3][:-1] = -_beads_weighting(d1_x, use_v2_loss, eps_1)
@@ -945,12 +944,14 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         gamma[big_x] = gamma_factor / abs_x[big_x]
         d_diags[2] += gamma
 
+        # TODO check that 'NATURAL' is the appropriate permutation scheme for this
         x = A.dot(
             spsolve(
-                BTB + A.dot(spdiags(d_diags, offsets, num_y, num_y, 'csr').dot(A)),
+                BTB + A.dot(dia_object((d_diags, offsets), shape=(num_y, num_y)).tocsr()).dot(A),
                 d, 'NATURAL'
             )
         )
+
         h = B.dot(A_factor.solve(y - x))
         d1_x, d2_x = _abs_diff(x, smooth_half_window)
         abs_x, big_x, theta = _beads_theta(x, asymmetry, eps_0)
@@ -1063,11 +1064,11 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     A, B = _high_pass_filter(num_y, freq_cutoff, filter_type, False)
     # the number of lower and upper diagonals for both A and B
     ab_lu = (filter_type, filter_type)
-    # the shape of A and B, and D.T*D matrices in their full forms rather than banded forms
+    # the shape of A and B, and D.T @ D matrices in their full forms rather than banded forms
     full_shape = (num_y, num_y)
     A_lower = A[filter_type:]
     BTB = _banded_dot_banded(B, B, ab_lu, ab_lu, full_shape, full_shape, True)
-    # number of lower and upper diagonals of A.T * (D.T * D) * A
+    # number of lower and upper diagonals of A.T @ (D.T @ D) @ A
     num_diags = (2 * filter_type + 2, 2 * filter_type + 2)
 
     # line 2 of Table 3 in beads paper
@@ -1091,7 +1092,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
         # calculate line 6 of Table 3 in beads paper using banded matrices rather
-        # than sparse matrices since it is much faster; Gamma + D.T * Lambda * D
+        # than sparse matrices since it is much faster; Gamma + D.T @ Lambda @ D
 
         # row 1 and 3 instead of 0 and 2 to account for zeros on top and bottom
         d1_diags[1][1:] = d1_diags[3][:-1] = -_beads_weighting(d1_x, use_v2_loss, eps_1)

@@ -9,12 +9,11 @@ Created on April 30, 2023
 import warnings
 
 import numpy as np
-from scipy.sparse import diags
 
 from .. import _weighting
+from .. _compat import diags
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
-from ..utils import ParameterWarning, relative_difference
 from ..utils import _MIN_FLOAT, ParameterWarning, relative_difference
 from .._validation import _check_optional_array
 

@@ -12,10 +12,11 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.interpolate import BSpline, splev
-from scipy.sparse import diags, issparse, spdiags
+from scipy.sparse import issparse
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
+from pybaselines._compat import diags, dia_object
 
 
 def _nieve_basis_matrix(x, knots, spline_degree):
@@ -230,10 +231,10 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lowe
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
     num_bases = basis.shape[1]
     penalty = _banded_utils.diff_penalty_diagonals(num_bases, diff_order, lower_only)
-    penalty_matrix = spdiags(
-        _banded_utils.diff_penalty_diagonals(num_bases, diff_order, False),
-        np.arange(diff_order, -(diff_order + 1), -1), num_bases, num_bases, 'csr'
-    )
+    penalty_matrix = dia_object(
+        (_banded_utils.diff_penalty_diagonals(num_bases, diff_order, False),
+        np.arange(diff_order, -(diff_order + 1), -1)), shape=(num_bases, num_bases)
+    ).tocsr()
 
     expected_coeffs = spsolve(
         basis.T @ diags(weights, format='csr') @ basis + penalty_matrix,

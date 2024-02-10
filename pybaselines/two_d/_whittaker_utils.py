@@ -8,10 +8,11 @@ Created on April 30, 2023
 
 import numpy as np
 from scipy.linalg import eig_banded, eigh_tridiagonal, solve
-from scipy.sparse import identity, kron
+from scipy.sparse import kron
 from scipy.sparse.linalg import spsolve
 
 from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
+from .._compat import identity
 from .._validation import _check_lam, _check_scalar
 
 
@@ -250,6 +251,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
         else:
             # TODO need to check to ensure max_eigens is <= data_size and otherwise emit
             # an error; if max_eigens is >~ 40 should emit an error saying too many
+            # also check that it is greater than 0 or maybe 1
             self._num_bases = _check_scalar(max_eigens, 2, True, dtype=int)[0]
             self._using_svd = True
         self.reset_diagonals(lam, diff_order)

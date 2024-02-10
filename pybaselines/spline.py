@@ -13,12 +13,11 @@ import warnings
 import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.optimize import curve_fit
-from scipy.sparse import spdiags
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
-from ._compat import _HAS_NUMBA, jit, trapezoid
+from ._compat import _HAS_NUMBA, dia_object, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
@@ -546,7 +545,7 @@ class _Spline(_Algorithm):
         d1_penalty = _check_lam(lam_1) * diff_penalty_diagonals(self._len, 1, lower_only=False)
         d1_penalty = (
             self.pspline.basis.T
-            @ spdiags(d1_penalty, np.array([1, 0, -1]), self._len, self._len, 'csr')
+            @ dia_object((d1_penalty, np.array([1, 0, -1])), shape=(self._len, self._len)).tocsr()
         )
         partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array

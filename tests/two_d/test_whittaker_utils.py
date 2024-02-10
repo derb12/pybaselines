@@ -9,9 +9,10 @@ Created on Dec. 11, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import identity, issparse, kron
+from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import spsolve
 
+from pybaselines._compat import identity
 from pybaselines.two_d import _spline_utils, _whittaker_utils
 from pybaselines.utils import difference_matrix
 

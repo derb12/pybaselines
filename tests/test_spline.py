@@ -105,7 +105,7 @@ def test_mixture_pdf(fraction_pos, fraction_neg):
         + fraction_neg * neg_uniform
     )
 
-    assert_allclose(expected_pdf, output_pdf, 1e-12, 1e-12)
+    assert_allclose(expected_pdf, output_pdf, rtol=1e-12, atol=1e-12)
     # ensure pdf has an area of 1, ie total probability is 100%; accuracy is limited
     # by number of x-values
 
@@ -113,7 +113,7 @@ def test_mixture_pdf(fraction_pos, fraction_neg):
         trapezoid = integrate.trapezoid
     else:
         trapezoid = integrate.trapz
-    assert_allclose(1.0, trapezoid(output_pdf, x), 1e-3)
+    assert_allclose(1.0, trapezoid(output_pdf, x), rtol=1e-3, atol=1e-10)
 
 
 def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,

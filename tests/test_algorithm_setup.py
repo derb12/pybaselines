@@ -9,10 +9,10 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import dia_matrix
 
 from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines.utils import ParameterWarning
+from pybaselines._compat import dia_object
 
 from .conftest import get_data
 
@@ -48,7 +48,7 @@ def test_setup_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
     )
 
     numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
-    desired_diagonals = dia_matrix(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
+    desired_diagonals = dia_object(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
     if allow_lower and not algorithm.whittaker_system.using_pentapy:
         # only include the lower diagonals
         desired_diagonals = desired_diagonals[diff_order:]
@@ -270,7 +270,7 @@ def test_setup_spline_diff_matrix(small_data, lam, diff_order, spline_degree, nu
 
     num_bases = num_knots + spline_degree - 1
     numpy_diff = np.diff(np.eye(num_bases), diff_order, axis=0)
-    desired_diagonals = lam * dia_matrix(numpy_diff.T @ numpy_diff).data[::-1][diff_order:]
+    desired_diagonals = lam * dia_object(numpy_diff.T @ numpy_diff).data[::-1][diff_order:]
     if diff_order < spline_degree:
         padding = np.zeros((spline_degree - diff_order, desired_diagonals.shape[1]))
         desired_diagonals = np.concatenate((desired_diagonals, padding))

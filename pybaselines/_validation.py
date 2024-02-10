@@ -350,7 +350,7 @@ def _yxz_arrays(data, x_data=None, z_data=None, check_finite=False, dtype=None, 
     return y, x, z
 
 
-def _check_lam(lam, allow_zero=False):
+def _check_lam(lam, allow_zero=False, dtype=float):
     """
     Ensures the regularization parameter `lam` is a scalar greater than 0.
 
@@ -361,6 +361,8 @@ def _check_lam(lam, allow_zero=False):
         penalized splines.
     allow_zero : bool
         If False (default), only allows `lam` values > 0. If True, allows `lam` >= 0.
+    dtype : type or numpy.dtype, optional
+        The dtype to cast the lam value. Default is float.
 
     Returns
     -------
@@ -392,7 +394,7 @@ def _check_lam(lam, allow_zero=False):
     ``(diags(lam) @ D.T @ D).todia().data[::-1]``.
 
     """
-    return _check_scalar_variable(lam, allow_zero)
+    return _check_scalar_variable(lam, allow_zero, dtype=dtype)
 
 
 def _check_half_window(half_window, allow_zero=False, two_d=False):

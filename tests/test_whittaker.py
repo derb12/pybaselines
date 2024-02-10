@@ -11,9 +11,9 @@ from unittest import mock
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
-from scipy.sparse import diags
 
 from pybaselines import _banded_utils, whittaker
+from pybaselines._compat import diags
 from pybaselines.utils import ParameterWarning
 
 from .conftest import BaseTester, InputWeightsMixin, has_pentapy
