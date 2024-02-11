@@ -48,7 +48,7 @@ ensure `git <https://git-scm.com>`_ is installed and then run:
 
     git clone https://github.com/derb12/pybaselines.git
     cd pybaselines
-    pip install -e .[dev]
+    pip install .[dev]
 
 All sections below assume the above commands were ran.
 

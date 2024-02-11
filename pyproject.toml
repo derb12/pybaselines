@@ -1,6 +1,6 @@
 [build-system]
-# setuptools v61.2.0 was first version to allow using the project section to specify metadata.
-requires = ["setuptools>=61.2"]
+# setuptools v64.0.0 was first version to allow creating editable installs with only pyproject.toml
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -98,12 +98,11 @@ known_local_folder = ["example_helpers"]
 
 [tool.ruff]
 exclude = ["docs/*"]
-ignore = [
-    "D401",  # D401 first line should be in imperative mood; try rephrasing
-    "E731",  # E731 do not assign a lambda expression, use a def
-]
 line-length = 100
-task-tags = ["TODO"]
+fix = false
+
+[tool.ruff.lint]
+preview = true  # for using experimental rules
 select = [
     "B",  # flake8-bugbear
     "D",
@@ -112,14 +111,19 @@ select = [
     #"I",  # isort
     "W",  # pycodestyle warnings
 ]
+ignore = [
+    "D401",  # D401 first line should be in imperative mood; try rephrasing
+    "E731",  # E731 do not assign a lambda expression, use a def
+]
+task-tags = ["TODO"]
 
 [tool.ruff.lint.pycodestyle]
 ignore-overlong-task-comments = true
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = [
     "F401",  # F401: module imported but unused
     "D205",  # D205: 1 blank line required between summary line and description
@@ -134,8 +138,6 @@ convention = "numpy"
     "F841",  # F841: Local variable 'name' is assigned to but never used; want to be explicit within tests
 ]
 
-[tool.ruff.lint]
-preview = true  # for using experimental rules
 
 [tool.bumpversion]
 current_version = "1.0.0"

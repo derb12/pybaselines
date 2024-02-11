@@ -14,6 +14,6 @@ recommended to instead use:
 
     pip install pybaselines[dev]
 
-or install an editable version by following the
+or clone the repository by following the
 `installation guide <https://pybaselines.readthedocs.io/en/latest/contributing.html#setting-up-development-environment>`_
 in the documentation.
