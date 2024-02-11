@@ -19,7 +19,7 @@ from ..utils import (
 )
 from ._spline_utils import PSpline2D
 from .._validation import (
-    _check_array, _check_half_window, _check_optional_array, _check_scalar, _check_scalar_variable,
+    _check_array, _check_half_window, _check_optional_array, _check_scalar_variable,
     _check_sized_array, _yxz_arrays
 )
 from ._whittaker_utils import WhittakerSystem2D
@@ -432,12 +432,10 @@ class _Algorithm2D:
             Raised if `diff_order` is greater than 3.
 
         """
-        diff_order = _check_scalar(diff_order, 2, True)[0]
-        if (diff_order < 1).any():
-            raise ValueError(
-                'the difference order must be > 0 for Whittaker-smoothing-based methods'
-            )
-        elif (diff_order > 3).any():
+        diff_order = _check_scalar_variable(
+            diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
+        )
+        if (diff_order > 3).any():
             warnings.warn(
                 ('difference orders greater than 3 can have numerical issues;'
                  ' consider using a difference order of 2 or 1 instead'),
@@ -450,7 +448,10 @@ class _Algorithm2D:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if self.whittaker_system is not None and self.whittaker_system.same_basis(diff_order, eigenvalues):
+        if (
+            self.whittaker_system is not None
+            and self.whittaker_system.same_basis(diff_order, eigenvalues)
+        ):
             self.whittaker_system.update_penalty(lam)
         else:
             self.whittaker_system = WhittakerSystem2D(
@@ -526,10 +527,12 @@ class _Algorithm2D:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
         weight_array = weight_array.ravel()
-        poly_orders = _check_scalar(poly_order, 2, True)[0]
+        poly_orders = _check_scalar_variable(
+            poly_order, allow_zero=True, variable_name='polynomial order', two_d=True, dtype=int
+        )
         if max_cross is not None:
             max_cross = _check_scalar_variable(
-                max_cross, allow_zero=True, variable_name='max_cross'
+                max_cross, allow_zero=True, variable_name='max_cross', dtype=int
             )
         if calc_vander:
             if (
@@ -637,7 +640,9 @@ class _Algorithm2D:
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
-        diff_order = _check_scalar(diff_order, 2, True)[0]
+        diff_order = _check_scalar_variable(
+            diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
+        )
         if make_basis:
             if (diff_order > 4).any():
                 warnings.warn(

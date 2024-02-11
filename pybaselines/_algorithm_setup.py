@@ -23,7 +23,8 @@ import numpy as np
 from ._banded_utils import PenalizedSystem
 from ._spline_utils import PSpline
 from ._validation import (
-    _check_array, _check_half_window, _check_optional_array, _check_sized_array, _yx_arrays
+    _check_array, _check_half_window, _check_optional_array, _check_scalar_variable,
+    _check_sized_array, _yx_arrays
 )
 from .utils import (
     ParameterWarning, _determine_sorts, _inverted_sort, _sort_array, optimize_window, pad_edges
@@ -208,8 +209,8 @@ class _Algorithm:
             If True (default), will raise an error if the shape of `array` is not a one dimensional
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
         skip_sorting : bool, optional
-            If True, will skip sorting the inputs and outputs, which is useful for algorithms that use
-            other algorithms so that sorting is already internally done. Default is False.
+            If True, will skip sorting the inputs and outputs, which is useful for algorithms that
+            use other algorithms so that sorting is already internally done. Default is False.
 
         Returns
         -------
@@ -455,6 +456,9 @@ class _Algorithm:
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
+        poly_order = _check_scalar_variable(
+            poly_order, allow_zero=True, variable_name='polynomial order', dtype=int
+        )
 
         if calc_vander:
             if self.vandermonde is None or poly_order > self.poly_order:

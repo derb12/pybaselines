@@ -166,7 +166,7 @@ def test_setup_polynomial_wrong_weight_shape(small_data2d, algorithm):
         algorithm._setup_polynomial(small_data2d, weights=weights)
 
 
-@pytest.mark.parametrize('poly_order', (2, 4, (2, 4)))
+@pytest.mark.parametrize('poly_order', (0, 2, 4, (2, 4)))
 @pytest.mark.parametrize('vander_enum', (0, 1, 2, 3))
 @pytest.mark.parametrize('include_pinv', (True, False))
 def test_setup_polynomial_vandermonde(small_data2d, algorithm, vander_enum, include_pinv,
@@ -210,6 +210,69 @@ def test_setup_polynomial_vandermonde(small_data2d, algorithm, vander_enum, incl
     if include_pinv:
         desired_pinv = np.linalg.pinv(np.sqrt(weight_array)[:, np.newaxis] * desired_vander)
         assert_allclose(desired_pinv, pinv_matrix, 1e-10)
+
+
+def test_setup_polynomial_negative_polyorder_fails(small_data2d, algorithm):
+    """Ensures a negative poly_order raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, poly_order=-1)
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, poly_order=[1, -1])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, poly_order=[-1, 1])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, poly_order=[-1, -1])
+
+
+def test_setup_polynomial_too_large_polyorder_fails(small_data2d, algorithm):
+    """Ensures an exception is raised if poly_order has more than two values."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, poly_order=[1, 2, 3])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, poly_order=[1, 2, 3, 4])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, poly_order=np.array([1, 2, 3]))
+
+
+def test_setup_polynomial_maxcross(small_data2d, algorithm):
+    """Ensures the _max_cross attribute is updated after calling _setup_polynomial."""
+    algorithm._setup_polynomial(small_data2d, max_cross=[1])
+    assert algorithm._max_cross == 1
+
+    algorithm._setup_polynomial(small_data2d, max_cross=1)
+    assert algorithm._max_cross == 1
+
+    algorithm._setup_polynomial(small_data2d, max_cross=0)
+    assert algorithm._max_cross == 0
+
+    algorithm._setup_polynomial(small_data2d, max_cross=None)
+    assert algorithm._max_cross is None
+
+
+def test_setup_polynomial_too_large_maxcross_fails(small_data2d, algorithm):
+    """Ensures an exception is raised if max_cross has more than one value."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2, 3])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, max_cross=np.array([1, 2]))
+
+
+def test_setup_polynomial_negative_maxcross_fails(small_data2d, algorithm):
+    """Ensures an exception is raised if max_cross is negative."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, max_cross=[-1])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data2d, max_cross=-2)
 
 
 def test_setup_smooth_shape(small_data2d, algorithm):

@@ -13,7 +13,7 @@ from scipy.sparse.linalg import spsolve
 
 from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
 from .._compat import identity
-from .._validation import _check_lam, _check_scalar
+from .._validation import _check_lam, _check_scalar_variable
 
 
 class PenalizedSystem2D:
@@ -114,10 +114,10 @@ class PenalizedSystem2D:
             Default is 2 (second order difference).
 
         """
-        self.diff_order = _check_scalar(diff_order, 2, True)[0]
-        self.lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
-        if (self.diff_order < 1).any():
-            raise ValueError('the difference order must be > 0')
+        self.diff_order = _check_scalar_variable(
+            diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
+        )
+        self.lam = _check_lam(lam, two_d=True)
 
         penalty_rows = diff_penalty_matrix(self._num_bases[0], self.diff_order[0])
         penalty_columns = diff_penalty_matrix(self._num_bases[1], self.diff_order[1])
@@ -244,7 +244,6 @@ class WhittakerSystem2D(PenalizedSystem2D):
         self.coef = None
         self._basis = None
         self._num_points = data_size
-        self.diff_order = _check_scalar(diff_order, 2, True)[0]
         if max_eigens is None or None in max_eigens:
             self._num_bases = data_size
             self._using_svd = False
@@ -252,7 +251,9 @@ class WhittakerSystem2D(PenalizedSystem2D):
             # TODO need to check to ensure max_eigens is <= data_size and otherwise emit
             # an error; if max_eigens is >~ 40 should emit an error saying too many
             # also check that it is greater than 0 or maybe 1
-            self._num_bases = _check_scalar(max_eigens, 2, True, dtype=int)[0]
+            self._num_bases = _check_scalar_variable(
+                max_eigens, allow_zero=False, variable_name='eigenvalues', two_d=True, dtype=int
+            )
             self._using_svd = True
         self.reset_diagonals(lam, diff_order)
 
@@ -284,10 +285,10 @@ class WhittakerSystem2D(PenalizedSystem2D):
             super().reset_diagonals(lam, diff_order)
             return
 
-        self.lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
-        self.diff_order = _check_scalar(diff_order, 2, True)[0]
-        if (self.diff_order < 1).any():
-            raise ValueError('the difference order must be > 0')
+        self.diff_order = _check_scalar_variable(
+            diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
+        )
+        self.lam = _check_lam(lam, two_d=True)
 
         # initially need num_bases to point to the data shape; maybe set a second
         # attribute insteaad
@@ -317,6 +318,31 @@ class WhittakerSystem2D(PenalizedSystem2D):
         self.basis_c = vectors_columns
 
     def _calc_eigenvalues(self, data_points, diff_order, num_eigens):
+        """
+        Calculate the eigenvalues and eigenvectors for the corresponding penalty matrix.
+
+        Parameters
+        ----------
+        data_points : _type_
+            _description_
+        diff_order : _type_
+            _description_
+        num_eigens : int
+            The
+
+        Returns
+        -------
+        eigenvalues : np.ndarray, shape (num_eigens,)
+            The eigenvalues of the penalty matrix for the corresponding difference order.
+        eigenvectors : np.ndarray, shape (data_points, num_eigens)
+            The eigenvectors for the penalty matrix.
+
+        Notes
+        -----
+        The penalty matrix has a matrix rank (number of nonzero eigenvalues) of
+        ``data_points - num_eigens``.
+
+        """
         # TODO the lowest diff_order eigenvalues should be zero, while they end up being
         # ~ +- 1e-15, will this affect any calculations or can it be left as it? If it does
         # need set to 0, do the eigenvectors likewise need updated for that?
@@ -336,7 +362,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
     def update_penalty(self, lam):
         if not self._using_svd:
             raise ValueError('Must call reset_diagonals if not using eigendecomposition')
-        lam = [_check_lam(val) for val in _check_scalar(lam, 2, True)[0]]
+        lam = _check_lam(lam, two_d=True)
         self.penalty_rows = (lam[0] / self.lam[0]) * self.penalty_rows
         self.penalty_columns = (lam[1] / self.lam[1]) * self.penalty_columns
 
@@ -373,8 +399,13 @@ class WhittakerSystem2D(PenalizedSystem2D):
         if max_eigens is None or not self._using_svd:
             return False
 
-        max_eigens = _check_scalar(max_eigens, 2, True)[0]
-        diff_order = _check_scalar(diff_order, 2, True)[0]
+        diff_order = _check_scalar_variable(
+            diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
+        )
+
+        max_eigens = _check_scalar_variable(
+            max_eigens, allow_zero=False, variable_name='eigenvalues', two_d=True, dtype=int
+        )
         return (
             np.array_equal(diff_order, self.diff_order)
             and np.array_equal(max_eigens, self._num_bases)

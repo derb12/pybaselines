@@ -12,7 +12,7 @@ from scipy.sparse.linalg import spsolve
 
 from .._compat import csr_object
 from .._spline_utils import _spline_basis, _spline_knots
-from .._validation import _check_array, _check_scalar
+from .._validation import _check_array, _check_scalar_variable
 from ._whittaker_utils import PenalizedSystem2D
 
 
@@ -109,11 +109,12 @@ class PSpline2D(PenalizedSystem2D):
         self.x = _check_array(x, dtype=float, check_finite=check_finite, ensure_1d=True)
         self.z = _check_array(z, dtype=float, check_finite=check_finite, ensure_1d=True)
 
-        self.num_knots = _check_scalar(num_knots, 2, True)[0]
-        self.spline_degree = _check_scalar(spline_degree, 2, True)[0]
-
-        if (self.spline_degree < 0).any():
-            raise ValueError('spline degree must be >= 0')
+        self.num_knots = _check_scalar_variable(
+            num_knots, allow_zero=False, variable_name='number of knots', two_d=True, dtype=int
+        )
+        self.spline_degree = _check_scalar_variable(
+            spline_degree, allow_zero=True, variable_name='spline degree', two_d=True, dtype=int
+        )
 
         self.knots_r = _spline_knots(self.x, self.num_knots[0], self.spline_degree[0], True)
         self.basis_r = _spline_basis(self.x, self.knots_r, self.spline_degree[0])
@@ -154,8 +155,12 @@ class PSpline2D(PenalizedSystem2D):
         """
         # TODO should give a way to update only one of the basis functions, which
         # would also need to update the penalty
-        num_knots = _check_scalar(num_knots, 2, True)[0]
-        spline_degree = _check_scalar(spline_degree, 2, True)[0]
+        num_knots = _check_scalar_variable(
+            num_knots, allow_zero=False, variable_name='number of knots', two_d=True, dtype=int
+        )
+        spline_degree = _check_scalar_variable(
+            spline_degree, allow_zero=True, variable_name='spline degree', two_d=True, dtype=int
+        )
 
         return (
             np.array_equal(num_knots, self.num_knots)

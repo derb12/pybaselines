@@ -209,11 +209,49 @@ def test_check_scalar_length_none():
             _validation._check_scalar(data, desired_length=10000)
 
 
+def test_check_scalar_variable_single():
+    """Ensures _check_scalar_variable returns a float value for the simple 1d case."""
+    value = 3.2
+
+    output = _validation._check_scalar_variable(value)
+    assert isinstance(output, float)
+    assert_allclose(output, value, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable([value])
+    assert isinstance(output, float)
+    assert_allclose(output, value, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable(np.array([value]))
+    assert isinstance(output, float)
+    assert_allclose(output, value, rtol=0, atol=1e-14)
+
+
+def test_check_scalar_variable_twod():
+    """Ensures _check_scalar_variable returns a length 2 numpy array for the simple 2d case."""
+    value = 3.2
+    expected_output = np.array([value, value])
+
+    output = _validation._check_scalar_variable(value, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable([value], two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable(np.array([value]), two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable([value, value], two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable(np.array([value, value]), two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+
 @pytest.mark.parametrize('lam', (5, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]])))
 def test_check_lam(lam):
     """Ensures scalar lam values are correctly processed."""
     output_lam = _validation._check_lam(lam)
-    assert output_lam == 5
+    assert_allclose(output_lam, 5, rtol=0, atol=1e-14)
 
 
 def test_check_lam_failures():
@@ -228,10 +266,50 @@ def test_check_lam_failures():
             _validation._check_lam(lam)
 
     # test that is allows zero if allow_zero is True
-    _validation._check_lam(0, True)
+    _validation._check_lam(0, allow_zero=True)
     for lam in range(-5, 0):
         with pytest.raises(ValueError):
-            _validation._check_lam(lam, True)
+            _validation._check_lam(lam, allow_zero=True)
+
+
+@pytest.mark.parametrize(
+        'lam', (
+            5, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]]),
+            [5, 5], np.array([5, 5])
+        )
+    )
+def test_check_lam_twod(lam):
+    """Ensures scalar lam values are correctly processed."""
+    output_lam = _validation._check_lam(lam, two_d=True)
+    assert_allclose(output_lam, np.array([5, 5]), rtol=0, atol=1e-14)
+
+
+def test_check_lam_twod_allow_zero():
+    """Ensures _check_lam allows zero for two dimensional inputs when allowed."""
+    expected_output = np.array([0, 0])
+
+    output = _validation._check_lam(0, allow_zero=True, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_lam([0, 0], allow_zero=True, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+
+@pytest.mark.parametrize('allow_zero', (True, False))
+def test_check_lam_twod_negative_failures(allow_zero):
+    """Ensures _check_lam works fails for larger than two dimensional inputs."""
+    max_val = 0 if allow_zero else 1
+
+    # check scalar inputs
+    for lam in range(-5, max_val):
+        with pytest.raises(ValueError):
+            _validation._check_lam(lam, allow_zero=allow_zero, two_d=True)
+
+    # check array-like inputs
+    for lam_1 in range(-5, max_val):
+        for lam_2 in range(-5, max_val):
+            with pytest.raises(ValueError):
+                _validation._check_lam([lam_1, lam_2], allow_zero=allow_zero, two_d=True)
 
 
 @pytest.mark.parametrize(
@@ -259,11 +337,53 @@ def test_check_half_window_failures():
     _validation._check_half_window(0, True)
     for half_window in range(-5, 0):
         with pytest.raises(ValueError):
-            _validation._check_half_window(half_window, True)
+            _validation._check_half_window(half_window, allow_zero=True)
 
     # fails due to non-integer input
     with pytest.raises(TypeError):
         _validation._check_half_window(5.01)
+
+@pytest.mark.parametrize(
+    'half_window', (
+        5, 5.0, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]]),
+        np.array([5, 5]), [5, 5], [5.0, 5.0]
+    )
+)
+def test_check_half_window_twod(half_window):
+    """Ensures _check_half_window works for two dimensional inputs when allowed."""
+    output_half_window = _validation._check_half_window(half_window, two_d=True)
+    assert_allclose(output_half_window, np.array([5, 5], dtype=np.intp))
+    assert output_half_window.dtype == np.intp
+
+
+def test_check_half_window_twod_allow_zero():
+    """Ensures _check_half_window allows zero for two dimensional inputs when allowed."""
+    expected_output = np.array([0, 0], dtype=np.intp)
+
+    output = _validation._check_half_window(0, allow_zero=True, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_half_window([0, 0], allow_zero=True, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+
+@pytest.mark.parametrize('allow_zero', (True, False))
+def test_check_half_window_twod_negative_failures(allow_zero):
+    """Ensures _check_half_window works fails for larger than two dimensional inputs."""
+    max_val = 0 if allow_zero else 1
+
+    # check scalar inputs
+    for half_window in range(-5, max_val):
+        with pytest.raises(ValueError):
+            _validation._check_half_window(half_window, allow_zero=allow_zero, two_d=True)
+
+    # check array-like inputs
+    for half_window_1 in range(-5, max_val):
+        for half_window_2 in range(-5, max_val):
+            with pytest.raises(ValueError):
+                _validation._check_half_window(
+                    [half_window_1, half_window_2], allow_zero=allow_zero, two_d=True
+                )
 
 
 @pytest.mark.parametrize('list_input', (True, False))

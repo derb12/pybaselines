@@ -202,6 +202,24 @@ def test_setup_polynomial_vandermonde(small_data, algorithm, vander_enum, includ
         assert_allclose(desired_pinv, pinv_matrix, 1e-10)
 
 
+def test_setup_polynomial_negative_polyorder_fails(small_data, algorithm):
+    """Ensures a negative poly_order raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=-1)
+
+
+def test_setup_polynomial_too_large_polyorder_fails(small_data, algorithm):
+    """Ensures an exception is raised if poly_order has more than one value."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=[1, 2])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=[1, 2, 3])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=np.array([1, 2]))
+
+
 def test_setup_smooth_shape(small_data, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4

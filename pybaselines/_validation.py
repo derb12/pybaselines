@@ -71,25 +71,29 @@ def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asa
     return output, is_scalar
 
 
-def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarray_kwargs):
+def _check_scalar_variable(value, allow_zero=False, variable_name='lam', two_d=False,
+                           **asarray_kwargs):
     """
     Ensures the input is a scalar value.
 
     Parameters
     ----------
-    value : float or array-like
+    value : numpy.Number or array-like
         The value to check.
     allow_zero : bool, optional
         If False (default), only allows `value` > 0. If True, allows `value` >= 0.
     variable_name : str, optional
         The name displayed if an error occurs. Default is 'lam'.
+    two_d : bool, optional
+        If True, will output an array with two values. If False (default), will
+        return a single scalar value.
     **asarray_kwargs : dict
         Additional keyword arguments to pass to :func:`numpy.asarray`.
 
     Returns
     -------
-    output : float
-        The verified scalar value.
+    output : numpy.Number or numpy.ndarray[numpy.Number, numpy.Number]
+        The verified scalar value(s).
 
     Raises
     ------
@@ -98,7 +102,13 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarr
         less than 0 if `allow_zero` is True.
 
     """
-    output = _check_scalar(value, 1, fill_scalar=False, **asarray_kwargs)[0]
+    if two_d:
+        desired_length = 2
+        fill_scalar = True
+    else:
+        desired_length = 1
+        fill_scalar = False
+    output = _check_scalar(value, desired_length, fill_scalar=fill_scalar, **asarray_kwargs)[0]
     if allow_zero:
         operation = np.less
         text = 'greater than or equal to'
@@ -108,7 +118,6 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', **asarr
     if np.any(operation(output, 0)):
         raise ValueError(f'{variable_name} must be {text} 0')
 
-    # use an empty tuple to get the single scalar value
     return output
 
 
@@ -132,6 +141,12 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
     ensure_1d : bool, optional
         If True (default), will raise an error if the shape of `array` is not a one dimensional
         array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
+    ensure_2d : bool, optional
+        If True, will raise an error if `array` is not a two dimensional array or a three
+        dimensional array with shape (M, N, 1), (1, M, N), or (M, 1, N). Default is False.
+    two_d : bool, optional
+        If True, will raise an error if the shape of `array` is not a two dimensional array with
+        shape (M, N) where M or N must be greater than 1.
 
     Returns
     -------
@@ -147,7 +162,8 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
     Notes
     -----
     If `ensure_1d` is True and `array` has a shape of (N, 1) or (1, N), it is reshaped to
-    (N,) for better compatibility for all functions.
+    (N,) for better compatibility for all functions. Likewise, `ensure_2d` will flatten to
+    (M, N).
 
     """
     if check_finite:
@@ -176,6 +192,8 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
                 output = output.reshape(output_shape[flat_dims]).shape
             elif dimensions != 2:
                 raise ValueError('must be a two dimensional array')
+    elif ensure_2d and not two_d:
+        raise ValueError('two_d must be True if using ensure_2d')
 
     return output
 
@@ -350,7 +368,7 @@ def _yxz_arrays(data, x_data=None, z_data=None, check_finite=False, dtype=None, 
     return y, x, z
 
 
-def _check_lam(lam, allow_zero=False, dtype=float):
+def _check_lam(lam, allow_zero=False, two_d=False, dtype=float):
     """
     Ensures the regularization parameter `lam` is a scalar greater than 0.
 
@@ -361,13 +379,16 @@ def _check_lam(lam, allow_zero=False, dtype=float):
         penalized splines.
     allow_zero : bool
         If False (default), only allows `lam` values > 0. If True, allows `lam` >= 0.
+    two_d : bool, optional
+        If True, will output an array with two values. If False (default), will
+        return a single scalar value.
     dtype : type or numpy.dtype, optional
         The dtype to cast the lam value. Default is float.
 
     Returns
     -------
-    float
-        The scalar `lam` value.
+    numpy.Number or numpy.ndarray[numpy.Number, numpy.Number]
+        The verified `lam` value(s).
 
     Raises
     ------
@@ -394,7 +415,7 @@ def _check_lam(lam, allow_zero=False, dtype=float):
     ``(diags(lam) @ D.T @ D).todia().data[::-1]``.
 
     """
-    return _check_scalar_variable(lam, allow_zero, dtype=dtype)
+    return _check_scalar_variable(lam, allow_zero, two_d=two_d, variable_name='lam', dtype=dtype)
 
 
 def _check_half_window(half_window, allow_zero=False, two_d=False):
@@ -410,11 +431,14 @@ def _check_half_window(half_window, allow_zero=False, two_d=False):
     allow_zero : bool, optional
         If True, allows `half_window` to be 0; otherwise, `half_window`
         must be at least 1. Default is False.
+    two_d : bool, optional
+        If True, will output an array with two values. If False (default), will
+        return a single scalar value.
 
     Returns
     -------
-    output_half_window : int
-        The verified half-window value.
+    output_half_window : int or numpy.ndarray[int, int]
+        The verified half-window value(s).
 
     Raises
     ------
@@ -423,18 +447,11 @@ def _check_half_window(half_window, allow_zero=False, two_d=False):
         `half_window`.
 
     """
-    if two_d:
-        output_half_window = _check_scalar(
-            half_window, 2, fill_scalar=True, dtype=np.intp
-        )[0]
-        for val in output_half_window:
-            _check_scalar_variable(val, allow_zero, 'half_window')
-    else:
-        output_half_window = _check_scalar_variable(
-            half_window, allow_zero, 'half_window', dtype=np.intp
-        )
-        if output_half_window != half_window:
-            raise TypeError('half_window must be an integer')
+    output_half_window = _check_scalar_variable(
+        half_window, allow_zero, variable_name='half_window', two_d=two_d, dtype=np.intp
+    )
+    if not two_d and output_half_window != half_window:
+        raise TypeError('half_window must be an integer')
 
     return output_half_window
 
@@ -496,7 +513,8 @@ def _get_row_col_values(value, **asarray_kwargs):
     Parameters
     ----------
     value : numpy.number or Sequence[numpy.number, ...]
-        _description_
+        The value(s) corresponding to the first row, last row, first column, and last
+        column.
 
     Returns
     -------
