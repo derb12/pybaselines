@@ -3,7 +3,8 @@ Whittaker Baselines
 ===================
 
 The contents of :mod:`pybaselines.whittaker` contain Whittaker-smoothing-based
-algorithms for fitting the baseline.
+algorithms for fitting the baseline. Note that Whittaker smoothing is often
+also referred to as Whittaker-Henderson smoothing.
 
 Introduction
 ------------

@@ -45,7 +45,53 @@ Since the analytical solution for 2D requires matrices of shape :math:`(M*N, M*N
 memory and computationally expensive to solve. Although the left hand side of the equation is
 still sparse and symmetric, it cannot be solved as easily compared to the 1D case since the
 bandwidth is no longer small due to the penalties along both the rows and columns (plus the
-sparse solver currently available in scipy cannot make use of the symmetric nature of the matrix).
+sparse solver currently available in SciPy cannot make use of the symmetric nature of the matrix;
+using `Cholesky factorization <https://github.com/scikit-sparse/scikit-sparse>`_ does provide a speed
+up but still does not scale well above ~1000x1000 matrices). However...
+
+Eigendecomposition
+~~~~~~~~~~~~~~~~~~
+
+By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.48550/arXiv.2306.06932>`_,
+the dimensionality of the system can be reduced by using eigendecomposition on each of the two
+penalty matrices, :math:`D_{d_r}^{\top} D_{d_r}` and :math:`D_{d_c}^{\top} D_{d_c}`. (Note that speeding up
+Whittaker smoothing using `factorization in 1D <https://doi.org/10.1016/j.csda.2006.11.038>`_ and
+`eigendecomposition in nD (great paper) <https://doi.org/10.1016/j.csda.2009.09.020>`_ has already been
+done, although they require using a fixed difference order, and, in the second case, of using
+different boundary conditions that do not translate well from smoothing to baseline correction).
+The general eigendecomposition of the penalty matrix gives
+
+.. math::
+
+    D_{d}^{\top} D_{d} = U \Sigma U^{\top}
+
+where :math:`U` is the matrix of eigenvectors and :math:`\Sigma` is a diagonal matrix
+with the eigenvalues along the diagonal. Letting :math:`B = U_c \otimes U_r` denote the kronecker
+product of the eigenvector matrices of the penalty for the columns and rows, and :math:`g` and
+:math:`h` denote the number of eigenvectors along the rows and columns, respectively, the linear equation
+can be rewritten as:
+
+.. math::
+
+    (B^{\top} W_{diag} B + \lambda_r I_h \otimes \Sigma_r + \lambda_c \Sigma_c \otimes I_g) c = B^{\top} W_{diag} y
+
+and the baseline is then:
+
+.. math::
+
+    v = B c
+
+The beauty of this reparameterization when applied to baseline correction is twofold:
+
+1) The number of eigenvalues required to approximate the analytical solution depends on
+   the required smoothness, ie. some constant approximated by :math:`\lambda / (\text{number of data points})`.
+   Baselines require much less smoothness than smoothing, so the number of eigenvalues is relatively
+   low (from testing, ~5-10 for polynomial baselines and ~15-25 for sinusoidal baselines)
+2) Since experimental data is measured on gridded data (ie. :math:`Y_{ij} = f(x_i, z_j)`), the
+   above equation can be further optimized by expressing it as a
+   `generalized linear array model <https://en.wikipedia.org/wiki/Generalized_linear_array_model>`_,
+   following the brilliant insights of `Eilers, Currie, and Durbán <https://doi.org/10.1016/j.csda.2004.07.008>`_,
+   exactly as was done for 2D penalized splines.
 
 
 .. note::

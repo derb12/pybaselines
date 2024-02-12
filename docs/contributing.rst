@@ -7,7 +7,8 @@ Contributions are welcomed and greatly appreciated.
 Bugs Reports/Feedback
 ~~~~~~~~~~~~~~~~~~~~~
 
-Report bugs or give feedback by filing an issue at https://github.com/derb12/pybaselines/issues.
+Report bugs, ask questions, or give feedback by filing an issue
+at https://github.com/derb12/pybaselines/issues.
 
 If you are reporting a bug, please include:
 
