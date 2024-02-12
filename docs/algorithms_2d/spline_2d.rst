@@ -12,58 +12,77 @@ from `[1] <https://doi.org/10.1016/j.csda.2004.07.008>`_.
 Let the number of rows be :math:`M` and the number of columns :math:`N` within the matrix
 of measured data :math:`Y`. Note that :math:`y` is the flattened array of matrix :math:`Y`
 with length :math:`M * N`. Let :math:`Y` be a function of :math:`x` along the rows and :math:`z`
-along the columns, ie. :math:`Y_{ij} = f(x_i, z_j)`, and :math:`B_r(x_i)` and :math:`B_c(z_j)` represent
+along the columns, ie. :math:`Y_{ij} = f(x_i, z_j)`, and :math:`B_r(x)` and :math:`B_c(z)` represent
 the spline basis matrices along the rows and columns, respectively, each with a number of
-knots :math:`g` and `h`. Finally, let :math:`B = B_c \otimes B_r` denote the kronecker product of
-the basis matrices for the columns and rows, which represents the overall two dimensional tensor
-product spline basis. Analogous to the 1D case, the goal is to make the baseline, :math:`V` match the measured
+knots :math:`g` and `h`. Analogous to the 1D case, the goal is to make the baseline, :math:`V` match the measured
 data as well as it can  while also penalizing the difference between spline coefficients, resulting
 in the following minimization:
 
 .. math::
 
-    \sum\limits_{i}^M \sum\limits_{j}^N W_{ij} (Y_{ij} - \sum\limits_{k}^g \sum\limits_{l}^h B_{r,k}(x_i) B_{c,l}(z_j) c_{kl})^2
-    + \lambda_r \sum\limits_{i}^{g - d_r} (c_{i\bullet} \Delta^{d_r})^2
-    + \lambda_c \sum\limits_{j}^{h - d_c} (\Delta^{d_c} c_{j\bullet})^2
+    \sum\limits_{i}^M \sum\limits_{j}^N W_{ij} (Y_{ij} - \sum\limits_{k}^g \sum\limits_{l}^h B_{r,k}(x_i) B_{c,l}(z_j) \alpha_{kl})^2
+    + \lambda_r \sum\limits_{i}^{g - d_r} (\alpha_{i\bullet} \Delta^{d_r})^2
+    + \lambda_c \sum\limits_{j}^{h - d_c} (\Delta^{d_c} \alpha_{j\bullet})^2
 
 and
 
 .. math::
 
-    v = \sum\limits_{i}^g \sum\limits_{j}^h B_{r,i} B_{c,j} c_{ij}
+    V = \sum\limits_{i}^g \sum\limits_{j}^h B_{r,i} B_{c,j} \alpha_{ij}
 
 
-where :math:`Y_{ij}` is the measured data, :math:`v` is the flattened estimated baseline, :math:`c`
-is the matrix of spline coefficients, :math:`\lambda_r` is the penalty along the rows, :math:`\lambda_c` is the
+where :math:`Y_{ij}` is the measured data, :math:`\alpha` is the matrix of spline coefficients,
+:math:`\lambda_r` is the penalty along the rows, :math:`\lambda_c` is the
 penalty along the columns, :math:`W_{ij}` is the weighting, :math:`\Delta^{d_r}` is the finite-difference
-operator of order :math:`d_r` along each row of :math:`c`, :math:`c_{i\bullet}`, and :math:`\Delta^{d_c}` is the
-finite-difference operator of order :math:`d_c` along each column of :math:`c`, :math:`c_{j\bullet}`.
+operator of order :math:`d_r` along each row of :math:`\alpha`, :math:`\alpha_{i\bullet}`, and :math:`\Delta^{d_c}` is the
+finite-difference operator of order :math:`d_c` along each column of :math:`\alpha`, :math:`\alpha_{j\bullet}`.
 
-The resulting linear equation for solving the above minimization is:
+Let :math:`B = B_c \otimes B_r` denote the kronecker product of the basis matrices for the columns and rows,
+which represents the overall two dimensional tensor product spline basis. The resulting linear equation for
+solving the above minimization is:
 
 .. math::
 
-    (B^{\top} W_{diag} B + \lambda_r I_h \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_g) c = B^{\top} W_{diag} y
+    (B^{\top} W_{diag} B + \lambda_r I_h \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_g) \alpha = B^{\top} W_{diag} y
 
 and the baseline is then:
 
 .. math::
 
-    v = B c
+    v = B \alpha
 
-where :math:`W_{diag}` is the diagaonal matrix of the flattened weights, and :math:`D_d` is the matrix
-version of :math:`\Delta^d`, as already explained for the :ref:`1D case <difference-matrix-explanation>`.
-Further, :math:`\otimes` denotes the Kronecker product, and :math:`I_g` and :math:`I_h` are the identity
-matrices of length :math:`g` and :math:`h`, respectively. After solving, the array :math:`v` can then be
-reshaped into the matrix :math:`V`.
+where :math:`W_{diag}` is the diagaonal matrix of the flattened weights, :math:`v` is the flattened
+estimated baseline, and :math:`D_d` is the matrix version of :math:`\Delta^d`, as already explained for
+the :ref:`1D case <difference-matrix-explanation>`. Further, :math:`\otimes` denotes the Kronecker
+product, and :math:`I_g` and :math:`I_h` are the identity matrices of length :math:`g` and
+:math:`h`, respectively. After solving, the array :math:`v` can then be reshaped into the matrix :math:`V`.
 
 Since experimental data is measured on gridded data (ie. :math:`Y_{ij} = f(x_i, z_j)`), the above equation
 can be optimized following `[1] <https://doi.org/10.1016/j.csda.2004.07.008>`_ and expressed as a
 `generalized linear array model <https://en.wikipedia.org/wiki/Generalized_linear_array_model>`_
 which allows directly using the matrices of the measured data, :math:`Y`, and the weights,
 :math:`W`, rather than flattening them, which significantly reduces the required
-memory and computation time. The exact equations will be omitted, but curious readers are free
-to read Eilers, Currie, and Durbán's paper or look at the source code of pybaselines.
+memory and computation time.
+
+.. _generalized-linear-array-model-explanation:
+
+Let :math:`F` be the
+`face-splitting product operator <https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product>`_
+of a matrix with iself such that :math:`F(B_r) = (B_r \otimes 1_{g}^{\top}) \odot (1_{g}^{\top} \otimes B_r)`
+and :math:`F(B_c) = (B_c \otimes 1_{h}^{\top}) \odot (1_{h}^{\top} \otimes B_c)`, where
+:math:`1_g` and :math:`1_h` are vectors of ones of length :math:`g` and :math:`h`, respecitvely,
+and :math:`\odot` signifies elementwise multiplication. Then the linear equation can be rewritten as:
+
+.. math::
+
+    (F(B_r)^{\top} W F(B_c) + \lambda_r I_h \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_g) \alpha = B_{r}^{\top} (W \odot Y) B_c
+
+and the baseline is:
+
+.. math::
+
+    V = B_r \alpha B_{c}^{\top}
+
 
 Algorithms
 ----------

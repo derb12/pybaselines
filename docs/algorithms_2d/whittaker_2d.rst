@@ -47,7 +47,7 @@ still sparse and symmetric, it cannot be solved as easily compared to the 1D cas
 bandwidth is no longer small due to the penalties along both the rows and columns (plus the
 sparse solver currently available in SciPy cannot make use of the symmetric nature of the matrix;
 using `Cholesky factorization <https://github.com/scikit-sparse/scikit-sparse>`_ does provide a speed
-up but still does not scale well above ~1000x1000 matrices). However...
+up but still does not scale well above ~500x500 sized matrices). However...
 
 Eigendecomposition
 ~~~~~~~~~~~~~~~~~~
@@ -55,10 +55,10 @@ Eigendecomposition
 By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.48550/arXiv.2306.06932>`_,
 the dimensionality of the system can be reduced by using eigendecomposition on each of the two
 penalty matrices, :math:`D_{d_r}^{\top} D_{d_r}` and :math:`D_{d_c}^{\top} D_{d_c}`. (Note that speeding up
-Whittaker smoothing using `factorization in 1D <https://doi.org/10.1016/j.csda.2006.11.038>`_ and
-`eigendecomposition in nD (great paper) <https://doi.org/10.1016/j.csda.2009.09.020>`_ has already been
-done, although they require using a fixed difference order, and, in the second case, of using
-different boundary conditions that do not translate well from smoothing to baseline correction).
+Whittaker smoothing using `factorization in 1D <https://doi.org/10.1016/j.csda.2006.11.038>`_ and using the
+`analytical eigenvalues in nD (great paper) <https://doi.org/10.1016/j.csda.2009.09.020>`_ are established
+methods, although they require using a fixed difference order, and, in the second case, of using
+different boundary conditions that unfortunately do not translate well from smoothing to baseline correction).
 The general eigendecomposition of the penalty matrix gives
 
 .. math::
@@ -73,33 +73,34 @@ can be rewritten as:
 
 .. math::
 
-    (B^{\top} W_{diag} B + \lambda_r I_h \otimes \Sigma_r + \lambda_c \Sigma_c \otimes I_g) c = B^{\top} W_{diag} y
+    (B^{\top} W_{diag} B + \lambda_r I_h \otimes \Sigma_r + \lambda_c \Sigma_c \otimes I_g) \alpha = B^{\top} W_{diag} y
 
 and the baseline is then:
 
 .. math::
 
-    v = B c
+    v = B \alpha
 
 The beauty of this reparameterization when applied to baseline correction is twofold:
 
 1) The number of eigenvalues required to approximate the analytical solution depends on
-   the required smoothness, ie. some constant approximated by :math:`\lambda / (\text{number of data points})`.
-   Baselines require much less smoothness than smoothing, so the number of eigenvalues is relatively
-   low (from testing, ~5-10 for polynomial baselines and ~15-25 for sinusoidal baselines)
+   the required smoothness, ie. some constant approximated by :math:`\lambda / (\text{number of data points})`
+   that does not appreciably change with data size. Baselines require much less smoothness than
+   smoothing, so the number of eigenvalues is relatively low (from testing, ~5-10 for low order
+   polynomial baselines and ~15-25 for sinusoidal baselines).
 2) Since experimental data is measured on gridded data (ie. :math:`Y_{ij} = f(x_i, z_j)`), the
    above equation can be further optimized by expressing it as a
    `generalized linear array model <https://en.wikipedia.org/wiki/Generalized_linear_array_model>`_,
    following the brilliant insights of `Eilers, Currie, and Durbán <https://doi.org/10.1016/j.csda.2004.07.008>`_,
-   exactly as was done for 2D penalized splines.
+   exactly as :ref:`explained for 2D penalized splines <generalized-linear-array-model-explanation>`.
 
 
 .. note::
-   For two dimensional data, Whittaker-smoothing-based algorithms take a single ``lam``
+   For two dimensional data, Whittaker-smoothing-based algorithms take a single ``lam``,
    parameter that can either be a single number, in which case both the rows and columns
    will use the same smoothing parameter, ie. :math:`\lambda_r = \lambda_c`, or a sequence
-   of two numbers (:math:`\lambda_r`, :math:`\lambda_c`)
-   to penalize the rows and columns with different values.
+   of two numbers (:math:`\lambda_r`, :math:`\lambda_c`) to use different values for the
+   rows and columns.
 
 Algorithms
 ----------
@@ -174,6 +175,7 @@ iasls (Improved Asymmetric Least Squares)
 
 :meth:`~.Baseline2D.iasls`:
 :ref:`explanation for the algorithm <algorithms/whittaker:iasls (Improved Asymmetric Least Squares)>`.
+Eigendecomposition is not allowed for this method.
 
 .. plot::
    :align: center
@@ -219,6 +221,7 @@ drpls (Doubly Reweighted Penalized Least Squares)
 
 :meth:`~.Baseline2D.drpls`:
 :ref:`explanation for the algorithm <algorithms/whittaker:drpls (Doubly Reweighted Penalized Least Squares)>`.
+Eigendecomposition is not allowed for this method.
 
 .. plot::
    :align: center
@@ -249,6 +252,7 @@ aspls (Adaptive Smoothness Penalized Least Squares)
 
 :meth:`~.Baseline2D.aspls`:
 :ref:`explanation for the algorithm <algorithms/whittaker:aspls (Adaptive Smoothness Penalized Least Squares)>`.
+Eigendecomposition is not allowed for this method.
 
 .. plot::
    :align: center

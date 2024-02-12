@@ -2,12 +2,12 @@
 -r requirements-documentation.txt
 
 # for linting
-ruff
+ruff==0.2.1
 
 # for testing
-pytest==6.2.5
+pytest==8.0.0
 
 # for creating releases
-bump-my-version
-twine==3.6.0
-build
+bump-my-version==0.17.4
+twine==5.0.0
+build==1.0.3
