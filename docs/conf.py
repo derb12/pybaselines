@@ -158,7 +158,8 @@ gallery_section_order = [
     '../examples/morphological',
     '../examples/spline',
     '../examples/classification',
-    '../examples/misc'
+    '../examples/misc',
+    '../examples/optimizers',
 ]
 
 sphinx_gallery_conf = {

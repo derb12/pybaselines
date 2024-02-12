@@ -284,3 +284,15 @@ the name).
             poly_order = 1
         baseline, params = baseline_fitter.adaptive_minmax(y, poly_order=poly_order, method='imodpoly')
         ax.plot(baseline, 'g--')
+
+
+custom_bc (Customized Baseline Correction)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline.custom_bc` allows fine tuning the stiffness of the
+baseline within different regions of the fit data, which is helpful when
+experimental data has drastically different baselines within it. This is done by
+reducing the number of data points in regions where higher stiffness
+is required. There is no figure showing the fits for various baseline types for
+this method since it is more suited for hard-to-fit data; however, :ref:`an
+example <sphx_glr_examples_optimizers_plot_custom_bc_1_whittaker.py>` showcases its use.

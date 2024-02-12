@@ -21,8 +21,7 @@ if __name__ == '__main__':
         raise
     import numpy as np
 
-    import pybaselines
-    from pybaselines import utils
+    from pybaselines import Baseline, utils
 
     # assumes file is in pybaselines/tools
     image_directory = Path(__file__).parent
@@ -46,10 +45,12 @@ if __name__ == '__main__':
         noise = np.random.default_rng(1).normal(0, 0.05, x.size)
 
         y = signal + true_baseline + noise
-        baseline = pybaselines.whittaker.arpls(y, lam=1e7)[0]
+        baseline = Baseline().arpls(y, lam=1e7)[0]
 
-        ax.plot(x, y, lw=1.5)
-        ax.plot(x, baseline)
+        blue = '#0952ff'
+        pink = '#ff5255'
+        ax.plot(x, y, lw=1.5, color=blue)
+        ax.plot(x, baseline, lw=4, color=pink)
 
         ax.set_yticks([])
         ax.set_xticks([])
@@ -57,6 +58,7 @@ if __name__ == '__main__':
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
         ax.spines['right'].set_visible(False)
+
         # save as an svg so that it can be edited/scaled in inkskape without
         # losing image quality
         fig.savefig(image_directory.joinpath('logo_new.svg'), transparent=True)
