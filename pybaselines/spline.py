@@ -13,17 +13,16 @@ import warnings
 import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.optimize import curve_fit
-from scipy.sparse import spdiags
 
 from . import _weighting
-from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
-from ._compat import _HAS_NUMBA, jit, trapezoid
+from ._compat import _HAS_NUMBA, dia_object, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
-    _MIN_FLOAT, _mollifier_kernel, ParameterWarning, gaussian, pad_edges, padded_convolve,
-    relative_difference
+    _MIN_FLOAT, _mollifier_kernel, _sort_array, ParameterWarning, gaussian, pad_edges,
+    padded_convolve, relative_difference
 )
 
 
@@ -402,9 +401,6 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
 
         Returns
         -------
@@ -428,7 +424,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.asls
+        Baseline.asls
 
         References
         ----------
@@ -518,7 +514,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.iasls
+        Baseline.iasls
 
         References
         ----------
@@ -549,7 +545,7 @@ class _Spline(_Algorithm):
         d1_penalty = _check_lam(lam_1) * diff_penalty_diagonals(self._len, 1, lower_only=False)
         d1_penalty = (
             self.pspline.basis.T
-            @ spdiags(d1_penalty, np.array([1, 0, -1]), self._len, self._len, 'csr')
+            @ dia_object((d1_penalty, np.array([1, 0, -1])), shape=(self._len, self._len)).tocsr()
         )
         partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array
@@ -618,7 +614,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.airpls
+        Baseline.airpls
 
         References
         ----------
@@ -642,7 +638,7 @@ class _Spline(_Algorithm):
                 warnings.warn(
                     ('error occurred during fitting, indicating that "tol"'
                      ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning
+                    ParameterWarning, stacklevel=2
                 )
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -657,7 +653,7 @@ class _Spline(_Algorithm):
                 # point would get a weight of 0, which fails the solver
                 warnings.warn(
                     ('almost all baseline points are below the data, indicating that "tol"'
-                     ' is too low and/or "max_iter" is too high'), ParameterWarning
+                     ' is too low and/or "max_iter" is too high'), ParameterWarning, stacklevel=2
                 )
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -722,7 +718,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.arpls
+        Baseline.arpls
 
         References
         ----------
@@ -805,7 +801,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.drpls
+        Baseline.drpls
 
         References
         ----------
@@ -855,7 +851,8 @@ class _Spline(_Algorithm):
                 # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
                 warnings.warn(
                     ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
+                     stacklevel=2
                 )
                 break
             elif calc_difference < tol:
@@ -894,9 +891,6 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
 
         Returns
         -------
@@ -915,7 +909,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.iarpls
+        Baseline.iarpls
 
         References
         ----------
@@ -945,7 +939,8 @@ class _Spline(_Algorithm):
                 # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
                 warnings.warn(
                     ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
+                     stacklevel=2
                 )
                 break
             elif calc_difference < tol:
@@ -978,7 +973,7 @@ class _Spline(_Algorithm):
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
-            The max number of fit iterations. Default is 50.
+            The max number of fit iterations. Default is 100.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         weights : array-like, shape (N,), optional
@@ -1008,7 +1003,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.aspls
+        Baseline.aspls
 
         Notes
         -----
@@ -1084,7 +1079,7 @@ class _Spline(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -1122,7 +1117,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.psalsa
+        Baseline.psalsa
 
         References
         ----------
@@ -1180,7 +1175,7 @@ class _Spline(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -1227,7 +1222,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.derpsalsa
+        Baseline.derpsalsa
 
         References
         ----------
@@ -1351,6 +1346,10 @@ class _Spline(_Algorithm):
         ------
         ValueError
             Raised if p is not between 0 and 1.
+
+        See Also
+        --------
+        Baseline.mpls
 
         References
         ----------
@@ -2307,7 +2306,7 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
-        The max number of fit iterations. Default is 50.
+        The max number of fit iterations. Default is 100.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     weights : array-like, shape (N,), optional
@@ -2384,7 +2383,7 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional
@@ -2463,7 +2462,7 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional

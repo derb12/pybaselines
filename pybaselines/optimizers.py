@@ -14,9 +14,9 @@ from math import ceil
 import numpy as np
 
 from . import classification, misc, morphological, polynomial, smooth, spline, whittaker
-from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, gaussian
+from .utils import _check_scalar, _get_edges, _sort_array, gaussian
 
 
 class _Optimizers(_Algorithm):
@@ -58,8 +58,7 @@ class _Optimizers(_Algorithm):
             * 'average_alpha': numpy.ndarray, shape (N,)
                 Only returned if `method` is 'aspls' or 'pspline_aspls'. The
                 `alpha` array used to fit all of the baselines for the
-                :meth:`~pybaselines.whittaker.Whittaker.aspls` or
-                :meth:`~pybaselines.spline.Spline.pspline_aspls` methods.
+                :meth:`~Baseline.aspls` or :meth:`~Baseline.pspline_aspls` methods.
 
             Additional items depend on the output of the selected method. Every
             other key will have a list of values, with each item corresponding to a
@@ -400,8 +399,7 @@ class _Optimizers(_Algorithm):
             Default is 2.
         method_kwargs : dict, optional
             Additional keyword arguments to pass to
-            :meth:`~pybaselines.polynomial.Polynomial.modpoly` or
-            :meth:`~pybaselines.polynomial.Polynomial.imodpoly`. These include
+            :meth:`~Baseline.modpoly` or :meth:`~Baseline.imodpoly`. These include
             `tol`, `max_iter`, `use_original`, `mask_initial_peaks`, and `num_std`.
 
         Returns
@@ -677,7 +675,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
         * 'average_alpha': numpy.ndarray, shape (N,)
             Only returned if `method` is 'aspls' or 'pspline_aspls'. The
             `alpha` array used to fit all of the baselines for the
-            :meth:`.aspls` or :meth:`.pspline_aspls` methods.
+            :meth:`~Baseline.aspls` or :meth:`~Baseline.pspline_aspls` methods.
 
         Additional items depend on the output of the selected method. Every
         other key will have a list of values, with each item corresponding to a
@@ -897,8 +895,8 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         to select the appropriate polynomial orders if `poly_order` is None.
         Default is 2.
     method_kwargs : dict, optional
-        Additional keyword arguments to pass to :meth:`.modpoly` or
-        :meth:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
+        Additional keyword arguments to pass to :meth:`~Baseline.modpoly` or
+        :meth:`~Baseline.imodpoly`. These include `tol`, `max_iter`, `use_original`,
         `mask_initial_peaks`, and `num_std`.
 
     Returns

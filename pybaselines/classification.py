@@ -225,7 +225,7 @@ class _Classification(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order,)
                 Only if `return_coef` is True and `max_iter` is greater than 0. The array
                 of polynomial coefficients for the baseline, in increasing order. Can be
-                used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
+                used to create a polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
             * 'tol_history': numpy.ndarray
                 Only if `max_iter` is greater than 1. An array containing the calculated
                 tolerance values for each iteration. The length of the array is the number
@@ -764,7 +764,7 @@ class _Classification(_Algorithm):
 
         Notes
         -----
-        The classification of baseline points is similar to :meth:`.dietrich`, except that
+        The classification of baseline points is similar to :meth:`~Baseline.dietrich`, except that
         this method approximates the first derivative using a continous wavelet transform
         with the Haar wavelet, which is more robust than the numerical derivative in
         Dietrich's method.
@@ -1028,9 +1028,9 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
     mask_sum = mask.sum()
     if not mask_sum:  # all points belong to peaks
         # will just interpolate between first and last points
-        warnings.warn('there were no baseline points found', ParameterWarning)
+        warnings.warn('there were no baseline points found', ParameterWarning, stacklevel=2)
     elif mask_sum == mask.shape[0]:  # all points belong to baseline
-        warnings.warn('there were no peak points found', ParameterWarning)
+        warnings.warn('there were no peak points found', ParameterWarning, stacklevel=2)
         return output
 
     peak_starts, peak_ends = _find_peak_segments(mask)
@@ -1153,7 +1153,7 @@ def _iter_threshold(power, num_std=3.0):
         if masked_power.size < 2:  # need at least 2 points for std calculation
             warnings.warn(
                 'not enough baseline points found; "num_std" is likely too low',
-                ParameterWarning
+                ParameterWarning, stacklevel=2
             )
             break
         mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
@@ -1230,7 +1230,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         * 'coef': numpy.ndarray, shape (poly_order,)
             Only if `return_coef` is True and `max_iter` is greater than 0. The array
             of polynomial coefficients for the baseline, in increasing order. Can be
-            used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
+            used to create a polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
         * 'tol_history': numpy.ndarray
             Only if `max_iter` is greater than 1. An array containing the calculated
             tolerance values for each iteration. The length of the array is the number
@@ -1809,7 +1809,7 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
 
     Notes
     -----
-    The classification of baseline points is similar to :meth:`.dietrich`, except that
+    The classification of baseline points is similar to :meth:`~Baseline.dietrich`, except that
     this method approximates the first derivative using a continous wavelet transform
     with the Haar wavelet, which is more robust than the numerical derivative in
     Dietrich's method.

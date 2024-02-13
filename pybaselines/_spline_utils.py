@@ -45,10 +45,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import numpy as np
 from scipy.interpolate import BSpline, splev
 from scipy.linalg import solve_banded, solveh_banded
-from scipy.sparse import csc_matrix, csr_matrix, spdiags
 
 from ._banded_utils import _add_diagonals, _lower_to_full, PenalizedSystem
-from ._compat import _HAS_NUMBA, jit
+from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
 from ._validation import _check_array
 
 
@@ -224,7 +223,7 @@ def _make_design_matrix(x, knots, spline_degree):
 
     """
     data, row_ind, col_ind = __make_design_matrix(x, knots, spline_degree)
-    return csr_matrix((data, (row_ind, col_ind)), (len(x), len(knots) - spline_degree - 1))
+    return csr_object((data, (row_ind, col_ind)), (len(x), len(knots) - spline_degree - 1))
 
 
 def _slow_design_matrix(x, knots, spline_degree):
@@ -273,7 +272,7 @@ def _slow_design_matrix(x, knots, spline_degree):
         basis[spline_degree, 0] = small_float
         basis[-(spline_degree + 1), -1] = small_float
 
-    return csc_matrix(basis).T
+    return csr_object(basis.T)
 
 
 def _spline_knots(x, num_knots=10, spline_degree=3, penalized=True):
@@ -575,7 +574,7 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extr
         # worst case scenario; have to convert weights to a sparse diagonal matrix,
         # do B.T @ W @ B, and convert back to lower banded
         len_y = len(y)
-        full_matrix = basis.T @ spdiags(weights, 0, len_y, len_y, 'csr') @ basis
+        full_matrix = basis.T @ dia_object((weights, 0), shape=(len_y, len_y)).tocsr() @ basis
         rhs = basis.T @ (weights * y)
         ab = full_matrix.todia().data[::-1]
         # take only the lower diagonals of the symmetric ab; cannot just do
@@ -646,7 +645,7 @@ class PSpline(PenalizedSystem):
         in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots + spline_degree - 1``).
     coef : None or numpy.ndarray, shape (M,)
-        The spline coefficients. Is None if :meth:`.solve_pspline` has not been called
+        The spline coefficients. Is None if :meth:`~PSpline.solve_pspline` has not been called
         at least once.
     knots : numpy.ndarray, shape (K,)
         The knots for the spline. Has a shape of `K`, which is equal to
@@ -887,8 +886,11 @@ class PSpline(PenalizedSystem):
             # worst case scenario; have to convert weights to a sparse diagonal matrix,
             # do B.T @ W @ B, and convert back to lower banded
             full_matrix = (
-                self.basis.T @ spdiags(weights, 0, self._x_len, self._x_len, 'csr') @ self.basis
+                self.basis.T
+                @ dia_object((weights, 0), shape=(self._x_len, self._x_len)).tocsr()
+                @ self.basis
             )
+
             rhs = self.basis.T @ (weights * y)
             ab = full_matrix.todia().data[::-1]
             # take only the lower diagonals of the symmetric ab; cannot just do

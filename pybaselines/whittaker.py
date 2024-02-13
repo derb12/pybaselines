@@ -184,7 +184,7 @@ class _Whittaker(_Algorithm):
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            weight_squared = weight_array * weight_array
+            weight_squared = weight_array**2
             baseline = self.whittaker_system.solve(
                 self.whittaker_system.add_diagonal(weight_squared), weight_squared * y + d1_y,
                 overwrite_b=True
@@ -264,7 +264,7 @@ class _Whittaker(_Algorithm):
                 warnings.warn(
                     ('error occurred during fitting, indicating that "tol"'
                      ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning
+                    ParameterWarning, stacklevel=2
                 )
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -278,7 +278,8 @@ class _Whittaker(_Algorithm):
                 # point would get a weight of 0, which fails the solver
                 warnings.warn(
                     ('almost all baseline points are below the data, indicating that "tol"'
-                     ' is too low and/or "max_iter" is too high'), ParameterWarning
+                     ' is too low and/or "max_iter" is too high'), ParameterWarning,
+                     stacklevel=2
                 )
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -454,7 +455,8 @@ class _Whittaker(_Algorithm):
                 # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
                 warnings.warn(
                     ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
+                    stacklevel=2
                 )
                 break
             elif calc_difference < tol:
@@ -530,7 +532,8 @@ class _Whittaker(_Algorithm):
                 # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
                 warnings.warn(
                     ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
+                    stacklevel=2
                 )
                 break
             elif calc_difference < tol:
@@ -559,7 +562,7 @@ class _Whittaker(_Algorithm):
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
-            The max number of fit iterations. Default is 50.
+            The max number of fit iterations. Default is 100.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         weights : array-like, shape (N,), optional
@@ -654,7 +657,7 @@ class _Whittaker(_Algorithm):
             contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e6.
+            Default is 1e5.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
@@ -664,7 +667,7 @@ class _Whittaker(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -755,7 +758,7 @@ class _Whittaker(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -1203,7 +1206,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
-        The max number of fit iterations. Default is 50.
+        The max number of fit iterations. Default is 100.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     weights : array-like, shape (N,), optional
@@ -1272,7 +1275,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
         contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
-        Default is 1e6.
+        Default is 1e5.
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
@@ -1282,7 +1285,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
@@ -1356,7 +1359,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.

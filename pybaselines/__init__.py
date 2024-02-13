@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+=======================================================================================
 pybaselines - A library of algorithms for the baseline correction of experimental data.
 =======================================================================================
 
@@ -102,3 +103,4 @@ from . import (
 )
 
 from .api import Baseline
+from .two_d.api import Baseline2D

@@ -1,11 +1,10 @@
 -r requirements.txt
 
-sphinx==4.3.1
-sphinx-rtd-theme==1.0.0
-# pin docutils to v0.17.1 since v0.18 not yet compatible with Sphinx
-docutils==0.17.1
-sphinx-autoapi==1.8.4
-sphinx-gallery==0.10.1
-matplotlib==3.3.3
-pentapy==1.1.2
-numba==0.54.1
+sphinx==7.2.6
+sphinx-rtd-theme==2.0.0
+sphinx-autoapi==3.0.0
+sphinx-gallery==0.15.0
+matplotlib==3.8.2
+pentapy==1.2.0
+numba==0.59.0
+numpydoc==1.6.0

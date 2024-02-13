@@ -8,9 +8,8 @@ Created on December 8, 2021
 
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
-from scipy.sparse import identity, diags
 
-from ._compat import _HAS_PENTAPY, _pentapy_solve
+from ._compat import _HAS_PENTAPY, _pentapy_solve, identity, diags, dia_object
 from ._validation import _check_lam
 
 
@@ -205,7 +204,7 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Returns
     -------
-    diff_matrix : scipy.sparse.base.spmatrix
+    diff_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
         The sparse difference matrix.
 
     Raises
@@ -484,6 +483,54 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
     return diagonals
 
 
+def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
+    """
+    Creates the finite difference penalty matrix.
+
+    If `D` is the finite difference matrix, then the finite difference penalty
+    matrix is defined as ``D.T @ D``.
+
+    Parameters
+    ----------
+    data_size : int
+        The number of data points.
+    diff_order : int, optional
+        The integer differential order; must be >= 0. Default is 2.
+    diff_format : str or None, optional
+        The sparse format to use for the difference matrix. Default is 'csr'.
+
+    Returns
+    -------
+    penalty_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
+        The sparse difference penalty matrix.
+
+    Raises
+    ------
+    ValueError
+        Raised if `diff_order` is greater or equal to `data_size`.
+
+    Notes
+    -----
+    Equivalent to calling::
+
+        from pybaselines.utils import difference_matrix
+        diff_matrix = difference_matrix(data_size, diff_order)
+        penalty_matrix = diff_matrix.T @ diff_matrix
+
+    but should be faster since the bands within the penalty matrix can be gotten
+    without the matrix multiplication.
+
+    """
+    if data_size <= diff_order:
+        raise ValueError('data size must be greater than or equal to the difference order.')
+    penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
+    penalty_matrix = dia_object(
+        (penalty_bands, np.arange(diff_order, -diff_order - 1, -1)), shape=(data_size, data_size),
+    ).asformat(diff_format)
+
+    return penalty_matrix
+
+
 def _pentapy_solver(ab, y, check_output=False, pentapy_solver=2):
     """
     Convenience function for calling pentapy's solver with defaults already set.
@@ -549,11 +596,12 @@ class PenalizedSystem:
         Maintained so that repeated computations with different `lam` values can be quickly
         set up. `original_diagonals` can be either the full or lower bands of the penalty,
         and may be reveresed, it depends on the set up. Reset by calling
-        :meth:`.reset_diagonals`.
+        :meth:`~PenalizedSystem.reset_diagonals`.
     penalty : numpy.ndarray
         The current penalty. Originally is `original_diagonals` after multiplying by `lam`
-        and applying padding, but can also be changed by calling :meth:`.add_penalty`.
-        Reset by calling :meth:`.reset_diagonals`.
+        and applying padding, but can also be changed by calling
+        :meth:`~PenalizedSystem.add_penalty`.
+        Reset by calling :meth:`~PenalizedSystem.reset_diagonals`.
     pentapy_solver : int or str
         The integer or string designating which solver to use if using pentapy. See
         :func:`pentapy.solve` for available options, although `1` or `2` are the

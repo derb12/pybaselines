@@ -10,7 +10,6 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 import scipy
-from scipy.signal import cwt
 
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning, whittaker_smooth
@@ -261,7 +260,7 @@ def test_haar_cwt_comparison_to_pywavelets(scale):
     y = np.zeros(100)
     y[50] = 1
 
-    haar_cwt = cwt(y, classification._haar, [scale])[0]
+    haar_cwt = classification._cwt(y, classification._haar, [scale])[0]
     # test absolute tolerance rather than relative tolerance since
     # some values are very close to 0
     assert_allclose(haar_cwt**2, PYWAVELETS_HAAR[scale]**2, 0, 1e-14)

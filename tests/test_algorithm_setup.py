@@ -9,10 +9,10 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import dia_matrix
 
 from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines.utils import ParameterWarning
+from pybaselines._compat import dia_object
 
 from .conftest import get_data
 
@@ -48,7 +48,7 @@ def test_setup_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
     )
 
     numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
-    desired_diagonals = dia_matrix(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
+    desired_diagonals = dia_object(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
     if allow_lower and not algorithm.whittaker_system.using_pentapy:
         # only include the lower diagonals
         desired_diagonals = desired_diagonals[diff_order:]
@@ -202,6 +202,24 @@ def test_setup_polynomial_vandermonde(small_data, algorithm, vander_enum, includ
         assert_allclose(desired_pinv, pinv_matrix, 1e-10)
 
 
+def test_setup_polynomial_negative_polyorder_fails(small_data, algorithm):
+    """Ensures a negative poly_order raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=-1)
+
+
+def test_setup_polynomial_too_large_polyorder_fails(small_data, algorithm):
+    """Ensures an exception is raised if poly_order has more than one value."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=[1, 2])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=[1, 2, 3])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=np.array([1, 2]))
+
+
 def test_setup_smooth_shape(small_data, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4
@@ -270,7 +288,7 @@ def test_setup_spline_diff_matrix(small_data, lam, diff_order, spline_degree, nu
 
     num_bases = num_knots + spline_degree - 1
     numpy_diff = np.diff(np.eye(num_bases), diff_order, axis=0)
-    desired_diagonals = lam * dia_matrix(numpy_diff.T @ numpy_diff).data[::-1][diff_order:]
+    desired_diagonals = lam * dia_object(numpy_diff.T @ numpy_diff).data[::-1][diff_order:]
     if diff_order < spline_degree:
         padding = np.zeros((spline_degree - diff_order, desired_diagonals.shape[1]))
         desired_diagonals = np.concatenate((desired_diagonals, padding))
@@ -347,6 +365,32 @@ def test_setup_spline_negative_lam_fails(small_data):
         _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, lam=-1
         )
+
+
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+def test_setup_spline_weights(small_data, algorithm, weight_enum):
+    """Ensures output weight array is correct."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones_like(small_data)
+    elif weight_enum == 1:
+        # uniform 1 weighting
+        weights = np.ones_like(small_data)
+        desired_weights = weights.copy()
+    elif weight_enum == 2:
+        # different weights for all points
+        weights = np.arange(small_data.shape[0])
+        desired_weights = np.arange(small_data.shape[0])
+    elif weight_enum == 3:
+        # different weights for all points, and weights input as a list
+        weights = np.arange(small_data.shape[0]).tolist()
+        desired_weights = np.arange(small_data.shape[0])
+
+    _, weight_array = algorithm._setup_spline(small_data, lam=1, diff_order=2, weights=weights)
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
 
 
 def test_setup_spline_array_lam(small_data):
@@ -466,10 +510,9 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
     else:
         assert algorithm._len is None
 
-    if not assume_sorted and input_x:
+    if not assume_sorted and change_order and input_x:
         order = np.arange(len(x))
-        if change_order:
-            order[sort_order] = order[sort_order][::-1]
+        order[sort_order] = order[sort_order][::-1]
         assert_array_equal(algorithm._sort_order, order)
         assert_array_equal(algorithm._inverted_order, order.argsort())
     else:
@@ -548,6 +591,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         # 'a' values will be sorted and 'b' values will be kept the same
         @_algorithm_setup._Algorithm._register(sort_keys=('a',))
         def func(self, data, *args, **kwargs):
+            """For checking sorting of output parameters."""
             expected_x = np.arange(20)
             if change_order and assume_sorted:
                 expected_x[sort_indices] = expected_x[sort_indices][::-1]

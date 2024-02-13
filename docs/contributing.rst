@@ -7,7 +7,8 @@ Contributions are welcomed and greatly appreciated.
 Bugs Reports/Feedback
 ~~~~~~~~~~~~~~~~~~~~~
 
-Report bugs or give feedback by filing an issue at https://github.com/derb12/pybaselines/issues.
+Report bugs, ask questions, or give feedback by filing an issue
+at https://github.com/derb12/pybaselines/issues.
 
 If you are reporting a bug, please include:
 
@@ -23,8 +24,7 @@ If you are proposing a feature:
 Pull Requests
 ~~~~~~~~~~~~~
 
-Pull requests are welcomed for this project, but please note that
-unsolicited pull requests are discouraged. Please file an issue first,
+Pull requests are welcomed for this project. Generally, it is preferred to file an issue first,
 so that details can be discussed/finalized before a pull request is created.
 
 Any new code or documentation must be able to be covered by the BSD 3-clause license
@@ -35,18 +35,21 @@ When submitting a pull request, follow similar procedures for a feature request,
 * Explain in detail how it works.
 * Keep the scope as narrow as possible to make it easier to incorporate.
 
+The following sections will detail how to setup a development environment for contributing
+code to pybaselines and all of the potential checks to run.
 
-Set Up Development Environment
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To clone the GitHub repository and install the necessary libraries for development:
+Setting Up Development Environment
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To clone the GitHub repository and install the necessary libraries for development,
+ensure `git <https://git-scm.com>`_ is installed and then run:
 
 .. code-block:: console
 
     git clone https://github.com/derb12/pybaselines.git
     cd pybaselines
-    pip install -r requirements/requirements-development.txt
-    pip install -e .
+    pip install .[dev]
 
 All sections below assume the above commands were ran.
 
@@ -65,13 +68,13 @@ terminal while in the pybaselines directory:
 
 .. code-block:: console
 
-    flake8 . --statistics
+    ruff check .
 
 
 Testing
 ^^^^^^^
 
-If implementing a new feature, please add any necessary tests. To check that tests pass
+If adding new code, please add any necessary tests. To check that tests pass
 locally, run the following command in the terminal while in the pybaselines directory:
 
 .. code-block:: console
@@ -103,7 +106,7 @@ Documentation
 
 If submitting changes to the documentation or adding documentation for a new feature/algorithm,
 please ensure the documentation builds locally by running the following command while in the
-docs directory:
+``pybaselines/docs`` directory:
 
 .. code-block:: console
 

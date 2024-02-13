@@ -23,9 +23,12 @@ import numpy as np
 from ._banded_utils import PenalizedSystem
 from ._spline_utils import PSpline
 from ._validation import (
-    _check_array, _check_half_window, _check_optional_array, _check_sized_array, _yx_arrays
+    _check_array, _check_half_window, _check_optional_array, _check_scalar_variable,
+    _check_sized_array, _yx_arrays
 )
-from .utils import ParameterWarning, _inverted_sort, optimize_window, pad_edges
+from .utils import (
+    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array, optimize_window, pad_edges
+)
 
 
 class _Algorithm:
@@ -42,10 +45,11 @@ class _Algorithm:
         that no polynomial fitting has been performed.
     pspline : PSpline or None
         The PSpline object for setting up and solving penalized spline algorithms. Is None
-        if no penalized spline setup has been performed (typically done in :meth:`._setup_spline`).
+        if no penalized spline setup has been performed (typically done in
+        :meth:`~_Algorithm._setup_spline`).
     vandermonde : numpy.ndarray or None
         The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`._setup_polynomial`).
+        setup has been performed (typically done in :meth:`~_Algorithm._setup_polynomial`).
     whittaker_system : PenalizedSystem or None
         The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
         algorithms. Is None if no Whittaker setup has been performed (typically done in
@@ -97,9 +101,9 @@ class _Algorithm:
             self._sort_order = None
             self._inverted_order = None
         else:
-            self._sort_order = self.x.argsort(kind='mergesort')
-            self.x = self.x[self._sort_order]
-            self._inverted_order = _inverted_sort(self._sort_order)
+            self._sort_order, self._inverted_order = _determine_sorts(self.x)
+            if self._sort_order is not None:
+                self.x = self.x[self._sort_order]
 
         self.whittaker_system = None
         self.vandermonde = None
@@ -138,7 +142,7 @@ class _Algorithm:
             self.whittaker_system.pentapy_solver = value
         self._pentapy_solver = value
 
-    def _return_results(self, baseline, params, dtype, sort_keys=(), axis=-1, skip_sorting=False):
+    def _return_results(self, baseline, params, dtype, sort_keys=(), skip_sorting=False):
         """
         Re-orders the input baseline and parameters based on the x ordering.
 
@@ -150,13 +154,11 @@ class _Algorithm:
             The baseline output by the baseline function.
         params : dict
             The parameter dictionary output by the baseline function.
-        dtype : [type]
+        dtype : type or numpy.dtype, optional
             The desired output dtype for the baseline.
         sort_keys : Iterable, optional
             An iterable of keys corresponding to the values in `params` that need
             re-ordering. Default is ().
-        axis : int, optional
-            The axis of the input which defines each unique set of data. Default is -1.
         skip_sorting : bool, optional
             If True, will skip sorting the output baseline. The keys in `sort_keys` will
             still be sorted. Default is False.
@@ -175,7 +177,7 @@ class _Algorithm:
                     # assumes params all all just one dimensional arrays
                     params[key] = params[key][self._inverted_order]
             if not skip_sorting:
-                baseline = _sort_array(baseline, sort_order=self._inverted_order, axis=axis)
+                baseline = _sort_array(baseline, sort_order=self._inverted_order)
 
         baseline = baseline.astype(dtype, copy=False)
 
@@ -183,7 +185,7 @@ class _Algorithm:
 
     @classmethod
     def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True,
-                  axis=-1, skip_sorting=False):
+                  skip_sorting=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -206,11 +208,9 @@ class _Algorithm:
         ensure_1d : bool, optional
             If True (default), will raise an error if the shape of `array` is not a one dimensional
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
-        axis : int, optional
-            The axis of the input on which to check its length. Default is -1.
         skip_sorting : bool, optional
-            If True, will skip sorting the inputs and outputs, which is useful for algorithms that use
-            other algorithms so that sorting is already internally done. Default is False.
+            If True, will skip sorting the inputs and outputs, which is useful for algorithms that
+            use other algorithms so that sorting is already internally done. Default is False.
 
         Returns
         -------
@@ -223,7 +223,7 @@ class _Algorithm:
         if func is None:
             return partial(
                 cls._register, sort_keys=sort_keys, dtype=dtype, order=order,
-                ensure_1d=ensure_1d, axis=axis, skip_sorting=skip_sorting
+                ensure_1d=ensure_1d, skip_sorting=skip_sorting
             )
 
         @wraps(func)
@@ -235,16 +235,16 @@ class _Algorithm:
                 input_y = True
                 y, self.x = _yx_arrays(
                     data, check_finite=self._check_finite, dtype=dtype, order=order,
-                    ensure_1d=ensure_1d, axis=axis
+                    ensure_1d=ensure_1d
                 )
-                self._len = y.shape[axis]
+                self._len = y.shape[-1]
             else:
                 reset_x = True
                 if data is not None:
                     input_y = True
                     y = _check_sized_array(
                         data, self._len, check_finite=self._check_finite, dtype=dtype, order=order,
-                        ensure_1d=ensure_1d, axis=axis, name='data'
+                        ensure_1d=ensure_1d, name='data'
                     )
                 else:
                     y = data
@@ -256,7 +256,7 @@ class _Algorithm:
                 )
 
             if input_y and not skip_sorting:
-                y = _sort_array(y, sort_order=self._sort_order, axis=axis)
+                y = _sort_array(y, sort_order=self._sort_order)
 
             if input_y and self._dtype is None:
                 output_dtype = y.dtype
@@ -267,9 +267,7 @@ class _Algorithm:
             if reset_x:
                 self.x = np.array(self.x, dtype=x_dtype, copy=False)
 
-            return self._return_results(
-                baseline, params, output_dtype, sort_keys, axis, skip_sorting
-            )
+            return self._return_results(baseline, params, output_dtype, sort_keys, skip_sorting)
 
         return inner
 
@@ -341,7 +339,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         lam : float, optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
@@ -415,7 +413,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -458,6 +456,9 @@ class _Algorithm:
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
+        poly_order = _check_scalar_variable(
+            poly_order, allow_zero=True, variable_name='polynomial order', dtype=int
+        )
 
         if calc_vander:
             if self.vandermonde is None or poly_order > self.poly_order:
@@ -491,7 +492,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -574,7 +575,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
@@ -629,7 +630,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         half_window : int, optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
@@ -658,7 +659,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -745,7 +746,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
         modules : Sequence(module, ...)
@@ -797,7 +798,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`._register`.
+            array by :meth:`~_Algorithm._register`.
 
         Returns
         -------
@@ -811,47 +812,6 @@ class _Algorithm:
 
         """
         return y
-
-
-def _sort_array(array, sort_order=None, axis=-1):
-    """
-    Sorts the input array only if given a non-None sorting order.
-
-    Parameters
-    ----------
-    array : numpy.ndarray
-        The array to sort.
-    sort_order : numpy.ndarray, optional
-        The array defining the sort order for the input array. Default is None, which
-        will not sort the input.
-    axis : int, optional
-        The axis of the input which defines each unique set of data. Default is -1.
-
-    Returns
-    -------
-    output : numpy.ndarray
-        The input array after optionally sorting.
-
-    Raises
-    ------
-    ValueError
-        Raised if the input array has more than two dimensions.
-
-    """
-    if sort_order is None:
-        output = array
-    else:
-        n_dims = array.ndim
-        if n_dims == 1:
-            output = array[sort_order]
-        elif n_dims == 2:
-            axes = [..., ...]
-            axes[axis] = sort_order
-            output = array[tuple(axes)]
-        else:
-            raise ValueError('too many dimensions to sort the data')
-
-    return output
 
 
 def _class_wrapper(klass):

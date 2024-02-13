@@ -8,10 +8,10 @@ Installation
 Dependencies
 ~~~~~~~~~~~~
 
-pybaselines requires `Python <https://python.org>`_ version 3.6 or later and the following libraries:
+pybaselines requires `Python <https://python.org>`_ version 3.8 or later and the following libraries:
 
-* `NumPy <https://numpy.org>`_ (>= 1.14)
-* `SciPy <https://www.scipy.org>`_ (>= 1.0)
+* `NumPy <https://numpy.org>`_ (>= 1.20)
+* `SciPy <https://www.scipy.org>`_ (>= 1.5)
 
 
 All of the required libraries should be automatically installed when
@@ -22,16 +22,16 @@ Optional Dependencies
 
 pybaselines has the following optional dependencies:
 
-* `numba <https://github.com/numba/numba>`_ (>= 0.45):
+* `numba <https://github.com/numba/numba>`_ (>= 0.49):
   speeds up calculations used by the following functions:
 
-    * :meth:`.loess`
-    * :meth:`.dietrich`
-    * :meth:`.golotvin`
-    * :meth:`.std_distribution`
-    * :meth:`.fastchrom`
-    * :meth:`.beads`
-    * :meth:`.mpspline`
+    * :meth:`~Baseline.loess`
+    * :meth:`~Baseline.dietrich`
+    * :meth:`~Baseline.golotvin`
+    * :meth:`~Baseline.std_distribution`
+    * :meth:`~Baseline.fastchrom`
+    * :meth:`~Baseline.beads`
+    * :meth:`~Baseline.mpspline`
     * all functions in :mod:`pybaselines.spline`
 
 * `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
@@ -39,9 +39,9 @@ pybaselines has the following optional dependencies:
   used by the following functions (when ``diff_order=2``):
 
     * all functions in :mod:`pybaselines.whittaker`
-    * :meth:`.mpls`
-    * :meth:`.jbcd`
-    * :meth:`.fabc`
+    * :meth:`~Baseline.mpls`
+    * :meth:`~Baseline.jbcd`
+    * :meth:`~Baseline.fabc`
 
 
 Stable Release
@@ -76,7 +76,8 @@ Development Version
 The sources for pybaselines can be downloaded from the
 `GitHub repo <https://github.com/derb12/pybaselines>`_.
 
-To directly install the current version of pybaselines from GitHub, run:
+To directly install the current version of pybaselines from GitHub,
+ensure `git <https://git-scm.com>`_ is installed and then run:
 
 .. code-block:: console
 
