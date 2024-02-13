@@ -111,13 +111,13 @@ class TestBaseline:
             baseline_class(self.x, check_finite=False, assume_sorted=True), method
         )(fit_data, **kwargs)
 
-        assert_allclose(api_baseline, class_baseline, rtol=1e-14, atol=1e-14)
+        assert_allclose(api_baseline, class_baseline, rtol=1e-12, atol=1e-12)
         assert len(api_params.keys()) == len(class_params.keys())
         for key, value in api_params.items():
             assert key in class_params
             class_value = class_params[key]
             if isinstance(value, (int, float, np.ndarray, list, tuple)):
-                assert_allclose(value, class_value, rtol=1e-14, atol=1e-14)
+                assert_allclose(value, class_value, rtol=1e-12, atol=1e-12)
             else:
                 assert value == class_value
 

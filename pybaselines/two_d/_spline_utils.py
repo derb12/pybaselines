@@ -13,7 +13,7 @@ from scipy.sparse.linalg import spsolve
 from .._compat import csr_object
 from .._spline_utils import _spline_basis, _spline_knots
 from .._validation import _check_array, _check_scalar_variable
-from ._whittaker_utils import PenalizedSystem2D
+from ._whittaker_utils import PenalizedSystem2D, _face_splitting
 
 
 class PSpline2D(PenalizedSystem2D):
@@ -130,10 +130,8 @@ class PSpline2D(PenalizedSystem2D):
                 'functions, which is the number of knots + spline degree - 1'
             ))
 
-        el = np.ones((1, self._num_bases[0]))
-        ek = np.ones((1, self._num_bases[1]))
-        self._G_r = kron(self.basis_r, el).multiply(kron(el, self.basis_r))
-        self._G_c = kron(self.basis_c, ek).multiply(kron(ek, self.basis_c))
+        self._G_r = _face_splitting(self.basis_r)
+        self._G_c = _face_splitting(self.basis_c)
 
     def same_basis(self, num_knots=100, spline_degree=3):
         """

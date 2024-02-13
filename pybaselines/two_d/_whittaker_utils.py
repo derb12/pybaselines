@@ -6,6 +6,8 @@ Created on April 30, 2023
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.linalg import eig_banded, eigh_tridiagonal, solve
 from scipy.sparse import kron
@@ -13,7 +15,35 @@ from scipy.sparse.linalg import spsolve
 
 from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
 from .._compat import identity
-from .._validation import _check_lam, _check_scalar_variable
+from .._validation import _check_lam, _check_scalar, _check_scalar_variable
+from ..utils import ParameterWarning
+
+
+def _face_splitting(basis):
+    """
+    Performs the face-splitting product on the input two dimensional basis matrix.
+
+    Parameters
+    ----------
+    basis : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse._sparray
+        The two dimensional dense or sparse matrix, with shape (`M`, `N`).
+
+    Returns
+    -------
+    scipy.sparse.spmatrix or scipy.sparse._sparray
+        The face-splitting product of the input basis matrix with itself, with
+        shape (`M`, `N**2`).
+
+    References
+    ----------
+    Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+    Statistics and Data Analysis, 2006, 50(1), 61-76.
+
+    https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product
+
+    """
+    ones = np.ones((1, basis.shape[1]))
+    return kron(basis, ones).multiply(kron(ones, basis))
 
 
 class PenalizedSystem2D:
@@ -244,24 +274,18 @@ class WhittakerSystem2D(PenalizedSystem2D):
         self.coef = None
         self._basis = None
         self._num_points = data_size
-        if max_eigens is None or None in max_eigens:
+        max_eigens = _check_scalar(max_eigens, 2, fill_scalar=True)[0]
+        if (max_eigens == np.array([None, None])).all():
             self._num_bases = data_size
             self._using_svd = False
+        elif None in max_eigens:
+            raise ValueError('eigenvalues must be None or non-None integers')
         else:
-            # TODO need to check to ensure max_eigens is <= data_size and otherwise emit
-            # an error; if max_eigens is >~ 40 should emit an error saying too many
-            # also check that it is greater than 0 or maybe 1
             self._num_bases = _check_scalar_variable(
                 max_eigens, allow_zero=False, variable_name='eigenvalues', two_d=True, dtype=int
             )
             self._using_svd = True
         self.reset_diagonals(lam, diff_order)
-
-        if self._using_svd:
-            el = np.ones((1, self._num_bases[0]))
-            ek = np.ones((1, self._num_bases[1]))
-            self._G_r = kron(self.basis_r, el).multiply(kron(el, self.basis_r))
-            self._G_c = kron(self.basis_c, ek).multiply(kron(ek, self.basis_c))
 
     def reset_diagonals(self, lam=1, diff_order=2):
         """
@@ -317,36 +341,80 @@ class WhittakerSystem2D(PenalizedSystem2D):
         self.basis_r = vectors_rows
         self.basis_c = vectors_columns
 
+        self._G_r = _face_splitting(self.basis_r)
+        self._G_c = _face_splitting(self.basis_c)
+
     def _calc_eigenvalues(self, data_points, diff_order, num_eigens):
         """
         Calculate the eigenvalues and eigenvectors for the corresponding penalty matrix.
 
         Parameters
         ----------
-        data_points : _type_
-            _description_
-        diff_order : _type_
-            _description_
+        data_points : int
+            The number of rows and columns of the square penalty matrix.
+        diff_order : int
+            The difference order of the penalty.
         num_eigens : int
-            The
+            The number of smallest eigenvalues that will be used to represent the penalty matrix.
 
         Returns
         -------
-        eigenvalues : np.ndarray, shape (num_eigens,)
+        eigenvalues : np.ndarray, shape (`num_eigens`,)
             The eigenvalues of the penalty matrix for the corresponding difference order.
-        eigenvectors : np.ndarray, shape (data_points, num_eigens)
+        eigenvectors : np.ndarray, shape (`data_points`, `num_eigens`)
             The eigenvectors for the penalty matrix.
+
+        Raises
+        ------
+        ValueError
+            Raised if the number of eigenvalues is greater than the number of data
+            points.
+
+        Warns
+        -----
+        ParameterWarning
+            If `num_eigens` is less than or equal to `diff_order`, a warning is issue since
+            the diagonals of the resulting matrix will no longer be guaranteed to be
+            positive-definite. Is also emitted if `num_eigens` is greater than 50 since
+            for 2D baseline correction, less than 20 eigenvalues is typically required.
 
         Notes
         -----
+        The lowest `diff_order` eigenvalues are supposed to be zero while they end up
+        being ~ +- 1e-15, so their values are set to 0.
+
         The penalty matrix has a matrix rank (number of nonzero eigenvalues) of
-        ``data_points - num_eigens``.
+        ``data_points - diff_order``. The lowest `diff_order` eigenvalues are all
+        zero, so the system is not guaranteed to be positive definite when solving the
+        penalized least squares fit unless all weights are >~ 1e-5 (just a guess, but
+        the meaning is that weights must be some magnitude greater than zero), which is
+        not guaranteed for all Whittaker-smoothing-based algorithms. Thus, a clear
+        warning needs to be issued since otherwise this detail can be hidden.
+
+        References
+        ----------
+        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+        (Preprint), 2023.
 
         """
-        # TODO the lowest diff_order eigenvalues should be zero, while they end up being
-        # ~ +- 1e-15, will this affect any calculations or can it be left as it? If it does
-        # need set to 0, do the eigenvectors likewise need updated for that?
         penalty_bands = diff_penalty_diagonals(data_points, diff_order, lower_only=True)
+        if num_eigens > data_points:
+            raise ValueError((
+                'The maximum number of eigenvalues cannot be greater '
+                'than the number of data points.'
+            ))
+        elif num_eigens <= diff_order:
+            warnings.warn(
+                ('Setting the number of eigenvalues to be greater than the difference order '
+                 'in order to not cause numerical instability'), ParameterWarning, stacklevel=2
+            )
+        elif num_eigens > 50:
+            warnings.warn(
+                ('For 2D baseline correction, typically only 5-20 eigenvalues are required to '
+                 'fully approximate the baseline, and higher values will cause signifcant '
+                 'slowdown'), ParameterWarning, stacklevel=2
+            )
+
         if diff_order == 1:
             eigenvalues, eigenvectors = eigh_tridiagonal(
                 penalty_bands[0], penalty_bands[1, :-1], select='i',
@@ -357,6 +425,11 @@ class WhittakerSystem2D(PenalizedSystem2D):
                 penalty_bands, lower=True, select='i',
                 select_range=(0, num_eigens - 1), overwrite_a_band=True
             )
+
+        # TODO do the corresponding eigenvectors in eigenvectors[:, :diff_order] need updated
+        # too to match the resetting of the eigenvalues?
+        eigenvalues[:diff_order] = 0
+
         return eigenvalues, eigenvectors
 
     def update_penalty(self, lam):
@@ -396,7 +469,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
         """
         # TODO should give a way to update only one of the basis functions, which
         # would also need to update the penalty
-        if max_eigens is None or not self._using_svd:
+        max_eigens = _check_scalar(max_eigens, 2, fill_scalar=True)[0]
+        if (max_eigens == np.array([None, None])).all() or not self._using_svd:
             return False
 
         diff_order = _check_scalar_variable(
