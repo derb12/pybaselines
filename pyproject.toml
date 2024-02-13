@@ -42,9 +42,8 @@ keywords = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    # lowest versions supported for python 3.8
-    "numpy>=1.18",
-    "scipy>=1.5",
+    "numpy>=1.20",  # lowest version to allow dtype for np.concatenate
+    "scipy>=1.5",  # lowest versions supported for python 3.8
 ]
 
 [project.urls]

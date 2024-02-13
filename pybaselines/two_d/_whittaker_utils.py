@@ -608,7 +608,9 @@ class WhittakerSystem2D(PenalizedSystem2D):
     def _calc_dof(self, weights, assume_a='pos'):
         if not self._using_svd:
             # Could maybe just output a matrix of ones?
-            raise ValueError('Cannot calculate degrees of freedom when not using eigendecomposition')
+            raise ValueError(
+                'Cannot calculate degrees of freedom when not using eigendecomposition'
+            )
         lhs = self._make_btwb(weights)
         rhs = lhs.copy()
         np.fill_diagonal(lhs, lhs.diagonal() + self.penalty)

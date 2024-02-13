@@ -44,7 +44,7 @@ jobs:
     - name: Install required dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install "numpy>=1.18" "scipy>=1.5" pytest
+        python -m pip install "numpy>=1.20" "scipy>=1.5" pytest
 
     - name: Test with required dependencies
       run: pytest .
@@ -79,7 +79,7 @@ jobs:
     - name: Install minimum dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install numpy==1.18 scipy==1.5 pytest
+        python -m pip install numpy==1.20 scipy==1.5 pytest
 
     - name: Test with minimum required dependencies
       run: pytest .

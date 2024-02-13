@@ -9,8 +9,8 @@ a `tol_history` item in the parameter dictionary, which is a numpy array of
 the measured tolerance value at each iteration. The `tol_history` parameter
 can be helpful for determining appropriate `max_iter` or `tol` values.
 
-In this example, the convergence of the :meth:`~.Baseline.asls` and :meth:`~.Baseline.aspls` functions
-will be compared. asls is a relatively simple calculation that sets its weighting
+In this example, the convergence of the :meth:`~.Baseline.asls` and :meth:`~.Baseline.aspls`
+functions will be compared. asls is a relatively simple calculation that sets its weighting
 each iteration based on whether the current baseline is above or below the input data
 at each point. aspls has a much more intricate weighting based on the logistic distribution
 of the residuals (data minus baseline); further, aspls also updates an additional

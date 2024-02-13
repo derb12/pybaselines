@@ -263,7 +263,7 @@ def test_pspline_tck_none(data_fixture2d):
 
     assert pspline.coef is None
     with pytest.raises(ValueError):
-        pspline.tck
+        tck = pspline.tck
 
 
 def test_pspline_tck_readonly(data_fixture2d):

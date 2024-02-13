@@ -178,7 +178,7 @@ class _Smooth(_Algorithm):
             if half_window > (self._len - 1) // 2:
                 warnings.warn(
                     'max_half_window values greater than (len(data) - 1) / 2 have no effect.',
-                    ParameterWarning
+                    ParameterWarning, stacklevel=2
                 )
                 half_windows[i] = (self._len - 1) // 2
 

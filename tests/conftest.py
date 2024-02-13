@@ -441,10 +441,10 @@ class BaseTester:
         # check all entries in output param dictionary
         for key in total_keys:
             if key not in output[1]:
-                assert False, f'key "{key}" missing from param dictionary'
+                raise AssertionError(f'key "{key}" missing from param dictionary')
             output[1].pop(key)
         if output[1]:
-            assert False, f'unchecked keys in param dictionary: {output[1]}'
+            raise AssertionError(f'unchecked keys in param dictionary: {output[1]}')
 
     def test_x_ordering(self, assertion_kwargs=None, **kwargs):
         """Ensures arrays are correctly sorted within the function."""
@@ -688,10 +688,10 @@ class BaseTester2D:
         # check all entries in output param dictionary
         for key in total_keys:
             if key not in output[1]:
-                assert False, f'key "{key}" missing from param dictionary'
+                raise AssertionError(f'key "{key}" missing from param dictionary')
             output[1].pop(key)
         if output[1]:
-            assert False, f'unchecked keys in param dictionary: {output[1]}'
+            raise AssertionError(f'unchecked keys in param dictionary: {output[1]}')
 
     def test_xz_ordering(self, assertion_kwargs=None, **kwargs):
         """Ensures arrays are correctly sorted within the function."""

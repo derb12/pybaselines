@@ -113,7 +113,8 @@ if __name__ == '__main__':
 
     if not _banded_utils._HAS_PENTAPY:
         warnings.warn(
-            'pentapy is not installed so pentapy and scipy-banded timings will be identical'
+            'pentapy is not installed so pentapy and scipy-banded timings will be identical',
+            stacklevel=2
         )
 
     # equation obtained following similar procedure as `lam` vs data size example

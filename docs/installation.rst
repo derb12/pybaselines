@@ -10,7 +10,7 @@ Dependencies
 
 pybaselines requires `Python <https://python.org>`_ version 3.8 or later and the following libraries:
 
-* `NumPy <https://numpy.org>`_ (>= 1.18)
+* `NumPy <https://numpy.org>`_ (>= 1.20)
 * `SciPy <https://www.scipy.org>`_ (>= 1.5)
 
 

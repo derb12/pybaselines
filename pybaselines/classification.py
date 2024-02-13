@@ -1028,9 +1028,9 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
     mask_sum = mask.sum()
     if not mask_sum:  # all points belong to peaks
         # will just interpolate between first and last points
-        warnings.warn('there were no baseline points found', ParameterWarning)
+        warnings.warn('there were no baseline points found', ParameterWarning, stacklevel=2)
     elif mask_sum == mask.shape[0]:  # all points belong to baseline
-        warnings.warn('there were no peak points found', ParameterWarning)
+        warnings.warn('there were no peak points found', ParameterWarning, stacklevel=2)
         return output
 
     peak_starts, peak_ends = _find_peak_segments(mask)
@@ -1153,7 +1153,7 @@ def _iter_threshold(power, num_std=3.0):
         if masked_power.size < 2:  # need at least 2 points for std calculation
             warnings.warn(
                 'not enough baseline points found; "num_std" is likely too low',
-                ParameterWarning
+                ParameterWarning, stacklevel=2
             )
             break
         mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
