@@ -34,7 +34,7 @@ pybaselines has the following optional dependencies:
     * :meth:`~Baseline.mpspline`
     * all functions in :mod:`pybaselines.spline`
 
-* `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.0):
+* `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ (>= 1.1):
   provides a faster solver for banded pentadiagonal linear systems, which are
   used by the following functions (when ``diff_order=2``):
 

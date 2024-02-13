@@ -32,7 +32,7 @@ pybaselines
 
 pybaselines is a library of algorithms for the baseline correction of experimental data.
 
-* For Python 3.6+
+* For Python 3.8+
 * Open Source: BSD 3-Clause License
 * Source Code: https://github.com/derb12/pybaselines
 * Documentation: https://pybaselines.readthedocs.io.
@@ -97,7 +97,7 @@ To install the current version of pybaselines from GitHub, run:
 Dependencies
 ~~~~~~~~~~~~
 
-pybaselines requires `Python <https://python.org>`_ version 3.6 or later
+pybaselines requires `Python <https://python.org>`_ version 3.8 or later
 and the following libraries:
 
 * `NumPy <https://numpy.org>`_ (>= 1.14)
