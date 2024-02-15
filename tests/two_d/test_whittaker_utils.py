@@ -211,7 +211,7 @@ def test_solve_whittaker_system(small_data2d, diff_order, lam):
     penalty = P1 + P2
 
     penalized_system = _whittaker_utils.WhittakerSystem2D(
-        small_data2d.shape, lam=lam, diff_order=diff_order, max_eigens=None
+        small_data2d.shape, lam=lam, diff_order=diff_order, num_eigens=None
     )
 
     weights = np.random.default_rng(0).normal(0.8, 0.05, small_data2d.size)
@@ -243,7 +243,7 @@ def test_whittaker_system_setup_no_eigenvalues(small_data2d, diff_order, lam):
     penalty = P1 + P2
 
     penalized_system = _whittaker_utils.WhittakerSystem2D(
-        small_data2d.shape, lam=lam, diff_order=diff_order, max_eigens=None
+        small_data2d.shape, lam=lam, diff_order=diff_order, num_eigens=None
     )
 
     assert_array_equal(penalized_system._num_bases, num_bases)
@@ -264,33 +264,33 @@ def test_whittaker_system_setup_eigenvalues(small_data2d, diff_order, lam):
     *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
         lam=lam, diff_order=diff_order
     )
-    max_eigens = np.array([5, 10])
+    num_eigens = np.array([5, 10])
 
     penalized_system = _whittaker_utils.WhittakerSystem2D(
-        small_data2d.shape, lam=lam, diff_order=diff_order, max_eigens=max_eigens
+        small_data2d.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
     )
 
-    assert_array_equal(penalized_system._num_bases, max_eigens)
+    assert_array_equal(penalized_system._num_bases, num_eigens)
 
     eigenvalues_rows, expected_basis_rows = eig_banded(
         diff_penalty_diagonals(small_data2d.shape[0], diff_order_x, lower_only=True),
-        lower=True, overwrite_a_band=True, select='i', select_range=(0, max_eigens[0] - 1)
+        lower=True, overwrite_a_band=True, select='i', select_range=(0, num_eigens[0] - 1)
     )
     penalty_rows = kron(
-        lam_x * dia_object((eigenvalues_rows, 0), shape=(max_eigens[0], max_eigens[0])),
-        identity(max_eigens[1])
+        lam_x * dia_object((eigenvalues_rows, 0), shape=(num_eigens[0], num_eigens[0])),
+        identity(num_eigens[1])
     )
 
     eigenvalues_cols, expected_basis_cols = eig_banded(
         diff_penalty_diagonals(small_data2d.shape[1], diff_order_z, lower_only=True),
-        lower=True, overwrite_a_band=True, select='i', select_range=(0, max_eigens[1] - 1)
+        lower=True, overwrite_a_band=True, select='i', select_range=(0, num_eigens[1] - 1)
     )
     penalty_cols = kron(
-        identity(max_eigens[0]),
-        lam_z * dia_object((eigenvalues_cols, 0), shape=(max_eigens[1], max_eigens[1]))
+        identity(num_eigens[0]),
+        lam_z * dia_object((eigenvalues_cols, 0), shape=(num_eigens[1], num_eigens[1]))
     )
 
-    assert penalized_system.penalty.shape == (np.prod(max_eigens),)
+    assert penalized_system.penalty.shape == (np.prod(num_eigens),)
     assert_allclose(
         penalized_system.penalty, (penalty_rows + penalty_cols).diagonal(), rtol=1e-12, atol=1e-12
     )
@@ -310,11 +310,11 @@ def test_whittaker_system_diff_order_fails(small_data2d, diff_order):
     """Ensures a difference order of less than 1 fails."""
     with pytest.raises(ValueError):
         _whittaker_utils.WhittakerSystem2D(
-            small_data2d.shape, diff_order=diff_order, max_eigens=None
+            small_data2d.shape, diff_order=diff_order, num_eigens=None
         )
     with pytest.raises(ValueError):
         _whittaker_utils.WhittakerSystem2D(
-            small_data2d.shape, diff_order=diff_order, max_eigens=(5, 5)
+            small_data2d.shape, diff_order=diff_order, num_eigens=(5, 5)
         )
 
 
@@ -322,26 +322,26 @@ def test_whittaker_system_diff_order_fails(small_data2d, diff_order):
 def test_whittaker_system_negative_lam_fails(small_data2d, lam):
     """Ensures a lam value less than or equal to 0 fails."""
     with pytest.raises(ValueError):
-        _whittaker_utils.WhittakerSystem2D(small_data2d.shape, lam=lam, max_eigens=None)
+        _whittaker_utils.WhittakerSystem2D(small_data2d.shape, lam=lam, num_eigens=None)
     with pytest.raises(ValueError):
         _whittaker_utils.WhittakerSystem2D(
-            small_data2d.shape, lam=lam, max_eigens=(5, 5)
+            small_data2d.shape, lam=lam, num_eigens=(5, 5)
         )
 
 
-@pytest.mark.parametrize('max_eigens', (-2, 0, [-1, 1], [1, -1], [1, 0], [0, 1]))
-def test_whittaker_system_negative_maxeigens_fails(small_data2d, max_eigens):
-    """Ensures a max_eigens value less than or equal to 0 fails."""
+@pytest.mark.parametrize('num_eigens', (-2, 0, [-1, 1], [1, -1], [1, 0], [0, 1]))
+def test_whittaker_system_negative_num_eigens_fails(small_data2d, num_eigens):
+    """Ensures a num_eigens value less than or equal to 0 fails."""
     with pytest.raises(ValueError):
         _whittaker_utils.WhittakerSystem2D(
-            small_data2d.shape, max_eigens=max_eigens
+            small_data2d.shape, num_eigens=num_eigens
         )
 
 
-@pytest.mark.parametrize('max_eigens', ([None, 5], [3, None], np.array([None, 6])))
-def test_whittaker_system_None_and_nonNone_maxeigens_fails(small_data2d, max_eigens):
-    """Ensures a max_eigens cannot mix None with a non-None value."""
+@pytest.mark.parametrize('num_eigens', ([None, 5], [3, None], np.array([None, 6])))
+def test_whittaker_system_None_and_nonNone_num_eigens_fails(small_data2d, num_eigens):
+    """Ensures a num_eigens cannot mix None with a non-None value."""
     with pytest.raises(ValueError):
         _whittaker_utils.WhittakerSystem2D(
-            small_data2d.shape, max_eigens=max_eigens
+            small_data2d.shape, num_eigens=num_eigens
         )

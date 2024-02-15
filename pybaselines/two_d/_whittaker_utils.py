@@ -248,7 +248,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
     """
 
-    def __init__(self, data_size, lam=1, diff_order=2, max_eigens=None):
+    def __init__(self, data_size, lam=1, diff_order=2, num_eigens=None):
         """
         Initializes the penalized spline by calculating the basis and penalty.
 
@@ -264,8 +264,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
             The difference order of the penalty for the rows and columns, respectively. If
             a single value is given, both will use the same value.
             Default is 2 (second order difference).
-        max_eigens : int or Sequence[int, int] or None
-            The maximum number of eigenvalues for the rows and columns, respectively, to use
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
             for the eigendecomposition. If None, will solve the linear system using the full
             analytical solution, which is typically much slower.
 
@@ -274,15 +274,15 @@ class WhittakerSystem2D(PenalizedSystem2D):
         self.coef = None
         self._basis = None
         self._num_points = data_size
-        max_eigens = _check_scalar(max_eigens, 2, fill_scalar=True)[0]
-        if (max_eigens == np.array([None, None])).all():
+        num_eigens = _check_scalar(num_eigens, 2, fill_scalar=True)[0]
+        if (num_eigens == np.array([None, None])).all():
             self._num_bases = data_size
             self._using_svd = False
-        elif None in max_eigens:
+        elif None in num_eigens:
             raise ValueError('eigenvalues must be None or non-None integers')
         else:
             self._num_bases = _check_scalar_variable(
-                max_eigens, allow_zero=False, variable_name='eigenvalues', two_d=True, dtype=int
+                num_eigens, allow_zero=False, variable_name='eigenvalues', two_d=True, dtype=int
             )
             self._using_svd = True
         self.reset_diagonals(lam, diff_order)
@@ -442,7 +442,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
         self.lam = lam
         self.penalty = self.penalty_rows + self.penalty_columns
 
-    def same_basis(self, diff_order=2, max_eigens=None):
+    def same_basis(self, diff_order=2, num_eigens=None):
         """
         Sees if the current basis is equivalent to the input number of eigenvalues and diff order.
 
@@ -455,8 +455,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
             The difference order of the penalty for the rows and columns, respectively. If
             a single value is given, both will use the same value.
             Default is 2 (second order difference).
-        max_eigens : int or Sequence[int, int] or None
-            The maximum number of eigenvalues for the rows and columns, respectively, to use
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
             for the eigendecomposition. If None, will solve the linear system using the full
             analytical solution, which is typically much slower.
 
@@ -469,20 +469,20 @@ class WhittakerSystem2D(PenalizedSystem2D):
         """
         # TODO should give a way to update only one of the basis functions, which
         # would also need to update the penalty
-        max_eigens = _check_scalar(max_eigens, 2, fill_scalar=True)[0]
-        if (max_eigens == np.array([None, None])).all() or not self._using_svd:
+        num_eigens = _check_scalar(num_eigens, 2, fill_scalar=True)[0]
+        if (num_eigens == np.array([None, None])).all() or not self._using_svd:
             return False
 
         diff_order = _check_scalar_variable(
             diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
         )
 
-        max_eigens = _check_scalar_variable(
-            max_eigens, allow_zero=False, variable_name='eigenvalues', two_d=True, dtype=int
+        num_eigens = _check_scalar_variable(
+            num_eigens, allow_zero=False, variable_name='eigenvalues', two_d=True, dtype=int
         )
         return (
             np.array_equal(diff_order, self.diff_order)
-            and np.array_equal(max_eigens, self._num_bases)
+            and np.array_equal(num_eigens, self._num_bases)
         )
 
     def reset_penalty(self, lam=1, diff_order=2):
@@ -606,6 +606,34 @@ class WhittakerSystem2D(PenalizedSystem2D):
         return self._basis
 
     def _calc_dof(self, weights, assume_a='pos'):
+        """
+        Calculates the effective degrees of freedom for each eigenvalue.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray
+            The weights array.
+        assume_a : str, optional
+            A string describing the nature of the penalized system. See :func:`scipy.linalg.solve`
+            for valid inputs. Default is 'pos'.
+
+        Returns
+        -------
+        numpy.ndarray, shape (num_eigens[0], num_eigens[1])
+            The effective degrees of freedom associated with each eigenvalue.
+
+        Raises
+        ------
+        ValueError
+            Raised if the WhittakerSystem2D object is not using eigendecomposition (was
+            initialized with ``num_eigens=None``).
+
+        References
+        ----------
+        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+        (Preprint), 2023.
+
+        """
         if not self._using_svd:
             # Could maybe just output a matrix of ones?
             raise ValueError(

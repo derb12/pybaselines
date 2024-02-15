@@ -23,7 +23,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-             eigenvalues=(10, 10)):
+             num_eigens=(10, 10)):
         """
         Fits the baseline using asymmetric least squares (AsLS) fitting.
 
@@ -50,8 +50,8 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
-        eigenvalues : int or Sequence[int, int] or None
-            The maximum number of eigenvalues for the rows and columns, respectively, to use
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
@@ -91,7 +91,7 @@ class _Whittaker(_Algorithm2D):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, eigenvalues=eigenvalues
+            data, lam, diff_order, weights, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
@@ -208,7 +208,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               eigenvalues=(10, 10)):
+               num_eigens=(10, 10)):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -231,8 +231,8 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
-        eigenvalues : int or Sequence[int, int] or None
-            The maximum number of eigenvalues for the rows and columns, respectively, to use
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
@@ -263,7 +263,7 @@ class _Whittaker(_Algorithm2D):
 
         """
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, copy_weights=True, eigenvalues=eigenvalues
+            data, lam, diff_order, weights, copy_weights=True, num_eigens=num_eigens
 
         )
         y_l1_norm = np.abs(y).sum()
@@ -318,7 +318,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def arpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-              eigenvalues=(10, 10)):
+              num_eigens=(10, 10)):
         """
         Asymmetrically reweighted penalized least squares smoothing (arPLS).
 
@@ -341,8 +341,8 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
-        eigenvalues : int or Sequence[int, int] or None
-            The maximum number of eigenvalues for the rows and columns, respectively, to use
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
@@ -373,7 +373,7 @@ class _Whittaker(_Algorithm2D):
 
         """
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, eigenvalues=eigenvalues
+            data, lam, diff_order, weights, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
@@ -494,7 +494,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               eigenvalues=(10, 10)):
+               num_eigens=(10, 10)):
         """
         Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
 
@@ -517,8 +517,8 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
-        eigenvalues : int or Sequence[int, int] or None
-            The maximum number of eigenvalues for the rows and columns, respectively, to use
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
@@ -550,7 +550,7 @@ class _Whittaker(_Algorithm2D):
 
         """
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, eigenvalues=eigenvalues
+            data, lam, diff_order, weights, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
@@ -682,7 +682,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
-               weights=None, eigenvalues=(10, 10)):
+               weights=None, num_eigens=(10, 10)):
         """
         Peaked Signal's Asymmetric Least Squares Algorithm (psalsa).
 
@@ -719,8 +719,8 @@ class _Whittaker(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with shape equal to (M, N) and all values set to 1.
-        eigenvalues : int or Sequence[int, int] or None
-            The maximum number of eigenvalues for the rows and columns, respectively, to use
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
@@ -766,7 +766,7 @@ class _Whittaker(_Algorithm2D):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, eigenvalues=eigenvalues
+            data, lam, diff_order, weights, num_eigens=num_eigens
         )
         if k is None:
             k = np.std(y) / 10

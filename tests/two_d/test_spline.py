@@ -28,7 +28,7 @@ def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
 
     """
     if uses_eigenvalues:
-        added_kwargs = {'eigenvalues': None}
+        added_kwargs = {'num_eigens': None}
     else:
         added_kwargs = {}
     whittaker_output = getattr(

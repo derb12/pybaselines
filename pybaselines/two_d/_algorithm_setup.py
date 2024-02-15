@@ -139,6 +139,7 @@ class _Algorithm2D:
         self.pspline = None
         self._check_finite = check_finite
         self._dtype = output_dtype
+        self.pentapy_solver = 2
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), ensure_2d=False,
                         reshape_baseline=False, reshape_keys=(), skip_sorting=False):
@@ -386,7 +387,7 @@ class _Algorithm2D:
             self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
-                         eigenvalues=None):
+                         num_eigens=None):
         """
         Sets the starting parameters for doing penalized least squares.
 
@@ -407,12 +408,12 @@ class _Algorithm2D:
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
-        use_lower : boolean, optional
-            If True (default), will allow using only the lower non-zero diagonals of
-            the squared difference matrix. If False, will include all non-zero diagonals.
-        use_banded : bool, optional
-            If True, will setup the penalized system using banded matrices. If False,
-            will use sparse matrices.
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
+            for eigendecomposition. Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower.
+            Default is None.
 
         Returns
         -------
@@ -450,12 +451,12 @@ class _Algorithm2D:
 
         if (
             self.whittaker_system is not None
-            and self.whittaker_system.same_basis(diff_order, eigenvalues)
+            and self.whittaker_system.same_basis(diff_order, num_eigens)
         ):
             self.whittaker_system.update_penalty(lam)
         else:
             self.whittaker_system = WhittakerSystem2D(
-                self._len, lam, diff_order, eigenvalues
+                self._len, lam, diff_order, num_eigens
             )
         if not self.whittaker_system._using_svd:
             y = y.ravel()
