@@ -68,7 +68,7 @@ memory and computation time.
 
 Let :math:`F` be the
 `face-splitting product operator <https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product>`_
-of a matrix with iself such that :math:`F(B_r) = (B_r \otimes 1_{g}^{\top}) \odot (1_{g}^{\top} \otimes B_r)`
+of a matrix with itself such that :math:`F(B_r) = (B_r \otimes 1_{g}^{\top}) \odot (1_{g}^{\top} \otimes B_r)`
 and :math:`F(B_c) = (B_c \otimes 1_{h}^{\top}) \odot (1_{h}^{\top} \otimes B_c)`, where
 :math:`1_g` and :math:`1_h` are vectors of ones of length :math:`g` and :math:`h`, respecitvely,
 and :math:`\odot` signifies elementwise multiplication. Then the linear equation can be rewritten as:
@@ -131,7 +131,7 @@ mixture_model (Mixture Model)
         for i, dataset in enumerate((y, y - fit_baseline)):
             fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
             fig.suptitle(row_names[i])
-            ax = fig.add_subplot(1 ,2, 2)
+            ax = fig.add_subplot(1, 2, 2)
             ax.contourf(X, Z, dataset, cmap='coolwarm')
             ax.set_xticks([])
             ax.set_yticks([])

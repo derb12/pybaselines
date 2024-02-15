@@ -9,106 +9,12 @@ Created on March 20, 2021
 from unittest import mock
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_equal
+from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import _banded_utils, morphological, spline, utils, whittaker
-from pybaselines._compat import trapezoid
 
 from .conftest import BaseTester, InputWeightsMixin
-
-
-@pytest.mark.parametrize('use_numba', (True, False))
-def test_mapped_histogram_simple(use_numba):
-    """Compares the output with numpy and the bin_mapping, testing corner cases."""
-    num_bins = 10
-    values = np.array([0, 0.01, 1, 1.5, 8, 9, 9.1, 10])
-    expected_bin_edges = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=float)
-    expected_bin_mapping = np.array([0, 0, 1, 1, 8, 9, 9, 9], dtype=np.intp)
-
-    np_histogram, np_bin_edges = np.histogram(values, num_bins, density=True)
-    assert_allclose(np_bin_edges, expected_bin_edges, rtol=0, atol=1e-12)
-
-    with mock.patch.object(spline, '_HAS_NUMBA', use_numba):
-        histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
-
-    assert_allclose(histogram, np_histogram)
-    assert_allclose(bin_edges, np_bin_edges)
-    assert_array_equal(bin_mapping, expected_bin_mapping)
-
-
-@pytest.mark.parametrize('rng_seed', (0, 1))
-@pytest.mark.parametrize('num_bins', (10, 100, 1000))
-@pytest.mark.parametrize('use_numba', (True, False))
-def test_mapped_histogram(rng_seed, num_bins, use_numba):
-    """Compares the output with numpy and the bin_mapping with a nieve version."""
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    rng = np.random.RandomState(rng_seed)
-    values = rng.normal(0, 20, 1000)
-    np_histogram, np_bin_edges = np.histogram(values, num_bins, density=True)
-    with mock.patch.object(spline, '_HAS_NUMBA', use_numba):
-        histogram, bin_edges, bin_mapping = spline._mapped_histogram(values, num_bins)
-
-    assert_allclose(histogram, np_histogram)
-    assert_allclose(bin_edges, np_bin_edges)
-
-    expected_bin_mapping = np.zeros_like(values)
-    for i, left_bin in enumerate(bin_edges[:-1]):
-        mask = (values >= left_bin) & (values < bin_edges[i + 1])
-        expected_bin_mapping[mask] = i
-    expected_bin_mapping[values >= bin_edges[-1]] = num_bins - 1
-
-    assert_array_equal(bin_mapping, expected_bin_mapping)
-
-
-@pytest.mark.parametrize('fraction_pos', (0, 0.4))
-@pytest.mark.parametrize('fraction_neg', (0, 0.3))
-def test_mixture_pdf(fraction_pos, fraction_neg):
-    """Ensures the probability density function for the Gaussian-uniform mixture model is right."""
-    x = np.linspace(-5, 10, 1000)
-    actual_sigma = 0.5
-    sigma = np.log10(actual_sigma)
-    # the gaussian should be area-normalized, so set height accordingly
-    height = 1 / (actual_sigma * np.sqrt(2 * np.pi))
-    expected_gaussian = utils.gaussian(x, height, 0, actual_sigma)
-
-    fraction_gaus = 1 - fraction_pos - fraction_neg
-    if fraction_pos > 0:
-        pos_uniform = np.zeros_like(x)
-        pos_uniform[x >= 0] = 1 / abs(x.max())
-    elif fraction_neg > 0:
-        pos_uniform = None
-    else:
-        pos_uniform = 0
-
-    if fraction_neg > 0:
-        neg_uniform = np.zeros_like(x)
-        neg_uniform[x <= 0] = 1 / abs(x.min())
-    elif fraction_pos > 0:
-        neg_uniform = None
-    else:
-        neg_uniform = 0
-
-    output_pdf = spline._mixture_pdf(
-        x, fraction_gaus, sigma, fraction_pos, pos_uniform, neg_uniform
-    )
-
-    # now ensure neg_uniform and pos_uniform are not None
-    if pos_uniform is None:
-        pos_uniform = 0
-    if neg_uniform is None:
-        neg_uniform = 0
-
-    expected_pdf = (
-        fraction_gaus * expected_gaussian
-        + fraction_pos * pos_uniform
-        + fraction_neg * neg_uniform
-    )
-
-    assert_allclose(expected_pdf, output_pdf, rtol=1e-12, atol=1e-12)
-    # ensure pdf has an area of 1, ie total probability is 100%; accuracy is limited
-    # by number of x-values
-    assert_allclose(1.0, trapezoid(output_pdf, x), rtol=1e-3, atol=1e-10)
 
 
 def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,

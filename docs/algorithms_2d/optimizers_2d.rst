@@ -56,7 +56,7 @@ adaptive_minmax (Adaptive MinMax)
         for i, dataset in enumerate((y, y - fit_baseline)):
             fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
             fig.suptitle(row_names[i])
-            ax = fig.add_subplot(1 ,2, 2)
+            ax = fig.add_subplot(1, 2, 2)
             ax.contourf(X, Z, dataset, cmap='coolwarm')
             ax.set_xticks([])
             ax.set_yticks([])

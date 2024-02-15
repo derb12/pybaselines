@@ -752,7 +752,7 @@ class PSpline(PenalizedSystem):
         The knots, spline coefficients, and spline degree to reconstruct the spline.
 
         Convenience function for easily reconstructing the last solved spline with outside
-        modules, such as with Scipy's `BSpline`, to allow for other usages such as evaulating
+        modules, such as with SciPy's `BSpline`, to allow for other usages such as evaulating
         with different x-values.
 
         Raises

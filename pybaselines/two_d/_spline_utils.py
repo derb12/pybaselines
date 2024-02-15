@@ -262,7 +262,7 @@ class PSpline2D(PenalizedSystem2D):
         The knots, spline coefficients, and spline degree to reconstruct the spline.
 
         Convenience function for easily reconstructing the last solved spline with outside
-        modules, such as with Scipy's `NdBSpline`, to allow for other usages such as evaulating
+        modules, such as with SciPy's `NdBSpline`, to allow for other usages such as evaulating
         with different x- and z-values.
 
         Raises
