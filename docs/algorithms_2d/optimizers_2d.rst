@@ -75,3 +75,22 @@ adaptive_minmax (Adaptive MinMax)
 
     baseline, params = baseline_fitter.adaptive_minmax(y, poly_order=(2, 3))
     create_plots(y, baseline)
+
+individual_axes (1D Baseline Correction Along Individual Axes)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline2D.individual_axes` is the single unique 2D baseline correction
+algorithm that is not available as a 1D algorithm, and it applies the specified 1D
+baseline algorithm along each row and/or column of the measured data. This is useful
+if the axes of the data are not correlated such that no information is lost by
+fitting each axis separately, or when baselines only exist along one axis.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    baseline, params = baseline_fitter.individual_axes(
+        y, method='arpls', axes=0, method_kwargs=({'lam': 1e4})
+    )
+    create_plots(y, baseline)

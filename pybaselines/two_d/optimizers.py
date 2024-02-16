@@ -9,12 +9,15 @@ Created on January 14, 2024
 
 """
 
+from collections import defaultdict
+from functools import partial
 from math import ceil
 
 import numpy as np
 
 from . import morphological, polynomial, spline, whittaker
 from ._algorithm_setup import _Algorithm2D
+from ..api import Baseline
 from .._validation import _check_optional_array, _get_row_col_values
 from ..utils import _check_scalar, _sort_array2d
 
@@ -264,6 +267,116 @@ class _Optimizers(_Algorithm2D):
         }
 
         return np.maximum.reduce(baselines), params
+
+    @_Algorithm2D._register(skip_sorting=True)
+    def individual_axes(self, data, axes=(0, 1), method='asls', method_kwargs=None):
+        """
+        Applies a one dimensional baseline correction method along each row and/or column.
+
+        Parameters
+        ----------
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        axes : 0, 1, (0, 1) or (1, 0), optional
+            The axes along which to apply baseline correction. The order dictates along which
+            axis baseline correction is first applied. Default is (0, 1), which applies baseline
+            correction along the rows first and then the columns.
+        method : str, optional
+            A string indicating the algorithm to use for fitting the baseline of each row and/or
+            column; can be any one dimensional algorithm in pybaselines. Default is 'asls'.
+        method_kwargs : Sequence[dict] or dict, optional
+            A sequence of dictionaries of keyword arguments to pass to the selected `method`
+            function for each axis in `axes`. A single dictionary designates that the same
+            keyword arguments will be used for each axis. Default is None, which will use an
+            empty dictionary.
+
+        Returns
+        -------
+        numpy.ndarray, shape (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'params_rows': dict[str, list]
+                A dictionary of the parameters for each fit along the rows. The
+                items within the dictionary will depend on the selected method.
+            * 'params_columns': dict[str, list]
+                A dictionary of the parameters for each fit along the columns. The
+                items within the dictionary will depend on the selected method.
+            * 'baseline_rows': numpy.ndarray, shape (M, N)
+                Only if 0 is in `axes`. The fit baseline along the rows.
+            * 'baseline_columns': numpy.ndarray, shape (M, N)
+                Only if 1 is in `axes`. The fit baseline along the columns.
+
+        Raises
+        ------
+        ValueError
+            Raised if `method_kwargs` is a sequence with length greater than `axes`.
+
+        """
+        axes, scalar_axes = _check_scalar(axes, 2, fill_scalar=False, dtype=int)
+        if scalar_axes:
+            axes = [axes]
+            num_axes = 1
+        else:
+            if axes[0] == axes[1]:
+                raise IndexError('Fitting the same axis twice is not allowed')
+            num_axes = 2
+        if (
+            method_kwargs is None
+            or (not isinstance(method_kwargs, dict) and len(method_kwargs) == 0)
+        ):
+            method_kwargs = [{}] * num_axes
+        elif isinstance(method_kwargs, dict):
+            method_kwargs = [method_kwargs] * num_axes
+        elif len(method_kwargs) == 1:
+            method_kwargs = [method_kwargs[0]] * num_axes
+        elif len(method_kwargs) != num_axes:
+            raise ValueError('Method kwargs must have the same length as the input axes')
+
+        keys = ('rows', 'columns')
+        baseline = np.zeros(self._len)
+        params = {'params_rows': defaultdict(list), 'params_columns': defaultdict(list)}
+        for i, axis in enumerate(axes):
+            fitter = Baseline(
+                (self.x, self.z)[axis], check_finite=self._check_finite, assume_sorted=True,
+                output_dtype=self._dtype
+            )
+            fitter.pentapy_solver = self.pentapy_solver
+            baseline_func = fitter._get_method(method)
+            func = partial(
+                _update_params, baseline_func, params[f'params_{keys[axis]}'], **method_kwargs[i]
+            )
+            partial_baseline = np.apply_along_axis(func, axis, data - baseline)
+            baseline += partial_baseline
+            params[f'baseline_{keys[axis]}'] = partial_baseline
+
+        return baseline, params
+
+
+def _update_params(func, params, data, **kwargs):
+    """
+    A partial function to allow updating a params dictionary using NumPy's apply_aplong_axis.
+
+    Parameters
+    ----------
+    func : Callable
+        The baseline method to use.
+    params : dict[str, list]
+        The dictionary of parameters to be updated.
+    data : numpy.ndarray
+        The data to be baseline corrected.
+
+    Returns
+    -------
+    baseline : numpy.ndarray
+        The calculated basline.
+
+    """
+    baseline, baseline_params = func(data, **kwargs)
+    for key, val in baseline_params.items():
+        params[key].append(val)
+    return baseline
 
 
 def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):

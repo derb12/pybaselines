@@ -341,6 +341,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
         self.basis_r = vectors_rows
         self.basis_c = vectors_columns
 
+        # TODO how much time is save by precomputaing G_r and G_c rather than computing
+        # each iteration in solve? -> worth the memory usage?
         self._G_r = _face_splitting(self.basis_r)
         self._G_c = _face_splitting(self.basis_c)
 
