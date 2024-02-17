@@ -277,7 +277,7 @@ class _Optimizers(_Algorithm2D):
         ----------
         data : array-like, shape (M, N)
             The y-values of the measured data.
-        axes : 0, 1, (0, 1) or (1, 0), optional
+        axes : (0, 1) or (1, 0) or 0 or 1, optional
             The axes along which to apply baseline correction. The order dictates along which
             axis baseline correction is first applied. Default is (0, 1), which applies baseline
             correction along the rows first and then the columns.
@@ -298,11 +298,11 @@ class _Optimizers(_Algorithm2D):
             A dictionary with the following items:
 
             * 'params_rows': dict[str, list]
-                A dictionary of the parameters for each fit along the rows. The
-                items within the dictionary will depend on the selected method.
+                Only if 0 is in `axes`. A dictionary of the parameters for each fit along
+                the rows. The items within the dictionary will depend on the selected method.
             * 'params_columns': dict[str, list]
-                A dictionary of the parameters for each fit along the columns. The
-                items within the dictionary will depend on the selected method.
+                Only if 1 is in `axes`. A dictionary of the parameters for each fit along
+                the columns. The items within the dictionary will depend on the selected method.
             * 'baseline_rows': numpy.ndarray, shape (M, N)
                 Only if 0 is in `axes`. The fit baseline along the rows.
             * 'baseline_columns': numpy.ndarray, shape (M, N)
@@ -313,6 +313,13 @@ class _Optimizers(_Algorithm2D):
         ValueError
             Raised if `method_kwargs` is a sequence with length greater than `axes`.
 
+        Notes
+        -----
+        If using array-like inputs within `method_kwargs`, they must correspond to their
+        one-dimensional counterparts. For example, `weights` must be one-dimensional and
+        have a length of `M` or `N` when used for fitting the rows or columns, respectively.
+        Correctness of this is NOT verified within this method.
+
         """
         axes, scalar_axes = _check_scalar(axes, 2, fill_scalar=False, dtype=int)
         if scalar_axes:
@@ -320,7 +327,7 @@ class _Optimizers(_Algorithm2D):
             num_axes = 1
         else:
             if axes[0] == axes[1]:
-                raise IndexError('Fitting the same axis twice is not allowed')
+                raise ValueError('Fitting the same axis twice is not allowed')
             num_axes = 2
         if (
             method_kwargs is None
@@ -336,7 +343,7 @@ class _Optimizers(_Algorithm2D):
 
         keys = ('rows', 'columns')
         baseline = np.zeros(self._len)
-        params = {'params_rows': defaultdict(list), 'params_columns': defaultdict(list)}
+        params = {}
         for i, axis in enumerate(axes):
             fitter = Baseline(
                 (self.x, self.z)[axis], check_finite=self._check_finite, assume_sorted=True,
@@ -344,6 +351,7 @@ class _Optimizers(_Algorithm2D):
             )
             fitter.pentapy_solver = self.pentapy_solver
             baseline_func = fitter._get_method(method)
+            params[f'params_{keys[axis]}'] = defaultdict(list)
             func = partial(
                 _update_params, baseline_func, params[f'params_{keys[axis]}'], **method_kwargs[i]
             )

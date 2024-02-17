@@ -20,15 +20,9 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
     """Passes weights within the `method_kwargs` dictionary."""
 
     def test_input_weights(self, assertion_kwargs=None, **kwargs):
-        """
-        Ensures arrays are correctly sorted within the function.
-
-        Returns the output for further testing.
-
-        """
-        # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-        weights = np.random.RandomState(0).normal(0.8, 0.05, self.y.shape[-2:])
-        weights = np.clip(weights, 0, 1).astype(float, copy=False)
+        """Ensures arrays are correctly sorted within the function."""
+        weights = np.random.default_rng(0).normal(0.8, 0.05, self.y.shape[-2:])
+        weights = np.clip(weights, 0, 1, dtype=float)
 
         reverse_fitter = self.algorithm_base(self.x[::-1], self.z[::-1], assume_sorted=False)
 
@@ -222,3 +216,124 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
         super().test_input_weights(
             constrained_weight=weightings, constrained_fraction=constrained_fractions
         )
+
+
+class TestIndividualAxes(OptimizersTester, OptimizerInputWeightsMixin):
+    """Class for testing individual_axes baseline."""
+
+    func_name = 'individual_axes'
+    checked_keys = ()
+
+    @pytest.mark.parametrize('axes', (0, 1, [0], [1], (0, 1), [1, 0]))
+    def test_output(self, axes):
+        """Tests the output fitting the rows and/or columns."""
+        if isinstance(axes, int):
+            input_axes = [axes]
+        else:
+            input_axes = axes
+
+        additional_keys = []
+        if 0 in input_axes:
+            additional_keys.extend(['params_rows', 'baseline_rows'])
+        if 1 in input_axes:
+            additional_keys.extend(['params_columns', 'baseline_columns'])
+
+        super().test_output(additional_keys=additional_keys, axes=axes)
+
+    def test_xz_ordering(self):
+        """
+        Ensures x and z are correctly sorted.
+
+        Uses a relatively low tolerance since the fits are independent of each other
+        so they are not guaranteed to be the same when the inputs are reversed.
+
+        """
+        super().test_xz_ordering(assertion_kwargs={'rtol': 1e-6})
+
+    @pytest.mark.parametrize('axes', (0, 1, [0], [1], (0, 1), [1, 0]))
+    def test_input_weights(self, axes):
+        """Ensures arrays are correctly sorted within the function."""
+        if isinstance(axes, int) or len(axes) == 1:
+            input_axes = [axes]
+            scalar_axes = True
+        else:
+            input_axes = axes
+            scalar_axes = False
+
+        if scalar_axes:
+            method_kwargs = {}
+            reverse_method_kwargs = {}
+        else:
+            method_kwargs = [{}, {}]
+            reverse_method_kwargs = [{}, {}]
+
+        check_rows = False
+        check_columns = False
+        if 0 in input_axes:
+            check_rows = True
+            weights_rows = np.random.default_rng(0).normal(0.8, 0.05, self.x.size)
+            weights_rows = np.clip(weights_rows, 0, 1, dtype=float)
+            if scalar_axes:
+                method_kwargs['weights'] = weights_rows
+                reverse_method_kwargs['weights'] = weights_rows[::-1]
+            else:
+                method_kwargs[input_axes.index(0)]['weights'] = weights_rows
+                reverse_method_kwargs[input_axes.index(0)]['weights'] = weights_rows[::-1]
+        if 1 in input_axes:
+            check_columns = True
+            weights_cols = np.random.default_rng(0).normal(0.8, 0.05, self.z.size)
+            weights_cols = np.clip(weights_cols, 0, 1, dtype=float)
+            if scalar_axes:
+                method_kwargs['weights'] = weights_cols
+                reverse_method_kwargs['weights'] = weights_cols[::-1]
+            else:
+                method_kwargs[input_axes.index(1)]['weights'] = weights_cols
+                reverse_method_kwargs[input_axes.index(1)]['weights'] = weights_cols[::-1]
+
+        reverse_fitter = self.algorithm_base(self.x[::-1], self.z[::-1], assume_sorted=False)
+
+        regular_output, regular_output_params = self.class_func(
+            data=self.y, axes=axes, method_kwargs=method_kwargs, **self.kwargs
+        )
+        reverse_output, reverse_output_params = getattr(reverse_fitter, self.func_name)(
+            data=self.reverse_array(self.y), axes=axes, method_kwargs=reverse_method_kwargs,
+            **self.kwargs
+        )
+
+        # use relatively low tolerances since the fits are independent of each other
+        # so they are not guaranteed to be the same
+        for key in self.weight_keys:
+            if check_rows:
+                assert_allclose(
+                    regular_output_params['params_rows'][key],
+                    self.reverse_array(reverse_output_params['params_rows'][key]),
+                    rtol=1e-6, atol=1e-6
+                )
+            if check_columns:
+                assert_allclose(
+                    regular_output_params['params_columns'][key],
+                    self.reverse_array(reverse_output_params['params_columns'][key]),
+                    rtol=1e-6, atol=1e-6
+                )
+
+        assert_allclose(
+            regular_output, self.reverse_array(reverse_output), rtol=1e-6, atol=1e-6
+        )
+
+    def test_method_kwargs_too_large_fails(self):
+        """Ensures an error is raised if method_kwargs has a size large than the number of axes."""
+        # ensure it works correctly with length 1 method_kwargs
+        self.class_func(data=self.y, axes=0, method_kwargs=[{}])
+        with pytest.raises(ValueError, match='Method kwargs must have the same length'):
+            self.class_func(data=self.y, axes=0, method_kwargs=[{}, {}])
+        with pytest.raises(ValueError, match='Method kwargs must have the same length'):
+            self.class_func(data=self.y, axes=[0], method_kwargs=[{}, {}])
+        with pytest.raises(ValueError, match='Method kwargs must have the same length'):
+            self.class_func(data=self.y, axes=[0, 1], method_kwargs=[{}, {}, {}])
+
+    def test_repeated_axis_fails(self):
+        """Ensures an error is raised if axes are repreated."""
+        with pytest.raises(ValueError, match='Fitting the same axis twice'):
+            self.class_func(data=self.y, axes=[0, 0])
+        with pytest.raises(ValueError, match='Fitting the same axis twice'):
+            self.class_func(data=self.y, axes=[1, 1])

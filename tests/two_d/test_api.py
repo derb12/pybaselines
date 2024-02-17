@@ -117,6 +117,11 @@ class TestBaseline2D:
             class_value = class_params[key]
             if isinstance(value, (int, float, np.ndarray, list, tuple)):
                 assert_allclose(value, class_value, rtol=1e-12, atol=1e-12)
+            elif isinstance(value, dict):
+                # do not check values of the internal dictionary since the nested structure
+                # is no longer guaranteed to be the same shape for every value
+                for internal_key in value.keys():
+                    assert internal_key in class_value
             else:
                 assert value == class_value
 
