@@ -578,7 +578,9 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         lhs = self._make_btwb(weights)
         # TODO could use cho_factor and save the factorization to call within _calc_dof to make
-        # the call save time since it would only be used after the weights are finalized
+        # the call save time since it would only be used after the weights are finalized -> would
+        # only be valid if assume_a is 'pos', which all current methods are but in the future that
+        # may not be guaranteed; better to be explicit and keep it as two separate steps
         np.fill_diagonal(lhs, lhs.diagonal() + penalty)
         self.coef = solve(
             lhs, rhs, lower=True, overwrite_a=True, overwrite_b=True, check_finite=False,

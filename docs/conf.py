@@ -172,6 +172,7 @@ gallery_section_order = [
     '../examples/classification',
     '../examples/misc',
     '../examples/optimizers',
+    '../examples/two_d',
 ]
 
 sphinx_gallery_conf = {

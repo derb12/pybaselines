@@ -30,7 +30,30 @@ class WhittakerTester(BaseTester2D, InputWeightsMixin):
         assert params['tol_history'].size == max_iter + 1
 
 
-class TestAsLS(WhittakerTester):
+class EigenvalueMixin:
+    """BaseTester2D mixin for testing the Whittaker methods that can use eigendecomposition."""
+
+    @pytest.mark.parametrize('return_dof', (True, False))
+    def test_dof_output(self, return_dof):
+        """Ensures the degrees of freedom are output if `return_dof` is True."""
+        if return_dof:
+            additional_keys = ['dof']
+        else:
+            additional_keys = None
+        self.test_output(additional_keys=additional_keys, return_dof=return_dof)
+
+    def test_dof_shape(self):
+        """Ensures the returned degrees of freedom are correct."""
+        num_eigens = (5, 10)
+        baseline, params = self.class_func(
+            data=self.y, num_eigens=num_eigens, **self.kwargs, return_dof=True
+        )
+
+        assert 'dof' in params
+        assert params['dof'].shape == num_eigens
+
+
+class TestAsLS(WhittakerTester, EigenvalueMixin):
     """Class for testing asls baseline."""
 
     func_name = 'asls'
@@ -75,7 +98,7 @@ class TestIAsLS(WhittakerTester):
             self.class_func(self.y, lam=1e2, diff_order=[2, 1])
 
 
-class TestAirPLS(WhittakerTester):
+class TestAirPLS(WhittakerTester, EigenvalueMixin):
     """Class for testing airpls baseline."""
 
     func_name = 'airpls'
@@ -113,7 +136,7 @@ class TestAirPLS(WhittakerTester):
         assert np.isfinite(baseline).all()
 
 
-class TestArPLS(WhittakerTester):
+class TestArPLS(WhittakerTester, EigenvalueMixin):
     """Class for testing arpls baseline."""
 
     func_name = 'arpls'
@@ -203,7 +226,7 @@ class TestDrPLS(WhittakerTester):
         assert not np.isfinite(params['tol_history'][-1])
 
 
-class TestIArPLS(WhittakerTester):
+class TestIArPLS(WhittakerTester, EigenvalueMixin):
     """Class for testing iarpls baseline."""
 
     func_name = 'iarpls'
@@ -288,7 +311,7 @@ class TestAsPLS(WhittakerTester):
         assert np.isfinite(baseline).all()
 
 
-class TestPsalsa(WhittakerTester):
+class TestPsalsa(WhittakerTester, EigenvalueMixin):
     """Class for testing psalsa baseline."""
 
     func_name = 'psalsa'

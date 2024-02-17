@@ -23,7 +23,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-             num_eigens=(10, 10)):
+             num_eigens=(10, 10), return_dof=False):
         """
         Fits the baseline using asymmetric least squares (AsLS) fitting.
 
@@ -56,6 +56,10 @@ class _Whittaker(_Algorithm2D):
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
             Default is (10, 10).
+        return_dof : bool, optional
+            If True and `num_eigens` is not None, then the effective degrees of freedom for
+            each eigenvector will be calculated and returned in the parameter dictionary.
+            Default is False since the calculation takes time.
 
         Returns
         -------
@@ -71,6 +75,10 @@ class _Whittaker(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
 
         Raises
         ------
@@ -103,11 +111,14 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        if not self.whittaker_system._using_svd:
+        params = {'tol_history': tol_history[:i + 1]}
+        if self.whittaker_system._using_svd:
+            params['weights'] = weight_array
+            if return_dof:
+                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+        else:
             baseline = baseline.reshape(self._len)
-            weight_array = weight_array.reshape(self._len)
-
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+            params['weights'] = weight_array.reshape(self._len)
 
         return baseline, params
 
@@ -208,7 +219,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               num_eigens=(10, 10)):
+               num_eigens=(10, 10), return_dof=False):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -237,6 +248,10 @@ class _Whittaker(_Algorithm2D):
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
             Default is (10, 10).
+        return_dof : bool, optional
+            If True and `num_eigens` is not None, then the effective degrees of freedom for
+            each eigenvector will be calculated and returned in the parameter dictionary.
+            Default is False since the calculation takes time.
 
         Returns
         -------
@@ -252,6 +267,10 @@ class _Whittaker(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
 
         References
         ----------
@@ -308,17 +327,20 @@ class _Whittaker(_Algorithm2D):
             weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
             weight_array[~neg_mask] = 0
 
-        if not self.whittaker_system._using_svd:
+        params = {'tol_history': tol_history[:i]}
+        if self.whittaker_system._using_svd:
+            params['weights'] = weight_array
+            if return_dof:
+                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+        else:
             baseline = baseline.reshape(self._len)
-            weight_array = weight_array.reshape(self._len)
-
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+            params['weights'] = weight_array.reshape(self._len)
 
         return baseline, params
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def arpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-              num_eigens=(10, 10)):
+              num_eigens=(10, 10), return_dof=False):
         """
         Asymmetrically reweighted penalized least squares smoothing (arPLS).
 
@@ -347,6 +369,10 @@ class _Whittaker(_Algorithm2D):
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
             Default is (10, 10).
+        return_dof : bool, optional
+            If True and `num_eigens` is not None, then the effective degrees of freedom for
+            each eigenvector will be calculated and returned in the parameter dictionary.
+            Default is False since the calculation takes time.
 
         Returns
         -------
@@ -362,6 +388,10 @@ class _Whittaker(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
 
         References
         ----------
@@ -385,11 +415,14 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        if not self.whittaker_system._using_svd:
+        params = {'tol_history': tol_history[:i + 1]}
+        if self.whittaker_system._using_svd:
+            params['weights'] = weight_array
+            if return_dof:
+                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+        else:
             baseline = baseline.reshape(self._len)
-            weight_array = weight_array.reshape(self._len)
-
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+            params['weights'] = weight_array.reshape(self._len)
 
         return baseline, params
 
@@ -494,7 +527,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               num_eigens=(10, 10)):
+               num_eigens=(10, 10), return_dof=False):
         """
         Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
 
@@ -523,6 +556,10 @@ class _Whittaker(_Algorithm2D):
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
             Default is (10, 10).
+        return_dof : bool, optional
+            If True and `num_eigens` is not None, then the effective degrees of freedom for
+            each eigenvector will be calculated and returned in the parameter dictionary.
+            Default is False since the calculation takes time.
 
         Returns
         -------
@@ -538,6 +575,10 @@ class _Whittaker(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
 
         References
         ----------
@@ -575,11 +616,14 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        if not self.whittaker_system._using_svd:
+        params = {'tol_history': tol_history[:i]}
+        if self.whittaker_system._using_svd:
+            params['weights'] = weight_array
+            if return_dof:
+                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+        else:
             baseline = baseline.reshape(self._len)
-            weight_array = weight_array.reshape(self._len)
-
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+            params['weights'] = weight_array.reshape(self._len)
 
         return baseline, params
 
@@ -682,7 +726,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
-               weights=None, num_eigens=(10, 10)):
+               weights=None, num_eigens=(10, 10), return_dof=False):
         """
         Peaked Signal's Asymmetric Least Squares Algorithm (psalsa).
 
@@ -725,6 +769,10 @@ class _Whittaker(_Algorithm2D):
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
             Default is (10, 10).
+        return_dof : bool, optional
+            If True and `num_eigens` is not None, then the effective degrees of freedom for
+            each eigenvector will be calculated and returned in the parameter dictionary.
+            Default is False since the calculation takes time.
 
         Returns
         -------
@@ -740,6 +788,10 @@ class _Whittaker(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
 
         Raises
         ------
@@ -782,10 +834,13 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        if not self.whittaker_system._using_svd:
+        params = {'tol_history': tol_history[:i + 1]}
+        if self.whittaker_system._using_svd:
+            params['weights'] = weight_array
+            if return_dof:
+                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+        else:
             baseline = baseline.reshape(self._len)
-            weight_array = weight_array.reshape(self._len)
-
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+            params['weights'] = weight_array.reshape(self._len)
 
         return baseline, params

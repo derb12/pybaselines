@@ -65,10 +65,6 @@ mor (Morphological)
             ax_2.set_xticks([])
             ax_2.set_yticks([])
             ax_2.set_zticks([])
-            if i == 0:
-                pass#ax.set_title('Contours')
-                #ax_2.set_title('3D Projections')
-
 
     x, z, y, real_baseline = create_data()
     baseline_fitter = Baseline2D(x, z, check_finite=False)
