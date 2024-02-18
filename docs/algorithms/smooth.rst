@@ -6,10 +6,6 @@ The contents of :mod:`pybaselines.smooth` contain algorithms that use smoothing
 to eliminate peaks and leave only the baseline.
 
 .. note::
-   The module pybaselines.smooth was named pybaselines.window until version 0.6.0.
-
-
-.. note::
    The window size used for smoothing-based algorithms is index-based, rather
    than based on the units of the data, so proper conversions must be done
    by the user to get the desired window size.
@@ -21,7 +17,7 @@ Algorithms
 noise_median (Noise Median method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.noise_median` estimates the baseline as the median value within
+:meth:`~.Baseline.noise_median` estimates the baseline as the median value within
 a moving window. The resulting baseline is then smoothed by convolving with a Gaussian
 kernel. Note that this method does not perform well for tightly-grouped peaks.
 
@@ -149,7 +145,7 @@ kernel. Note that this method does not perform well for tightly-grouped peaks.
 snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.snip` iteratively takes the element-wise minimimum of each value
+:meth:`~.Baseline.snip` iteratively takes the element-wise minimimum of each value
 and the average of the values at the left and right edge of a window centered
 at the value. The size of the half-window is incrementally increased from 1 to the
 specified maximum size, which should be set to approximately half of the
@@ -195,7 +191,7 @@ data. The baselines when using decreasing window size and smoothing is shown bel
 swima (Small-Window Moving Average)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.swima` iteratively takes the element-wise minimum of either the
+:meth:`~.Baseline.swima` iteratively takes the element-wise minimum of either the
 data (first iteration) or the previous iteration's baseline and the data/previous baseline
 smoothed with a moving average. The window used for the moving average smoothing is
 incrementally increased to smooth peaks until convergence is reached.
@@ -219,7 +215,7 @@ incrementally increased to smooth peaks until convergence is reached.
 ipsa (Iterative Polynomial Smoothing Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.ipsa` iteratively smooths the input data using a second-order
+:meth:`~.Baseline.ipsa` iteratively smooths the input data using a second-order
 Savitzky–Golay filter until the exit criteria is reached.
 
 .. plot::
@@ -240,7 +236,7 @@ Savitzky–Golay filter until the exit criteria is reached.
 ria (Range Independent Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.ria` first extrapolates a linear baseline from the left and/or
+:meth:`~.Baseline.ria` first extrapolates a linear baseline from the left and/or
 right edges of the data and adds Gaussian peaks to these baselines, similar to the
 :ref:`optimize_extended_range <extending-data-explanation>` function, and
 records their initial areas. The data is then iteratively smoothed using a

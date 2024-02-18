@@ -9,9 +9,9 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import dia_matrix
 
 from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
+from pybaselines._compat import dia_object
 from pybaselines.utils import ParameterWarning
 
 from .conftest import get_data
@@ -48,7 +48,7 @@ def test_setup_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
     )
 
     numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
-    desired_diagonals = dia_matrix(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
+    desired_diagonals = dia_object(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
     if allow_lower and not algorithm.whittaker_system.using_pentapy:
         # only include the lower diagonals
         desired_diagonals = desired_diagonals[diff_order:]
@@ -202,6 +202,24 @@ def test_setup_polynomial_vandermonde(small_data, algorithm, vander_enum, includ
         assert_allclose(desired_pinv, pinv_matrix, 1e-10)
 
 
+def test_setup_polynomial_negative_polyorder_fails(small_data, algorithm):
+    """Ensures a negative poly_order raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=-1)
+
+
+def test_setup_polynomial_too_large_polyorder_fails(small_data, algorithm):
+    """Ensures an exception is raised if poly_order has more than one value."""
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=[1, 2])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=[1, 2, 3])
+
+    with pytest.raises(ValueError):
+        algorithm._setup_polynomial(small_data, poly_order=np.array([1, 2]))
+
+
 def test_setup_smooth_shape(small_data, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4
@@ -270,7 +288,7 @@ def test_setup_spline_diff_matrix(small_data, lam, diff_order, spline_degree, nu
 
     num_bases = num_knots + spline_degree - 1
     numpy_diff = np.diff(np.eye(num_bases), diff_order, axis=0)
-    desired_diagonals = lam * dia_matrix(numpy_diff.T @ numpy_diff).data[::-1][diff_order:]
+    desired_diagonals = lam * dia_object(numpy_diff.T @ numpy_diff).data[::-1][diff_order:]
     if diff_order < spline_degree:
         padding = np.zeros((spline_degree - diff_order, desired_diagonals.shape[1]))
         desired_diagonals = np.concatenate((desired_diagonals, padding))
@@ -349,6 +367,32 @@ def test_setup_spline_negative_lam_fails(small_data):
         )
 
 
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+def test_setup_spline_weights(small_data, algorithm, weight_enum):
+    """Ensures output weight array is correct."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones_like(small_data)
+    elif weight_enum == 1:
+        # uniform 1 weighting
+        weights = np.ones_like(small_data)
+        desired_weights = weights.copy()
+    elif weight_enum == 2:
+        # different weights for all points
+        weights = np.arange(small_data.shape[0])
+        desired_weights = np.arange(small_data.shape[0])
+    elif weight_enum == 3:
+        # different weights for all points, and weights input as a list
+        weights = np.arange(small_data.shape[0]).tolist()
+        desired_weights = np.arange(small_data.shape[0])
+
+    _, weight_array = algorithm._setup_spline(small_data, lam=1, diff_order=2, weights=weights)
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
+
+
 def test_setup_spline_array_lam(small_data):
     """Ensures a lam that is a single array passes while larger arrays fail."""
     _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(small_data, lam=[1])
@@ -390,6 +434,21 @@ def test_get_function_fails_no_module(algorithm):
         algorithm._get_function('collab_pls', [])
 
 
+def test_get_function_sorting():
+    """Ensures the sort order is correct for the output class object."""
+    num_points = 10
+    x = np.arange(num_points)
+    ordering = np.arange(num_points)
+    algorithm = _algorithm_setup._Algorithm(x[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+
+    assert_array_equal(class_object.x, x)
+    assert_array_equal(class_object._sort_order, ordering[::-1])
+    assert_array_equal(class_object._inverted_order, ordering[::-1])
+    assert_array_equal(class_object._sort_order, algorithm._sort_order)
+    assert_array_equal(class_object._inverted_order, algorithm._inverted_order)
+
+
 @pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))
 def test_setup_optimizer(small_data, algorithm, method_kwargs):
     """Ensures output of _setup_optimizer is correct."""
@@ -418,15 +477,6 @@ def test_setup_optimizer_copy_kwargs(small_data, algorithm, copy_kwargs):
         assert input_kwargs['a'] == 1
     else:
         assert input_kwargs['a'] == 2
-
-
-def test_setup_optimizer_kwargs_warns(data_fixture):
-    """Ensures a warning is emitted if extra keyword arguments are passed to the setup."""
-    x, y = data_fixture
-    with pytest.warns(DeprecationWarning):
-        _algorithm_setup._Algorithm(x_data=x)._setup_optimizer(
-            y, 'asls', [whittaker], None, True, poly_order=3
-        )
 
 
 @pytest.mark.parametrize('input_x', (True, False))
@@ -460,10 +510,9 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
     else:
         assert algorithm._len is None
 
-    if not assume_sorted and input_x:
+    if not assume_sorted and change_order and input_x:
         order = np.arange(len(x))
-        if change_order:
-            order[sort_order] = order[sort_order][::-1]
+        order[sort_order] = order[sort_order][::-1]
         assert_array_equal(algorithm._sort_order, order)
         assert_array_equal(algorithm._inverted_order, order.argsort())
     else:
@@ -521,7 +570,8 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
 @pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
-def test_algorithm_register(assume_sorted, output_dtype, change_order, list_input):
+@pytest.mark.parametrize('skip_sorting', (True, False))
+def test_algorithm_register(assume_sorted, output_dtype, change_order, list_input, skip_sorting):
     """
     Ensures the _register wrapper method returns the correctly sorted outputs.
 
@@ -532,19 +582,43 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     is False.
 
     """
-    x, y = get_data()
-    sort_indices = slice(0, 100)
+    x = np.arange(20)
+    y = 5 * x
+    y_dtype = y.dtype
+    sort_indices = slice(0, 10)
 
     class SubClass(_algorithm_setup._Algorithm):
         # 'a' values will be sorted and 'b' values will be kept the same
         @_algorithm_setup._Algorithm._register(sort_keys=('a',))
         def func(self, data, *args, **kwargs):
-            expected_input = y.copy()
-            if change_order and not assume_sorted:
-                expected_input[sort_indices] = expected_input[sort_indices][::-1]
+            """For checking sorting of output parameters."""
+            expected_x = np.arange(20)
+            if change_order and assume_sorted:
+                expected_x[sort_indices] = expected_x[sort_indices][::-1]
+            expected_input = 5 * expected_x
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_input, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, expected_x, 1e-16, 1e-16)
+
+            params = {
+                'a': np.arange(len(x)),
+                'b': np.arange(len(x))
+            }
+            return 1 * data, params
+
+        @_algorithm_setup._Algorithm._register(sort_keys=('a',), skip_sorting=skip_sorting)
+        def func2(self, data, *args, **kwargs):
+            expected_x = np.arange(20)
+            expected_input = 5 * expected_x
+            if change_order and assume_sorted:
+                expected_x[sort_indices] = expected_x[sort_indices][::-1]
+            if change_order and (assume_sorted or skip_sorting):
+                expected_input[sort_indices] = expected_input[sort_indices][::-1]
+
+            assert_allclose(data, expected_input, 1e-14, 1e-14)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
 
             params = {
                 'a': np.arange(len(x)),
@@ -556,6 +630,10 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         x[sort_indices] = x[sort_indices][::-1]
         y[sort_indices] = y[sort_indices][::-1]
     expected_baseline = (1 * y).astype(output_dtype)
+    if output_dtype is None:
+        expected_dtype = y_dtype
+    else:
+        expected_dtype = expected_baseline.dtype
     if list_input:
         x = x.tolist()
         y = y.tolist()
@@ -578,9 +656,18 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     # function
     assert_allclose(output, expected_baseline, 1e-16, 1e-16)
     assert isinstance(output, np.ndarray)
-    assert output.dtype == output_dtype
+    assert output.dtype == expected_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key])
+
+    output2, output_params2 = algorithm.func2(y)
+
+    # baseline should always match y-order on the output; only sorted within the
+    # function
+    assert_allclose(output2, expected_baseline, 1e-16, 1e-16)
+    assert isinstance(output2, np.ndarray)
+    for key, value in expected_params.items():
+        assert_array_equal(value, output_params2[key])
 
 
 def test_class_wrapper():

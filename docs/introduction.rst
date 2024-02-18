@@ -76,12 +76,14 @@ names of the algorithms were used. The algorithms are grouped accordingly:
     * fastchrom (FastChrom's Baseline Method)
     * cwt_br (Continuous Wavelet Transform Baseline Recognition)
     * fabc (Fully Automatic Baseline Correction)
+    * rubberband (Rubberband Method)
 
 * Optimizers (:mod:`pybaselines.optimizers`)
 
     * collab_pls (Collaborative Penalized Least Squares)
     * optimize_extended_range
     * adaptive_minmax (Adaptive MinMax)
+    * custom_bc (Customized Baseline Correction)
 
 * Miscellaneous methods (:mod:`pybaselines.misc`)
 

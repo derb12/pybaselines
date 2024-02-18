@@ -9,10 +9,10 @@ Created on Dec. 11, 2021
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.sparse import diags, identity, spdiags
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
+from pybaselines._compat import dia_object, diags, identity
 
 from .conftest import has_pentapy
 
@@ -105,6 +105,36 @@ def test_diff_penalty_diagonals_datasize_too_small():
         _banded_utils.diff_penalty_diagonals(0)
     with pytest.raises(ValueError):
         _banded_utils.diff_penalty_diagonals(-1)
+
+
+@pytest.mark.parametrize('data_size', (10, 51))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+def test_diff_penalty_matrix(data_size, diff_order):
+    """Ensures the penalty matrix shortcut works correctly."""
+    diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
+    expected_matrix = diff_matrix.T @ diff_matrix
+
+    output = _banded_utils.diff_penalty_matrix(data_size, diff_order)
+
+    assert_allclose(expected_matrix.toarray(), output.toarray(), rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('data_size', (3, 6))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+def test_diff_penalty_matrix_too_few_data(data_size, diff_order):
+    """Ensures the penalty matrix shortcut works correctly."""
+    diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
+    expected_matrix = diff_matrix.T @ diff_matrix
+
+    if data_size <= diff_order:
+        with pytest.raises(ValueError):
+            _banded_utils.diff_penalty_matrix(data_size, diff_order)
+        # the actual matrix should be just zeros
+        actual_result = np.zeros((data_size, data_size))
+        assert_allclose(actual_result, expected_matrix.toarray(), rtol=1e-12, atol=1e-12)
+    else:
+        output = _banded_utils.diff_penalty_matrix(data_size, diff_order)
+        assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-12, atol=1e-12)
 
 
 def test_shift_rows_2_diags():
@@ -273,14 +303,14 @@ def test_add_diagonals(diff_order_1, diff_order_2, lower_only):
 
     a_offsets = np.arange(diff_order_1, -diff_order_1 - 1, -1)
     b_offsets = np.arange(diff_order_2, -diff_order_2 - 1, -1)
-    a_matrix = spdiags(
-        _banded_utils.diff_penalty_diagonals(points, diff_order_1, False),
-        a_offsets, points, points, 'csr'
-    )
-    b_matrix = spdiags(
-        _banded_utils.diff_penalty_diagonals(points, diff_order_2, False),
-        b_offsets, points, points, 'csr'
-    )
+    a_matrix = dia_object(
+        (_banded_utils.diff_penalty_diagonals(points, diff_order_1, False), a_offsets),
+        shape=(points, points)
+    ).tocsr()
+    b_matrix = dia_object(
+        (_banded_utils.diff_penalty_diagonals(points, diff_order_2, False), b_offsets),
+        shape=(points, points)
+    ).tocsr()
     expected_output = (a_matrix + b_matrix).todia().data[::-1]
     if lower_only:
         expected_output = expected_output[len(expected_output) // 2:]
@@ -403,10 +433,22 @@ def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.diff_order == diff_order
     assert penalized_system.num_bands == diff_order + max(0, padding)
     assert penalized_system.using_pentapy == using_pentapy
+    assert_allclose(
+        penalized_system.main_diagonal,
+        penalized_system.penalty[penalized_system.main_diagonal_index], rtol=1e-12, atol=1e-12
+    )
     if allow_lower:
         assert penalized_system.main_diagonal_index == 0
+        assert_allclose(
+            penalized_system.main_diagonal, penalized_system.penalty[0], rtol=1e-12, atol=1e-12
+        )
     else:
-        assert penalized_system.main_diagonal_index == diff_order + max(0, padding)
+        expected_index = diff_order + max(0, padding)
+        assert penalized_system.main_diagonal_index == expected_index
+        assert_allclose(
+            penalized_system.main_diagonal, penalized_system.penalty[expected_index],
+            rtol=1e-12, atol=1e-12
+        )
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
@@ -531,11 +573,10 @@ def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_pen
     expected_penalty = _banded_utils.diff_penalty_diagonals(
         data_size, diff_order=diff_order, lower_only=False
     )
-    sparse_penalty = spdiags(
-        lam * expected_penalty, np.arange(diff_order, -(diff_order + 1), -1),
-        data_size, data_size, 'csr'
-
-    )
+    sparse_penalty = dia_object(
+        (lam * expected_penalty, np.arange(diff_order, -(diff_order + 1), -1)),
+        shape=(data_size, data_size)
+    ).tocsr()
     expected_solution = spsolve(identity(data_size, format='csr') + sparse_penalty, y)
 
     penalized_system = _banded_utils.PenalizedSystem(
@@ -619,3 +660,92 @@ def test_penalized_system_reverse_penalty(allow_lower, reverse_diags):
         assert penalized_system.reversed == (not original_reverse)
         assert_array_equal(penalized_system.original_diagonals, original_diagonals[::-1])
         assert_array_equal(penalized_system.penalty, original_penalty[::-1])
+
+
+@pytest.mark.parametrize('data_size', (100, 501))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('allow_pentapy', (True, False))
+def test_penalized_system_add_diagonal(data_size, diff_order, allow_lower, allow_pentapy):
+    """Tests adding a diagonal to a PenalizedSystem."""
+    lam = 5
+    diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
+    penalty = lam * diff_matrix.T @ diff_matrix
+
+    penalized_system = _banded_utils.PenalizedSystem(
+        data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        allow_pentapy=allow_pentapy
+    )
+
+    # do two repititions to ensure main diagonal attribute is not changed
+    for multiplier in range(1, 3):
+        added_array = np.full(data_size, multiplier)
+        added_matrix = diags(added_array)
+
+        expected_output = (added_matrix + penalty).todia().data
+        if not penalized_system.reversed:
+            expected_output = expected_output[::-1]
+        if penalized_system.lower:
+            expected_output = expected_output[expected_output.shape[0] // 2:]
+
+        assert_allclose(
+            penalized_system.add_diagonal(added_array), expected_output, rtol=1e-12, atol=1e-12
+        )
+        # should also modify the penalty attribute
+        assert_allclose(penalized_system.penalty, expected_output, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('data_size', (100, 501))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('allow_pentapy', (True, False))
+def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allow_lower,
+                                                     allow_pentapy):
+    """Tests adding a diagonal after adding a penalty to a PenalizedSystem."""
+    lam = 5
+    diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
+    penalty = lam * diff_matrix.T @ diff_matrix
+
+    for penalty_order in range(1, 3):
+        penalized_system = _banded_utils.PenalizedSystem(
+            data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+            allow_pentapy=allow_pentapy
+        )
+
+        additional_penalty = _banded_utils.diff_penalty_diagonals(
+            data_size, penalty_order, lower_only=False
+        )
+        additional_penalty_matrix = dia_object(
+            (additional_penalty, np.arange(penalty_order, -penalty_order - 1, -1)),
+            shape=(data_size, data_size)
+        )
+        total_penalty = penalty + additional_penalty_matrix
+
+        # sanity check that add_penalty worked as expected
+        intermediate_output = (total_penalty).todia().data[::-1]
+        if penalized_system.reversed:
+            intermediate_output = intermediate_output[::-1]
+            additional_penalty = additional_penalty[::-1]
+        if penalized_system.lower:
+            intermediate_output = intermediate_output[intermediate_output.shape[0] // 2:]
+            additional_penalty = additional_penalty[additional_penalty.shape[0] // 2:]
+
+        penalized_system.add_penalty(additional_penalty)
+        assert_allclose(penalized_system.penalty, intermediate_output, rtol=1e-12, atol=1e-12)
+
+        # do two repititions to ensure main diagonal attribute is not changed
+        for multiplier in range(1, 3):
+            added_array = np.full(data_size, multiplier)
+            added_matrix = diags(added_array)
+
+            expected_output = (total_penalty + added_matrix).todia().data
+            if not penalized_system.reversed:
+                expected_output = expected_output[::-1]
+            if penalized_system.lower:
+                expected_output = expected_output[expected_output.shape[0] // 2:]
+
+            assert_allclose(
+                penalized_system.add_diagonal(added_array), expected_output, rtol=1e-12, atol=1e-12
+            )
+            # should also modify the penalty attribute
+            assert_allclose(penalized_system.penalty, expected_output, rtol=1e-12, atol=1e-12)

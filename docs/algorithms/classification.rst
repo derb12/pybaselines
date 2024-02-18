@@ -65,7 +65,7 @@ Algorithms
 dietrich (Dietrich's Classification Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.dietrich` calculates the power spectrum of the data as the squared derivative
+:meth:`~.Baseline.dietrich` calculates the power spectrum of the data as the squared derivative
 of the data. Then baseline points are identified by iteratively removing points where
 the mean of the power spectrum is less a multiple of the standard deviation of the
 power spectrum. The baseline is created by first interpolating through all baseline
@@ -197,7 +197,7 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
 golotvin (Golotvin's Classification Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.golotvin` divides the data into sections and takes the minimum standard
+:meth:`~.Baseline.golotvin` divides the data into sections and takes the minimum standard
 deviation of all the sections as the noise's standard deviation for the entire data.
 Then classifies any point where the rolling max minus min is less than a multiple of
 the noise's standard deviation as belonging to the baseline.
@@ -224,7 +224,7 @@ the noise's standard deviation as belonging to the baseline.
 std_distribution (Standard Deviation Distribution)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.std_distribution` identifies baseline segments by analyzing the rolling
+:meth:`~.Baseline.std_distribution` identifies baseline segments by analyzing the rolling
 standard deviation distribution. The rolling standard deviations are split into two
 distributions, with the smaller distribution assigned to noise. Baseline points are
 then identified as any point where the rolled standard deviation is less than a multiple
@@ -253,8 +253,8 @@ of the median of the noise's standard deviation distribution.
 fastchrom (FastChrom's Baseline Method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.fastchrom` identifies baseline segments by analyzing the rolling standard
-deviation distribution, similar to :meth:`.std_distribution`. Baseline points are
+:meth:`~.Baseline.fastchrom` identifies baseline segments by analyzing the rolling standard
+deviation distribution, similar to :meth:`~.Baseline.std_distribution`. Baseline points are
 identified as any point where the rolling standard deviation is less than the specified
 threshold, and peak regions are iteratively interpolated until the baseline is below the data.
 
@@ -279,7 +279,7 @@ threshold, and peak regions are iteratively interpolated until the baseline is b
 cwt_br (Continuous Wavelet Transform Baseline Recognition)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.cwt_br` identifies baseline segments by performing a continous wavelet
+:meth:`~.Baseline.cwt_br` identifies baseline segments by performing a continous wavelet
 transform (CWT) on the input data at various scales, and picks the scale with the first
 local minimum in the Shannon entropy. The threshold for baseline points is obtained by fitting
 a Gaussian to the histogram of the CWT at the optimal scale, and the final baseline is fit
@@ -315,8 +315,8 @@ other points have a weight of 0.
 fabc (Fully Automatic Baseline Correction)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.fabc` identifies baseline segments by thresholding the squared first derivative
-of the data, similar to :meth:`.dietrich`. However, fabc approximates the first derivative
+:meth:`~.Baseline.fabc` identifies baseline segments by thresholding the squared first derivative
+of the data, similar to :meth:`~.Baseline.dietrich`. However, fabc approximates the first derivative
 using a continous wavelet transform with the Haar wavelet, which is more robust to noise
 than the numerical derivative in Dietrich's method. The baseline is then fit using
 Whittaker smoothing with all baseline points having a weight of 1 and all other points
@@ -343,4 +343,74 @@ a weight of 0.
         else:
             num_std = 3
         baseline, params = baseline_fitter.fabc(y, lam=lam, scale=16, num_std=num_std, min_length=3)
+        ax.plot(baseline, 'g--')
+
+
+rubberband (Rubberband Method)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`.rubberband` uses a convex hull to find local minima
+of the data, which are then used to construct the baseline using either
+linear interpolation or Whittaker smoothing. The rubberband method is simple and
+easy to use for convex shaped data, but performs poorly for concave data. To get
+around this, Bruker's OPUS spectroscopy software uses a `patented method
+<https://patents.google.com/patent/US20060212275A1/en>`_ to coerce
+the data into a convex shape so that the rubberband method still works. pybaselines
+uses an alternate approach of allowing splitting the data in segments, in order
+to reduce the concavity of each individual section; it is less user-friendly
+than Bruker's method but works well enough for data with similar baselines and
+peak positions.
+
+.. note::
+   For noisy data, rubberband performs significantly better when smoothing
+   the data beforehand.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        if i == 1:
+            segments = [100, 250, 300]
+        elif i == 3:
+            segments = [250, 380]
+        else:
+            segments = 1
+        if i < 4:
+            smooth_half_window = 5
+        else:
+            smooth_half_window = 0
+        baseline, params = baseline_fitter.rubberband(
+            y, segments=segments, lam=0, smooth_half_window=smooth_half_window
+        )
+        ax.plot(baseline, 'g--')
+
+
+By using Whittaker smoothing (or other smoothing interpolation methods) rather than
+linear interpolation to construct the baseline from the convex hull points, the
+negative effects of applying the rubberband method to concave data can be
+slightly reduced, as seen below.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        if i == 1:
+            segments = [100, 250, 300]
+        elif i == 3:
+            segments = [380]
+        else:
+            segments = 1
+        if i < 4:
+            smooth_half_window = 5
+        else:
+            smooth_half_window = 0
+        baseline, params = baseline_fitter.rubberband(
+            y, segments=segments, lam=100, smooth_half_window=smooth_half_window
+        )
         ax.plot(baseline, 'g--')

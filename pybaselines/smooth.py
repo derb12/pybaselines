@@ -13,9 +13,10 @@ from scipy.ndimage import median_filter, uniform_filter1d
 from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
+from ._compat import trapezoid
 from .utils import (
-    ParameterWarning, _check_scalar, _get_edges, gaussian, gaussian_kernel,
-    optimize_window, pad_edges, padded_convolve, relative_difference
+    ParameterWarning, _check_scalar, _get_edges, gaussian, gaussian_kernel, optimize_window,
+    pad_edges, padded_convolve, relative_difference
 )
 
 
@@ -177,7 +178,7 @@ class _Smooth(_Algorithm):
             if half_window > (self._len - 1) // 2:
                 warnings.warn(
                     'max_half_window values greater than (len(data) - 1) / 2 have no effect.',
-                    ParameterWarning
+                    ParameterWarning, stacklevel=2
                 )
                 half_windows[i] = (self._len - 1) // 2
 
@@ -543,7 +544,7 @@ class _Smooth(_Algorithm):
             )[:-1]
             added_y_left = added_gaussian + added_left
             lower_bound = added_window
-            known_area += np.trapz(added_gaussian, added_x_left)
+            known_area += trapezoid(added_gaussian, added_x_left)
         else:
             added_x_left = []
             added_y_left = []
@@ -554,7 +555,7 @@ class _Smooth(_Algorithm):
             )[1:]
             added_y_right = added_gaussian + added_right
             upper_bound = added_window
-            known_area += np.trapz(added_gaussian, added_x_right)
+            known_area += trapezoid(added_gaussian, added_x_right)
         else:
             added_x_right = []
             added_y_right = []
@@ -572,9 +573,9 @@ class _Smooth(_Algorithm):
             # smoothing and edge effects are ignored
             smoother_array[data_slice] = uniform_filter1d(smoother_array, window_size)[data_slice]
             residual = fit_data - smoother_array[data_slice]
-            calc_area = np.trapz(residual[:lower_bound], fit_x_data[:lower_bound])
+            calc_area = trapezoid(residual[:lower_bound], fit_x_data[:lower_bound])
             if upper_bound:
-                calc_area += np.trapz(residual[-upper_bound:], fit_x_data[-upper_bound:])
+                calc_area += trapezoid(residual[-upper_bound:], fit_x_data[-upper_bound:])
             calc_difference = relative_difference(known_area, calc_area)
             tol_history[i] = calc_difference
             if calc_difference < tol or calc_area > known_area:
@@ -788,7 +789,7 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
         baseline_new = np.minimum(baseline, uniform_filter1d(baseline, 2 * half_window + 1))
         # only begin calculating the area when near the lowest allowed half window
         if half_window > min_half_window_check:
-            area_new = np.trapz(baseline[data_slice] - baseline_new[data_slice])
+            area_new = trapezoid(baseline[data_slice] - baseline_new[data_slice])
             # exit criteria 1
             if area_new > area_current and area_current < area_old:
                 converged = True
@@ -797,9 +798,9 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
                 break
             if half_window > min_half_window:
                 diff_current = np.gradient(actual_y - baseline_new[data_slice])
-                poly_diff_current = np.trapz(abs(vander @ (pseudo_inverse @ diff_current)))
+                poly_diff_current = trapezoid(abs(vander @ (pseudo_inverse @ diff_current)))
                 # exit criteria 2, means baseline is not well fit
-                if poly_diff_current > 0.15 * np.trapz(abs(diff_current)):
+                if poly_diff_current > 0.15 * trapezoid(abs(diff_current)):
                     converged = False
                     break
             area_old = area_current

@@ -10,7 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import optimizers, polynomial, utils
+from pybaselines import Baseline, optimizers, polynomial, utils
 
 from .conftest import BaseTester, InputWeightsMixin
 
@@ -48,7 +48,7 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
 
         for key in self.weight_keys:
             assert_allclose(
-                regular_output_params[key], reverse_output_params[key][::-1],
+                regular_output_params[key], self.reverse_array(reverse_output_params[key]),
                 **assertion_kwargs
             )
         assert_allclose(
@@ -72,7 +72,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     # will need to change checked_keys if default method is changed
     checked_keys = ('average_weights', 'weights', 'tol_history')
     two_d = True
-    weight_keys = ('average_weights',)
+    weight_keys = ('average_weights', 'weights')
 
     @pytest.mark.parametrize(
         'method',
@@ -100,12 +100,22 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     @pytest.mark.parametrize('average_dataset', (True, False))
     def test_input_weights(self, average_dataset):
         """Ensures the input weights are sorted correctly."""
-        output = super().test_input_weights(average_dataset=average_dataset)
-        regular_output, regular_output_params, reverse_output, reverse_output_params = output
+        super().test_input_weights(average_dataset=average_dataset)
+
+    @pytest.mark.parametrize('average_dataset', (True, False))
+    def test_output_alpha(self, average_dataset):
+        """Ensures the output alpha values are sorted correctly when using aspls."""
+        regular_output, regular_output_params = self.class_func(
+            data=self.y, average_dataset=average_dataset, method='aspls',
+        )
+        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
+        reverse_output, reverse_output_params = getattr(reverse_fitter, self.func_name)(
+            data=self.reverse_array(self.y), average_dataset=average_dataset, method='aspls',
+        )
 
         assert_allclose(
-            regular_output_params['weights'],
-            np.asarray(reverse_output_params['weights'])[..., ::-1],
+            regular_output_params['alpha'],
+            self.reverse_array(reverse_output_params['alpha']),
             rtol=1e-12, atol=1e-14
         )
 
@@ -335,3 +345,98 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
         super().test_input_weights(
             constrained_weight=weightings, constrained_fraction=constrained_fractions
         )
+
+
+class TestCustomBC(OptimizersTester):
+    """Class for testing custom_bc baseline."""
+
+    func_name = 'custom_bc'
+    # will need to change checked_keys if default method is changed
+    checked_keys = ('weights', 'tol_history', 'y_fit', 'x_fit')
+    required_kwargs = {'sampling': 5}
+
+    @pytest.mark.parametrize(
+        'method',
+        (
+            'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'asls', 'airpls', 'arpls',
+            'mpls', 'mor', 'imor', 'mixture_model', 'irsqr', 'corner_cutting', 'pspline_asls',
+            'pspline_airpls', 'noise_median', 'snip', 'dietrich', 'std_distribution', 'fabc'
+        )
+    )
+    def test_methods(self, method):
+        """
+        Ensures most available methods work.
+
+        Does not test all methods since the function can be used for all methods within
+        pybaselines; instead, it just tests a few methods from each module.
+
+        """
+        self.class_func(self.y, method=method)
+
+    def test_x_ordering(self):
+        """Ensures arrays are correctly sorted within the function."""
+        super().test_x_ordering(assertion_kwargs={'rtol': 1e-6})
+
+    @pytest.mark.parametrize('lam', (None, 1))
+    def test_output_smoothing(self, lam):
+        """Ensures the smoothing is done properly if specified."""
+        diff_order = 2
+        output, params = self.class_func(self.y, method='asls', lam=lam, diff_order=diff_order)
+
+        truncated_baseline = Baseline(params['x_fit']).asls(params['y_fit'])[0]
+        expected_baseline = np.interp(self.x, params['x_fit'], truncated_baseline)
+        if lam is not None:
+            expected_baseline = utils.whittaker_smooth(
+                expected_baseline, lam=lam, diff_order=diff_order
+            )
+
+        assert_allclose(output, expected_baseline, rtol=1e-8, atol=1e-8)
+
+    @pytest.mark.parametrize('roi_and_samplings', (
+        [((None, None),), 5],
+        [((None, None),), 1],
+        [((None, None),), 10000000],
+        [((0, 20), (20, 30)), (3, 2)],
+        [((0, 1), (20, 30)), (3, 2)],
+        [((0, 20), (20, 30)), (33,)],
+        [((0, 20), (20, 30), (30, None)), (33, 5, 50)],
+    ))
+    def test_unique_x(self, roi_and_samplings):
+        """Ensures the fit uses only unique values and that x and y match dimensions."""
+        regions, sampling = roi_and_samplings
+        output, params = self.class_func(self.y, regions=regions, sampling=sampling)
+
+        assert_allclose(params['x_fit'], np.unique(params['x_fit']), rtol=1e-12, atol=1e-14)
+        assert params['x_fit'].shape == params['y_fit'].shape
+        assert len(params['x_fit']) > 2  # should at least include first, middle, and last values
+
+    def test_roi_sampling_mixmatch_fails(self):
+        """Ensures an exception is raised if regions and sampling do not have the same shape."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=((None, None),), sampling=[1, 2])
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=((None, 10), (20, 30), (30, 40)), sampling=[1, 2])
+
+    @pytest.mark.parametrize('sampling', (-1, [-1], [5, -5]))
+    def test_negative_sampling_fails(self, sampling):
+        """Ensures an exception is raised if sampling is negative."""
+        if isinstance(sampling, int):
+            num_samplings = 1
+        else:
+            num_samplings = len(sampling)
+        regions = []
+        for i in range(num_samplings):
+            regions.append([i * 10, (i + 1) * 10])
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=regions, sampling=sampling)
+
+    @pytest.mark.parametrize('regions', (((-1, 5),), ((0, 10), (20, -30)), ((0, 10000),)))
+    def test_bad_region_values_fails(self, regions):
+        """Ensures an exception is raised if regions has a negative value or a too large value."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=regions)
+
+    def test_overlapping_regions_fails(self):
+        """Ensures an exception is raised if regions overlap."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, regions=((0, 10), (9, 13)))

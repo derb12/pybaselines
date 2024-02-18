@@ -9,11 +9,9 @@ Created on March 5, 2021
 import numpy as np
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
-from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_lam
-from .utils import (
-    _mollifier_kernel, pad_edges, padded_convolve, relative_difference, whittaker_smooth
-)
+from .utils import _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
 
 
 class _Morphological(_Algorithm):
@@ -110,20 +108,20 @@ class _Morphological(_Algorithm):
             indices = np.flatnonzero(
                 ((diff[1:] == 0) | (diff[:-1] == 0)) & ((diff[1:] != 0) | (diff[:-1] != 0))
             )
-            w = np.full(y.shape[0], p)
+            w = np.full(self._len, p)
             # find the index of min(y) in the region between flat regions
             for previous_segment, next_segment in zip(indices[1::2], indices[2::2]):
                 index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
                 w[index] = 1 - p
 
-            # have to invert the weight ordering the matching the original input y ordering
+            # have to invert the weight ordering to match the original input y ordering
             # since it will be sorted within _setup_whittaker
             w = _sort_array(w, self._inverted_order)
 
         _, weight_array = self._setup_whittaker(y, lam, diff_order, w)
-        baseline = whittaker_smooth(
-            y, lam=lam, diff_order=diff_order, weights=weight_array,
-            check_finite=False, penalized_system=self.whittaker_system
+        baseline = self.whittaker_system.solve(
+            self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+            overwrite_ab=True, overwrite_b=True
         )
 
         params = {'weights': weight_array, 'half_window': half_wind}
@@ -486,15 +484,8 @@ class _Morphological(_Algorithm):
         dict
             A dictionary with the following items:
 
-            * 'half_window': int or numpy.ndarray(int)
-                The half window or array of half windows used for the
-                morphological calculations.
-
-        Notes
-        -----
-        To use a changing window size for either the morphological or smoothing
-        operations, the half windows must be arrays. Otherwise, the size of the
-        rolling ball is assumed to be constant.
+            * 'half_window': int
+                The half window used for the morphological calculations.
 
         References
         ----------
@@ -830,7 +821,7 @@ class _Morphological(_Algorithm):
         robust_opening : bool, optional
             If True (default), the opening used to represent the initial baseline is the
             element-wise minimum between the morphological opening and the average of the
-            morphological erosion and dilation of the opening, similar to :meth:`.mor`. If
+            morphological erosion and dilation of the opening, similar to :meth:`~Baseline.mor`. If
             False, the opening is just the morphological opening, as used in the reference.
             The robust opening typically represents the baseline better.
         **window_kwargs
@@ -1336,15 +1327,8 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     dict
         A dictionary with the following items:
 
-        * 'half_window': int or numpy.ndarray(int)
-            The half window or array of half windows used for the
-            morphological calculations.
-
-    Notes
-    -----
-    To use a changing window size for either the morphological or smoothing
-    operations, the half windows must be arrays. Otherwise, the size of the
-    rolling ball is assumed to be constant.
+        * 'half_window': int
+            The half window used for the morphological calculations.
 
     References
     ----------
@@ -1626,7 +1610,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
     robust_opening : bool, optional
         If True (default), the opening used to represent the initial baseline is the
         element-wise minimum between the morphological opening and the average of the
-        morphological erosion and dilation of the opening, similar to :meth:`.mor`. If
+        morphological erosion and dilation of the opening, similar to :meth:`~Baseline.mor`. If
         False, the opening is just the morphological opening, as used in the reference.
         The robust opening typically represents the baseline better.
     x_data : array-like, optional

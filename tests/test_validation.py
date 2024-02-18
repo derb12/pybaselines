@@ -7,7 +7,7 @@ Created on Dec. 11, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import _validation
@@ -34,7 +34,52 @@ def test_yx_arrays_no_x(small_data):
     y, x = _validation._yx_arrays(small_data)
 
     assert isinstance(x, np.ndarray)
-    assert_array_equal(x, np.linspace(-1., 1., y.shape[0]))
+    assert_allclose(x, np.linspace(-1., 1., y.shape[0]), rtol=1e-12, atol=1e-12)
+    assert isinstance(y, np.ndarray)
+    assert_allclose(y, small_data, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('array_enum', (0, 1))
+def test_yxz_arrays_output_array(data_fixture2d, array_enum):
+    """Ensures output y, x, and z are always numpy arrays and that x and z are not scaled."""
+    x, z, y = data_fixture2d
+    if array_enum == 1:
+        x = x.tolist()
+        z = z.tolist()
+        y = y.tolist()
+
+    y_out, x_out, z_out = _validation._yxz_arrays(y, x, z)
+
+    assert isinstance(y_out, np.ndarray)
+    assert_allclose(y_out, y, rtol=1e-12, atol=1e-12)
+    assert isinstance(x_out, np.ndarray)
+    assert_allclose(x_out, x, rtol=1e-12, atol=1e-12)
+    assert isinstance(z_out, np.ndarray)
+    assert_allclose(z_out, z, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('has_x', (True, False))
+@pytest.mark.parametrize('has_z', (True, False))
+def test_yx_arrays_no_xz(data_fixture2d, has_x, has_z):
+    """Ensures an x and/or z array are created if None is input."""
+    x, z, y = data_fixture2d
+    if has_x:
+        expected_x = x
+    else:
+        x = None
+        expected_x = np.linspace(-1, 1, y.shape[0])
+    if has_z:
+        expected_z = z
+    else:
+        z = None
+        expected_z = np.linspace(-1, 1, y.shape[1])
+    y_out, x_out, z_out = _validation._yxz_arrays(y, x, z)
+
+    assert_allclose(y_out, y)
+    assert isinstance(x_out, np.ndarray)
+    assert_allclose(x_out, expected_x, rtol=1e-12, atol=1e-12)
+    assert isinstance(z_out, np.ndarray)
+    assert_allclose(z_out, expected_z, rtol=1e-12, atol=1e-12)
 
 
 @pytest.mark.parametrize('ndim', (0, 1, 2))
@@ -138,11 +183,76 @@ def test_check_scalar_asarray_kwargs():
         assert output.dtype == dtype
 
 
+@pytest.mark.parametrize('coerce_0d', (False, True))
+def test_check_scalar_coerce_0d(coerce_0d):
+    """Ensures coerce_0d keyword maintains array when False."""
+    data = [1]
+    output, is_scalar = _validation._check_scalar(data, desired_length=None, coerce_0d=coerce_0d)
+    if coerce_0d:
+        assert output == 1
+        assert is_scalar
+    else:
+        assert_array_equal(output, np.array([1]))
+        assert output.shape == (1,)
+        assert not is_scalar
+
+
+def test_check_scalar_length_none():
+    """Ensures a desired_length of None skips the length check."""
+    for data in (0, [0]):
+        output, _ = _validation._check_scalar(data, desired_length=None)
+        assert output == 0
+
+    for data in ([0, 1, 2], [[0, 1], [2, 3]]):
+        output, _ = _validation._check_scalar(data, desired_length=None)
+        assert output.shape == (np.array(data).flatten().size,)
+        with pytest.raises(ValueError):
+            _validation._check_scalar(data, desired_length=10000)
+
+
+def test_check_scalar_variable_single():
+    """Ensures _check_scalar_variable returns a float value for the simple 1d case."""
+    value = 3.2
+
+    output = _validation._check_scalar_variable(value)
+    assert isinstance(output, float)
+    assert_allclose(output, value, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable([value])
+    assert isinstance(output, float)
+    assert_allclose(output, value, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable(np.array([value]))
+    assert isinstance(output, float)
+    assert_allclose(output, value, rtol=0, atol=1e-14)
+
+
+def test_check_scalar_variable_twod():
+    """Ensures _check_scalar_variable returns a length 2 numpy array for the simple 2d case."""
+    value = 3.2
+    expected_output = np.array([value, value])
+
+    output = _validation._check_scalar_variable(value, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable([value], two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable(np.array([value]), two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable([value, value], two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_scalar_variable(np.array([value, value]), two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+
 @pytest.mark.parametrize('lam', (5, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]])))
 def test_check_lam(lam):
     """Ensures scalar lam values are correctly processed."""
     output_lam = _validation._check_lam(lam)
-    assert output_lam == 5
+    assert_allclose(output_lam, 5, rtol=0, atol=1e-14)
 
 
 def test_check_lam_failures():
@@ -157,10 +267,50 @@ def test_check_lam_failures():
             _validation._check_lam(lam)
 
     # test that is allows zero if allow_zero is True
-    _validation._check_lam(0, True)
+    _validation._check_lam(0, allow_zero=True)
     for lam in range(-5, 0):
         with pytest.raises(ValueError):
-            _validation._check_lam(lam, True)
+            _validation._check_lam(lam, allow_zero=True)
+
+
+@pytest.mark.parametrize(
+        'lam', (
+            5, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]]),
+            [5, 5], np.array([5, 5])
+        )
+    )
+def test_check_lam_twod(lam):
+    """Ensures scalar lam values are correctly processed."""
+    output_lam = _validation._check_lam(lam, two_d=True)
+    assert_allclose(output_lam, np.array([5, 5]), rtol=0, atol=1e-14)
+
+
+def test_check_lam_twod_allow_zero():
+    """Ensures _check_lam allows zero for two dimensional inputs when allowed."""
+    expected_output = np.array([0, 0])
+
+    output = _validation._check_lam(0, allow_zero=True, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_lam([0, 0], allow_zero=True, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+
+@pytest.mark.parametrize('allow_zero', (True, False))
+def test_check_lam_twod_negative_failures(allow_zero):
+    """Ensures _check_lam works fails for larger than two dimensional inputs."""
+    max_val = 0 if allow_zero else 1
+
+    # check scalar inputs
+    for lam in range(-5, max_val):
+        with pytest.raises(ValueError):
+            _validation._check_lam(lam, allow_zero=allow_zero, two_d=True)
+
+    # check array-like inputs
+    for lam_1 in range(-5, max_val):
+        for lam_2 in range(-5, max_val):
+            with pytest.raises(ValueError):
+                _validation._check_lam([lam_1, lam_2], allow_zero=allow_zero, two_d=True)
 
 
 @pytest.mark.parametrize(
@@ -188,11 +338,54 @@ def test_check_half_window_failures():
     _validation._check_half_window(0, True)
     for half_window in range(-5, 0):
         with pytest.raises(ValueError):
-            _validation._check_half_window(half_window, True)
+            _validation._check_half_window(half_window, allow_zero=True)
 
     # fails due to non-integer input
     with pytest.raises(TypeError):
         _validation._check_half_window(5.01)
+
+
+@pytest.mark.parametrize(
+    'half_window', (
+        5, 5.0, [5], (5,), [[5]], np.array(5), np.array([5]), np.array([[5]]),
+        np.array([5, 5]), [5, 5], [5.0, 5.0]
+    )
+)
+def test_check_half_window_twod(half_window):
+    """Ensures _check_half_window works for two dimensional inputs when allowed."""
+    output_half_window = _validation._check_half_window(half_window, two_d=True)
+    assert_allclose(output_half_window, np.array([5, 5], dtype=np.intp))
+    assert output_half_window.dtype == np.intp
+
+
+def test_check_half_window_twod_allow_zero():
+    """Ensures _check_half_window allows zero for two dimensional inputs when allowed."""
+    expected_output = np.array([0, 0], dtype=np.intp)
+
+    output = _validation._check_half_window(0, allow_zero=True, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+    output = _validation._check_half_window([0, 0], allow_zero=True, two_d=True)
+    assert_allclose(output, expected_output, rtol=0, atol=1e-14)
+
+
+@pytest.mark.parametrize('allow_zero', (True, False))
+def test_check_half_window_twod_negative_failures(allow_zero):
+    """Ensures _check_half_window works fails for larger than two dimensional inputs."""
+    max_val = 0 if allow_zero else 1
+
+    # check scalar inputs
+    for half_window in range(-5, max_val):
+        with pytest.raises(ValueError):
+            _validation._check_half_window(half_window, allow_zero=allow_zero, two_d=True)
+
+    # check array-like inputs
+    for half_window_1 in range(-5, max_val):
+        for half_window_2 in range(-5, max_val):
+            with pytest.raises(ValueError):
+                _validation._check_half_window(
+                    [half_window_1, half_window_2], allow_zero=allow_zero, two_d=True
+                )
 
 
 @pytest.mark.parametrize('list_input', (True, False))
@@ -386,3 +579,24 @@ def test_optional_array_no_input():
 
     assert isinstance(output, np.ndarray)
     assert_array_equal(output, np.ones(length))
+
+
+def test_get_row_col_values():
+    """Ensures multiple inputs can work for _get_row_col_values."""
+    assert_array_equal(_validation._get_row_col_values(1), [1, 1, 1, 1])
+    assert_array_equal(_validation._get_row_col_values(np.array(1)), [1, 1, 1, 1])
+    assert_array_equal(_validation._get_row_col_values(np.array([1])), [1, 1, 1, 1])
+    assert_array_equal(_validation._get_row_col_values([1.1]), [1.1, 1.1, 1.1, 1.1])
+    assert_array_equal(_validation._get_row_col_values([[1.1]]), [1.1, 1.1, 1.1, 1.1])
+    assert_array_equal(_validation._get_row_col_values([1, 2]), [1, 1, 2, 2])
+    assert_array_equal(_validation._get_row_col_values([[1], [2]]), [1, 1, 2, 2])
+    assert_array_equal(_validation._get_row_col_values(np.array([1, 2, 3, 4])), [1, 2, 3, 4])
+    assert_array_equal(_validation._get_row_col_values([1, 2, 3, 4]), [1, 2, 3, 4])
+    assert_array_equal(_validation._get_row_col_values([[1, 2], [3, 4]]), [1, 2, 3, 4])
+
+
+@pytest.mark.parametrize('values', ([1, 2, 3], [1, 2, 3, 4, 5]))
+def test_get_row_col_values_fails(values):
+    """Ensures _get_row_col_values raises an exception with incorrectly sized inputs.."""
+    with pytest.raises(ValueError):
+        _validation._get_row_col_values(values)

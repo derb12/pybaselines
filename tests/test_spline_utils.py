@@ -12,10 +12,11 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.interpolate import BSpline, splev
-from scipy.sparse import diags, issparse, spdiags
+from scipy.sparse import issparse
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
+from pybaselines._compat import dia_object, diags
 
 
 def _nieve_basis_matrix(x, knots, spline_degree):
@@ -230,10 +231,10 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lowe
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
     num_bases = basis.shape[1]
     penalty = _banded_utils.diff_penalty_diagonals(num_bases, diff_order, lower_only)
-    penalty_matrix = spdiags(
-        _banded_utils.diff_penalty_diagonals(num_bases, diff_order, False),
-        np.arange(diff_order, -(diff_order + 1), -1), num_bases, num_bases, 'csr'
-    )
+    penalty_matrix = dia_object(
+        (_banded_utils.diff_penalty_diagonals(num_bases, diff_order, False),
+        np.arange(diff_order, -(diff_order + 1), -1)), shape=(num_bases, num_bases)
+    ).tocsr()
 
     expected_coeffs = spsolve(
         basis.T @ diags(weights, format='csr') @ basis + penalty_matrix,
@@ -388,6 +389,51 @@ def test_pspline_negative_spline_degree_fails(data_fixture, spline_degree):
             _spline_utils.PSpline(x, spline_degree=spline_degree)
 
 
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('num_knots', (10, 100))
+@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('lam', (1e-2, 1e2))
+def test_pspline_tck(data_fixture, num_knots, spline_degree, diff_order, lam):
+    """Ensures the tck attribute can correctly recreate the solved spline."""
+    x, y = data_fixture
+    pspline = _spline_utils.PSpline(
+        x, num_knots=num_knots, spline_degree=spline_degree, diff_order=diff_order, lam=lam
+    )
+    fit_spline = pspline.solve_pspline(y, weights=np.ones_like(y))
+
+    # ensure tck is the knots, coefficients, and spline degree
+    assert len(pspline.tck) == 3
+    knots, coeffs, degree = pspline.tck
+
+    assert_allclose(knots, pspline.knots, rtol=1e-12)
+    assert_allclose(coeffs, pspline.coef, rtol=1e-12)
+    assert degree == spline_degree
+
+    # now recreate the spline with scipy's BSpline and ensure it is the same
+    recreated_spline = BSpline(*pspline.tck)(x)
+
+    assert_allclose(recreated_spline, fit_spline, rtol=1e-10)
+
+
+def test_pspline_tck_none(data_fixture):
+    """Ensures an exception is raised when tck attribute is accessed without first solving once."""
+    x, y = data_fixture
+    pspline = _spline_utils.PSpline(x)
+
+    assert pspline.coef is None
+    with pytest.raises(ValueError):
+        tck = pspline.tck
+
+
+def test_pspline_tck_readonly(data_fixture):
+    """Ensures the tck attribute is read-only."""
+    x, y = data_fixture
+    pspline = _spline_utils.PSpline(x)
+    pspline.solve_pspline(y, np.ones_like(y))
+    with pytest.raises(AttributeError):
+        pspline.tck = (1, 2, 3)
+
+
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4))
 def test_basis_midpoints(spline_degree):
     """Tests the _basis_midpoints function."""
@@ -403,3 +449,46 @@ def test_basis_midpoints(spline_degree):
     output_midpoints = _spline_utils._basis_midpoints(knots, spline_degree)
 
     assert_allclose(expected_points, output_midpoints, rtol=1e-10, atol=1e-12)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('lam', (5, 1e2))
+def test_compare_to_whittaker(data_fixture, lam, diff_order):
+    """
+    Ensures Whittaker and PSpline outputs are the same for specific condition.
+
+    If the number of basis functions for splines is equal to the number of data points, and
+    the spline degree is set to 0, then the spline basis becomes the identity function
+    and should produce the same analytical equation as Whittaker smoothing.
+
+    Since PSplines are more complicated for setting up in 1D than Whittaker smoothing, need to
+    verify the PSPline implementation.
+
+    """
+    x, y = data_fixture
+
+    pspline = _spline_utils.PSpline(
+        x, num_knots=len(x) + 1, spline_degree=0, lam=lam, diff_order=diff_order,
+        check_finite=False
+    )
+
+    # sanity check to ensure it was set up correctly
+    assert_array_equal(pspline.basis.shape, (len(x), len(x)))
+
+    whittaker_system = _banded_utils.PenalizedSystem(len(y), lam=lam, diff_order=diff_order)
+
+    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
+    weights = np.random.RandomState(0).normal(0.8, 0.05, len(y))
+    weights = np.clip(weights, 0, 1).astype(float, copy=False)
+
+    main_diag_idx = whittaker_system.main_diagonal_index
+    main_diagonal = whittaker_system.penalty[main_diag_idx]
+    whittaker_system.penalty[main_diag_idx] = main_diagonal + weights
+    whittaker_output = whittaker_system.solve(
+        whittaker_system.penalty, weights * y, overwrite_b=True
+    )
+
+    spline_output = pspline.solve_pspline(y, weights=weights)
+    whittaker_output = whittaker_system.solve(whittaker_system.penalty, weights.ravel() * y.ravel())
+
+    assert_allclose(spline_output, whittaker_output, rtol=1e-12, atol=1e-12)

@@ -81,13 +81,11 @@ class _Whittaker(_Algorithm):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -177,8 +175,6 @@ class _Whittaker(_Algorithm):
         if self.whittaker_system.using_pentapy:
             diff_1_diags = diff_1_diags[::-1]
         self.whittaker_system.add_penalty(lambda_1 * diff_1_diags)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
 
         # fast calculation of lam_1 * (D_1.T @ D_1) @ y
         d1_y = y.copy()
@@ -188,10 +184,10 @@ class _Whittaker(_Algorithm):
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            weight_squared = weight_array * weight_array
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_squared
+            weight_squared = weight_array**2
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_squared * y + d1_y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_squared), weight_squared * y + d1_y,
+                overwrite_b=True
             )
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -253,25 +249,22 @@ class _Whittaker(_Algorithm):
             data, lam, diff_order, weights, copy_weights=True
         )
         y_l1_norm = np.abs(y).sum()
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         # Have to have extensive error handling since the weights can all become
         # very small due to the exp(i) term if too many iterations are performed;
         # checking the negative residual length usually prevents any errors, but
         # sometimes not so have to also catch any errors from the solvers
         for i in range(1, max_iter + 2):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             try:
                 output = self.whittaker_system.solve(
-                    self.whittaker_system.penalty, weight_array * y, overwrite_b=True,
-                    check_output=True
+                    self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                    overwrite_b=True, check_output=True
                 )
             except np.linalg.LinAlgError:
                 warnings.warn(
                     ('error occurred during fitting, indicating that "tol"'
                      ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning
+                    ParameterWarning, stacklevel=2
                 )
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -285,7 +278,8 @@ class _Whittaker(_Algorithm):
                 # point would get a weight of 0, which fails the solver
                 warnings.warn(
                     ('almost all baseline points are below the data, indicating that "tol"'
-                     ' is too low and/or "max_iter" is too high'), ParameterWarning
+                     ' is too low and/or "max_iter" is too high'), ParameterWarning,
+                     stacklevel=2
                 )
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -351,13 +345,11 @@ class _Whittaker(_Algorithm):
         """
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         tol_history = np.empty(max_iter + 1)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._arpls(y, baseline)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -463,7 +455,8 @@ class _Whittaker(_Algorithm):
                 # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
                 warnings.warn(
                     ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
+                    stacklevel=2
                 )
                 break
             elif calc_difference < tol:
@@ -521,13 +514,11 @@ class _Whittaker(_Algorithm):
 
         """
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._iarpls(y, baseline, i)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -541,7 +532,8 @@ class _Whittaker(_Algorithm):
                 # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
                 warnings.warn(
                     ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
+                    stacklevel=2
                 )
                 break
             elif calc_difference < tol:
@@ -570,7 +562,7 @@ class _Whittaker(_Algorithm):
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
-            The max number of fit iterations. Default is 50.
+            The max number of fit iterations. Default is 100.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         weights : array-like, shape (N,), optional
@@ -665,7 +657,7 @@ class _Whittaker(_Algorithm):
             contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
-            Default is 1e6.
+            Default is 1e5.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
@@ -675,7 +667,7 @@ class _Whittaker(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -726,13 +718,11 @@ class _Whittaker(_Algorithm):
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         if k is None:
             k = np.std(y) / 10
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._psalsa(y, baseline, p, k, self._len)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -768,7 +758,7 @@ class _Whittaker(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -842,13 +832,11 @@ class _Whittaker(_Algorithm):
         diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
         partial_weights = diff_1_weights * diff_2_weights
 
-        main_diag_idx = self.whittaker_system.main_diagonal_index
-        main_diagonal = self.whittaker_system.penalty[main_diag_idx].copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            self.whittaker_system.penalty[main_diag_idx] = main_diagonal + weight_array
             baseline = self.whittaker_system.solve(
-                self.whittaker_system.penalty, weight_array * y, overwrite_b=True
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
             )
             new_weights = _weighting._derpsalsa(y, baseline, p, k, self._len, partial_weights)
             calc_difference = relative_difference(weight_array, new_weights)
@@ -1218,7 +1206,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
-        The max number of fit iterations. Default is 50.
+        The max number of fit iterations. Default is 100.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     weights : array-like, shape (N,), optional
@@ -1287,7 +1275,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
         contain missing data (NaN) or Inf.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
-        Default is 1e6.
+        Default is 1e5.
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
@@ -1297,7 +1285,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
@@ -1371,7 +1359,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.

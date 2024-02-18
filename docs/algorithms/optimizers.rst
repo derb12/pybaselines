@@ -11,7 +11,7 @@ Algorithms
 optimize_extended_range
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The :meth:`.optimize_extended_range` function is based on the `Extended Range
+The :meth:`~.Baseline.optimize_extended_range` function is based on the `Extended Range
 Penalized Least Squares (erPLS) method <https://doi.org/10.3390/s20072015>`_,
 but extends its usage to all Whittaker-smoothing-based, polynomial, and spline algorithms.
 
@@ -201,7 +201,7 @@ added linear regions is selected as the optimal parameter.
 collab_pls (Collaborative Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.collab_pls` is intended for fitting multiple datasets of related data,
+:meth:`~.Baseline.collab_pls` is intended for fitting multiple datasets of related data,
 and can use any Whittaker-smoothing-based or spline method. The general idea is that using
 multiple sets of data should be better able to estimate the overall baseline rather
 than individually fitting each set of data.
@@ -258,7 +258,7 @@ since it requires multiple sets of data for each baseline type.
 adaptive_minmax (Adaptive MinMax)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`.adaptive_minmax` uses two different polynomial orders and two different
+:meth:`~.Baseline.adaptive_minmax` uses two different polynomial orders and two different
 weighting schemes to create a total of four fits. The polynomial order(s) can be
 specified by the user, or else they will be estimated by the signal-to-noise
 ratio of the data. The first weighting scheme is either all points weighted
@@ -284,3 +284,15 @@ the name).
             poly_order = 1
         baseline, params = baseline_fitter.adaptive_minmax(y, poly_order=poly_order, method='imodpoly')
         ax.plot(baseline, 'g--')
+
+
+custom_bc (Customized Baseline Correction)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline.custom_bc` allows fine tuning the stiffness of the
+baseline within different regions of the fit data, which is helpful when
+experimental data has drastically different baselines within it. This is done by
+reducing the number of data points in regions where higher stiffness
+is required. There is no figure showing the fits for various baseline types for
+this method since it is more suited for hard-to-fit data; however, :ref:`an
+example <sphx_glr_examples_optimizers_plot_custom_bc_1_whittaker.py>` showcases its use.

@@ -12,7 +12,9 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from .conftest import BaseTester, BasePolyTester, dummy_wrapper, get_data
+from .conftest import (
+    BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, dummy_wrapper, get_data, get_data2d
+)
 
 
 class DummyModule:
@@ -47,6 +49,35 @@ class DummyModule:
             params['coef'] = polynomial.convert(window=original_domain).coef
 
         return baseline, params
+
+    @staticmethod
+    def bad_poly_func(data, x_data=None, return_coef=False, **kwargs):
+        """A bad polynomial algorithm."""
+        params = {'a': 1}
+        if not return_coef:
+            params['coef'] = np.zeros(5)
+
+        return np.ones_like(data), params
+
+    @staticmethod
+    def good_weights_func(data, x_data=None, weights=None, **kwargs):
+        """A good algorithm that can take weights."""
+        return np.ones_like(data), {'a': 1, 'weights': np.ones_like(data)}
+
+    @staticmethod
+    def good_mask_func(data, x_data=None, weights=None, **kwargs):
+        """A good algorithm that can take weights and outputs them as the 'mask' key."""
+        return np.ones_like(data), {'a': 1, 'mask': np.ones_like(data)}
+
+    @staticmethod
+    def bad_weights_func(data, x_data=None, weights=None, **kwargs):
+        """An algorithm that incorrectly uses weights."""
+        return np.ones_like(data), {'a': 1, 'weights': np.arange(len(data))}
+
+    @staticmethod
+    def bad_weights_func_no_weights(data, x_data=None, weights=None, **kwargs):
+        """An algorithm that does not include weights in the output parameters."""
+        return np.ones_like(data), {'a': 1}
 
     @staticmethod
     def change_y(data, x_data=None):
@@ -148,10 +179,11 @@ class DummyModule:
 
 
 class DummyAlgorithm:
-    """A dummy object to serve as a fake Algorithm subclass."""
+    """A dummy object to serve as a fake Algorithm and Algorithm2D subclass."""
 
-    def __init__(self, x_data=None, *args, **kwargs):
+    def __init__(self, x_data=None, z_data=None, *args, **kwargs):
         self.x = x_data
+        self.z = z_data
         self.calls = 0
 
     @dummy_wrapper
@@ -172,6 +204,41 @@ class DummyAlgorithm:
         )
 
     @dummy_wrapper
+    def bad_poly_func(self, data, return_coef=False, **kwargs):
+        """A bad polynomial algorithm."""
+        return DummyModule.bad_poly_func(
+            data=data, x_data=self.x, return_coef=return_coef, **kwargs
+        )
+
+    @dummy_wrapper
+    def good_weights_func(self, data, weights=None, **kwargs):
+        """A good algorithm that can take weights."""
+        return DummyModule.good_weights_func(
+            data=data, x_data=self.x, weights=weights, **kwargs
+        )
+
+    @dummy_wrapper
+    def good_mask_func(self, data, weights=None, **kwargs):
+        """A good algorithm that can take weights and outputs them as the 'mask' key."""
+        return DummyModule.good_mask_func(
+            data=data, x_data=self.x, weights=weights, **kwargs
+        )
+
+    @dummy_wrapper
+    def bad_weights_func(self, data, weights=None, **kwargs):
+        """An algorithm that incorrectly uses weights."""
+        return DummyModule.bad_weights_func(
+            data=data, x_data=self.x, weights=weights, **kwargs
+        )
+
+    @dummy_wrapper
+    def bad_weights_func_no_weights(self, data, weights=None, **kwargs):
+        """An algorithm that does not include weights in the output parameters."""
+        return DummyModule.bad_weights_func_no_weights(
+            data=data, x_data=self.x, weights=weights, **kwargs
+        )
+
+    @dummy_wrapper
     def change_y(self, data):
         """Changes the input data values, which is unwanted."""
         data[0] = 200000
@@ -180,7 +247,13 @@ class DummyAlgorithm:
     @dummy_wrapper
     def change_x(self, data):
         """Changes the input x-data values, which is unwanted."""
-        self.x[0] = 200000
+        self.x[0] = self.x[0] + 5
+        return data, {}
+
+    @dummy_wrapper
+    def change_z(self, data):
+        """Changes the input x-data values, which is unwanted."""
+        self.z[0] += 5
         return data, {}
 
     @dummy_wrapper
@@ -268,6 +341,24 @@ class DummyAlgorithm:
         """Gives different output depending on the x-value sorting."""
         return data[np.argsort(self.x)], {}
 
+    @dummy_wrapper
+    def different_z_ordering(self, data=None):
+        """Gives different output depending on the z-value sorting."""
+        return data[(..., np.argsort(self.z))], {}
+
+    @dummy_wrapper
+    def different_xz_output(self, data=None):
+        """Gives different output depending on the x-values and z-values."""
+        if self.x is None or self.z is None:
+            return data, {}
+        else:
+            return 10 * data, {}
+
+    @dummy_wrapper
+    def different_xz_ordering(self, data=None):
+        """Gives different output depending on the x-value and z-value sorting."""
+        return data[np.argsort(self.x)[:, None], np.argsort(self.z)[None, :]], {}
+
 
 class TestBaseTesterWorks(BaseTester):
     """Ensures a basic subclass of BaseTester works."""
@@ -289,10 +380,20 @@ class TestBaseTesterWorks(BaseTester):
         assert callable(self.class_func)
         assert self.kwargs == {'key': 1}
         assert self.param_keys == ['a']
+        assert not self.two_d
+
+    def test_reverse_array(self):
+        """Ensures the reverse_array funcion works correctly."""
+        assert_allclose(self.reverse_array(self.y), self.y[..., ::-1])
 
 
 class TestBaseTesterWorks2d(BaseTester):
-    """Ensures a basic subclass of BaseTester works for a two dimensional algorithm."""
+    """
+    Ensures a basic subclass of BaseTester works for a two dimensional algorithm.
+
+    Note: this is for one dimensional algorithms that take two dimensional data, not
+    for two dimensional algorithms.
+    """
 
     module = DummyModule
     algorithm_base = DummyAlgorithm
@@ -306,6 +407,11 @@ class TestBaseTesterWorks2d(BaseTester):
         assert_allclose(self.y, np.vstack((expected_y, expected_y)), rtol=1e-14, atol=1e-14)
         assert self.kwargs == {}
         assert self.param_keys == []
+        assert self.two_d
+
+    def test_reverse_array(self):
+        """Ensures the reverse_array funcion works correctly."""
+        assert_allclose(self.reverse_array(self.y), self.y[..., ::-1])
 
 
 class TestBaseTesterFailures(BaseTester):
@@ -477,3 +583,287 @@ class TestBasePolyTesterWorks(BasePolyTester):
     algorithm_base = DummyAlgorithm
     func_name = 'good_poly_func'
     checked_keys = ['a']
+
+
+class TestBasePolyTesterFailures(BasePolyTester):
+    """Tests the various BasePolyTester methods for functions with incorrect output."""
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'bad_poly_func'
+    checked_keys = ['a']
+
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        """Ensures failure if the coefficients are not correctly returned."""
+        with pytest.raises(AssertionError):
+            super().test_output(return_coef=return_coef)
+
+    def test_output_coefs(self):
+        """Ensures failure if the coefficients cannot recreate the output baseline."""
+        with pytest.raises(AssertionError):
+            super().test_output_coefs()
+
+
+class TestInputWeightsMixinWorks(BaseTester, InputWeightsMixin):
+    """Ensures a basic subclass of InputWeightsMixin works."""
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'good_weights_func'
+    checked_keys = ['a', 'weights']
+    required_kwargs = {'key': 1}
+
+    @contextmanager
+    def set_func(self, func_name, checked_keys=None, weight_key=None):
+        """Temporarily sets a new function for the class."""
+        original_name = self.func_name
+        original_keys = self.param_keys
+        original_weight_key = self.weight_keys
+        try:
+            self.__class__.func_name = func_name
+            self.__class__.checked_keys = checked_keys
+            self.__class__.weight_keys = weight_key
+            self.__class__.setup_class()
+            yield self
+        finally:
+            self.__class__.func_name = original_name
+            self.__class__.checked_keys = original_keys
+            self.__class__.weight_keys = original_weight_key
+            self.__class__.setup_class()
+
+    def test_input_weights(self):
+        """Ensures weight testing works for different weight keys in the parameter dictionary."""
+        super().test_input_weights()
+        with self.set_func('good_mask_func', weight_key=('mask',), checked_keys=('a', 'mask')):
+            super().test_input_weights()
+
+
+class TestInputWeightsMixinFails(BaseTester, InputWeightsMixin):
+    """Tests the various BasePolyTester methods for functions with incorrect output."""
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'bad_weights_func'
+    checked_keys = ['a', 'weights']
+    required_kwargs = {'key': 1}
+
+    @contextmanager
+    def set_func(self, func_name, checked_keys=None, weight_key=('weights',)):
+        """Temporarily sets a new function for the class."""
+        original_name = self.func_name
+        original_keys = self.param_keys
+        original_weight_key = self.weight_keys
+        try:
+            self.__class__.func_name = func_name
+            self.__class__.checked_keys = checked_keys
+            self.__class__.weight_keys = weight_key
+            self.__class__.setup_class()
+            yield self
+        finally:
+            self.__class__.func_name = original_name
+            self.__class__.checked_keys = original_keys
+            self.__class__.weight_keys = original_weight_key
+            self.__class__.setup_class()
+
+    def test_input_weights(self):
+        """Ensures weight testing works for different weight keys in the parameter dictionary."""
+        with pytest.raises(AssertionError):
+            super().test_input_weights()
+
+    def test_has_no_weights(self):
+        """Ensures failure occurs if the weight key is not present in the parameter dictionary."""
+        with self.set_func('bad_weights_func_no_weights', checked_keys=('a',)):
+            with pytest.raises(AssertionError):
+                super().test_input_weights()
+
+
+class TestBaseTester2DWorks(BaseTester2D):
+    """Ensures a basic subclass of BaseTester2D works."""
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'good_func'
+    checked_keys = ['a']
+    required_kwargs = {'key': 1}
+
+    def test_setup(self):
+        """Ensures the `setup_class` class method is done correctly."""
+        expected_x, expected_z, expected_y = get_data2d()
+        assert_allclose(self.x, expected_x, rtol=1e-14, atol=1e-14)
+        assert_allclose(self.z, expected_z, rtol=1e-14, atol=1e-14)
+        assert_allclose(self.y, expected_y, rtol=1e-14, atol=1e-14)
+        assert issubclass(self.algorithm_base, DummyAlgorithm)
+        assert isinstance(self.algorithm, DummyAlgorithm)
+        assert callable(self.class_func)
+        assert self.kwargs == {'key': 1}
+        assert self.param_keys == ['a']
+        assert not self.three_d
+
+    def test_reverse_array(self):
+        """Ensures the reverse_array funcion works correctly."""
+        assert_allclose(self.reverse_array(self.y), self.y[..., ::-1, ::-1])
+
+
+class TestBaseTester2DWorks3d(BaseTester2D):
+    """
+    Ensures a basic subclass of BaseTester works for a two dimensional algorithm.
+
+    Note: this is for two dimensional algorithms that take three dimensional data, not
+    for three dimensional algorithms.
+    """
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'good_func2'
+    three_d = True
+
+    def test_setup(self):
+        """Ensures the `setup_class` class method is done correctly."""
+        expected_x, expected_z, expected_y = get_data2d()
+        assert_allclose(self.x, expected_x, rtol=1e-14, atol=1e-14)
+        assert_allclose(self.z, expected_z, rtol=1e-14, atol=1e-14)
+        assert_allclose(self.y, np.array((expected_y, expected_y)), rtol=1e-14, atol=1e-14)
+        assert self.kwargs == {}
+        assert self.param_keys == []
+        assert self.three_d
+
+    def test_reverse_array(self):
+        """Ensures the reverse_array funcion works correctly."""
+        assert_allclose(self.reverse_array(self.y), self.y[..., ::-1, ::-1])
+
+
+class TestBaseTester2DFailures(BaseTester2D):
+    """Tests the various BaseTester2D methods for functions with incorrect output."""
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'no_func'
+
+    @contextmanager
+    def set_func(self, func_name, checked_keys=None):
+        """Temporarily sets a new function for the class."""
+        original_name = self.func_name
+        original_keys = self.param_keys
+        try:
+            self.__class__.func_name = func_name
+            self.__class__.checked_keys = checked_keys
+            self.__class__.setup_class()
+            yield self
+        finally:
+            self.__class__.func_name = original_name
+            self.__class__.checked_keys = original_keys
+            self.__class__.setup_class()
+
+    def test_ensure_wrapped(self):
+        """Ensures no wrapper fails."""
+        with self.set_func('no_wrapper'):
+            with pytest.raises(AssertionError):
+                super().test_ensure_wrapped()
+
+    @pytest.mark.parametrize('new_instance', (True, False))
+    @pytest.mark.parametrize('func', ('change_x', 'change_y', 'change_z'))
+    def test_unchanged_data(self, new_instance, func):
+        """Ensures changing the x and y data fails."""
+        with self.set_func(func):
+            with pytest.raises(AssertionError):
+                super().test_unchanged_data(new_instance)
+
+    def test_repeated_fits(self):
+        """Ensures no wrapper fails."""
+        with self.set_func('repitition_changes'):
+            with pytest.raises(AssertionError):
+                super().test_repeated_fits()
+
+    def test_list_input(self):
+        """Ensures test fails when func gives different outputs for different input types."""
+        with self.set_func('different_output'):
+            with pytest.raises(AssertionError):
+                super().test_list_input()
+
+    @pytest.mark.parametrize('has_x', (True, False))
+    @pytest.mark.parametrize('has_z', (True, False))
+    def test_no_xz(self, has_x, has_z):
+        """Ensures failure occurs when output changes when no x or z is given."""
+        if has_x and has_z:
+            return  # the one test case that would not produce any difference, so just skip
+        with self.set_func('different_xz_output'):
+            with pytest.raises(AssertionError):
+                super().test_no_xz(has_x, has_z)
+
+    def test_output(self):
+        """Ensures failure occurs when the output is not correct."""
+        with self.set_func('single_output'):
+            with pytest.raises(AssertionError):
+                super().test_output()
+
+        with self.set_func('output_list'):
+            with pytest.raises(AssertionError):
+                super().test_output()
+
+        with self.set_func('output_nondict'):
+            with pytest.raises(AssertionError):
+                super().test_output()
+
+        with self.set_func('output_wrong_shape'):
+            with pytest.raises(AssertionError):
+                super().test_output()
+
+        # also ensure keys are checked
+        with self.set_func('good_func'):
+            with pytest.raises(AssertionError):
+                super().test_output()
+            with pytest.raises(AssertionError):
+                super().test_output(additional_keys=['b', 'c'])
+
+        with self.set_func('good_func', checked_keys=('a', 'b')):
+            with pytest.raises(AssertionError):
+                super().test_output()
+
+    @pytest.mark.parametrize('func',
+        ('different_x_ordering', 'different_z_ordering', 'different_xz_ordering')
+    )
+    def test_xz_ordering(self, func):
+        """Ensures failure when output is dependent on x-value sorting."""
+        with self.set_func(func):
+            with pytest.raises(AssertionError):
+                super().test_xz_ordering()
+
+
+class TestBaseTester2DNoFunc(BaseTester2D):
+    """Ensures the BaseTester2D fails if not setup correctly."""
+
+    @pytest.mark.parametrize('new_instance', (True, False))
+    def test_unchanged_data(self, new_instance):
+        """Ensures that input data is unchanged by the function."""
+        with pytest.raises(NotImplementedError):
+            super().test_unchanged_data(new_instance)
+
+    def test_repeated_fits(self):
+        """Ensures the setup is properly reset when using class api."""
+        with pytest.raises(NotImplementedError):
+            super().test_repeated_fits()
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        with pytest.raises(NotImplementedError):
+            super().test_list_input()
+
+    @pytest.mark.parametrize('has_x', (True, False))
+    @pytest.mark.parametrize('has_z', (True, False))
+    def test_no_xz(self, has_x, has_z):
+        """Ensures that function output is the same when no x or z is input."""
+        if has_x and has_z:
+            return  # the one test case that would not produce any difference, so just skip
+        with pytest.raises(NotImplementedError):
+            super().test_no_xz(has_x, has_z)
+
+    def test_output(self):
+        """Ensures that the output has the desired format."""
+        with pytest.raises(NotImplementedError):
+            super().test_output()
+
+    def test_xz_ordering(self):
+        """Ensures arrays are correctly sorted within the function."""
+        with pytest.raises(NotImplementedError):
+            super().test_xz_ordering()

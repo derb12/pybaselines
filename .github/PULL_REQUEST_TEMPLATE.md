@@ -5,9 +5,8 @@
 are required and/or what problems they fix. Link or add the issue number
 for any existing issues that the pull request solves.
 
-Note that unsolicited pull requests will most likely be closed.
-Please file an issue first, so that details can be discussed/finalized
-before a pull request is created.-->
+Note that it is preferred to file an issue first, so that details can be
+discussed/finalized before a pull request is created.-->
 
 
 ### Type of Pull Request
@@ -24,9 +23,9 @@ before a pull request is created.-->
 To run tests locally, type the following command within the pybaselines
 directory: pytest .
 
-To lint files using flake8 to see if they pass PEP 8 standards and that
+To lint files using ruff to see if they pass PEP 8 standards and that
 docstrings are okay, run the following command within the pybaselines
-directory: flake8 .
+directory: ruff check .
 
 To build documentation locally, type the following command within the
 docs directory: make html

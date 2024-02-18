@@ -15,7 +15,7 @@ import pytest
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BasePolyTester, InputWeightsMixin, get_data
+from .conftest import BasePolyTester, InputWeightsMixin
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
     STATSMODELS_QUANTILES
@@ -209,7 +209,6 @@ class TestLoess(IterativePolynomialTester):
     @pytest.mark.parametrize('use_threshold', (True, False))
     def test_unchanged_data(self, use_class, use_threshold, conserve_memory, delta):
         """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
         super().test_unchanged_data(
             use_class, use_threshold=use_threshold,
             conserve_memory=conserve_memory, delta=delta
@@ -374,6 +373,12 @@ class TestLoess(IterativePolynomialTester):
         """Ensures the input weights are sorted correctly."""
         super().test_input_weights(use_threshold=use_threshold)
 
+    def test_non_sorted_x_fails(self):
+        """Ensures that non-monotonically increasing x-values fails."""
+        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=True)
+        with pytest.raises(ValueError):
+            getattr(reverse_fitter, self.func_name)(self.y)
+
 
 class TestQuantReg(IterativePolynomialTester):
     """Class for testing quant_reg baseline."""
@@ -387,7 +392,7 @@ class TestQuantReg(IterativePolynomialTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, quantile=quantile)
 
-    @pytest.mark.parametrize('quantile', [0.1, 0.5, 0.9])
+    @pytest.mark.parametrize('quantile', tuple(STATSMODELS_QUANTILES.keys()))
     def test_compare_to_statsmodels(self, quantile):
         """
         Compares the output of quant_reg to statsmodels's quantile regression implementation.
@@ -454,7 +459,6 @@ class TestGoldindec(PolynomialTester):
     )
     def test_unchanged_data(self, use_class, cost_function):
         """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
         super().test_unchanged_data(use_class, cost_function=cost_function)
 
     @pytest.mark.parametrize('cost_function', ('p_huber', ''))

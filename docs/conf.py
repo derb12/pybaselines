@@ -33,10 +33,11 @@ sys.path.insert(0, os.path.abspath('..'))
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
     #'sphinx.ext.autodoc',
-    #'sphinx.ext.autosummary',
+    #'sphinx.ext.autosummary',  # use autoapi instead of autodoc and autosummary
     'autoapi.extension',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.napoleon',
+    #'sphinx.ext.napoleon',  # use numpydoc instead
+    'numpydoc',
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
@@ -61,7 +62,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'pybaselines'
-copyright = "2021-2023, Donald Erb"
+copyright = "2021-2024, Donald Erb"
 author = "Donald Erb"
 
 # The version info for the project you're documenting, acts as replacement
@@ -69,7 +70,7 @@ author = "Donald Erb"
 # the built documents.
 #
 # The short X.Y version.
-version = '1.0.0'
+version = '1.1.0'
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -78,7 +79,7 @@ release = version
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # smartquotes converts quotes and dashes to typographically correct entities
 # but I think it's been messing up my html documentation.
@@ -105,7 +106,7 @@ todo_include_todos = False
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'pentapy': ('https://geostat-framework.readthedocs.io/projects/pentapy/en/stable/', None)
 }
 
@@ -134,15 +135,28 @@ autoapi_options = [
     #'special-members', # show things like __str__
     #'imported-members', # document things imported within each module
 ]
-autoapi_member_order = 'groupwise' # groups into classes, functions, etc.
-autoapi_python_class_content = 'class' # include class docstring from class and/or __init__
-#autoapi_keep_files = True # keep the files after generation
-#autoapi_add_toctree_entry = False # need to manually add to toctree if False
-#autoapi_generate_api_docs = False # will not generate new docs when False
+autoapi_member_order = 'groupwise'  # groups into classes, functions, etc.
+autoapi_python_class_content = 'class'  # include class docstring from class and/or __init__
+autoapi_keep_files = False  # keep the files after generation
+autoapi_add_toctree_entry = True  # need to manually add to toctree if False
+autoapi_generate_api_docs = True  # will not generate new docs when False
 
 # ignore an import warning from sphinx-autoapi due to double import of utils
-suppress_warnings = ['autoapi.python_import_resolution']
+suppress_warnings = ['autoapi.python_import_resolution', 'autosectionlabel']
 
+# -- Settings for matplotlib plot_directive extension ----------------------------
+
+plot_include_source = False
+
+plot_formats = ['png']
+
+# -- Settings for numpydoc extension ----------------------------
+
+# uses the matplotlib plot_directive extension when "import matplotlib" is in a docstring
+numpydoc_use_plots = True
+
+# creates cross references for types in docstrings
+numpydoc_xref_param_type = False
 
 # -- Settings for sphinx-gallery extension ----------------------------
 
@@ -156,7 +170,9 @@ gallery_section_order = [
     '../examples/morphological',
     '../examples/spline',
     '../examples/classification',
-    '../examples/misc'
+    '../examples/misc',
+    '../examples/optimizers',
+    '../examples/two_d',
 ]
 
 sphinx_gallery_conf = {
@@ -194,7 +210,7 @@ except ImportError:
     html_theme = 'nature'
 else:
     html_theme = 'sphinx_rtd_theme'
-    del sphinx_rtd_theme
+
 
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
@@ -210,7 +226,6 @@ html_theme_options = {
 html_static_path = [
     #'_static'
 ]
-
 
 # -- Options for HTMLHelp output ---------------------------------------
 

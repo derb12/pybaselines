@@ -6,22 +6,19 @@ Created on August 4, 2021
 
 """
 
-from functools import partial
-from math import ceil
 import warnings
 
 import numpy as np
-from scipy.optimize import curve_fit
-from scipy.sparse import spdiags
+from scipy.ndimage import grey_opening
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
-from ._compat import _HAS_NUMBA, jit
+from ._compat import dia_object, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
-    _MIN_FLOAT, _mollifier_kernel, ParameterWarning, gaussian, pad_edges, padded_convolve,
+    ParameterWarning, _mollifier_kernel, _sort_array, gaussian, pad_edges, padded_convolve,
     relative_difference
 )
 
@@ -73,9 +70,11 @@ class _Spline(_Algorithm):
             residuals. If True, an additional uniform distribution will be added to the
             mixture model for negative non-noise residuals. Only need to set `symmetric`
             to True when peaks are both positive and negative.
-        num_bins : int, optional
-            The number of bins to use when transforming the residuals into a probability
-            density distribution. Default is None, which uses ``ceil(sqrt(N))``.
+        num_bins : int, optional, deprecated
+
+            .. deprecated:: 1.1.0
+                ``num_bins`` is deprecated since it is no longer necessary for performing
+                the expectation-maximization and will be removed in pybaselines version 1.3.0.
 
         Returns
         -------
@@ -102,14 +101,24 @@ class _Spline(_Algorithm):
         de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
         Intelligent Laboratory Systems, 2012, 117, 56-60.
 
+        Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
+        preprint arXiv:1901.06708, 2019.
+
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
+        if num_bins is not None:
+            warnings.warn(
+                '"num_bins" was deprecated in version 1.1.0 and will be removed in version 1.3.0',
+                DeprecationWarning, stacklevel=2
+            )
 
         y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         # scale y between -1 and 1 so that the residual fit is more numerically stable
+        # TODO is this still necessary now that expectation-maximization is used? -> still
+        # helps to prevent overflows when using gaussian
         y_domain = np.polynomial.polyutils.getdomain(y)
         y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
@@ -130,77 +139,63 @@ class _Spline(_Algorithm):
                 baseline = self.pspline.solve_pspline(y, weight_array)
                 weight_array = _weighting._asls(y, baseline, p)
 
-        # now perform the expectation-maximization
-        # TODO not sure if there is a better way to do this than transforming
-        # the residual into a histogram, fitting the histogram, and then assigning
-        # weights based on the bins; actual expectation-maximization uses log(probability)
-        # directly estimates sigma from that, and then calculates the percentages, maybe
-        # that would be faster/more stable?
-        if num_bins is None:
-            num_bins = ceil(np.sqrt(y.shape[0]))
-
-        # uniform probability density distribution for positive residuals, constant
-        # from 0 to max(residual), and 0 for residuals < 0
-        pos_uniform_pdf = np.empty(num_bins)
-        tol_history = np.empty(max_iter + 1)
         residual = y - baseline
-
         # the 0.2 * std(residual) is an "okay" starting sigma estimate
-        fit_params = [0.5, np.log10(0.2 * np.std(residual))]
-        bounds = [[0, -np.inf], [1, np.inf]]
+        sigma = 0.2 * np.std(residual)
+        fraction_noise = 0.5
         if symmetric:
-            fit_params.append(0.25)
-            bounds[0].append(0)
-            bounds[1].append(1)
-            # create a second uniform pdf for negative residual values
-            neg_uniform_pdf = np.empty(num_bins)
+            fraction_positive = 0.25
         else:
-            neg_uniform_pdf = None
-
-        # convert bounds to numpy array since curve_fit will use np.asarray each iteration
-        bounds = np.array(bounds)
+            fraction_positive = 1 - fraction_noise
+        tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            residual_hist, bin_edges, bin_mapping = _mapped_histogram(residual, num_bins)
-            # average bin edges to get better x-values for fitting
-            bins = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-            pos_uniform_mask = bins < 0
-            pos_uniform_pdf[~pos_uniform_mask] = 1 / max(abs(residual.max()), 1e-6)
-            pos_uniform_pdf[pos_uniform_mask] = 0
-            if symmetric:
-                neg_uniform_mask = bins > 0
-                neg_uniform_pdf[~neg_uniform_mask] = 1 / max(abs(residual.min()), 1e-6)
-                neg_uniform_pdf[neg_uniform_mask] = 0
-
-            fit_func = partial(
-                _mixture_pdf, pos_uniform=pos_uniform_pdf, neg_uniform=neg_uniform_pdf
+            # expectation part of expectation-maximization -> calc pdfs and
+            # posterior probabilities
+            positive_pdf = (
+                fraction_positive * (residual >= 0) * (1 / max(abs(residual.max()), 1e-6))
             )
-            # use dogbox method since trf gives RuntimeWarnings from nans appearing
-            # somehow during optimization; trf is also prone to failure when symmetric=True
-            fit_params = curve_fit(
-                fit_func, bins, residual_hist, p0=fit_params, bounds=bounds,
-                check_finite=False, method='dogbox'
-            )[0]
-            sigma = 10**fit_params[1]
-            gaus_pdf = fit_params[0] * gaussian(bins, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
-            posterior_prob = gaus_pdf / np.maximum(fit_func(bins, *fit_params), _MIN_FLOAT)
-            # need to clip since a bad initial start can erroneously set the sum of the fractions
-            # of each distribution to > 1
-            np.clip(posterior_prob, 0, 1, out=posterior_prob)
-            new_weights = posterior_prob[bin_mapping]
+            noise_pdf = (
+                fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
+            )
+            total_pdf = noise_pdf + positive_pdf
+            if symmetric:
+                negative_pdf = (
+                    (1 - fraction_noise - fraction_positive)
+                    * (residual < 0) * (1 / max(abs(residual.min()), 1e-6))
+                )
+                total_pdf += negative_pdf
+            posterior_prob_noise = noise_pdf / total_pdf
 
-            calc_difference = relative_difference(weight_array, new_weights)
+            calc_difference = relative_difference(weight_array, posterior_prob_noise)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
 
-            weight_array = new_weights
+            # maximization part of expectation-maximization -> update sigma and
+            # fractions of each pdf
+            noise_sum = posterior_prob_noise.sum()
+            sigma = np.sqrt((posterior_prob_noise * residual**2).sum() / noise_sum)
+            if not symmetric:
+                fraction_noise = posterior_prob_noise.mean()
+                fraction_positive = 1 - fraction_noise
+            else:
+                posterior_prob_positive = positive_pdf / total_pdf
+                posterior_prob_negative = negative_pdf / total_pdf
+
+                positive_sum = posterior_prob_positive.sum()
+                negative_sum = posterior_prob_negative.sum()
+                total_sum = noise_sum + positive_sum + negative_sum
+
+                fraction_noise = noise_sum / total_sum
+                fraction_positive = positive_sum / total_sum
+
+            weight_array = posterior_prob_noise
             baseline = self.pspline.solve_pspline(y, weight_array)
             residual = y - baseline
 
-        # TODO could potentially return a BSpline object from scipy.interpolate
-        # using knots, spline degree, and coef, but would need to allow user to
-        # input the x-values for it to be useful
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1]
+        }
 
         baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
 
@@ -322,7 +317,7 @@ class _Spline(_Algorithm):
 
         areas = np.zeros(max_iter)
         kept_points = np.zeros(self._len, int)
-        old_area = np.trapz(y, self.x)
+        old_area = trapezoid(y, self.x)
         old_sum = self._len
         ym = y
         xm = self.x
@@ -352,7 +347,7 @@ class _Spline(_Algorithm):
             #     + (xm[2:] - xm[1:-1]) * (ym[2:] + ym[1:-1])
             #     - (xm[2:] - xm[:-2]) * (ym[2:] + ym[:-2])
             # ).sum()
-            area = np.trapz(ym, xm)
+            area = trapezoid(ym, xm)
             areas[i] = (old_area - area) / num_corners
             old_area = area
 
@@ -401,9 +396,6 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
 
         Returns
         -------
@@ -427,7 +419,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.asls
+        Baseline.asls
 
         References
         ----------
@@ -517,7 +509,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.iasls
+        Baseline.iasls
 
         References
         ----------
@@ -548,7 +540,7 @@ class _Spline(_Algorithm):
         d1_penalty = _check_lam(lam_1) * diff_penalty_diagonals(self._len, 1, lower_only=False)
         d1_penalty = (
             self.pspline.basis.T
-            @ spdiags(d1_penalty, np.array([1, 0, -1]), self._len, self._len, 'csr')
+            @ dia_object((d1_penalty, np.array([1, 0, -1])), shape=(self._len, self._len)).tocsr()
         )
         partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array
@@ -617,7 +609,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.airpls
+        Baseline.airpls
 
         References
         ----------
@@ -641,7 +633,7 @@ class _Spline(_Algorithm):
                 warnings.warn(
                     ('error occurred during fitting, indicating that "tol"'
                      ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning
+                    ParameterWarning, stacklevel=2
                 )
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -656,7 +648,7 @@ class _Spline(_Algorithm):
                 # point would get a weight of 0, which fails the solver
                 warnings.warn(
                     ('almost all baseline points are below the data, indicating that "tol"'
-                     ' is too low and/or "max_iter" is too high'), ParameterWarning
+                     ' is too low and/or "max_iter" is too high'), ParameterWarning, stacklevel=2
                 )
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -721,7 +713,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.arpls
+        Baseline.arpls
 
         References
         ----------
@@ -804,7 +796,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.drpls
+        Baseline.drpls
 
         References
         ----------
@@ -854,7 +846,8 @@ class _Spline(_Algorithm):
                 # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
                 warnings.warn(
                     ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
+                     stacklevel=2
                 )
                 break
             elif calc_difference < tol:
@@ -893,9 +886,6 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
 
         Returns
         -------
@@ -914,7 +904,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.iarpls
+        Baseline.iarpls
 
         References
         ----------
@@ -944,7 +934,8 @@ class _Spline(_Algorithm):
                 # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
                 warnings.warn(
                     ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning
+                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
+                     stacklevel=2
                 )
                 break
             elif calc_difference < tol:
@@ -977,7 +968,7 @@ class _Spline(_Algorithm):
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
         max_iter : int, optional
-            The max number of fit iterations. Default is 50.
+            The max number of fit iterations. Default is 100.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         weights : array-like, shape (N,), optional
@@ -1007,7 +998,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.aspls
+        Baseline.aspls
 
         Notes
         -----
@@ -1083,7 +1074,7 @@ class _Spline(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -1121,7 +1112,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.psalsa
+        Baseline.psalsa
 
         References
         ----------
@@ -1179,7 +1170,7 @@ class _Spline(_Algorithm):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`.asls`.
+            will produce similar results to :meth:`~Baseline.asls`.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -1226,7 +1217,7 @@ class _Spline(_Algorithm):
 
         See Also
         --------
-        pybaselines.whittaker.derpsalsa
+        Baseline.derpsalsa
 
         References
         ----------
@@ -1280,163 +1271,126 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
+    @_Algorithm._register(sort_keys=('weights',))
+    def pspline_mpls(self, data, half_window=None, lam=1e3, p=0.0, num_knots=100, spline_degree=3,
+                     diff_order=2, tol=1e-3, max_iter=50, weights=None, **window_kwargs):
+        """
+        A penalized spline version of the morphological penalized least squares (MPLS) algorithm.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        half_window : int, optional
+            The half-window used for the morphology functions. If a value is input,
+            then that value will be used. Default is None, which will optimize the
+            half-window size using :func:`.optimize_window` and `window_kwargs`.
+        lam : float, optional
+            The smoothing parameter. Larger values will create smoother baselines.
+            Default is 1e3.
+        p : float, optional
+            The penalizing weighting factor. Must be between 0 and 1. Anchor points
+            identified by the procedure in [32]_ are given a weight of `1 - p`, and all
+            other points have a weight of `p`. Default is 0.0.
+        num_knots : int, optional
+            The number of knots for the spline. Default is 100.
+        spline_degree : int, optional
+            The degree of the spline. Default is 3, which is a cubic spline.
+        diff_order : int, optional
+            The order of the differential matrix. Must be greater than 0. Default is 2
+            (second order differential matrix). Typical values are 2 or 1.
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then the weights will be
+            calculated following the procedure in [32]_.
+        **window_kwargs
+            Values for setting the half window used for the morphology operations.
+            Items include:
+
+                * 'increment': int
+                    The step size for iterating half windows. Default is 1.
+                * 'max_hits': int
+                    The number of consecutive half windows that must produce the same
+                    morphological opening before accepting the half window as the
+                    optimum value. Default is 1.
+                * 'window_tol': float
+                    The tolerance value for considering two morphological openings as
+                    equivalent. Default is 1e-6.
+                * 'max_half_window': int
+                    The maximum allowable window size. If None (default), will be set
+                    to (len(data) - 1) / 2.
+                * 'min_half_window': int
+                    The minimum half-window size. If None (default), will be set to 1.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,)
+                The weight array used for fitting the data.
+            * 'half_window': int
+                The half window used for the morphological calculations.
+
+        Raises
+        ------
+        ValueError
+            Raised if p is not between 0 and 1.
+
+        See Also
+        --------
+        Baseline.mpls
+
+        References
+        ----------
+        .. [32] Li, Zhong, et al. Morphological weighted penalized least squares for
+            background correction. Analyst, 2013, 138, 4483-4492.
+
+        Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+        Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+        """
+        if not 0 <= p <= 1:
+            raise ValueError('p must be between 0 and 1')
+
+        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        if weights is not None:
+            w = weights
+        else:
+            rough_baseline = grey_opening(y, [2 * half_wind + 1])
+            diff = np.diff(
+                np.concatenate([rough_baseline[:1], rough_baseline, rough_baseline[-1:]])
+            )
+            # diff == 0 means the point is on a flat segment, and diff != 0 means the
+            # adjacent point is not the same flat segment. The union of the two finds
+            # the endpoints of each segment, and np.flatnonzero converts the mask to
+            # indices; indices will always be even-sized.
+            indices = np.flatnonzero(
+                ((diff[1:] == 0) | (diff[:-1] == 0)) & ((diff[1:] != 0) | (diff[:-1] != 0))
+            )
+            w = np.full(y.shape[0], p)
+            # find the index of min(y) in the region between flat regions
+            for previous_segment, next_segment in zip(indices[1::2], indices[2::2]):
+                index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
+                w[index] = 1 - p
+
+            # have to invert the weight ordering the matching the original input y ordering
+            # since it will be sorted within _setup_spline
+            w = _sort_array(w, self._inverted_order)
+
+        _, weight_array = self._setup_spline(y, w, spline_degree, num_knots, True, diff_order, lam)
+        baseline = self.pspline.solve_pspline(y, weight_array)
+
+        params = {'weights': weight_array, 'half_window': half_wind}
+        return baseline, params
+
 
 _spline_wrapper = _class_wrapper(_Spline)
-
-
-@jit(nopython=True, cache=True)
-def _numba_mapped_histogram(data, num_bins, histogram):
-    """
-    Creates a normalized histogram of the data and a mapping of the indices, using one pass.
-
-    Parameters
-    ----------
-    data : numpy.ndarray, shape (N,)
-        The data to be made into a histogram.
-    num_bins : int
-        The number of bins for the histogram.
-    histogram : numpy.ndarray
-        An array of zeros that will be modified inplace into the histogram.
-
-    Returns
-    -------
-    bins : numpy.ndarray, shape (`num_bins` + 1)
-        The bin edges for the histogram. Follows numpy's implementation such that
-        each bin is inclusive on the left edge and exclusive on the right edge, except
-        for the last bin which is inclusive on both edges.
-    bin_mapping : numpy.ndarray, shape (N,)
-        An array of integers that maps each item in `data` to its index within `histogram`.
-
-    Notes
-    -----
-    `histogram` is modified inplace and converted to a probability density function
-    (total area = 1) after the counting.
-
-    """
-    num_data = data.shape[0]
-    bins = np.linspace(data.min(), data.max(), num_bins + 1)
-    bin_mapping = np.empty(num_data, dtype=np.intp)
-    bin_frequency = num_bins / (bins[-1] - bins[0])
-    bin_0 = bins[0]
-    last_index = num_bins - 1
-    # TODO this seems like it would work in parallel, but it instead slows down
-    for i in range(num_data):
-        index = int((data[i] - bin_0) * bin_frequency)
-        if index == num_bins:
-            histogram[last_index] += 1
-            bin_mapping[i] = last_index
-        else:
-            histogram[index] += 1
-            bin_mapping[i] = index
-
-    # normalize histogram such that area=1 so that it is a probability density function
-    histogram /= (num_data * (bins[1] - bins[0]))
-
-    return bins, bin_mapping
-
-
-def _mapped_histogram(data, num_bins):
-    """
-    Creates a histogram of the data and a mapping of the indices.
-
-    Parameters
-    ----------
-    data : numpy.ndarray, shape (N,)
-        The data to be made into a histogram.
-    num_bins : int
-        The number of bins for the histogram.
-
-    Returns
-    -------
-    histogram : numpy.ndarray, shape (`num_bins`)
-        The histogram of the data, normalized so that its area is 1.
-    bins : numpy.ndarray, shape (`num_bins` + 1)
-        The bin edges for the histogram. Follows numpy's implementation such that
-        each bin is inclusive on the left edge and exclusive on the right edge, except
-        for the last bin which is inclusive on both edges.
-    bin_mapping : numpy.ndarray, shape (N,)
-        An array of integers that maps each item in `data` to its index within `histogram`.
-
-    Notes
-    -----
-    If numba is installed, the histogram and bin mapping can both be created in
-    one pass, which is faster.
-
-    """
-    if _HAS_NUMBA:
-        # create zeros array outside of numba function since numba's implementation
-        # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259)
-        histogram = np.zeros(num_bins)
-        bins, bin_mapping = _numba_mapped_histogram(data, num_bins, histogram)
-    else:
-        histogram, bins = np.histogram(data, num_bins, density=True)
-        # leave out last bin edge to account for extra index; leave out first
-        # bin edge since np.searchsorted finds indices where bin[i-1] <= val < bin[i]
-        # while the desired indices are bin[i] <= val < bin[i + 1]
-        bin_mapping = np.searchsorted(bins[1:-1], data, 'right')
-
-    return histogram, bins, bin_mapping
-
-
-def _mixture_pdf(x, n, sigma, n_2=0, pos_uniform=None, neg_uniform=None):
-    """
-    The probability density function of a Gaussian and one or two uniform distributions.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The x-values of the distribution.
-    n : float
-        The fraction of the distribution belonging to the Gaussian.
-    sigma : float
-        Log10 of the standard deviation of the Gaussian distribution.
-    n_2 : float, optional
-        If `neg_uniform` or `pos_uniform` is None, then `n_2` is just an unused input.
-        Otherwise, it is the fraction of the distribution belonging to the positive
-        uniform distribution. Default is 0.
-    pos_uniform : numpy.ndarray, shape (N,), optional
-        The array of the positive uniform distributtion. Default is None.
-    neg_uniform : numpy.ndarray, shape (N,), optional
-        The array of the negative uniform distribution. Default is None.
-
-    Returns
-    -------
-    numpy.ndarray
-        The total probability density function for the mixture model.
-
-    Notes
-    -----
-    Defining `sigma` as ``log10(actual sigma)`` allows not bounding `sigma` during
-    optimization and allows it to more easily fit different scales.
-
-    References
-    ----------
-    de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
-    Intelligent Laboratory Systems, 2012, 117, 56-60.
-
-    """
-    # no error handling for if both pos_uniform and neg_uniform are None since this
-    # is an internal function
-    if neg_uniform is None:
-        n1 = n
-        n2 = 1 - n
-        n3 = 0
-        neg_uniform = 0
-    elif pos_uniform is None:  # never actually used, but nice to have for the future
-        n1 = n
-        n2 = 0
-        n3 = 1 - n
-        pos_uniform = 0
-    else:
-        n1 = n
-        n2 = n_2
-        n3 = 1 - n - n_2
-
-    actual_sigma = 10**sigma
-    # the gaussian should be area-normalized, so set height accordingly
-    height = 1 / max(actual_sigma * np.sqrt(2 * np.pi), _MIN_FLOAT)
-
-    return n1 * gaussian(x, height, 0, actual_sigma) + n2 * pos_uniform + n3 * neg_uniform
 
 
 @_spline_wrapper
@@ -1484,9 +1438,12 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         residuals. If True, an additional uniform distribution will be added to the
         mixture model for negative non-noise residuals. Only need to set `symmetric`
         to True when peaks are both positive and negative.
-    num_bins : int, optional
-        The number of bins to use when transforming the residuals into a probability
-        density distribution. Default is None, which uses ``ceil(sqrt(N))``.
+    num_bins : int, optional, deprecated
+
+        .. deprecated:: 1.1.0
+            ``num_bins`` is deprecated since it is no longer necessary for performing
+            the expectation-maximization and will be removed in pybaselines version 1.3.0.
+
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
@@ -1515,6 +1472,9 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     ----------
     de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
     Intelligent Laboratory Systems, 2012, 117, 56-60.
+
+    Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
+    preprint arXiv:1901.06708, 2019.
 
     """
 
@@ -2192,7 +2152,7 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
     max_iter : int, optional
-        The max number of fit iterations. Default is 50.
+        The max number of fit iterations. Default is 100.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     weights : array-like, shape (N,), optional
@@ -2269,7 +2229,7 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional
@@ -2348,7 +2308,7 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak. Default is None, which sets `k` to
         one-tenth of the standard deviation of the input data. A large k value
-        will produce similar results to :meth:`.asls`.
+        will produce similar results to :meth:`~Baseline.asls`.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional
@@ -2405,6 +2365,92 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
     Korepanov, V. Asymmetric least-squares baseline algorithm with peak screening for
     automatic processing of the Raman spectra. Journal of Raman Spectroscopy. 2020,
     51(10), 2061-2065.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+
+
+@_spline_wrapper
+def pspline_mpls(data, x_data=None, half_window=None, lam=1e3, p=0.0, num_knots=100,
+                 spline_degree=3, diff_order=2, tol=1e-3, max_iter=50, weights=None,
+                 **window_kwargs):
+    """
+    A penalized spline version of the morphological penalized least squares (MPLS) algorithm.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    half_window : int, optional
+        The half-window used for the morphology functions. If a value is input,
+        then that value will be used. Default is None, which will optimize the
+        half-window size using :func:`.optimize_window` and `window_kwargs`.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e3.
+    p : float, optional
+        The penalizing weighting factor. Must be between 0 and 1. Anchor points
+        identified by the procedure in [1]_ are given a weight of `1 - p`, and all
+        other points have a weight of `p`. Default is 0.0.
+    num_knots : int, optional
+        The number of knots for the spline. Default is 100.
+    spline_degree : int, optional
+        The degree of the spline. Default is 3, which is a cubic spline.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the weights will be
+        calculated following the procedure in [1]_.
+    **window_kwargs
+        Values for setting the half window used for the morphology operations.
+        Items include:
+
+            * 'increment': int
+                The step size for iterating half windows. Default is 1.
+            * 'max_hits': int
+                The number of consecutive half windows that must produce the same
+                morphological opening before accepting the half window as the
+                optimum value. Default is 1.
+            * 'window_tol': float
+                The tolerance value for considering two morphological openings as
+                equivalent. Default is 1e-6.
+            * 'max_half_window': int
+                The maximum allowable window size. If None (default), will be set
+                to (len(data) - 1) / 2.
+            * 'min_half_window': int
+                The minimum half-window size. If None (default), will be set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'half_window': int
+            The half window used for the morphological calculations.
+
+    Raises
+    ------
+    ValueError
+        Raised if p is not between 0 and 1.
+
+    References
+    ----------
+    .. [1] Li, Zhong, et al. Morphological weighted penalized least squares for
+        background correction. Analyst, 2013, 138, 4483-4492.
 
     Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
     Reviews: Computational Statistics, 2010, 2(6), 637-653.

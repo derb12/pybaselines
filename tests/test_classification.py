@@ -10,10 +10,9 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 import scipy
-from scipy.signal import cwt
 
 from pybaselines import classification
-from pybaselines.utils import ParameterWarning
+from pybaselines.utils import ParameterWarning, whittaker_smooth
 
 from .conftest import BaseTester, InputWeightsMixin
 from .data import PYWAVELETS_HAAR
@@ -261,7 +260,7 @@ def test_haar_cwt_comparison_to_pywavelets(scale):
     y = np.zeros(100)
     y[50] = 1
 
-    haar_cwt = cwt(y, classification._haar, [scale])[0]
+    haar_cwt = classification._cwt(y, classification._haar, [scale])[0]
     # test absolute tolerance rather than relative tolerance since
     # some values are very close to 0
     assert_allclose(haar_cwt**2, PYWAVELETS_HAAR[scale]**2, 0, 1e-14)
@@ -369,3 +368,112 @@ class TestFabc(ClassificationTester):
     def test_input_weights(self, weights_as_mask):
         """Tests input weights as both a mask and as weights."""
         super().test_input_weights(weights_as_mask=weights_as_mask)
+
+
+class TestRubberband(ClassificationTester):
+    """Class for testing rubberband baseline."""
+
+    func_name = 'rubberband'
+
+    def test_segments_scalar_vs_array(self):
+        """Compares scalar and array-like segments in the case they should have the same value."""
+        segments = 5
+        manual_segments = np.arange(segments + 1) * len(self.x) // segments
+
+        output_1 = self.class_func(self.y, segments=segments)[0]
+        output_2 = self.class_func(self.y, segments=manual_segments)[0]
+
+        assert_allclose(output_1, output_2, rtol=1e-12)
+
+    def test_segment_repeats(self):
+        """Ensures repeated segments are only counted once."""
+        segments_1 = [250, 500, 750]
+        segments_2 = [250, 500, 750, 250, 500, 750]
+        segments_3 = [0, 250, 500, 750, len(self.x)]
+
+        output_1 = self.class_func(self.y, segments=segments_1)[0]
+        output_2 = self.class_func(self.y, segments=segments_2)[0]
+        output_3 = self.class_func(self.y, segments=segments_3)[0]
+
+        assert_allclose(output_1, output_2, rtol=1e-12)
+        assert_allclose(output_1, output_3, rtol=1e-12)
+
+    def test_incorrect_scalar_segments_fail(self):
+        """Ensures scalar values less than 1 or greater than len(x) // 3 fail."""
+        max_segments = len(self.x) // 3
+        self.class_func(self.y, segments=max_segments)
+        with pytest.raises(ValueError):
+            self.class_func(self.y, segments=max_segments + 1)
+        with pytest.raises(ValueError):
+            self.class_func(self.y, segments=0)
+
+    def test_incorrect_array_segments_fail(self):
+        """Ensures array values less than 0, greater than len(x), or too small spacing fail."""
+        max_segments = len(self.x) // 3
+        segments = np.arange(max_segments + 1) * len(self.x) // max_segments
+        self.class_func(self.y, segments=segments)
+        with pytest.raises(ValueError):
+            self.class_func(self.y, segments=segments + 1)
+        with pytest.raises(ValueError):
+            self.class_func(self.y, segments=segments - 1)
+
+        segments = [10, 15]  # ensure index 15 works before trying failing cases
+        self.class_func(self.y, segments=segments)
+
+        segments = [-1, 15]
+        with pytest.raises(ValueError):
+            self.class_func(self.y, segments=segments)
+
+        segments = [15, len(self.x) + 1]
+        with pytest.raises(ValueError):
+            self.class_func(self.y, segments=segments)
+
+        segments = [15, 18]
+        self.class_func(self.y, segments=segments)
+
+        segments = [15, 17]
+        with pytest.raises(ValueError):
+            self.class_func(self.y, segments=segments)
+
+    def test_non_sorted_x_fails(self):
+        """Ensures that non-monotonically increasing x-values fails."""
+        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=True)
+        with pytest.raises(ValueError):
+            getattr(reverse_fitter, self.func_name)(self.y)
+
+    @pytest.mark.parametrize('lam', [0, None])
+    def test_zero_lam_interp(self, lam):
+        """Ensures that a None or zero-valued lam gives a linear interpolation."""
+        output, params = self.class_func(self.y, lam=lam)
+        interp_output = np.interp(self.x, self.x[params['mask']], self.y[params['mask']])
+        assert_allclose(output, interp_output, rtol=1e-12, atol=0)
+
+    @pytest.mark.parametrize('lam', [-1, -10])
+    def test_negative_lam_fails(self, lam):
+        """Ensures that a negative lam value fails."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, lam=lam)
+
+    @pytest.mark.parametrize('diff_order', [1, 2])
+    @pytest.mark.parametrize('segments', (1, 5, [10, 50]))
+    @pytest.mark.parametrize('lam', [0.1, 1])
+    def test_smoothing(self, segments, lam, diff_order):
+        """Ensures the whittaker smoothing is correct."""
+        output, params = self.class_func(
+            self.y, segments=segments, lam=lam, diff_order=diff_order,
+            smooth_half_window=0
+        )
+
+        spline = whittaker_smooth(
+            self.y, weights=params['mask'], lam=lam, diff_order=diff_order, check_finite=False
+        )
+        assert_allclose(output, spline, rtol=1e-10)
+
+    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('lam', (0, 1))
+    @pytest.mark.parametrize('smooth_half_window', (None, 0, 1))
+    def test_unchanged_data(self, use_class, lam, smooth_half_window):
+        """Ensures that input data is unchanged by the function."""
+        super().test_unchanged_data(
+            use_class, lam=lam, smooth_half_window=smooth_half_window
+        )

@@ -13,16 +13,16 @@ from math import ceil
 
 import numpy as np
 
-from . import classification, morphological, polynomial, spline, whittaker
-from ._algorithm_setup import _Algorithm, _class_wrapper, _sort_array
+from . import classification, misc, morphological, polynomial, smooth, spline, whittaker
+from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, gaussian
+from .utils import _check_scalar, _get_edges, _sort_array, gaussian
 
 
 class _Optimizers(_Algorithm):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm._register(ensure_1d=False)
+    @_Algorithm._register(ensure_1d=False, skip_sorting=True)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).
@@ -58,8 +58,7 @@ class _Optimizers(_Algorithm):
             * 'average_alpha': numpy.ndarray, shape (N,)
                 Only returned if `method` is 'aspls' or 'pspline_aspls'. The
                 `alpha` array used to fit all of the baselines for the
-                :meth:`~pybaselines.whittaker.Whittaker.aspls` or
-                :meth:`~pybaselines.spline.Spline.pspline_aspls` methods.
+                :meth:`~Baseline.aspls` or :meth:`~Baseline.pspline_aspls` methods.
 
             Additional items depend on the output of the selected method. Every
             other key will have a list of values, with each item corresponding to a
@@ -131,9 +130,9 @@ class _Optimizers(_Algorithm):
                 else:
                     params[key] = [value]
 
-        return _sort_array(baselines, self._sort_order), params
+        return baselines, params
 
-    @_Algorithm._register
+    @_Algorithm._register(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
                                 height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
                                 step=1, pad_kwargs=None, method_kwargs=None):
@@ -278,8 +277,10 @@ class _Optimizers(_Algorithm):
 
         if pad_kwargs is None:
             pad_kwargs = {}
-        # use data rather than y since data is sorted correctly
-        added_left, added_right = _get_edges(data, added_window, **pad_kwargs)
+
+        added_left, added_right = _get_edges(
+            _sort_array(y, self._sort_order), added_window, **pad_kwargs
+        )
         added_gaussian = gaussian(
             np.linspace(-added_window / 2, added_window / 2, added_window),
             height_scale * abs(y.max()), 0, added_window * sigma_scale
@@ -310,21 +311,19 @@ class _Optimizers(_Algorithm):
             new_sort_order = None
         else:
             if side == 'right':
-                new_sort_order = np.empty(self._len + added_len, dtype=np.intp)
-                new_sort_order[:self._len] = self._sort_order
-                new_sort_order[self._len:] = np.arange(
-                    self._len, self._len + added_len, dtype=np.intp
-                )
+                new_sort_order = np.concatenate((
+                    self._sort_order, np.arange(self._len, self._len + added_len, dtype=np.intp)
+                ), dtype=np.intp)
             elif side == 'left':
-                new_sort_order = np.empty(self._len + added_len, dtype=np.intp)
-                new_sort_order[added_len:] = self._sort_order + added_len
-                new_sort_order[:added_len] = np.arange(added_len, dtype=np.intp)
+                new_sort_order = np.concatenate((
+                    np.arange(added_len, dtype=np.intp), self._sort_order + added_len
+                ), dtype=np.intp)
             else:
                 new_sort_order = np.concatenate((
                     np.arange(added_window, dtype=np.intp),
                     self._sort_order + added_window,
                     np.arange(self._len + added_window, self._len + added_len, dtype=np.intp)
-                ))
+                ), dtype=np.intp)
 
         # TODO maybe switch to linspace since arange is inconsistent when using floats
         with fit_object._override_x(fit_x_data, new_sort_order=new_sort_order):
@@ -357,9 +356,9 @@ class _Optimizers(_Algorithm):
                     None if side == 'left' else -added_window
                 ]
 
-        return _sort_array(baseline, self._sort_order), params
+        return baseline, params
 
-    @_Algorithm._register
+    @_Algorithm._register(skip_sorting=True)
     def adaptive_minmax(self, data, poly_order=None, method='modpoly', weights=None,
                         constrained_fraction=0.01, constrained_weight=1e5,
                         estimation_poly_order=2, method_kwargs=None):
@@ -400,8 +399,7 @@ class _Optimizers(_Algorithm):
             Default is 2.
         method_kwargs : dict, optional
             Additional keyword arguments to pass to
-            :meth:`~pybaselines.polynomial.Polynomial.modpoly` or
-            :meth:`~pybaselines.polynomial.Polynomial.imodpoly`. These include
+            :meth:`~Baseline.modpoly` or :meth:`~Baseline.imodpoly`. These include
             `tol`, `max_iter`, `use_original`, `mask_initial_peaks`, and `num_std`.
 
         Returns
@@ -486,7 +484,154 @@ class _Optimizers(_Algorithm):
             'poly_order': poly_orders
         }
 
-        return _sort_array(np.maximum.reduce(baselines), self._sort_order), params
+        return np.maximum.reduce(baselines), params
+
+    @_Algorithm._register
+    def custom_bc(self, data, method='asls', regions=((None, None),), sampling=1, lam=None,
+                  diff_order=2, method_kwargs=None):
+        """
+        Customized baseline correction for fine tuned stiffness of the baseline at specific regions.
+
+        Divides the data into regions with variable number of data points and then uses other
+        baseline algorithms to fit the truncated data. Regions with less points effectively
+        makes the fit baseline more stiff in those regions.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        method : str, optional
+            A string indicating the algorithm to use for fitting the baseline; can be any
+            non-optimizer algorithm in pybaselines. Default is 'asls'.
+        regions : array-like, shape (M, 2), optional
+            The two dimensional array containing the start and stop indices for each region of
+            interest. Each region is defined as ``data[start:stop]``. Default is ((None, None),),
+            which will use all points.
+        sampling : int or array-like, optional
+            The sampling step size for each region defined in `regions`. If `sampling` is an
+            integer, then all regions will use the same index step size; if `sampling` is an
+            array-like, its length must be equal to `M`, the first dimension in `regions`.
+            Default is 1, which will use all points.
+        lam : float or None, optional
+            The value for smoothing the calculated interpolated baseline using Whittaker
+            smoothing, in order to reduce the kinks between regions. Default is None, which
+            will not smooth the baseline; a value of 0 will also not perform smoothing.
+        diff_order : int, optional
+            The difference order used for Whittaker smoothing of the calculated baseline.
+            Default is 2.
+        method_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to the selected `method` function.
+            Default is None, which will use an empty dictionary.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The baseline calculated with the optimum parameter.
+        params : dict
+            A dictionary with the following items:
+                * 'x_fit': numpy.ndarray, shape (P,)
+                    The truncated x-values used for fitting the baseline.
+                * 'y_fit': numpy.ndarray, shape (P,)
+                    The truncated y-values used for fitting the baseline.
+
+            Additional items depend on the output of the selected method.
+
+        Raises
+        ------
+        ValueError
+            Raised if `regions` is not two dimensional, if `sampling` is not the same length
+            as `rois.shape[0]`, if any values in `sampling` or `regions` is less than 1, if
+            segments in `regions` overlap, or if any value in `regions` is greater than the
+            length of the input data.
+
+        Notes
+        -----
+        Uses Whittaker smoothing to smooth the transitions between regions rather than LOESS
+        as used in [31]_.
+
+        Uses binning rather than direct truncation of the regions in order to get better
+        results for noisy data.
+
+        References
+        ----------
+        .. [31] Liland, K., et al. Customized baseline correction. Chemometrics and
+                Intelligent Laboratory Systems, 2011, 109(1), 51-56.
+
+        """
+        y, baseline_func, _, method_kws, fitting_object = self._setup_optimizer(
+            data, method,
+            (classification, misc, morphological, polynomial, smooth, spline, whittaker),
+            method_kwargs, True
+        )
+        roi = np.atleast_2d(regions)
+        roi_shape = roi.shape
+        if len(roi_shape) != 2 or roi_shape[1] != 2:
+            raise ValueError('rois must be a two dimensional sequence of (start, stop) values')
+
+        steps = _check_scalar(sampling, roi_shape[0], fill_scalar=True, dtype=np.intp)[0]
+        if np.any(steps < 1):
+            raise ValueError('all step sizes in "sampling" must be >= 1')
+
+        x_sections = []
+        y_sections = []
+        x_mask = np.ones(self._len, dtype=bool)
+        last_stop = -1
+        include_first = True
+        include_last = True
+        for (start, stop), step in zip(roi, steps):
+            if start is None:
+                start = 0
+            if stop is None:
+                stop = self._len
+            if start < last_stop:
+                raise ValueError('Sections cannot overlap')
+            else:
+                last_stop = stop
+            if start < 0 or stop < 0:
+                raise ValueError('values in regions must be positive')
+            elif stop > self._len:
+                raise ValueError('values in regions must be less than len(data)')
+
+            sections = (stop - start) // step
+            if sections == 0:
+                sections = 1  # will create one section using the midpoint
+            indices = np.linspace(start, stop, sections + 1, dtype=np.intp)
+            for left_idx, right_idx in zip(indices[:-1], indices[1:]):
+                if left_idx == 0 and right_idx == 1:
+                    include_first = False
+                elif right_idx == self._len and left_idx == self._len - 1:
+                    include_last = False
+                y_sections.append(np.mean(y[left_idx:right_idx]))
+                x_sections.append(np.mean(self.x[left_idx:right_idx]))
+            x_mask[start:stop] = False
+
+        # ensure first and last indices are included in the fit to avoid edge effects
+        if include_first:
+            x_mask[0] = True
+        if include_last:
+            x_mask[-1] = True
+        x_sections.extend(self.x[x_mask])
+        y_sections.extend(y[x_mask])
+        x_fit = np.array(x_sections)
+        sort_order = np.argsort(x_fit, kind='mergesort')
+        x_fit = x_fit[sort_order]
+        y_fit = np.array(y_sections)[sort_order]
+
+        # param sorting will be wrong, but most params that need sorting will have
+        # no meaning since they correspond to a truncated dataset
+        with fitting_object._override_x(x_fit):
+            baseline_fit, params = baseline_func(y_fit, **method_kws)
+
+        baseline = np.interp(self.x, x_fit, baseline_fit)
+        params.update({'x_fit': x_fit, 'y_fit': y_fit})
+        if lam is not None and lam != 0:
+            self._setup_whittaker(y, lam=lam, diff_order=diff_order)
+            baseline = self.whittaker_system.solve(
+                self.whittaker_system.add_diagonal(1.), baseline,
+                overwrite_ab=True, overwrite_b=True
+            )
+
+        return baseline, params
 
 
 _optimizers_wrapper = _class_wrapper(_Optimizers)
@@ -530,7 +675,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
         * 'average_alpha': numpy.ndarray, shape (N,)
             Only returned if `method` is 'aspls' or 'pspline_aspls'. The
             `alpha` array used to fit all of the baselines for the
-            :meth:`.aspls` or :meth:`.pspline_aspls` methods.
+            :meth:`~Baseline.aspls` or :meth:`~Baseline.pspline_aspls` methods.
 
         Additional items depend on the output of the selected method. Every
         other key will have a list of values, with each item corresponding to a
@@ -750,8 +895,8 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         to select the appropriate polynomial orders if `poly_order` is None.
         Default is 2.
     method_kwargs : dict, optional
-        Additional keyword arguments to pass to :meth:`.modpoly` or
-        :meth:`.imodpoly`. These include `tol`, `max_iter`, `use_original`,
+        Additional keyword arguments to pass to :meth:`~Baseline.modpoly` or
+        :meth:`~Baseline.imodpoly`. These include `tol`, `max_iter`, `use_original`,
         `mask_initial_peaks`, and `num_std`.
 
     Returns
@@ -773,5 +918,79 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     .. [3] Cao, A., et al. A robust method for automated background subtraction
            of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
            1199-1205.
+
+    """
+
+
+@_optimizers_wrapper
+def custom_bc(data, x_data=None, method='asls', regions=((None, None),), sampling=1, lam=None,
+              diff_order=2, method_kwargs=None):
+    """
+    Customized baseline correction for fine tuned stiffness of the baseline at specific regions.
+
+    Divides the data into regions with variable number of data points and then uses other
+    baseline algorithms to fit the truncated data. Regions with less points effectively
+    makes the fit baseline more stiff in those regions.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    method : str, optional
+        A string indicating the algorithm to use for fitting the baseline; can be any
+        non-optimizer algorithm in pybaselines. Default is 'asls'.
+    regions : array-like, shape (M, 2), optional
+        The two dimensional array containing the start and stop indices for each region of
+        interest. Each region is defined as ``data[start:stop]``. Default is ((None, None),),
+        which will use all points.
+    sampling : int or array-like, optional
+        The sampling step size for each region defined in `regions`. If `sampling` is an
+        integer, then all regions will use the same index step size; if `sampling` is an
+        array-like, its length must be equal to `M`, the first dimension in `regions`.
+        Default is 1, which will use all points.
+    lam : float or None, optional
+        The value for smoothing the calculated interpolated baseline using Whittaker
+        smoothing, in order to reduce the kinks between regions. Default is None, which
+        will not smooth the baseline; a value of 0 will also not perform smoothing.
+    diff_order : int, optional
+        The difference order used for Whittaker smoothing of the calculated baseline.
+        Default is 2.
+    method_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to the selected `method` function.
+        Default is None, which will use an empty dictionary.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The baseline calculated with the optimum parameter.
+    params : dict
+        A dictionary with the following items:
+            * 'x_fit': numpy.ndarray, shape (P,)
+                The truncated x-values used for fitting the baseline.
+            * 'y_fit': numpy.ndarray, shape (P,)
+                The truncated y-values used for fitting the baseline.
+
+        Additional items depend on the output of the selected method.
+
+    Raises
+    ------
+    ValueError
+        Raised if `regions` is not two dimensional, if `sampling` is not the same length
+        as `rois.shape[0]`, if any values in `sampling` or `regions` is less than 1, if
+        segments in `regions` overlap, or if any value in `regions` is greater than the
+        length of the input data.
+
+    Notes
+    -----
+    Uses Whittaker smoothing to smooth the transitions between regions rather than LOESS
+    as used in [4]_.
+
+    Uses binning rather than direct truncation of the regions in order to get better
+    results for noisy data.
+
+    References
+    ----------
+    .. [4] Liland, K., et al. Customized baseline correction. Chemometrics and
+            Intelligent Laboratory Systems, 2011, 109(1), 51-56.
 
     """

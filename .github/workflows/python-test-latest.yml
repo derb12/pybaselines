@@ -1,0 +1,54 @@
+# For testing the nightly builds of numpy and scipy so that any new changes will not be
+# a surprise.
+
+# Will only trigger if there is a change within pybaselines or tests directories.
+
+name: test-latest-dependencies
+
+on:
+  # allow manually activating the workflow
+  workflow_dispatch:
+
+  push:
+    branches: [ main ]
+    paths:
+    - 'pybaselines/**'
+    - 'tests/**'
+    - '.github/workflows/**'
+
+  pull_request:
+    # always trigger on a pull request, regardless of the branch
+    paths:
+    - 'pybaselines/**'
+    - 'tests/**'
+    - '.github/workflows/**'
+
+jobs:
+  test-nightly:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Choose the latest stable python version
+        python-version: ['3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install required dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pytest
+        python -m pip install -i https://pypi.anaconda.org/scientific-python-nightly-wheels/simple numpy
+        python -m pip install -i https://pypi.anaconda.org/scientific-python-nightly-wheels/simple scipy
+
+    - name: Test with required dependencies
+      # use -Werror so that any warnings will show up as errors -> want to be as stringent
+      # as possible
+      run: python -Werror -m pytest .

@@ -4,6 +4,42 @@
 Created on July 3, 2021
 @author: Donald Erb
 
+
+Several functions were adapted from SciPy
+(https://github.com/scipy/scipy, accessed December 28, 2023), which was
+licensed under the BSD-3-Clause below.
+
+Copyright (c) 2001-2002 Enthought, Inc.  2003-2023, SciPy Developers.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above
+   copyright notice, this list of conditions and the following
+   disclaimer in the documentation and/or other materials provided
+   with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 """
 
 from math import ceil
@@ -14,13 +50,15 @@ from scipy.ndimage import (
     binary_dilation, binary_erosion, binary_opening, grey_dilation, grey_erosion, uniform_filter1d
 )
 from scipy.optimize import curve_fit
-from scipy.signal import cwt, ricker
+from scipy.signal import convolve
+from scipy.spatial import ConvexHull
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import jit
+from ._compat import jit, trapezoid
+from ._validation import _check_scalar
 from .utils import (
     _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
-    pad_edges, relative_difference, whittaker_smooth
+    pad_edges, relative_difference
 )
 
 
@@ -187,7 +225,7 @@ class _Classification(_Algorithm):
             * 'coef': numpy.ndarray, shape (poly_order,)
                 Only if `return_coef` is True and `max_iter` is greater than 0. The array
                 of polynomial coefficients for the baseline, in increasing order. Can be
-                used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
+                used to create a polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
             * 'tol_history': numpy.ndarray
                 Only if `max_iter` is greater than 1. An array containing the calculated
                 tolerance values for each iteration. The length of the array is the number
@@ -579,7 +617,7 @@ class _Classification(_Algorithm):
         half_window = max_scale * 2  # TODO is x2 enough padding to prevent edge effects from cwt?
         padded_y = pad_edges(y, half_window, **pad_kwargs)
         for scale in scales:
-            wavelet_cwt = cwt(padded_y, ricker, [scale])[0, half_window:-half_window]
+            wavelet_cwt = _cwt(padded_y, _ricker, [scale])[0, half_window:-half_window]
             abs_wavelet = np.abs(wavelet_cwt)
             inner = abs_wavelet / abs_wavelet.sum(axis=0)
             # was not stated in the reference to use abs(wavelet) for the Shannon entropy,
@@ -622,8 +660,8 @@ class _Classification(_Algorithm):
             bins = 0.5 * (bin_edges[1:] + bin_edges[:-1])
 
         gaussian_mask = np.abs(bins) < 3 * sigma_opt
-        gaus_area = np.trapz(histogram[gaussian_mask], bins[gaussian_mask])
-        num_sigma = 0.6 + 10 * ((np.trapz(histogram, bins) - gaus_area) / gaus_area)
+        gaus_area = trapezoid(histogram[gaussian_mask], bins[gaussian_mask])
+        num_sigma = 0.6 + 10 * ((trapezoid(histogram, bins) - gaus_area) / gaus_area)
 
         wavelet_mask = _refine_mask(abs_wavelet < num_sigma * sigma_opt, min_length)
         np.logical_and(wavelet_mask, weight_array, out=wavelet_mask)
@@ -726,7 +764,7 @@ class _Classification(_Algorithm):
 
         Notes
         -----
-        The classification of baseline points is similar to :meth:`.dietrich`, except that
+        The classification of baseline points is similar to :meth:`~Baseline.dietrich`, except that
         this method approximates the first derivative using a continous wavelet transform
         with the Haar wavelet, which is more robust than the numerical derivative in
         Dietrich's method.
@@ -749,22 +787,133 @@ class _Classification(_Algorithm):
                 scale = ceil(optimize_window(y) / 2)
             # TODO is 2*scale enough padding to prevent edge effects from cwt?
             half_window = scale * 2
-            wavelet_cwt = cwt(pad_edges(y, half_window, **pad_kwargs), _haar, [scale])
+            wavelet_cwt = _cwt(pad_edges(y, half_window, **pad_kwargs), _haar, [scale])
             power = wavelet_cwt[0, half_window:-half_window]**2
 
             mask = _refine_mask(_iter_threshold(power, num_std), min_length)
             np.logical_and(mask, weight_array, out=mask)
-            whittaker_weights = mask.astype(float)
 
-        # TODO should allow a p value so that weights are mask * (1-p) + (~mask) * p
-        # similar to mpls and mpspline?
-        baseline = whittaker_smooth(
-            y, lam=lam, diff_order=diff_order, weights=whittaker_weights,
-            check_finite=False, penalized_system=self.whittaker_system
+            _, whittaker_weights = self._setup_whittaker(y, lam, diff_order, mask)
+            if self._sort_order is not None:
+                whittaker_weights = whittaker_weights[self._inverted_order]
+
+        baseline = self.whittaker_system.solve(
+            self.whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
+            overwrite_b=True, overwrite_ab=True
         )
         params = {'mask': mask, 'weights': whittaker_weights}
 
         return baseline, params
+
+    @_Algorithm._register(sort_keys=('mask',))
+    def rubberband(self, data, segments=1, lam=None, diff_order=2, weights=None,
+                   smooth_half_window=None, **pad_kwargs):
+        """
+        Identifies baseline points by fitting a convex hull to the bottom of the data.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        segments : int or array-like[int], optional
+            Used to fit multiple convex hulls to the data to negate the effects of
+            concave data. If the input is an integer, it sets the number of equally sized
+            segments the data will be split into. If the input is an array-like, each integer
+            in the array will be the index that splits two segments, which allows
+            constructing unequally sized segments. Default is 1, which fits a single convex
+            hull to the data.
+        lam : float or None, optional
+            The smoothing parameter for interpolating the baseline points using
+            Whittaker smoothing. Set to 0 or None to use linear interpolation instead.
+            Default is None, which does not smooth.
+        diff_order : int, optional
+            The order of the differential matrix if using Whittaker smoothing. Must
+            be greater than 0. Default is 2 (second order differential matrix).
+            Typical values are 2 or 1.
+        weights : array-like, shape (N,), optional
+            The weighting array, used to override the function's baseline identification
+            to designate peak points. Only elements with 0 or False values will have
+            an effect; all non-zero values are considered potential baseline points. If None
+            (default), then will be an array with size equal to N and all values set to 1.
+        smooth_half_window : int or None, optional
+            The half window to use for smoothing the input data with a moving average
+            before calculating the convex hull, which gives much better results for
+            noisy data. Set to None (default) or 0 to not smooth the data.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        dict
+            A dictionary with the following items:
+
+            * 'mask': numpy.ndarray, shape (N,)
+                The boolean array designating baseline points as True and peak points
+                as False.
+
+        Raises
+        ------
+        ValueError
+            Raised if the number of segments per window for the fitting is less than
+            `poly_order` + 1 or greater than the total number of points, or if the
+            values in `self.x` are not strictly increasing.
+
+        """
+        sections, scalar_sections = _check_scalar(segments, None, coerce_0d=False, dtype=np.intp)
+        if scalar_sections and (sections < 1 or self._len / sections < 3):
+            raise ValueError(
+                f'There must be between 1 and {self._len // 3} segments for the rubberband fit'
+            )
+        elif not scalar_sections and (np.any(sections < 0) or np.any(sections > self._len)):
+            raise ValueError(
+                f'Segment indices must be between 0 and {self._len} for the rubberband fit'
+            )
+
+        if np.any(self.x[1:] < self.x[:-1]):
+            raise ValueError('x must be strictly increasing')
+
+        y, weight_array = self._setup_classification(data, weights)
+        if smooth_half_window is not None and smooth_half_window != 0:
+            y = self._setup_smooth(y, smooth_half_window, allow_zero=False, **pad_kwargs)
+            y = uniform_filter1d(
+                y, 2 * smooth_half_window + 1
+            )[smooth_half_window:-smooth_half_window]
+
+        if scalar_sections:
+            total_sections = np.arange(sections + 1, dtype=np.intp) * self._len // sections
+        else:
+            total_sections = np.concatenate(([0], sections, [self._len]))
+            # np.unique already sorts so do not need to check order
+            total_sections = np.unique(total_sections)
+            for i, section in enumerate(total_sections[:-1]):
+                if total_sections[i + 1] - section < 3:
+                    raise ValueError('Each segment must have at least 3 points.')
+
+        hull_data = np.vstack((self.x, y)).T
+        total_vertices = []
+        for i, left_idx in enumerate(total_sections[:-1]):
+            vertices = ConvexHull(hull_data[left_idx:total_sections[i + 1]]).vertices
+            min_idx = vertices.argmin()
+            max_idx = vertices.argmax() + 1
+            if max_idx < min_idx:
+                vertices = np.concatenate((vertices[min_idx:], vertices[:max_idx]))
+            else:
+                vertices = vertices[min_idx:max_idx]
+            total_vertices.extend(vertices + left_idx)
+
+        mask = np.zeros(self._len, dtype=bool)
+        mask[np.unique(total_vertices)] = True
+        np.logical_and(mask, weight_array, out=mask)
+        if lam is not None and lam != 0:
+            self._setup_whittaker(y, lam, diff_order, mask)
+            baseline = self.whittaker_system.solve(
+                self.whittaker_system.add_diagonal(mask), mask * y,
+                overwrite_b=True, overwrite_ab=True
+            )
+        else:
+            baseline = np.interp(self.x, self.x[mask], y[mask])
+
+        return baseline, {'mask': mask}
 
 
 _classification_wrapper = _class_wrapper(_Classification)
@@ -870,7 +1019,7 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
     Returns
     -------
     output : numpy.ndarray
-        A copy of the input `y` array with peak values in `mask` calulcated using linear
+        A copy of the input `y` array with peak values in `mask` calculcated using linear
         interpolation.
 
     """
@@ -878,9 +1027,9 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
     mask_sum = mask.sum()
     if not mask_sum:  # all points belong to peaks
         # will just interpolate between first and last points
-        warnings.warn('there were no baseline points found', ParameterWarning)
+        warnings.warn('there were no baseline points found', ParameterWarning, stacklevel=2)
     elif mask_sum == mask.shape[0]:  # all points belong to baseline
-        warnings.warn('there were no peak points found', ParameterWarning)
+        warnings.warn('there were no peak points found', ParameterWarning, stacklevel=2)
         return output
 
     peak_starts, peak_ends = _find_peak_segments(mask)
@@ -1003,7 +1152,7 @@ def _iter_threshold(power, num_std=3.0):
         if masked_power.size < 2:  # need at least 2 points for std calculation
             warnings.warn(
                 'not enough baseline points found; "num_std" is likely too low',
-                ParameterWarning
+                ParameterWarning, stacklevel=2
             )
             break
         mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
@@ -1080,7 +1229,7 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         * 'coef': numpy.ndarray, shape (poly_order,)
             Only if `return_coef` is True and `max_iter` is greater than 0. The array
             of polynomial coefficients for the baseline, in increasing order. Can be
-            used to create a polynomial using numpy.polynomial.polynomial.Polynomial().
+            used to create a polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
         * 'tol_history': numpy.ndarray
             Only if `max_iter` is greater than 1. An array containing the calculated
             tolerance values for each iteration. The length of the array is the number
@@ -1495,6 +1644,104 @@ def _haar(num_points, scale=2):
     return wavelet / (np.sqrt(scale))
 
 
+# adapted from scipy (scipy/signal/_wavelets.py/ricker); see license above
+def _ricker(points, a):
+    """
+    Return a Ricker wavelet, also known as the "Mexican hat wavelet".
+
+    It models the function:
+
+        ``A * (1 - (x/a)**2) * exp(-0.5*(x/a)**2)``,
+
+    where ``A = 2/(sqrt(3*a)*(pi**0.25))``.
+
+    Parameters
+    ----------
+    points : int
+        Number of points in `vector`.
+        Will be centered around 0.
+    a : scalar
+        Width parameter of the wavelet.
+
+    Returns
+    -------
+    vector : (N,) ndarray
+        Array of length `points` in shape of ricker curve.
+
+    Notes
+    -----
+    This function was deprecated from scipy.signal in version 1.12.
+
+    """
+    A = 2 / (np.sqrt(3 * a) * (np.pi**0.25))
+    wsq = a**2
+    vec = np.arange(0, points) - (points - 1.0) / 2
+    xsq = vec**2
+    mod = (1 - xsq / wsq)
+    gauss = np.exp(-xsq / (2 * wsq))
+    total = A * mod * gauss
+    return total
+
+
+# adapted from scipy (scipy/signal/_wavelets.py/cwt); see license above
+def _cwt(data, wavelet, widths, dtype=None, **kwargs):
+    """
+    Continuous wavelet transform.
+
+    Performs a continuous wavelet transform on `data`,
+    using the `wavelet` function. A CWT performs a convolution
+    with `data` using the `wavelet` function, which is characterized
+    by a width parameter and length parameter. The `wavelet` function
+    is allowed to be complex.
+
+    Parameters
+    ----------
+    data : (N,) ndarray
+        data on which to perform the transform.
+    wavelet : function
+        Wavelet function, which should take 2 arguments.
+        The first argument is the number of points that the returned vector
+        will have (len(wavelet(length,width)) == length).
+        The second is a width parameter, defining the size of the wavelet
+        (e.g. standard deviation of a gaussian). See `ricker`, which
+        satisfies these requirements.
+    widths : (M,) sequence
+        Widths to use for transform.
+    dtype : data-type, optional
+        The desired data type of output. Defaults to ``float64`` if the
+        output of `wavelet` is real and ``complex128`` if it is complex.
+    kwargs
+        Keyword arguments passed to wavelet function.
+
+    Returns
+    -------
+    cwt: (M, N) ndarray
+        Will have shape of (len(widths), len(data)).
+
+    Notes
+    -----
+    This function was deprecated from scipy.signal in version 1.12.
+
+    References
+    ----------
+    S. Mallat, "A Wavelet Tour of Signal Processing (3rd Edition)", Academic Press, 2009.
+
+    """
+    # Determine output type
+    if dtype is None:
+        if np.asarray(wavelet(1, widths[0], **kwargs)).dtype.char in 'FDG':
+            dtype = np.complex128
+        else:
+            dtype = np.float64
+
+    output = np.empty((len(widths), len(data)), dtype=dtype)
+    for ind, width in enumerate(widths):
+        N = np.min([10 * width, len(data)])
+        wavelet_data = np.conj(wavelet(N, width, **kwargs)[::-1])
+        output[ind] = convolve(data, wavelet_data, mode='same')
+    return output
+
+
 @_classification_wrapper
 def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, weights=None,
          weights_as_mask=False, x_data=None, **pad_kwargs):
@@ -1561,7 +1808,7 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
 
     Notes
     -----
-    The classification of baseline points is similar to :meth:`.dietrich`, except that
+    The classification of baseline points is similar to :meth:`~Baseline.dietrich`, except that
     this method approximates the first derivative using a continous wavelet transform
     with the Haar wavelet, which is more robust than the numerical derivative in
     Dietrich's method.
@@ -1571,5 +1818,64 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
     Cobas, J., et al. A new general-purpose fully automatic baseline-correction
     procedure for 1D and 2D NMR data. Journal of Magnetic Resonance, 2006, 183(1),
     145-151.
+
+    """
+
+
+@_classification_wrapper
+def rubberband(data, x_data=None, segments=1, lam=None, diff_order=2, weights=None,
+               smooth_half_window=None, **pad_kwargs):
+    """
+    Identifies baseline points by fitting a convex hull to the bottom of the data.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    segments : int or array-like[int], optional
+        Used to fit multiple convex hulls to the data to negate the effects of
+        concave data. If the input is an integer, it sets the number of equally sized
+        segments the data will be split into. If the input is an array-like, each integer
+        in the array will be the index that splits two segments, which allows
+        constructing unequally sized segments. Default is 1, which fits a single convex
+        hull to the data.
+    lam : float or None, optional
+        The smoothing parameter for interpolating the baseline points using
+        Whittaker smoothing. Set to 0 or None to use linear interpolation instead.
+        Default is None, which does not smooth.
+    diff_order : int, optional
+        The order of the differential matrix if using Whittaker smoothing. Must
+        be greater than 0. Default is 2 (second order differential matrix).
+        Typical values are 2 or 1.
+    weights : array-like, shape (N,), optional
+        The weighting array, used to override the function's baseline identification
+        to designate peak points. Only elements with 0 or False values will have
+        an effect; all non-zero values are considered potential baseline points. If None
+        (default), then will be an array with size equal to N and all values set to 1.
+    smooth_half_window : int or None, optional
+        The half window to use for smoothing the input data with a moving average
+        before calculating the convex hull, which gives much better results for
+        noisy data. Set to None (default) or 0 to not smooth the data.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    dict
+        A dictionary with the following items:
+
+        * 'mask': numpy.ndarray, shape (N,)
+            The boolean array designating baseline points as True and peak points
+            as False.
+
+    Raises
+    ------
+    ValueError
+        Raised if the number of segments per window for the fitting is less than
+        `poly_order` + 1 or greater than the total number of points, or if the
+        values in `self.x` are not strictly increasing.
 
     """

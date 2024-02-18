@@ -40,11 +40,19 @@ def get_public_methods(klass):
 
     Returns
     -------
-    list[str, ...]
+    methods : list[str, ...]
         The list of all public methods of the input class.
 
     """
-    return [method for method in dir(klass) if not method.startswith('_')]
+    methods = []
+    for method in dir(klass):
+        if (
+            not (method.startswith('_')
+            or method.startswith('pentapy_solver')
+            or method.startswith('get_method'))
+        ):
+            methods.append(method)
+    return methods
 
 
 # will be like [('asls', whittaker._Whittaker), ('modpoly', polynomial._Polynomial), ...]
@@ -103,13 +111,13 @@ class TestBaseline:
             baseline_class(self.x, check_finite=False, assume_sorted=True), method
         )(fit_data, **kwargs)
 
-        assert_allclose(api_baseline, class_baseline, rtol=1e-14, atol=1e-14)
+        assert_allclose(api_baseline, class_baseline, rtol=1e-12, atol=1e-12)
         assert len(api_params.keys()) == len(class_params.keys())
         for key, value in api_params.items():
             assert key in class_params
             class_value = class_params[key]
             if isinstance(value, (int, float, np.ndarray, list, tuple)):
-                assert_allclose(value, class_value, rtol=1e-14, atol=1e-14)
+                assert_allclose(value, class_value, rtol=1e-12, atol=1e-12)
             else:
                 assert value == class_value
 
@@ -130,3 +138,30 @@ class TestBaseline:
 
         # no additional methods should be available
         assert len(total_methods) == 0
+
+    def test_pentapy_solver(self):
+        """Ensures the pentapy_solver attribute works correctly."""
+        fitter = self.algorithm_base(self.x, check_finite=False, assume_sorted=True)
+        assert fitter._pentapy_solver == fitter.pentapy_solver
+        # ensure whittaker_system is originally None before changing pentapy solver
+        assert fitter.whittaker_system is None
+
+        fitter._setup_whittaker(self.y, lam=1)
+        assert fitter.whittaker_system.pentapy_solver == fitter.pentapy_solver
+
+        fitter.pentapy_solver = 3
+        assert fitter.whittaker_system.pentapy_solver == fitter.pentapy_solver
+
+    def test_get_method(self):
+        """Ensures the get_method helper function works as intended."""
+        method = self.algorithm._get_method('asls')
+        assert method == self.algorithm.asls
+
+        # also ensure capitalization does not matter
+        method2 = self.algorithm._get_method('AsLS')
+        assert method2 == self.algorithm.asls
+
+    def test_get_method_fails(self):
+        """Ensures the get_method helper function fails when an incorrect name is given."""
+        with pytest.raises(AttributeError):
+            self.algorithm._get_method('aaaaaaaaaaaaa')

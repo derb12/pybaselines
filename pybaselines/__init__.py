@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+=======================================================================================
 pybaselines - A library of algorithms for the baseline correction of experimental data.
 =======================================================================================
 
@@ -54,6 +55,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * pspline_aspls (Penalized Spline Version of aspls)
     * pspline_psalsa (Penalized Spline Version of psalsa)
     * pspline_derpsalsa (Penalized Spline Version of derpsalsa)
+    * pspline_mpls (Penalized Spline Version of mpls)
 
 * Smoothing-based methods (:mod:`pybaselines.smooth`)
 
@@ -71,12 +73,14 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * fastchrom (FastChrom's Baseline Method)
     * cwt_br (Continuous Wavelet Transform Baseline Recognition)
     * fabc (Fully Automatic Baseline Correction)
+    * rubberband (Rubberband Method)
 
 * Optimizers (:mod:`pybaselines.optimizers`)
 
     * collab_pls (Collaborative Penalized Least Squares)
     * optimize_extended_range
     * adaptive_minmax (Adaptive MinMax)
+    * custom_bc (Customized Baseline Correction)
 
 * Miscellaneous methods (:mod:`pybaselines.misc`)
 
@@ -89,7 +93,7 @@ Created on March 5, 2021
 
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 
 # import utils first since it is imported by other modules; likewise, import
@@ -100,3 +104,4 @@ from . import (
 )
 
 from .api import Baseline
+from .two_d.api import Baseline2D

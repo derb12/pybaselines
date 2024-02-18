@@ -7,7 +7,7 @@ The Whittaker-smoothing-based algorithms in pybaselines make use of
 the banded structure of the linear system to reduce the computation time.
 
 This example shows the difference in computation times of the asymmetic least squares
-(:meth:`.asls`) algorithm when using the banded solver from Scipy (solveh_banded)
+(:meth:`~.Baseline.asls`) algorithm when using the banded solver from Scipy (solveh_banded)
 and the banded solver from the optional dependency
 `pentapy <https://github.com/GeoStat-Framework/pentapy>`_. In addition, the time
 it takes when solving the system using sparse matrices rather than the banded matrices
@@ -17,6 +17,10 @@ Compared to the time required to solve using sparse matrices, Scipy's banded sol
 is ~50-70% faster and pentapy's banded solver is ~70-90% faster, ultimately reducing
 the computation time by about an order of magnitude.
 
+Note that the performance of solving the sparse system can be improved by using
+`CHOLMOD from SuiteSparse <https://github.com/DrTimothyAldenDavis/SuiteSparse>`_, which has
+Python bindings provided by `scikit-sparse <https://github.com/scikit-sparse/scikit-sparse>`_.
+
 """
 
 import time
@@ -24,10 +28,9 @@ import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.sparse import spdiags
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import whittaker, _banded_utils
+from pybaselines import _banded_utils, whittaker
 from pybaselines.utils import difference_matrix, gaussian, relative_difference
 
 
@@ -51,12 +54,11 @@ def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weig
 
     diff_matrix = difference_matrix(num_y, diff_order, 'csc')
     penalty_matrix = lam * (diff_matrix.T @ diff_matrix)
+    original_diag = penalty_matrix.diagonal()
     tol_history = np.empty(max_iter + 1)
     for i in range(max_iter + 1):
-        baseline = spsolve(
-            spdiags(weight_array, 0, num_y, num_y, 'csr') + penalty_matrix,
-            weight_array * y, 'NATURAL'
-        )
+        penalty_matrix.setdiag(weight_array + original_diag)
+        baseline = spsolve(penalty_matrix, weight_array * y, 'NATURAL')
         mask = y > baseline
         new_weights = p * mask + (1 - p) * (~mask)
         calc_difference = relative_difference(weight_array, new_weights)
@@ -111,7 +113,8 @@ if __name__ == '__main__':
 
     if not _banded_utils._HAS_PENTAPY:
         warnings.warn(
-            'pentapy is not installed so pentapy and scipy-banded timings will be identical'
+            'pentapy is not installed so pentapy and scipy-banded timings will be identical',
+            stacklevel=2
         )
 
     # equation obtained following similar procedure as `lam` vs data size example
