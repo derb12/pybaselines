@@ -16,6 +16,7 @@ low order polynomial baseline and a sinusoidal baseline, which represent low and
 curvature, respectively.
 
 """
+# sphinx_gallery_thumbnail_number = 10
 
 from time import perf_counter
 
@@ -165,8 +166,9 @@ ax_2.plot_surface(
 )
 
 # %%
-# A very approximate rule of thumb for determining the number of eigenvalues required is to
-# select where the second derivative of the effective degrees of freedom reaches 0. For the
+# A very rough rule of thumb for determining the number of eigenvalues required is to
+# select where the second derivative of the effective degrees of freedom reaches 0 (note that
+# this is not based off of any math, just from testing various baselines). For the
 # polynomial baseline, this is at about 10 eigenvalues for the rows and 4 for the columns. For the
 # sinusoidal baseline, this is at approximately 8 eigenvalues for the rows and 35 for the
 # columns. Now, let's see if reducing the number of eigenvalues improves the calculation time
@@ -247,4 +249,4 @@ plt.show()
 # %%
 # While the error for the polynomial baseline does not increase significantly,
 # the error for the sinusoidal baseline fit does since there are too few
-# eigenvalues to represent the total curvature.
+# eigenvalues now to represent the total required curvature.

@@ -100,8 +100,8 @@ Dependencies
 pybaselines requires `Python <https://python.org>`_ version 3.8 or later
 and the following libraries:
 
-* `NumPy <https://numpy.org>`_ (>= 1.14)
-* `SciPy <https://www.scipy.org>`_ (>= 1.0)
+* `NumPy <https://numpy.org>`_
+* `SciPy <https://www.scipy.org>`_
 
 
 All of the required libraries should be automatically installed when
@@ -123,7 +123,9 @@ Quick Start
 To use the various functions in pybaselines, simply input the measured
 data and any required parameters. All baseline correction functions in pybaselines
 will output two items: a numpy array of the calculated baseline and a
-dictionary of potentially useful parameters.
+dictionary of potentially useful parameters. The main interface for all baseline correction
+algorithms in pybaselines is through the `pybaselines.Baseline` object for one dimensional
+data and `pybaselines.Baseline2D` for two dimensional data.
 
 For more details on each baseline algorithm, refer to the `algorithms section`_ of
 pybaselines's documentation. For examples of their usage, refer to the `examples section`_.
@@ -132,11 +134,7 @@ pybaselines's documentation. For examples of their usage, refer to the `examples
 
 .. _examples section: https://pybaselines.readthedocs.io/en/latest/examples/index.html
 
-A simple example is shown below (if using a version earlier than 1.0, see the `quickstart`_ in
-the documentation for the old version).
-
-.. _quickstart: https://pybaselines.readthedocs.io/en/latest/quickstart.html#pre-version-1-0-0-quick-start
-
+A simple example is shown below.
 
 .. code-block:: python
 
@@ -164,12 +162,12 @@ the documentation for the old version).
 
     baseline_fitter = Baseline(x_data=x)
 
-    bkg_1 = baseline_fitter.modpoly(y, poly_order=3)[0]
-    bkg_2 = baseline_fitter.asls(y, lam=1e7, p=0.02)[0]
-    bkg_3 = baseline_fitter.mor(y, half_window=30)[0]
-    bkg_4 = baseline_fitter.snip(
+    bkg_1, params_1 = baseline_fitter.modpoly(y, poly_order=3)
+    bkg_2, params_2 = baseline_fitter.asls(y, lam=1e7, p=0.02)
+    bkg_3, params_3 = baseline_fitter.mor(y, half_window=30)
+    bkg_4, params_4 = baseline_fitter.snip(
         y, max_half_window=40, decreasing=True, smooth_half_window=3
-    )[0]
+    )
 
     plt.plot(x, y, label='raw data', lw=1.5)
     plt.plot(x, true_baseline, lw=3, label='true baseline')
