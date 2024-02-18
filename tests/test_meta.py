@@ -409,7 +409,6 @@ class TestBaseTesterWorks2d(BaseTester):
         assert self.param_keys == []
         assert self.two_d
 
-
     def test_reverse_array(self):
         """Ensures the reverse_array funcion works correctly."""
         assert_allclose(self.reverse_array(self.y), self.y[..., ::-1])

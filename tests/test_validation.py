@@ -38,6 +38,7 @@ def test_yx_arrays_no_x(small_data):
     assert isinstance(y, np.ndarray)
     assert_allclose(y, small_data, rtol=1e-12, atol=1e-12)
 
+
 @pytest.mark.parametrize('array_enum', (0, 1))
 def test_yxz_arrays_output_array(data_fixture2d, array_enum):
     """Ensures output y, x, and z are always numpy arrays and that x and z are not scaled."""
@@ -342,6 +343,7 @@ def test_check_half_window_failures():
     # fails due to non-integer input
     with pytest.raises(TypeError):
         _validation._check_half_window(5.01)
+
 
 @pytest.mark.parametrize(
     'half_window', (

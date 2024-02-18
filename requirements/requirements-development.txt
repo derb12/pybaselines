@@ -2,7 +2,7 @@
 -r requirements-documentation.txt
 
 # for linting
-ruff==0.2.1
+ruff==0.2.2
 
 # for testing
 pytest==8.0.0

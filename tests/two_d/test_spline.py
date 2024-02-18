@@ -189,7 +189,6 @@ class TestPsplineIAsLS(IterativeSplineTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, diff_order=[2, 1])
 
-
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('lam_1', (1e1, [1e1, 1e5]))
     @pytest.mark.parametrize('p', (0.01, 0.1))

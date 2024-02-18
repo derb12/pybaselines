@@ -626,7 +626,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
             }
             return 1 * data, params
 
-
     if change_order:
         x[sort_indices] = x[sort_indices][::-1]
         y[sort_indices] = y[sort_indices][::-1]

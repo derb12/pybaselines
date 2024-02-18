@@ -98,6 +98,7 @@ known_local_folder = ["example_helpers"]
 exclude = ["docs/*"]
 line-length = 100
 fix = false
+output-format = "full"
 
 [tool.ruff.lint]
 preview = true  # for using experimental rules

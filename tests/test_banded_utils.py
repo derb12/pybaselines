@@ -107,7 +107,6 @@ def test_diff_penalty_diagonals_datasize_too_small():
         _banded_utils.diff_penalty_diagonals(-1)
 
 
-
 @pytest.mark.parametrize('data_size', (10, 51))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 def test_diff_penalty_matrix(data_size, diff_order):
@@ -450,7 +449,6 @@ def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
             penalized_system.main_diagonal, penalized_system.penalty[expected_index],
             rtol=1e-12, atol=1e-12
         )
-
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))

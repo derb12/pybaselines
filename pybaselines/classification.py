@@ -805,7 +805,6 @@ class _Classification(_Algorithm):
 
         return baseline, params
 
-
     @_Algorithm._register(sort_keys=('mask',))
     def rubberband(self, data, segments=1, lam=None, diff_order=2, weights=None,
                    smooth_half_window=None, **pad_kwargs):
