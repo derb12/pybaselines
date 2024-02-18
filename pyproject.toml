@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pybaselines"
-version = "1.0.0"
+version = "1.1.0"
 authors = [
     {name = "Donald Erb", email = "donnie.erb@gmail.com"},
 ]
@@ -138,7 +138,7 @@ convention = "numpy"
 
 
 [tool.bumpversion]
-current_version = "1.0.0"
+current_version = "1.1.0"
 commit = false
 tag = false
 message = "Bump version: {current_version} -> {new_version}"

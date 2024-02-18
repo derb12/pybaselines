@@ -93,7 +93,7 @@ Created on March 5, 2021
 
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 
 # import utils first since it is imported by other modules; likewise, import
