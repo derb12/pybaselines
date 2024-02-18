@@ -311,7 +311,8 @@ class _Optimizers(_Algorithm2D):
         Raises
         ------
         ValueError
-            Raised if `method_kwargs` is a sequence with length greater than `axes`.
+            Raised if `method_kwargs` is a sequence with length greater than `axes` or if
+            the values in `axes` are duplicates.
 
         Notes
         -----

@@ -51,6 +51,7 @@ Baseline Correction for Two Dimensional Data.
 
     * collab_pls (Collaborative Penalized Least Squares)
     * adaptive_minmax (Adaptive MinMax)
+    * individual_axes (1D Baseline Correction Along Individual Axes)
 
 
 @author: Donald Erb

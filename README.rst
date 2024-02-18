@@ -101,7 +101,7 @@ pybaselines requires `Python <https://python.org>`_ version 3.8 or later
 and the following libraries:
 
 * `NumPy <https://numpy.org>`_
-* `SciPy <https://www.scipy.org>`_
+* `SciPy <https://scipy.org>`_
 
 
 All of the required libraries should be automatically installed when
@@ -124,8 +124,8 @@ To use the various functions in pybaselines, simply input the measured
 data and any required parameters. All baseline correction functions in pybaselines
 will output two items: a numpy array of the calculated baseline and a
 dictionary of potentially useful parameters. The main interface for all baseline correction
-algorithms in pybaselines is through the `pybaselines.Baseline` object for one dimensional
-data and `pybaselines.Baseline2D` for two dimensional data.
+algorithms in pybaselines is through the ``Baseline`` object for one dimensional
+data and ``Baseline2D`` for two dimensional data.
 
 For more details on each baseline algorithm, refer to the `algorithms section`_ of
 pybaselines's documentation. For examples of their usage, refer to the `examples section`_.

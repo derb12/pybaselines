@@ -81,6 +81,12 @@ baseline algorithm along each row and/or column of the measured data. This is us
 if the axes of the data are not correlated such that no information is lost by
 fitting each axis separately, or when baselines only exist along one axis.
 
+Note that one limitation of :meth:`~.Baseline2D.individual_axes` is that it does not
+handle array-like `method_kwargs`, such as when different input weights are desired
+for each dataset along the rows and/or columns. However, this is an extremely niche
+situation, and could be handled by simply using a for-loop to do one dimensional
+baseline correction instead.
+
 .. plot::
    :align: center
    :context: close-figs

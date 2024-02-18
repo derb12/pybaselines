@@ -32,6 +32,16 @@ def mean_squared_error(fit_baseline, real_baseline):
     return ((fit_baseline - real_baseline)**2).mean()
 
 
+def plot_contour_with_projection(X, Z, data, title=''):
+    """Plots the countour plot and 3d projection."""
+    fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
+    fig.suptitle(title)
+    ax_1 = fig.add_subplot(1, 2, 1, projection='3d')
+    ax_1.plot_surface(X, Z, data, cmap='coolwarm')
+    ax_2 = fig.add_subplot(1, 2, 2)
+    ax_2.contourf(X, Z, data, cmap='coolwarm')
+
+
 x = np.linspace(-20, 20, 100)
 z = np.linspace(-20, 30, 100)
 X, Z = np.meshgrid(x, z, indexing='ij')
@@ -52,19 +62,8 @@ y2 = signal + noise + sine_baseline
 # Only the baselines will be plotted in this example since the actual data is irrelevant
 # for this discussion.
 
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('Actual Polynomial Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, polynomial_baseline, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, polynomial_baseline, cmap='coolwarm')
-
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('Actual Sinusoidal Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, sine_baseline, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, sine_baseline, cmap='coolwarm')
+plot_contour_with_projection(X, Z, polynomial_baseline, title='Actual Polynomial Baseline')
+plot_contour_with_projection(X, Z, sine_baseline, title='Actual Sinusoidal Baseline')
 
 # %%
 # The ``lam`` values for fitting the baseline can be kept constant whether using
@@ -83,19 +82,12 @@ print(f'Analytical solutions:\nTime: {t1 - t0:.3f} seconds')
 print(f'Mean-squared-error, polynomial: {mse_analytical_poly:.5f}')
 print(f'Mean-squared-error, sinusoidal: {mse_analytical_sine:.5f}\n')
 
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('Analytical Polynomial Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, analytical_poly_baseline, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, analytical_poly_baseline, cmap='coolwarm')
-
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('Analytical Sinusoidal Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, analytical_sine_baseline, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, analytical_sine_baseline, cmap='coolwarm')
+plot_contour_with_projection(
+    X, Z, analytical_poly_baseline, title='Analytical Polynomial Baseline'
+)
+plot_contour_with_projection(
+    X, Z, analytical_sine_baseline, title='Analytical Sinusoidal Baseline'
+)
 
 # %%
 # Now, try using eigendecomposition to calculate the same baselines. To start
@@ -119,19 +111,12 @@ print(f'40x40 Eigenvalues:\nTime: {t1 - t0:.3f} seconds')
 print(f'Mean-squared-error, polynomial: {mse_analytical_poly:.5f}')
 print(f'Mean-squared-error, sinusoidal: {mse_analytical_sine:.5f}\n')
 
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('40x40 Eigenvalues Polynomial Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, eigenvalue_poly_baseline_1, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, eigenvalue_poly_baseline_1, cmap='coolwarm')
-
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('40x40 Eigenvalues Sinusoidal Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, eigenvalue_sine_baseline_1, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, eigenvalue_sine_baseline_1, cmap='coolwarm')
+plot_contour_with_projection(
+    X, Z, eigenvalue_poly_baseline_1, title='40x40 Eigenvalues Polynomial Baseline'
+)
+plot_contour_with_projection(
+    X, Z, eigenvalue_sine_baseline_1, title='40x40 Eigenvalues Sinusoidal Baseline'
+)
 
 # %%
 # By using 40 eigenvalues along the rows and 40 along the columns, the error of the fit
@@ -139,30 +124,13 @@ ax_2.plot_surface(X, Z, eigenvalue_sine_baseline_1, cmap='coolwarm')
 # However, the number of eigenvalues being used is more than is actually required to represent
 # the two baselines, which means that the calculation time can be further reduced. Plot the
 # effective degrees of freedom to see which contribute most to the calculation.
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('Effective Degrees of Freedom for\nPolynomial Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(
+plot_contour_with_projection(
     *np.meshgrid(np.arange(num_eigens[0]), np.arange(num_eigens[1]), indexing='ij'),
-    params_3['dof'], cmap='coolwarm'
+    params_3['dof'], title='Effective Degrees of Freedom for Polynomial Baseline'
 )
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(
+plot_contour_with_projection(
     *np.meshgrid(np.arange(num_eigens[0]), np.arange(num_eigens[1]), indexing='ij'),
-    params_3['dof'], cmap='coolwarm'
-)
-
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('Effective Degrees of Freedom for\nSinusoidal Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(
-    *np.meshgrid(np.arange(num_eigens[0]), np.arange(num_eigens[1]), indexing='ij'),
-    params_4['dof'], cmap='coolwarm'
-)
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(
-    *np.meshgrid(np.arange(num_eigens[0]), np.arange(num_eigens[1]), indexing='ij'),
-    params_4['dof'], cmap='coolwarm'
+    params_4['dof'], title='Effective Degrees of Freedom for Sinusoidal Baseline'
 )
 
 # %%
@@ -191,19 +159,12 @@ print(f'10x4 Eigenvalues for polynomial, 8x35 for sinusoidal:\nTime: {t1 - t0:.3
 print(f'Mean-squared-error, polynomial: {mse_analytical_poly:.5f}')
 print(f'Mean-squared-error, sinusoidal: {mse_analytical_sine:.5f}\n')
 
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('10x4 Eigenvalues Polynomial Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, eigenvalue_poly_baseline_2, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, eigenvalue_poly_baseline_2, cmap='coolwarm')
-
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('8x35 Eigenvalues Sinusoidal Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, eigenvalue_sine_baseline_2, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, eigenvalue_sine_baseline_2, cmap='coolwarm')
+plot_contour_with_projection(
+    X, Z, eigenvalue_poly_baseline_2, title='10x4 Eigenvalues Polynomial Baseline'
+)
+plot_contour_with_projection(
+    X, Z, eigenvalue_sine_baseline_2, title='8x35 Eigenvalues Sinusoidal Baseline'
+)
 
 # %%
 # By reducing the number of eigenvalues to represent the baseline, the calculation
@@ -226,23 +187,16 @@ eigenvalue_sine_baseline_3, params_8 = baseline_fitter.arpls(
 t1 = perf_counter()
 mse_analytical_poly = mean_squared_error(eigenvalue_poly_baseline_3, polynomial_baseline)
 mse_analytical_sine = mean_squared_error(eigenvalue_sine_baseline_3, sine_baseline)
-print(f'3x3 Eigenvalues for polynomial, 5x10 for sinusoidal:\nTime: {t1 - t0:.3f} seconds')
+print(f'3x3 Eigenvalues for polynomial, 5x12 for sinusoidal:\nTime: {t1 - t0:.3f} seconds')
 print(f'Mean-squared-error, polynomial: {mse_analytical_poly:.5f}')
 print(f'Mean-squared-error, sinusoidal: {mse_analytical_sine:.5f}')
 
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('3x3 Eigenvalues Polynomial Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, eigenvalue_poly_baseline_3, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, eigenvalue_poly_baseline_3, cmap='coolwarm')
-
-fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
-fig.suptitle('5x12 Eigenvalues Sinusoidal Baseline')
-ax = fig.add_subplot(1, 2, 2)
-ax.contourf(X, Z, eigenvalue_sine_baseline_3, cmap='coolwarm')
-ax_2 = fig.add_subplot(1, 2, 1, projection='3d')
-ax_2.plot_surface(X, Z, eigenvalue_sine_baseline_3, cmap='coolwarm')
+plot_contour_with_projection(
+    X, Z, eigenvalue_poly_baseline_3, title='3x3 Eigenvalues Polynomial Baseline'
+)
+plot_contour_with_projection(
+    X, Z, eigenvalue_sine_baseline_3, title='5x12 Eigenvalues Sinusoidal Baseline'
+)
 
 plt.show()
 
