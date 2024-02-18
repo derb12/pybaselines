@@ -13,15 +13,14 @@ import warnings
 
 import numpy as np
 
-from ..utils import (
-    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, optimize_window,
-    pad_edges2d
-)
-from ._spline_utils import PSpline2D
 from .._validation import (
     _check_array, _check_half_window, _check_optional_array, _check_scalar_variable,
     _check_sized_array, _yxz_arrays
 )
+from ..utils import (
+    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, optimize_window, pad_edges2d
+)
+from ._spline_utils import PSpline2D
 from ._whittaker_utils import WhittakerSystem2D
 
 

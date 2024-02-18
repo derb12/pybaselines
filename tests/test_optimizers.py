@@ -10,7 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import optimizers, polynomial, utils, Baseline
+from pybaselines import Baseline, optimizers, polynomial, utils
 
 from .conftest import BaseTester, InputWeightsMixin
 

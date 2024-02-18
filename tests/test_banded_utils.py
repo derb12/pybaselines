@@ -12,7 +12,7 @@ import pytest
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
-from pybaselines._compat import diags, dia_object, identity
+from pybaselines._compat import dia_object, diags, identity
 
 from .conftest import has_pentapy
 

@@ -14,7 +14,7 @@ from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import spsolve
 
 from pybaselines._banded_utils import diff_penalty_diagonals
-from pybaselines._compat import identity, dia_object
+from pybaselines._compat import dia_object, identity
 from pybaselines.two_d import _spline_utils, _whittaker_utils
 from pybaselines.utils import difference_matrix
 

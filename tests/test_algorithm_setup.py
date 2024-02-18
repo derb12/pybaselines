@@ -11,8 +11,8 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
-from pybaselines.utils import ParameterWarning
 from pybaselines._compat import dia_object
+from pybaselines.utils import ParameterWarning
 
 from .conftest import get_data
 

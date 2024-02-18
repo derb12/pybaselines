@@ -12,9 +12,9 @@ import pytest
 from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import spsolve
 
+from pybaselines._compat import identity
 from pybaselines.two_d import _spline_utils
 from pybaselines.utils import difference_matrix
-from pybaselines._compat import identity
 
 from ..conftest import get_2dspline_inputs
 
@@ -247,6 +247,7 @@ def test_pspline_tck(data_fixture2d, num_knots, spline_degree, diff_order, lam):
     major, minor = [int(val) for val in scipy.__version__.split('.')[:2]]
     if major > 1 or (major == 1 and minor >= 12):
         from scipy.interpolate import NdBSpline
+
         # np.array(np.meshgrid(x, z)).T is the same as doing
         # np.array(np.meshgrid(x, z, indexing='ij')).transpose([1, 2, 0]), which
         # is just zipping the meshgrid of each x and z value

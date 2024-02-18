@@ -15,8 +15,8 @@ from scipy.signal import savgol_coeffs
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import trapezoid
 from .utils import (
-    ParameterWarning, _check_scalar, _get_edges, gaussian, gaussian_kernel,
-    optimize_window, pad_edges, padded_convolve, relative_difference
+    ParameterWarning, _check_scalar, _get_edges, gaussian, gaussian_kernel, optimize_window,
+    pad_edges, padded_convolve, relative_difference
 )
 
 

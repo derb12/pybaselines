@@ -9,7 +9,7 @@ Created on December 8, 2021
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
 
-from ._compat import _HAS_PENTAPY, _pentapy_solve, identity, diags, dia_object
+from ._compat import _HAS_PENTAPY, _pentapy_solve, dia_object, diags, identity
 from ._validation import _check_lam
 
 

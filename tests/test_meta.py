@@ -13,8 +13,7 @@ from numpy.testing import assert_allclose
 import pytest
 
 from .conftest import (
-    BaseTester, BaseTester2D, BasePolyTester, InputWeightsMixin, dummy_wrapper, get_data,
-    get_data2d
+    BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, dummy_wrapper, get_data, get_data2d
 )
 
 

@@ -13,11 +13,12 @@ from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.special import binom
 
-from ._banded_utils import PenalizedSystem, difference_matrix as _difference_matrix
+from ._banded_utils import PenalizedSystem
+from ._banded_utils import difference_matrix as _difference_matrix
 from ._compat import jit
 from ._spline_utils import PSpline
 from ._validation import (
-    _check_array, _check_scalar, _check_optional_array, _get_row_col_values, _yx_arrays
+    _check_array, _check_optional_array, _check_scalar, _get_row_col_values, _yx_arrays
 )
 
 

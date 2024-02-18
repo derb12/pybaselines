@@ -10,9 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines.two_d import (
-    api, morphological, optimizers, polynomial, smooth, spline, whittaker
-)
+from pybaselines.two_d import api, morphological, optimizers, polynomial, smooth, spline, whittaker
 
 from ..conftest import get_data2d
 

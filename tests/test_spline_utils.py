@@ -16,7 +16,7 @@ from scipy.sparse import issparse
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
-from pybaselines._compat import diags, dia_object
+from pybaselines._compat import dia_object, diags
 
 
 def _nieve_basis_matrix(x, knots, spline_degree):

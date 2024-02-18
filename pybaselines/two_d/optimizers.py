@@ -16,10 +16,10 @@ from math import ceil
 import numpy as np
 
 from . import morphological, polynomial, spline, whittaker
-from ._algorithm_setup import _Algorithm2D
-from ..api import Baseline
 from .._validation import _check_optional_array, _get_row_col_values
+from ..api import Baseline
 from ..utils import _check_scalar, _sort_array2d
+from ._algorithm_setup import _Algorithm2D
 
 
 class _Optimizers(_Algorithm2D):

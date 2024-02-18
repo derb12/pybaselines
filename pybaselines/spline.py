@@ -18,8 +18,8 @@ from ._compat import dia_object, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
 from .utils import (
-    _mollifier_kernel, _sort_array, ParameterWarning, gaussian, pad_edges,
-    padded_convolve, relative_difference
+    ParameterWarning, _mollifier_kernel, _sort_array, gaussian, pad_edges, padded_convolve,
+    relative_difference
 )
 
 

@@ -81,9 +81,7 @@ import numpy as np
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit, prange
-from .utils import (
-    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
-)
+from .utils import _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
 
 
 class _Polynomial(_Algorithm):

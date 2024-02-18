@@ -15,7 +15,7 @@ from pybaselines._compat import identity
 from pybaselines.two_d import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines.utils import ParameterWarning, difference_matrix
 
-from ..conftest import get_data2d, get_2dspline_inputs
+from ..conftest import get_2dspline_inputs, get_data2d
 
 
 @pytest.fixture

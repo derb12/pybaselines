@@ -41,8 +41,8 @@ POSSIBILITY OF SUCH DAMAGE.
 import numpy as np
 
 from .. import _weighting
-from ._algorithm_setup import _Algorithm2D
 from ..utils import _MIN_FLOAT, _convert_coef2d, relative_difference
+from ._algorithm_setup import _Algorithm2D
 
 
 class _Polynomial(_Algorithm2D):

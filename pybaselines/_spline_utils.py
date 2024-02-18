@@ -46,7 +46,7 @@ import numpy as np
 from scipy.interpolate import BSpline, splev
 from scipy.linalg import solve_banded, solveh_banded
 
-from ._banded_utils import _add_diagonals, _lower_to_full, PenalizedSystem
+from ._banded_utils import PenalizedSystem, _add_diagonals, _lower_to_full
 from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
 from ._validation import _check_array
 

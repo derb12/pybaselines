@@ -9,9 +9,9 @@ Created on April 8, 2023
 import numpy as np
 from scipy.ndimage import grey_dilation, grey_erosion, grey_opening, uniform_filter
 
-from ._algorithm_setup import _Algorithm2D
-from ..utils import relative_difference
 from .._validation import _check_half_window
+from ..utils import relative_difference
+from ._algorithm_setup import _Algorithm2D
 
 
 class _Morphological(_Algorithm2D):

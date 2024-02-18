@@ -11,9 +11,7 @@ from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_openin
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_lam
-from .utils import (
-    _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
-)
+from .utils import _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
 
 
 class _Morphological(_Algorithm):

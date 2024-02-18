@@ -9,7 +9,7 @@ Created on March 20, 2021
 from unittest import mock
 
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 import scipy
 from scipy import integrate, sparse

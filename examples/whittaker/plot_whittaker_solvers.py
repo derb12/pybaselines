@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import whittaker, _banded_utils
+from pybaselines import _banded_utils, whittaker
 from pybaselines.utils import difference_matrix, gaussian, relative_difference
 
 
