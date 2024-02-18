@@ -50,9 +50,8 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
     basis_c = _spline_utils._spline_basis(z, knots_c, spline_degree_z)
 
     num_bases = (basis_r.shape[1], basis_c.shape[1])
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, y.size)
-    weights = np.clip(weights, 0, 1).astype(float, copy=False)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, y.size)
+    weights = np.clip(weights, 0, 1, dtype=float)
 
     # note: within Eiler's paper, the basis was defined as kron(basis_z, basis_x),
     # but the rows and columns were switched, ie. it should be kron(basis_rows, basis_columns),
