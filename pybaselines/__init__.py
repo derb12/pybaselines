@@ -55,6 +55,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * pspline_aspls (Penalized Spline Version of aspls)
     * pspline_psalsa (Penalized Spline Version of psalsa)
     * pspline_derpsalsa (Penalized Spline Version of derpsalsa)
+    * pspline_mpls (Penalized Spline Version of mpls)
 
 * Smoothing-based methods (:mod:`pybaselines.smooth`)
 

@@ -162,11 +162,11 @@ irsqr (Iterative Reweighted Spline Quantile Regression)
     create_plots(y, baseline)
 
 
-pspline_asls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_asls (Penalized Spline Version of asls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_asls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_asls (Penalized Spline Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/spline:pspline_asls (Penalized Spline Version of asls)>`.
 
 .. plot::
    :align: center
@@ -176,11 +176,11 @@ pspline_asls (Penalized Spline Asymmetric Least Squares)
     create_plots(y, baseline)
 
 
-pspline_iasls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_iasls (Penalized Spline Version of iasls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_iasls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_iasls (Penalized Spline Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/spline:pspline_iasls (Penalized Spline Version of iasls)>`.
 
 .. plot::
    :align: center
@@ -190,11 +190,11 @@ pspline_iasls (Penalized Spline Asymmetric Least Squares)
     create_plots(y, baseline)
 
 
-pspline_airpls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_airpls (Penalized Spline Version of airpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_airpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_airpls (Penalized Spline Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/spline:pspline_airpls (Penalized Spline Version of airpls)>`.
 
 .. plot::
    :align: center
@@ -204,11 +204,11 @@ pspline_airpls (Penalized Spline Asymmetric Least Squares)
     create_plots(y, baseline)
 
 
-pspline_arpls (Penalized Spline Asymmetrically Reweighted Penalized Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_arpls (Penalized Spline Version of arpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_arpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_arpls (Penalized Spline Asymmetrically Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/spline:pspline_arpls (Penalized Spline Version of arpls)>`.
 
 .. plot::
    :align: center
@@ -218,11 +218,11 @@ pspline_arpls (Penalized Spline Asymmetrically Reweighted Penalized Least Square
     create_plots(y, baseline)
 
 
-pspline_iarpls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_iarpls (Penalized Spline Version of iarpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_iarpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_iarpls (Penalized Spline Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/spline:pspline_iarpls (Penalized Spline Version of iarpls)>`.
 
 .. plot::
    :align: center
@@ -232,11 +232,11 @@ pspline_iarpls (Penalized Spline Asymmetric Least Squares)
     create_plots(y, baseline)
 
 
-pspline_psalsa (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_psalsa (Penalized Spline Version of psalsa)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_psalsa`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_psalsa (Penalized Spline Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/spline:pspline_psalsa (Penalized Spline Version of psalsa)>`.
 
 .. plot::
    :align: center

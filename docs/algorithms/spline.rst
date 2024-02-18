@@ -250,8 +250,8 @@ between all but the first and last non-corner points.
         ax.plot(baseline, 'g--')
 
 
-pspline_asls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_asls (Penalized Spline Version of asls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_asls` is a penalized spline version of :meth:`~.Baseline.asls`.
 
@@ -298,8 +298,8 @@ Weighting:
 
 
 
-pspline_iasls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_iasls (Penalized Spline Version of iasls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_iasls` is a penalized spline version of :meth:`~.Baseline.iasls`.
 
@@ -351,8 +351,8 @@ Weighting:
         ax.plot(baseline, 'g--')
 
 
-pspline_airpls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_airpls (Penalized Spline Version of airpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_airpls` is a penalized spline version of :meth:`~.Baseline.airpls`.
 
@@ -398,8 +398,8 @@ values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z
         ax.plot(baseline, 'g--')
 
 
-pspline_arpls (Penalized Spline Asymmetrically Reweighted Penalized Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_arpls (Penalized Spline Version of arpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_arpls` is a penalized spline version of :meth:`~.Baseline.arpls`.
 
@@ -442,8 +442,8 @@ values in the residual vector :math:`\mathbf r`.
         ax.plot(baseline, 'g--')
 
 
-pspline_drpls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_drpls (Penalized Spline Version of drpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_drpls` is a penalized spline version of :meth:`~.Baseline.drpls`.
 
@@ -498,8 +498,8 @@ respectively, of the negative values in the residual vector :math:`\mathbf r`.
         ax.plot(baseline, 'g--')
 
 
-pspline_iarpls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_iarpls (Penalized Spline Version of iarpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_iarpls` is a penalized spline version of :meth:`~.Baseline.iarpls`.
 
@@ -546,8 +546,8 @@ the residual vector :math:`\mathbf r`.
         ax.plot(baseline, 'g--')
 
 
-pspline_aspls (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_aspls (Penalized Spline Version of aspls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_aspls` is a penalized spline version of :meth:`~.Baseline.aspls`.
 
@@ -611,8 +611,8 @@ of the asPLS paper closer than the factor of 2 and fits noisy data much better).
         ax.plot(baseline, 'g--')
 
 
-pspline_psalsa (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_psalsa (Penalized Spline Version of psalsa)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_psalsa` is a penalized spline version of :meth:`~.Baseline.psalsa`.
 
@@ -658,8 +658,8 @@ be considered a peak.
 
 
 
-pspline_derpsalsa (Penalized Spline Asymmetric Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_derpsalsa (Penalized Spline Version of derpsalsa)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_derpsalsa` is a penalized spline version of :meth:`~.Baseline.derpsalsa`.
 
@@ -720,8 +720,8 @@ respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the roo
         ax.plot(baseline, 'g--')
 
 
-pspline_mpls (Penalized Spline Morphological Penalized Least Squares)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pspline_mpls (Penalized Spline Version of mpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.pspline_mpls` is a penalized spline version of :meth:`~.Baseline.mpls`.
 

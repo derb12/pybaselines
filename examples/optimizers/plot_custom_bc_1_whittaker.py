@@ -44,15 +44,14 @@ baseline_fitter = Baseline(x_data=x)
 # %%
 # For certain types of data, there can often be a sharp change in the
 # baseline withinin a small region, such as in Raman spectroscopy
-# near a wavenumber of 0 or in XRD at low two-theta. This presents a
+# near a Raman shift of 0 or in XRD at low two-theta. This presents a
 # significant challenge to baseline algorithms that fit a single "global"
-# baseline such as Whittaker-smoothing-based methods. The majority of
-# the data can be fit using a "stiff" baseline, but the anomolous region
-# requires a more flexible baseline.
+# baseline such as Whittaker-smoothing-based methods.
 #
-# Plotting each of these two cases separately, it is apparent each fits
-# its target region well, but combining the two into a single baseline
-# is difficult.
+# The majority of the data can be fit using a "stiff" baseline, but the anomolous region
+# requires a more flexible baseline.  Plotting each of these two cases
+# separately, it is apparent each fits its target region well, but combining the
+# two into a single baseline is difficult.
 lam_flexible = 1e2
 lam_stiff = 5e5
 

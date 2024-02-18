@@ -2,6 +2,62 @@
 Changelog
 =========
 
+Version 1.1.0 (2024-02-18)
+--------------------------
+
+This is a minor version with new features, deprecations,
+and documentation improvements.
+
+New Features
+~~~~~~~~~~~~
+
+* Added two dimensional versions of various baseline correction algorithms,
+  with the focus on Whittaker-smoothing-based, spline, and polynomial methods.
+  These can be accessed using the new `Baseline2D` class.
+* Added the `Baseline2D.individual_axes` method, which allows fitting each row and/or
+  column in two dimensional data with any one dimensional method in pybaselines.
+* Added a version of the rubberband method to pybaselines.misc which allows fitting
+  individual segments within data to better fit concave-shaped data.
+* Added the Customized Baseline Correction (custom_bc) method to
+  pybaselines.optimizers, which allows fitting baselines with controllable
+  levels of stiffness in different regions.
+* Added a penalized version of mpls (pspline_mpls) to pybaselines.spline.
+* Updated spline.mixture_model to use expectation-maximization rather than the previous
+  nieve approach of fitting the histogram of the residuals with the probability density
+  function. Should reduce calculation times.
+* Added a function for penalized spline (P-spline) smoothing to pybaselines.utils,
+  `pybaselines.utils.pspline_smooth`, which will return a tuple of the smoothed input and
+  the knots, spline coefficients, and spline degree for any further use with
+  SciPy's BSpline.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Officially list Python 3.12 as supported.
+* Updated lowest supported Python version to 3.8
+* Updated lowest supported dependency versions: NumPy 1.20, SciPy 1.5,
+  pentapy 1.1, and Numba 0.49
+* Use SciPy's sparse arrays when the installed SciPy version is 1.12 or newer. This
+  only affects user codes if using functions from the pybaselines.utils module.
+* Vendor SciPy's cwt and ricker functions, which were deprecated from SciPy in version 1.12.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Deprecated passing `num_bins` to spline.mixture_model. The keyword argument will
+  be removed in version 1.3.
+* Removed the pybaselines.config module, which was simply used to set the pentapy solver.
+  The same behavior can be done by setting the `pentapy_solver` attribute of a `Baseline`
+  object after initialization.
+
+Documentation/Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Added a section of the documentation explaining the extension of baseline correction for
+  two dimensional data.
+* Added new examples for 2D baseline correction and for custom_bc.
+
+
 Version 1.0.0 (2022-10-26)
 --------------------------
 
