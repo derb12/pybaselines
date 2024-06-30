@@ -821,7 +821,7 @@ class _Morphological(_Algorithm):
         robust_opening : bool, optional
             If True (default), the opening used to represent the initial baseline is the
             element-wise minimum between the morphological opening and the average of the
-            morphological erosion and dilation of the opening, similar to :meth:`~Baseline.mor`. If
+            morphological erosion and dilation of the opening, similar to :meth:`~.Baseline.mor`. If
             False, the opening is just the morphological opening, as used in the reference.
             The robust opening typically represents the baseline better.
         **window_kwargs
@@ -1610,7 +1610,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
     robust_opening : bool, optional
         If True (default), the opening used to represent the initial baseline is the
         element-wise minimum between the morphological opening and the average of the
-        morphological erosion and dilation of the opening, similar to :meth:`~Baseline.mor`. If
+        morphological erosion and dilation of the opening, similar to :meth:`~.Baseline.mor`. If
         False, the opening is just the morphological opening, as used in the reference.
         The robust opening typically represents the baseline better.
     x_data : array-like, optional

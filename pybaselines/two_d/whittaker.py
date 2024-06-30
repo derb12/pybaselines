@@ -751,7 +751,7 @@ class _Whittaker(_Algorithm2D):
             values greater than the data. Should be approximately the height at which
             a value could be considered a peak. Default is None, which sets `k` to
             one-tenth of the standard deviation of the input data. A large k value
-            will produce similar results to :meth:`~Baseline2D.asls`.
+            will produce similar results to :meth:`~.Baseline2D.asls`.
         diff_order : int or Sequence[int, int], optional
             The order of the differential matrix for the rows and columns, respectively. If
             a single value is given, both will use the same value. Must be greater than 0.

@@ -61,7 +61,7 @@ class _Optimizers(_Algorithm2D):
             * 'average_alpha': numpy.ndarray, shape (M, N)
                 Only returned if `method` is 'aspls'. The
                 `alpha` array used to fit all of the baselines for the
-                :meth:`~Baseline2D.aspls`.
+                :meth:`~.Baseline2D.aspls`.
 
             Additional items depend on the output of the selected method. Every
             other key will have a list of values, with each item corresponding to a
@@ -176,7 +176,7 @@ class _Optimizers(_Algorithm2D):
             Default is 2.
         method_kwargs : dict, optional
             Additional keyword arguments to pass to
-            :meth:`~Baseline.modpoly` or :meth:`~Baseline.imodpoly`. These include
+            :meth:`~.Baseline2D.modpoly` or :meth:`~.Baseline2D.imodpoly`. These include
             `tol`, `max_iter`, `use_original`, `mask_initial_peaks`, and `num_std`.
 
         Returns
