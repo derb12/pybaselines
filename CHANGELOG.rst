@@ -16,7 +16,7 @@ New Features
   These can be accessed using the new `Baseline2D` class.
 * Added the `Baseline2D.individual_axes` method, which allows fitting each row and/or
   column in two dimensional data with any one dimensional method in pybaselines.
-* Added a version of the rubberband method to pybaselines.misc which allows fitting
+* Added a version of the rubberband method to pybaselines.classification which allows fitting
   individual segments within data to better fit concave-shaped data.
 * Added the Customized Baseline Correction (custom_bc) method to
   pybaselines.optimizers, which allows fitting baselines with controllable

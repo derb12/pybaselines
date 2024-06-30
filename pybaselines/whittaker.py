@@ -345,7 +345,6 @@ class _Whittaker(_Algorithm):
         """
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         tol_history = np.empty(max_iter + 1)
-        tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.whittaker_system.solve(
                 self.whittaker_system.add_diagonal(weight_array), weight_array * y,

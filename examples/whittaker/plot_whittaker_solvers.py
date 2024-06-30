@@ -11,7 +11,7 @@ This example shows the difference in computation times of the asymmetic least sq
 and the banded solver from the optional dependency
 `pentapy <https://github.com/GeoStat-Framework/pentapy>`_. In addition, the time
 it takes when solving the system using sparse matrices rather than the banded matrices
-is compared, since most other libraries use the sparse solution.
+is compared, since direct adaptation from literature usually uses the sparse solution.
 
 Compared to the time required to solve using sparse matrices, Scipy's banded solver
 is ~50-70% faster and pentapy's banded solver is ~70-90% faster, ultimately reducing

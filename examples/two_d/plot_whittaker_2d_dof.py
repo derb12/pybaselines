@@ -120,7 +120,9 @@ plot_contour_with_projection(
 
 # %%
 # By using 40 eigenvalues along the rows and 40 along the columns, the error of the fit
-# remains the same as the analytical solution while slightly reducing the computation time.
+# remains the same as the analytical solution while the computation time is roughly the same
+# (eigenvalue time may slightly increase or decrease compared to the analytical solution
+# depending on the system, installed libraries, etc.).
 # However, the number of eigenvalues being used is more than is actually required to represent
 # the two baselines, which means that the calculation time can be further reduced. Plot the
 # effective degrees of freedom to see which contribute most to the calculation.
