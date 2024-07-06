@@ -205,7 +205,7 @@ class _Optimizers(_Algorithm2D):
         )
         sort_weights = weights is not None
         weight_array = _check_optional_array(
-            self._len, weights, check_finite=self._check_finite, ensure_1d=False, axis=slice(None)
+            self._shape, weights, check_finite=self._check_finite, ensure_1d=False, axis=slice(None)
         )
         if poly_order is None:
             poly_orders = _determine_polyorders(
@@ -229,13 +229,13 @@ class _Optimizers(_Algorithm2D):
             weight_array = _sort_array2d(weight_array, self._sort_order)
 
         constrained_weights = weight_array.copy()
-        constrained_weights[:ceil(self._len[0] * constrained_fractions[0])] = weightings[0]
-        constrained_weights[:, :ceil(self._len[1] * constrained_fractions[2])] = weightings[2]
+        constrained_weights[:ceil(self._shape[0] * constrained_fractions[0])] = weightings[0]
+        constrained_weights[:, :ceil(self._shape[1] * constrained_fractions[2])] = weightings[2]
         constrained_weights[
-            self._len[0] - ceil(self._len[0] * constrained_fractions[1]):
+            self._shape[0] - ceil(self._shape[0] * constrained_fractions[1]):
         ] = weightings[1]
         constrained_weights[
-            :, self._len[1] - ceil(self._len[1] * constrained_fractions[3]):
+            :, self._shape[1] - ceil(self._shape[1] * constrained_fractions[3]):
         ] = weightings[3]
         # and now change back to original ordering
         if sort_weights:
@@ -245,7 +245,7 @@ class _Optimizers(_Algorithm2D):
         # TODO should make parameters available; a list with an item for each fit like collab_pls
         # TODO could maybe just use itertools.permutations, but would want to know the order in
         # which the parameters are used
-        baselines = np.empty((4, *self._len))
+        baselines = np.empty((4, *self._shape))
         baselines[0] = baseline_func(
             data=y, poly_order=poly_orders[0], weights=weight_array, **method_kws
         )[0]
@@ -343,7 +343,7 @@ class _Optimizers(_Algorithm2D):
             raise ValueError('Method kwargs must have the same length as the input axes')
 
         keys = ('rows', 'columns')
-        baseline = np.zeros(self._len)
+        baseline = np.zeros(self._shape)
         params = {}
         for i, axis in enumerate(axes):
             fitter = Baseline(

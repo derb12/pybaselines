@@ -444,14 +444,14 @@ class _Spline(_Algorithm2D):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self.vandermonde @ (pseudo_inverse @ data.ravel())
-            weights = _weighting._asls(data, baseline.reshape(self._len), p)
+            weights = _weighting._asls(data, baseline.reshape(self._shape), p)
 
         y, weight_array = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
 
         # B.T @ P_1 @ B and B.T @ P_1 @ y
-        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1)
+        penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
         p1_partial_penalty = self.pspline.basis.T @ penalized_system_1.penalty
 
         partial_rhs = p1_partial_penalty @ y.ravel()
@@ -825,7 +825,7 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve(y, weight_array)
-            new_weights = _weighting._psalsa(y, baseline, p, k, self._len)
+            new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

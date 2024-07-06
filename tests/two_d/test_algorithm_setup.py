@@ -523,7 +523,12 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         expected_shape[0] = len(x)
     if input_z:
         expected_shape[1] = len(z)
-    assert algorithm._len == expected_shape
+    assert isinstance(algorithm._shape, tuple)
+    assert algorithm._shape == tuple(expected_shape)
+    if None in expected_shape:
+        assert algorithm._size is None
+    else:
+        assert algorithm._size == len(x) * len(z)
 
     if not assume_sorted and change_order and (input_x or input_z):
         if input_x and input_z:
@@ -869,7 +874,7 @@ def test_override_x(algorithm):
     with pytest.raises(NotImplementedError):
         with algorithm._override_x(new_x) as new_algorithm:
             assert len(new_algorithm.x) == new_len
-            assert new_algorithm._len == new_len
+            assert new_algorithm._shape[0] == new_len
             assert new_algorithm.poly_order == -1
             assert new_algorithm.vandermonde is None
             assert new_algorithm.whittaker_system is None

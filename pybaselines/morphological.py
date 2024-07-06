@@ -108,7 +108,7 @@ class _Morphological(_Algorithm):
             indices = np.flatnonzero(
                 ((diff[1:] == 0) | (diff[:-1] == 0)) & ((diff[1:] != 0) | (diff[:-1] != 0))
             )
-            w = np.full(self._len, p)
+            w = np.full(self._shape, p)
             # find the index of min(y) in the region between flat regions
             for previous_segment, next_segment in zip(indices[1::2], indices[2::2]):
                 index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment
@@ -506,7 +506,7 @@ class _Morphological(_Algorithm):
         baseline = uniform_filter1d(
             pad_edges(rough_baseline, smooth_half_window, **pad_kws),
             2 * smooth_half_window + 1
-        )[smooth_half_window:self._len + smooth_half_window]
+        )[smooth_half_window:self._size + smooth_half_window]
 
         return baseline, {'half_window': half_wind}
 
@@ -580,7 +580,7 @@ class _Morphological(_Algorithm):
         baseline = uniform_filter1d(
             pad_edges(rough_baseline, smooth_half_window, **pad_kws),
             2 * smooth_half_window + 1
-        )[smooth_half_window:self._len + smooth_half_window]
+        )[smooth_half_window:self._size + smooth_half_window]
 
         return baseline, {'half_window': half_wind}
 

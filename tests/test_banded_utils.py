@@ -420,12 +420,13 @@ def test_difference_matrix_formats(form):
 
 
 def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
-                           allow_lower, reverse_diags, padding, using_pentapy):
+                           allow_lower, reverse_diags, padding, using_pentapy, data_size):
     """Tests a PenalizedSystem object with the expected values."""
     expected_padded_penalty = lam * _banded_utils._pad_diagonals(
         expected_penalty, padding, lower_only=allow_lower
     )
 
+    assert penalized_system._num_bases == data_size
     assert_array_equal(penalized_system.original_diagonals, expected_penalty)
     assert_array_equal(penalized_system.penalty, expected_padded_penalty)
     assert penalized_system.reversed == reverse_diags
@@ -478,6 +479,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
     initial_system = _banded_utils.PenalizedSystem(
         data_size, lam=1, diff_order=0, allow_pentapy=False
     )
+    assert initial_system._num_bases == data_size
 
     for padding in range(-1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
@@ -486,7 +488,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         )
         check_penalized_system(
             penalized_system, expected_penalty, lam, diff_order, allow_lower,
-            bool(reverse_diags), padding, False
+            bool(reverse_diags), padding, False, data_size
         )
         # also check that the reset_diagonal method performs similarly
         initial_system.reset_diagonals(
@@ -495,7 +497,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         )
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, allow_lower,
-            bool(reverse_diags), padding, False
+            bool(reverse_diags), padding, False, data_size
         )
 
 
@@ -535,6 +537,7 @@ def test_penalized_system_setup_pentapy(diff_order, allow_lower, reverse_diags):
     initial_system = _banded_utils.PenalizedSystem(
         data_size, lam=1, diff_order=0, allow_pentapy=True
     )
+    assert initial_system._num_bases == data_size
 
     for padding in range(-1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
@@ -543,7 +546,7 @@ def test_penalized_system_setup_pentapy(diff_order, allow_lower, reverse_diags):
         )
         check_penalized_system(
             penalized_system, expected_penalty, lam, diff_order, actual_lower,
-            reversed_penalty, padding, using_pentapy=diff_order == 2
+            reversed_penalty, padding, using_pentapy=diff_order == 2, data_size=data_size
         )
         # also check that the reset_diagonal method performs similarly
         initial_system.reset_diagonals(
@@ -552,7 +555,7 @@ def test_penalized_system_setup_pentapy(diff_order, allow_lower, reverse_diags):
         )
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, actual_lower,
-            reversed_penalty, padding, using_pentapy=diff_order == 2
+            reversed_penalty, padding, using_pentapy=diff_order == 2, data_size=data_size
         )
 
 

@@ -316,9 +316,9 @@ class _Spline(_Algorithm):
         mask = mask.astype(bool, copy=False)
 
         areas = np.zeros(max_iter)
-        kept_points = np.zeros(self._len, int)
+        kept_points = np.zeros(self._shape, int)
         old_area = trapezoid(y, self.x)
-        old_sum = self._len
+        old_sum = self._size
         ym = y
         xm = self.x
         for i in range(max_iter):
@@ -537,10 +537,10 @@ class _Spline(_Algorithm):
         )
 
         # B.T @ D_1.T @ D_1 @ B and B.T @ D_1.T @ D_1 @ y
-        d1_penalty = _check_lam(lam_1) * diff_penalty_diagonals(self._len, 1, lower_only=False)
+        d1_penalty = _check_lam(lam_1) * diff_penalty_diagonals(self._size, 1, lower_only=False)
         d1_penalty = (
             self.pspline.basis.T
-            @ dia_object((d1_penalty, np.array([1, 0, -1])), shape=(self._len, self._len)).tocsr()
+            @ dia_object((d1_penalty, np.array([1, 0, -1])), shape=(self._size, self._size)).tocsr()
         )
         partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array
@@ -1022,7 +1022,7 @@ class _Spline(_Algorithm):
             allow_lower=False, reverse_diags=True
         )
         alpha_array = _check_optional_array(
-            self._len, alpha, check_finite=self._check_finite, name='alpha'
+            self._size, alpha, check_finite=self._check_finite, name='alpha'
         )
         if self._sort_order is not None and alpha is not None:
             alpha_array = alpha_array[self._sort_order]
@@ -1135,7 +1135,7 @@ class _Spline(_Algorithm):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve_pspline(y, weight_array)
-            new_weights = _weighting._psalsa(y, baseline, p, k, self._len)
+            new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -1238,7 +1238,7 @@ class _Spline(_Algorithm):
             k = np.std(y) / 10
 
         if smooth_half_window is None:
-            smooth_half_window = self._len // 200
+            smooth_half_window = self._size // 200
         # could pad the data every iteration, but it is ~2-3 times slower and only affects
         # the edges, so it's not worth it
         y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs)
@@ -1246,13 +1246,13 @@ class _Spline(_Algorithm):
             smooth_kernel = _mollifier_kernel(smooth_half_window)
             for _ in range(num_smooths):
                 y_smooth = padded_convolve(y_smooth, smooth_kernel)
-        y_smooth = y_smooth[smooth_half_window:self._len + smooth_half_window]
+        y_smooth = y_smooth[smooth_half_window:self._size + smooth_half_window]
 
         diff_y_1 = np.gradient(y_smooth)
         diff_y_2 = np.gradient(diff_y_1)
         # x.dot(x) is same as (x**2).sum() but faster
-        rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / self._len)
-        rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / self._len)
+        rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / self._size)
+        rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / self._size)
 
         diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
         diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
@@ -1260,7 +1260,7 @@ class _Spline(_Algorithm):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve_pspline(y, weight_array)
-            new_weights = _weighting._derpsalsa(y, baseline, p, k, self._len, partial_weights)
+            new_weights = _weighting._derpsalsa(y, baseline, p, k, self._shape, partial_weights)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -1373,7 +1373,7 @@ class _Spline(_Algorithm):
             indices = np.flatnonzero(
                 ((diff[1:] == 0) | (diff[:-1] == 0)) & ((diff[1:] != 0) | (diff[:-1] != 0))
             )
-            w = np.full(y.shape[0], p)
+            w = np.full(self._shape, p)
             # find the index of min(y) in the region between flat regions
             for previous_segment, next_segment in zip(indices[1::2], indices[2::2]):
                 index = np.argmin(y[previous_segment:next_segment + 1]) + previous_segment

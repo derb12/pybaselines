@@ -258,7 +258,7 @@ class _Optimizers(_Algorithm):
                 ))
             param_name = 'lam'
 
-        added_window = int(self._len * width_scale)
+        added_window = int(self._size * width_scale)
         for key in ('weights', 'alpha'):
             if key in method_kws:
                 method_kws[key] = np.pad(
@@ -312,7 +312,7 @@ class _Optimizers(_Algorithm):
         else:
             if side == 'right':
                 new_sort_order = np.concatenate((
-                    self._sort_order, np.arange(self._len, self._len + added_len, dtype=np.intp)
+                    self._sort_order, np.arange(self._size, self._size + added_len, dtype=np.intp)
                 ), dtype=np.intp)
             elif side == 'left':
                 new_sort_order = np.concatenate((
@@ -322,7 +322,7 @@ class _Optimizers(_Algorithm):
                 new_sort_order = np.concatenate((
                     np.arange(added_window, dtype=np.intp),
                     self._sort_order + added_window,
-                    np.arange(self._len + added_window, self._len + added_len, dtype=np.intp)
+                    np.arange(self._size + added_window, self._size + added_len, dtype=np.intp)
                 ), dtype=np.intp)
 
         # TODO maybe switch to linspace since arange is inconsistent when using floats
@@ -427,7 +427,7 @@ class _Optimizers(_Algorithm):
             data, method, [polynomial], method_kwargs, False
         )
         sort_weights = weights is not None
-        weight_array = _check_optional_array(self._len, weights, check_finite=self._check_finite)
+        weight_array = _check_optional_array(self._size, weights, check_finite=self._check_finite)
         if poly_order is None:
             poly_orders = _determine_polyorders(
                 y, estimation_poly_order, weight_array, baseline_func, **method_kws
@@ -450,9 +450,9 @@ class _Optimizers(_Algorithm):
             weight_array = _sort_array(weight_array, self._sort_order)
 
         constrained_weights = weight_array.copy()
-        constrained_weights[:ceil(self._len * constrained_fractions[0])] = weightings[0]
+        constrained_weights[:ceil(self._size * constrained_fractions[0])] = weightings[0]
         constrained_weights[
-            self._len - ceil(self._len * constrained_fractions[1]):
+            self._size - ceil(self._size * constrained_fractions[1]):
         ] = weightings[1]
 
         # and now change back to original ordering
@@ -463,7 +463,7 @@ class _Optimizers(_Algorithm):
         # TODO should make parameters available; a list with an item for each fit like collab_pls
         # TODO could maybe just use itertools.permutations, but would want to know the order in
         # which the parameters are used
-        baselines = np.empty((4, self._len))
+        baselines = np.empty((4, self._size))
         baselines[0] = baseline_func(
             data=y, poly_order=poly_orders[0], weights=weight_array, **method_kws
         )[0]
@@ -574,7 +574,7 @@ class _Optimizers(_Algorithm):
 
         x_sections = []
         y_sections = []
-        x_mask = np.ones(self._len, dtype=bool)
+        x_mask = np.ones(self._shape, dtype=bool)
         last_stop = -1
         include_first = True
         include_last = True
@@ -582,14 +582,14 @@ class _Optimizers(_Algorithm):
             if start is None:
                 start = 0
             if stop is None:
-                stop = self._len
+                stop = self._size
             if start < last_stop:
                 raise ValueError('Sections cannot overlap')
             else:
                 last_stop = stop
             if start < 0 or stop < 0:
                 raise ValueError('values in regions must be positive')
-            elif stop > self._len:
+            elif stop > self._size:
                 raise ValueError('values in regions must be less than len(data)')
 
             sections = (stop - start) // step
@@ -599,7 +599,7 @@ class _Optimizers(_Algorithm):
             for left_idx, right_idx in zip(indices[:-1], indices[1:]):
                 if left_idx == 0 and right_idx == 1:
                     include_first = False
-                elif right_idx == self._len and left_idx == self._len - 1:
+                elif right_idx == self._size and left_idx == self._size - 1:
                     include_last = False
                 y_sections.append(np.mean(y[left_idx:right_idx]))
                 x_sections.append(np.mean(self.x[left_idx:right_idx]))

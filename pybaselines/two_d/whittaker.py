@@ -117,8 +117,8 @@ class _Whittaker(_Algorithm2D):
             if return_dof:
                 params['dof'] = self.whittaker_system._calc_dof(weight_array)
         else:
-            baseline = baseline.reshape(self._len)
-            params['weights'] = weight_array.reshape(self._len)
+            baseline = baseline.reshape(self._shape)
+            params['weights'] = weight_array.reshape(self._shape)
 
         return baseline, params
 
@@ -195,10 +195,10 @@ class _Whittaker(_Algorithm2D):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self.vandermonde @ (pseudo_inverse @ data.ravel())
-            weights = _weighting._asls(data, baseline.reshape(self._len), p)
+            weights = _weighting._asls(data, baseline.reshape(self._shape), p)
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        penalized_system_1 = PenalizedSystem2D(self._len, lam_1, diff_order=1)
+        penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
 
         # (W.T @ W + P_1) @ y -> P_1 @ y + W.T @ W @ y
         self.whittaker_system.add_penalty(penalized_system_1.penalty)
@@ -333,8 +333,8 @@ class _Whittaker(_Algorithm2D):
             if return_dof:
                 params['dof'] = self.whittaker_system._calc_dof(weight_array)
         else:
-            baseline = baseline.reshape(self._len)
-            params['weights'] = weight_array.reshape(self._len)
+            baseline = baseline.reshape(self._shape)
+            params['weights'] = weight_array.reshape(self._shape)
 
         return baseline, params
 
@@ -421,8 +421,8 @@ class _Whittaker(_Algorithm2D):
             if return_dof:
                 params['dof'] = self.whittaker_system._calc_dof(weight_array)
         else:
-            baseline = baseline.reshape(self._len)
-            params['weights'] = weight_array.reshape(self._len)
+            baseline = baseline.reshape(self._shape)
+            params['weights'] = weight_array.reshape(self._shape)
 
         return baseline, params
 
@@ -489,7 +489,7 @@ class _Whittaker(_Algorithm2D):
             raise ValueError('diff_order must be 2 or greater')
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
-        penalized_system_1 = PenalizedSystem2D(self._len, 1, diff_order=1)
+        penalized_system_1 = PenalizedSystem2D(self._shape, 1, diff_order=1)
         # W + P_1 + (I - eta * W) @ P_n -> P_1 + P_n + W @ (I - eta * P_n)
         partial_penalty = self.whittaker_system.penalty + penalized_system_1.penalty
         partial_penalty_2 = -eta * self.whittaker_system.penalty
@@ -622,8 +622,8 @@ class _Whittaker(_Algorithm2D):
             if return_dof:
                 params['dof'] = self.whittaker_system._calc_dof(weight_array)
         else:
-            baseline = baseline.reshape(self._len)
-            params['weights'] = weight_array.reshape(self._len)
+            baseline = baseline.reshape(self._shape)
+            params['weights'] = weight_array.reshape(self._shape)
 
         return baseline, params
 
@@ -692,7 +692,7 @@ class _Whittaker(_Algorithm2D):
         """
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         alpha_array = _check_optional_array(
-            self._len, alpha, check_finite=self._check_finite, name='alpha',
+            self._shape, alpha, check_finite=self._check_finite, name='alpha',
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and alpha is not None:
@@ -823,7 +823,7 @@ class _Whittaker(_Algorithm2D):
         if k is None:
             k = np.std(y) / 10
 
-        shape = self._len if self.whittaker_system._using_svd else np.prod(self._len)
+        shape = self._shape if self.whittaker_system._using_svd else self._size
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.whittaker_system.solve(y, weight_array)
@@ -840,7 +840,7 @@ class _Whittaker(_Algorithm2D):
             if return_dof:
                 params['dof'] = self.whittaker_system._calc_dof(weight_array)
         else:
-            baseline = baseline.reshape(self._len)
-            params['weights'] = weight_array.reshape(self._len)
+            baseline = baseline.reshape(self._shape)
+            params['weights'] = weight_array.reshape(self._shape)
 
         return baseline, params

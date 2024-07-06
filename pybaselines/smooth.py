@@ -175,12 +175,12 @@ class _Smooth(_Algorithm):
             max_half_window = optimize_window(data)
         half_windows = _check_scalar(max_half_window, 2, True, dtype=int)[0]
         for i, half_window in enumerate(half_windows):
-            if half_window > (self._len - 1) // 2:
+            if half_window > (self._size - 1) // 2:
                 warnings.warn(
                     'max_half_window values greater than (len(data) - 1) / 2 have no effect.',
                     ParameterWarning, stacklevel=2
                 )
-                half_windows[i] = (self._len - 1) // 2
+                half_windows[i] = (self._size - 1) // 2
 
         max_of_half_windows = np.max(half_windows)
         if decreasing:
@@ -189,7 +189,7 @@ class _Smooth(_Algorithm):
             range_args = (1, max_of_half_windows + 1, 1)
 
         y = self._setup_smooth(data, max_of_half_windows, **pad_kwargs)
-        num_y = self._len + 2 * max_of_half_windows
+        num_y = self._size + 2 * max_of_half_windows
         smooth = smooth_half_window is not None and smooth_half_window > 0
         baseline = y.copy()
         for i in range(*range_args):
@@ -322,9 +322,9 @@ class _Smooth(_Algorithm):
 
         """
         if max_half_window is None:
-            max_half_window = (self._len - 1) // 2
+            max_half_window = (self._size - 1) // 2
         y = self._setup_smooth(data, max_half_window, **pad_kwargs)
-        len_y = self._len + 2 * max_half_window  # includes padding of max_half_window at each side
+        len_y = self._size + 2 * max_half_window  # includes padding of max_half_window at each side
         data_slice = slice(max_half_window, -max_half_window)
         if smooth_half_window is None:
             smooth_half_window = max(1, (len_y - 2 * max_half_window) // 50)
@@ -526,7 +526,7 @@ class _Smooth(_Algorithm):
         max_x = self.x_domain[1]
         x_range = max_x - min_x
 
-        added_window = int(self._len * width_scale)
+        added_window = int(self._size * width_scale)
         lower_bound = 0
         upper_bound = 0
         known_area = 0.

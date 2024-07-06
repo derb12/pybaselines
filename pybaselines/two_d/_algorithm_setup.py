@@ -92,15 +92,15 @@ class _Algorithm2D:
             of the input data.
 
         """
-        self._len = [None, None]
         x_sort_order = None
         z_sort_order = None
+        self._shape = None
         if x_data is None:
             self.x = None
             self.x_domain = np.array([-1., 1.])
         else:
             self.x = _check_array(x_data, check_finite=check_finite)
-            self._len[0] = len(self.x)
+            self._shape = (len(self.x), None)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
             if not assume_sorted:
                 x_sort_order, x_inverted_order = _determine_sorts(self.x)
@@ -112,7 +112,7 @@ class _Algorithm2D:
             self.z_domain = np.array([-1., 1.])
         else:
             self.z = _check_array(z_data, check_finite=check_finite)
-            self._len[1] = len(self.z)
+            self._shape = (self._shape[0], len(self.z))
             self.z_domain = np.polynomial.polyutils.getdomain(self.z)
             if not assume_sorted:
                 z_sort_order, z_inverted_order = _determine_sorts(self.z)
@@ -139,6 +139,40 @@ class _Algorithm2D:
         self._check_finite = check_finite
         self._dtype = output_dtype
         self.pentapy_solver = 2
+
+    @property
+    def _shape(self):
+        """The shape of the _Algorithm2D object."""
+        return self.__shape
+
+    @_shape.setter
+    def _shape(self, value):
+        """Sets the shape and size of the _Algorithm2D object.
+
+        Parameters
+        ----------
+        value : Sequence(int, int) or None
+            The shape of the dataset.
+
+        Notes
+        -----
+        Follows NumPy naming conventions where _Algorithm2D._size is the total number of items,
+        and _Algorithm2D._shape is the number of items in each dimension.
+
+        """
+        if value is None:
+            self._size = None
+            self.__shape = (None, None)
+        elif None in value:
+            if value[0] is None:
+                self.__shape = (self.__shape[0], value[1])
+                self._size = None
+            else:
+                self.__shape = (value[0], self.__shape[1])
+                self._size = None
+        else:
+            self.__shape = tuple(value)
+            self._size = np.prod(self._shape)
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), ensure_2d=False,
                         reshape_baseline=False, reshape_keys=(), skip_sorting=False):
@@ -183,13 +217,13 @@ class _Algorithm2D:
         """
         if reshape_baseline:
             if ensure_2d:
-                baseline = baseline.reshape(self._len)
+                baseline = baseline.reshape(self._shape)
             else:
-                baseline = baseline.reshape(-1, *self._len)
+                baseline = baseline.reshape(-1, *self._shape)
         for key in reshape_keys:
             if key in params:
                 # TODO can any params be non-2d that need reshaped?
-                params[key] = params[key].reshape(self._len)
+                params[key] = params[key].reshape(self._shape)
 
         if self._sort_order is not None:
             for key in sort_keys:
@@ -266,13 +300,13 @@ class _Algorithm2D:
             reset_z = self.z is not None
             if reset_x or reset_z:
                 if reset_x and reset_z:
-                    expected_shape = self._len
+                    expected_shape = self._shape
                     axis = slice(-2, None)
                 elif reset_x:
-                    expected_shape = self._len[0]
+                    expected_shape = self._shape[0]
                     axis = -2
                 else:
-                    expected_shape = self._len[1]
+                    expected_shape = self._shape[1]
                     axis = -1
                 y = _check_sized_array(
                     data, expected_shape, check_finite=self._check_finite, dtype=dtype,
@@ -292,16 +326,16 @@ class _Algorithm2D:
                     self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
             else:
-                self._len[0] = y.shape[-2]
-                self.x = np.linspace(-1, 1, self._len[0])
+                self._shape = (y.shape[-2], self._shape[1])
+                self.x = np.linspace(-1, 1, self._shape[0])
             if reset_z:
                 z_dtype = self.z.dtype
                 self.z = _check_array(
                     self.z, dtype=dtype, order=order, check_finite=False, ensure_1d=False
                 )
             else:
-                self._len[1] = y.shape[-1]
-                self.z = np.linspace(-1, 1, self._len[1])
+                self._shape = (self._shape[0], y.shape[-1])
+                self.z = np.linspace(-1, 1, self._shape[1])
 
             if not skip_sorting:
                 y = _sort_array2d(y, sort_order=self._sort_order)
@@ -442,7 +476,7 @@ class _Algorithm2D:
                 ParameterWarning, stacklevel=2
             )
         weight_array = _check_optional_array(
-            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
+            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
@@ -455,7 +489,7 @@ class _Algorithm2D:
             self.whittaker_system.update_penalty(lam)
         else:
             self.whittaker_system = WhittakerSystem2D(
-                self._len, lam, diff_order, num_eigens
+                self._shape, lam, diff_order, num_eigens
             )
         if not self.whittaker_system._using_svd:
             y = y.ravel()
@@ -521,7 +555,7 @@ class _Algorithm2D:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
+            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
@@ -635,7 +669,7 @@ class _Algorithm2D:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
+            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
@@ -775,7 +809,7 @@ class _Algorithm2D:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, check_finite=self._check_finite, dtype=bool,
+            self._shape, weights, check_finite=self._check_finite, dtype=bool,
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:

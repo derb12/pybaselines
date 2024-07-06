@@ -171,7 +171,7 @@ class _Whittaker(_Algorithm):
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
-        diff_1_diags = diff_penalty_diagonals(self._len, 1, self.whittaker_system.lower, 1)
+        diff_1_diags = diff_penalty_diagonals(self._size, 1, self.whittaker_system.lower, 1)
         if self.whittaker_system.using_pentapy:
             diff_1_diags = diff_1_diags[::-1]
         self.whittaker_system.add_penalty(lambda_1 * diff_1_diags)
@@ -427,7 +427,7 @@ class _Whittaker(_Algorithm):
         diff_n_diagonals = -eta * self.whittaker_system.penalty[::-1]
         diff_n_diagonals[self.whittaker_system.main_diagonal_index] += 1
 
-        diff_1_diagonals = diff_penalty_diagonals(self._len, 1, False, padding=diff_order - 1)
+        diff_1_diagonals = diff_penalty_diagonals(self._size, 1, False, padding=diff_order - 1)
         self.whittaker_system.add_penalty(diff_1_diagonals)
         if self.whittaker_system.using_pentapy:
             self.whittaker_system.reverse_penalty()
@@ -607,7 +607,7 @@ class _Whittaker(_Algorithm):
             data, lam, diff_order, weights, allow_lower=False, reverse_diags=True
         )
         alpha_array = _check_optional_array(
-            self._len, alpha, check_finite=self._check_finite, name='alpha'
+            self._size, alpha, check_finite=self._check_finite, name='alpha'
         )
         if self._sort_order is not None and alpha is not None:
             alpha_array = alpha_array[self._sort_order]
@@ -723,7 +723,7 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.add_diagonal(weight_array), weight_array * y,
                 overwrite_b=True
             )
-            new_weights = _weighting._psalsa(y, baseline, p, k, self._len)
+            new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -811,7 +811,7 @@ class _Whittaker(_Algorithm):
         if k is None:
             k = np.std(y) / 10
         if smooth_half_window is None:
-            smooth_half_window = self._len // 200
+            smooth_half_window = self._size // 200
         # could pad the data every iteration, but it is ~2-3 times slower and only affects
         # the edges, so it's not worth it
         y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs)
@@ -819,13 +819,13 @@ class _Whittaker(_Algorithm):
             smooth_kernel = _mollifier_kernel(smooth_half_window)
             for _ in range(num_smooths):
                 y_smooth = padded_convolve(y_smooth, smooth_kernel)
-        y_smooth = y_smooth[smooth_half_window:self._len + smooth_half_window]
+        y_smooth = y_smooth[smooth_half_window:self._size + smooth_half_window]
 
         diff_y_1 = np.gradient(y_smooth)
         diff_y_2 = np.gradient(diff_y_1)
         # x.dot(x) is same as (x**2).sum() but faster
-        rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / self._len)
-        rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / self._len)
+        rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / self._size)
+        rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / self._size)
 
         diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
         diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
@@ -837,7 +837,7 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.add_diagonal(weight_array), weight_array * y,
                 overwrite_b=True
             )
-            new_weights = _weighting._derpsalsa(y, baseline, p, k, self._len, partial_weights)
+            new_weights = _weighting._derpsalsa(y, baseline, p, k, self._shape, partial_weights)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

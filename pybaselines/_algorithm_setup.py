@@ -91,10 +91,10 @@ class _Algorithm:
         if x_data is None:
             self.x = None
             self.x_domain = np.array([-1., 1.])
-            self._len = None
+            self._size = None
         else:
             self.x = _check_array(x_data, check_finite=check_finite)
-            self._len = len(self.x)
+            self._size = len(self.x)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
 
         if x_data is None or assume_sorted:
@@ -112,6 +112,33 @@ class _Algorithm:
         self._check_finite = check_finite
         self._dtype = output_dtype
         self.pentapy_solver = 2
+
+    @property
+    def _size(self):
+        """The length of the Algorithm object."""
+        return self.__size
+
+    @_size.setter
+    def _size(self, value):
+        """Sets the length and shape of the _Algorithm object.
+
+        Parameters
+        ----------
+        value : int or None
+            The length of the dataset.
+
+        Notes
+        -----
+        Follows NumPy naming conventions where _Algorithm._size is the total number of items,
+        and _Algorithm._shape is the number of items in each dimension.
+
+        """
+        if value is None:
+            self.__size = None
+            self._shape = (None,)
+        else:
+            self.__size = value
+            self._shape = (value,)
 
     @property
     def pentapy_solver(self):
@@ -237,13 +264,13 @@ class _Algorithm:
                     data, check_finite=self._check_finite, dtype=dtype, order=order,
                     ensure_1d=ensure_1d
                 )
-                self._len = y.shape[-1]
+                self._size = y.shape[-1]
             else:
                 reset_x = True
                 if data is not None:
                     input_y = True
                     y = _check_sized_array(
-                        data, self._len, check_finite=self._check_finite, dtype=dtype, order=order,
+                        data, self._size, check_finite=self._check_finite, dtype=dtype, order=order,
                         ensure_1d=ensure_1d, name='data'
                     )
                 else:
@@ -292,7 +319,7 @@ class _Algorithm:
 
         """
         old_x = self.x
-        old_len = self._len
+        old_size = self._size
         old_x_domain = self.x_domain
         old_sort_order = self._sort_order
         old_inverted_order = self._inverted_order
@@ -304,7 +331,7 @@ class _Algorithm:
 
         try:
             self.x = _check_array(new_x, check_finite=self._check_finite)
-            self._len = len(self.x)
+            self._size = len(self.x)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
             self._sort_order = new_sort_order
             if self._sort_order is not None:
@@ -321,7 +348,7 @@ class _Algorithm:
 
         finally:
             self.x = old_x
-            self._len = old_len
+            self._size = old_size
             self.x_domain = old_x_domain
             self._sort_order = old_sort_order
             self._inverted_order = old_inverted_order
@@ -389,7 +416,7 @@ class _Algorithm:
                 ParameterWarning, stacklevel=2
             )
         weight_array = _check_optional_array(
-            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite
+            self._size, weights, copy_input=copy_weights, check_finite=self._check_finite
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
@@ -398,7 +425,7 @@ class _Algorithm:
             self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
         else:
             self.whittaker_system = PenalizedSystem(
-                self._len, lam, diff_order, allow_lower, reverse_diags,
+                self._size, lam, diff_order, allow_lower, reverse_diags,
                 pentapy_solver=self.pentapy_solver
             )
 
@@ -452,7 +479,7 @@ class _Algorithm:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite
+            self._size, weights, copy_input=copy_weights, check_finite=self._check_finite
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
@@ -541,7 +568,7 @@ class _Algorithm:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, dtype=float, order='C', copy_input=copy_weights,
+            self._size, weights, dtype=float, order='C', copy_input=copy_weights,
             check_finite=self._check_finite
         )
         if self._sort_order is not None and weights is not None:
@@ -673,7 +700,7 @@ class _Algorithm:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, dtype=bool, check_finite=self._check_finite
+            self._size, weights, dtype=bool, check_finite=self._check_finite
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]

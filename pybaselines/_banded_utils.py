@@ -650,7 +650,7 @@ class PenalizedSystem:
             most relevant options. Default is 2.
 
         """
-        self._len = data_size
+        self._num_bases = data_size
         self.original_diagonals = None
         self.pentapy_solver = pentapy_solver
 
@@ -746,7 +746,7 @@ class PenalizedSystem:
             needs_reversed = False
 
         if self.original_diagonals is None or self.diff_order != diff_order:
-            diagonal_data = diff_penalty_diagonals(self._len, diff_order, lower_only)
+            diagonal_data = diff_penalty_diagonals(self._num_bases, diff_order, lower_only)
             if needs_reversed:
                 diagonal_data = diagonal_data[::-1]
             self.original_diagonals = diagonal_data

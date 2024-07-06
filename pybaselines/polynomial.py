@@ -623,10 +623,10 @@ class _Polynomial(_Algorithm):
             raise ValueError('x must be strictly increasing')
 
         if total_points is None:
-            total_points = ceil(fraction * self._len)
+            total_points = ceil(fraction * self._size)
         if total_points < poly_order + 1:
             raise ValueError('total points must be greater than polynomial order + 1')
-        elif total_points > self._len:
+        elif total_points > self._size:
             raise ValueError((
                 'points per window is higher than total number of points; lower either '
                 '"fraction" or "total_points"'
@@ -647,7 +647,7 @@ class _Polynomial(_Algorithm):
         # find the indices for fitting beforehand so that the fitting can be done
         # in parallel; cast delta as float so numba does not have to compile for
         # both int and float
-        windows, fits, skips = _determine_fits(x, self._len, total_points, float(delta))
+        windows, fits, skips = _determine_fits(x, self._size, total_points, float(delta))
 
         # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
         # when matrix multiplied with the C-ordered coefficient array gives a warning
@@ -655,7 +655,7 @@ class _Polynomial(_Algorithm):
         self.vandermonde = np.ascontiguousarray(self.vandermonde)
 
         baseline = y
-        coefs = np.zeros((self._len, poly_order + 1))
+        coefs = np.zeros((self._size, poly_order + 1))
         tol_history = np.empty(max_iter + 1)
         sqrt_w = np.sqrt(weight_array)
         # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
@@ -663,15 +663,15 @@ class _Polynomial(_Algorithm):
             baseline_old = baseline
             if conserve_memory:
                 baseline = _loess_low_memory(
-                    x, y, sqrt_w, coefs, self.vandermonde, self._len, windows, fits
+                    x, y, sqrt_w, coefs, self.vandermonde, self._size, windows, fits
                 )
             elif i == 0:
                 kernels, baseline = _loess_first_loop(
-                    x, y, sqrt_w, coefs, self.vandermonde, total_points, self._len, windows, fits
+                    x, y, sqrt_w, coefs, self.vandermonde, total_points, self._size, windows, fits
                 )
             else:
                 baseline = _loess_nonfirst_loops(
-                    y, sqrt_w, coefs, self.vandermonde, kernels, windows, self._len, fits
+                    y, sqrt_w, coefs, self.vandermonde, kernels, windows, self._size, fits
                 )
 
             _fill_skips(x, baseline, skips)
@@ -966,7 +966,7 @@ class _Polynomial(_Algorithm):
                 j_max = j
 
             up_count = (y > baseline).sum()
-            up_down_ratio = up_count / max(1, self._len - up_count)
+            up_down_ratio = up_count / max(1, self._size - up_count)
             calc_difference = up_down_ratio - up_down_ratio_goal
             tol_history[0, i] = calc_difference
             if calc_difference > tol_2:

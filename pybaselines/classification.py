@@ -142,7 +142,7 @@ class _Classification(_Algorithm):
             # use ddof=1 since sampling subsets of the data
             min_sigma = min(
                 min_sigma,
-                np.std(y[i * self._len // sections:((i + 1) * self._len) // sections], ddof=1)
+                np.std(y[i * self._size // sections:((i + 1) * self._size) // sections], ddof=1)
             )
 
         mask = (
@@ -155,7 +155,7 @@ class _Classification(_Algorithm):
         baseline = uniform_filter1d(
             pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
             2 * smooth_half_window + 1
-        )[smooth_half_window:self._len + smooth_half_window]
+        )[smooth_half_window:self._size + smooth_half_window]
 
         return baseline, {'mask': mask}
 
@@ -251,11 +251,11 @@ class _Classification(_Algorithm):
         """
         y, weight_array = self._setup_classification(data, weights)
         if smooth_half_window is None:
-            smooth_half_window = ceil(self._len / 256)
+            smooth_half_window = ceil(self._size / 256)
         smooth_y = uniform_filter1d(
             pad_edges(y, smooth_half_window, **pad_kwargs),
             2 * smooth_half_window + 1
-        )[smooth_half_window:self._len + smooth_half_window]
+        )[smooth_half_window:self._size + smooth_half_window]
         power = np.gradient(smooth_y)**2
         mask = _refine_mask(_iter_threshold(power, num_std), min_length)
         np.logical_and(mask, weight_array, out=mask)
@@ -378,7 +378,7 @@ class _Classification(_Algorithm):
         baseline = uniform_filter1d(
             pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
             2 * smooth_half_window + 1
-        )[smooth_half_window:self._len + smooth_half_window]
+        )[smooth_half_window:self._size + smooth_half_window]
 
         return baseline, {'mask': mask}
 
@@ -490,7 +490,7 @@ class _Classification(_Algorithm):
 
         mask_sum = mask.sum()
         # only try to fix peak regions if there actually are peak and baseline regions
-        if mask_sum and mask_sum != self._len:
+        if mask_sum and mask_sum != self._size:
             peak_starts, peak_ends = _find_peak_segments(mask)
             for _ in range(max_iter):
                 modified_baseline = False
@@ -518,7 +518,7 @@ class _Classification(_Algorithm):
         baseline = uniform_filter1d(
             pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
             2 * smooth_half_window + 1
-        )[smooth_half_window:self._len + smooth_half_window]
+        )[smooth_half_window:self._size + smooth_half_window]
 
         return baseline, {'mask': mask}
 
@@ -605,8 +605,8 @@ class _Classification(_Algorithm):
         y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
         if scales is None:
             # avoid low scales since their cwt is fairly noisy
-            min_scale = max(2, self._len // 500)
-            max_scale = self._len // 4
+            min_scale = max(2, self._size // 500)
+            max_scale = self._size // 4
             scales = range(min_scale, max_scale)
         else:
             scales = np.atleast_1d(scales).reshape(-1)
@@ -666,7 +666,7 @@ class _Classification(_Algorithm):
         wavelet_mask = _refine_mask(abs_wavelet < num_sigma * sigma_opt, min_length)
         np.logical_and(wavelet_mask, weight_array, out=wavelet_mask)
 
-        check_window = np.ones(2 * (self._len // 200) + 1, bool)  # TODO make window size a param?
+        check_window = np.ones(2 * (self._size // 200) + 1, bool)  # TODO make window size a param?
         baseline_old = y
         mask = wavelet_mask.copy()
         tol_history = np.empty(max_iter + 1)
@@ -860,13 +860,13 @@ class _Classification(_Algorithm):
 
         """
         sections, scalar_sections = _check_scalar(segments, None, coerce_0d=False, dtype=np.intp)
-        if scalar_sections and (sections < 1 or self._len / sections < 3):
+        if scalar_sections and (sections < 1 or self._size / sections < 3):
             raise ValueError(
-                f'There must be between 1 and {self._len // 3} segments for the rubberband fit'
+                f'There must be between 1 and {self._size // 3} segments for the rubberband fit'
             )
-        elif not scalar_sections and (np.any(sections < 0) or np.any(sections > self._len)):
+        elif not scalar_sections and (np.any(sections < 0) or np.any(sections > self._size)):
             raise ValueError(
-                f'Segment indices must be between 0 and {self._len} for the rubberband fit'
+                f'Segment indices must be between 0 and {self._size} for the rubberband fit'
             )
 
         if np.any(self.x[1:] < self.x[:-1]):
@@ -880,9 +880,9 @@ class _Classification(_Algorithm):
             )[smooth_half_window:-smooth_half_window]
 
         if scalar_sections:
-            total_sections = np.arange(sections + 1, dtype=np.intp) * self._len // sections
+            total_sections = np.arange(sections + 1, dtype=np.intp) * self._size // sections
         else:
-            total_sections = np.concatenate(([0], sections, [self._len]))
+            total_sections = np.concatenate(([0], sections, [self._size]))
             # np.unique already sorts so do not need to check order
             total_sections = np.unique(total_sections)
             for i, section in enumerate(total_sections[:-1]):
@@ -901,7 +901,7 @@ class _Classification(_Algorithm):
                 vertices = vertices[min_idx:max_idx]
             total_vertices.extend(vertices + left_idx)
 
-        mask = np.zeros(self._len, dtype=bool)
+        mask = np.zeros(self._shape, dtype=bool)
         mask[np.unique(total_vertices)] = True
         np.logical_and(mask, weight_array, out=mask)
         if lam is not None and lam != 0:

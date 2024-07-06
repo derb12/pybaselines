@@ -506,9 +506,13 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
     assert algorithm._dtype == output_dtype
 
     if input_x:
-        assert algorithm._len == len(x)
+        assert algorithm._size == len(x)
+        assert isinstance(algorithm._shape, tuple)
+        assert algorithm._shape == (len(x),)
     else:
-        assert algorithm._len is None
+        assert algorithm._size is None
+        assert isinstance(algorithm._shape, tuple)
+        assert algorithm._shape == (None,)
 
     if not assume_sorted and change_order and input_x:
         order = np.arange(len(x))
@@ -740,15 +744,22 @@ def test_class_wrapper_kwargs():
 
 def test_override_x(algorithm):
     """Ensures the `override_x` method correctly initializes with the new x values."""
-    new_len = 20
-    new_x = np.arange(new_len)
+    old_size = algorithm._size
+    new_size = 20
+    new_x = np.arange(new_size)
     with algorithm._override_x(new_x) as new_algorithm:
-        assert len(new_algorithm.x) == new_len
-        assert new_algorithm._len == new_len
+        assert len(new_algorithm.x) == new_size
+        assert new_algorithm._size == new_size
+        assert new_algorithm._shape == (new_size,)
         assert new_algorithm.poly_order == -1
         assert new_algorithm.vandermonde is None
         assert new_algorithm.whittaker_system is None
         assert new_algorithm.pspline is None
+
+    # also ensure things are reset correctly
+    assert len(algorithm.x) == old_size
+    assert algorithm._size == old_size
+    assert algorithm._shape == (old_size,)
 
 
 def test_override_x_polynomial(algorithm):
