@@ -139,6 +139,29 @@ class TestBaseline:
         # no additional methods should be available
         assert len(total_methods) == 0
 
+    def test_method_and_function_availability(self):
+        """Ensures all Baseline methods are also available as functions."""
+        total_methods = get_public_methods(api.Baseline)
+
+        total_functions = []
+        for module in (
+            classification,
+            misc,
+            morphological,
+            optimizers,
+            polynomial,
+            smooth,
+            spline,
+            whittaker
+        ):
+            total_functions.extend(get_public_methods(module))
+        total_functions = set(total_functions)
+
+        # note that total_functions also includes all imported functions from other
+        # libraries, so just check that each method from Baseline is in total_functions
+        for method in total_methods:
+            assert method in total_functions
+
     def test_pentapy_solver(self):
         """Ensures the pentapy_solver attribute works correctly."""
         fitter = self.algorithm_base(self.x, check_finite=False, assume_sorted=True)
