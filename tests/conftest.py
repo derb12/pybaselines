@@ -108,17 +108,16 @@ def get_data(include_noise=True, num_points=1000):
         The y-values.
 
     """
-    # TODO use np.random.default_rng(0) once minimum numpy version is >= 1.17
-    np.random.seed(0)
     x_data = np.linspace(1, 100, num_points)
     y_data = (
         500  # constant baseline
+        + 0.1 * x_data  # linear baseline
         + gaussian(x_data, 10, 25)
         + gaussian(x_data, 20, 50)
         + gaussian(x_data, 10, 75)
     )
     if include_noise:
-        y_data += np.random.normal(0, 0.5, x_data.size)
+        y_data += np.random.default_rng(0).normal(0, 0.5, x_data.size)
 
     return x_data, y_data
 
@@ -145,8 +144,6 @@ def get_data2d(include_noise=True, num_points=(30, 41)):
         The y-values.
 
     """
-    # TODO use np.random.default_rng(0) once minimum numpy version is >= 1.17
-    np.random.seed(0)
     x_num_points, z_num_points = num_points
     x_data = np.linspace(1, 100, x_num_points)
     z_data = np.linspace(1, 120, z_num_points)
@@ -158,7 +155,7 @@ def get_data2d(include_noise=True, num_points=(30, 41)):
         + gaussian2d(X, Z, 10, 75, 75)
     )
     if include_noise:
-        y_data += np.random.normal(0, 0.5, y_data.shape)
+        y_data += np.random.default_rng(0).normal(0, 0.5, y_data.shape)
 
     return x_data, z_data, y_data
 
@@ -504,8 +501,7 @@ class InputWeightsMixin:
 
     def test_input_weights(self, assertion_kwargs=None, **kwargs):
         """Ensures input weights are correctly sorted within the function."""
-        # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-        weights = np.random.RandomState(0).normal(0.8, 0.05, self.y.size)
+        weights = np.random.default_rng(0).normal(0.8, 0.05, self.y.size)
         weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
         if hasattr(self, 'two_d'):  # BaseTester

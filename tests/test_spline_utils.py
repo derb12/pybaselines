@@ -178,8 +178,7 @@ def test_scipy_btb_bty(data_fixture):
     # ensure x and y are floats
     x = x.astype(float, copy=False)
     y = y.astype(float, copy=False)
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, x.size)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
     spline_degree = 3
@@ -223,8 +222,7 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lowe
     # ensure x and y are floats
     x = x.astype(float, copy=False)
     y = y.astype(float, copy=False)
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, x.size)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
@@ -477,8 +475,7 @@ def test_compare_to_whittaker(data_fixture, lam, diff_order):
 
     whittaker_system = _banded_utils.PenalizedSystem(len(y), lam=lam, diff_order=diff_order)
 
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, len(y))
+    weights = np.random.default_rng(0).normal(0.8, 0.05, len(y))
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
     main_diag_idx = whittaker_system.main_diagonal_index

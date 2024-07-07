@@ -25,8 +25,7 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
         Returns the output for further testing.
 
         """
-        # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-        weights = np.random.RandomState(0).normal(0.8, 0.05, len(self.x))
+        weights = np.random.default_rng(0).normal(0.8, 0.05, len(self.x))
         weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
         reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
@@ -197,7 +196,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
     def test_aspls_alpha_ordering(self, side):
         """Ensures the `alpha` array for the aspls method is currectly processed."""
-        alpha = np.random.RandomState(0).normal(0.8, 0.05, len(self.x))
+        alpha = np.random.default_rng(0).normal(0.8, 0.05, len(self.x))
         alpha = np.clip(alpha, 0, 1).astype(float, copy=False)
 
         reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)

@@ -295,8 +295,8 @@ class TestLoess(IterativePolynomialTester):
         num_x = 100
         fraction = 0.1
         total_points = int(num_x * fraction)
-        # use set values since minimum numpy version is < 1.17
-        # once min numpy version is >= 1.17, can use the following to create x and y:
+        # Use set values to not worry about rng generation changes causing issues.
+        # Used the following to create x and y:
         # random_generator = np.random.default_rng(0)
         # x = np.sort(random_generator.uniform(0, 10 * np.pi, num_x), kind='stable')
         # use a simple sine function since only smoothing the data
@@ -423,11 +423,8 @@ class TestQuantReg(IterativePolynomialTester):
 
         """
         x = np.linspace(-1000, 1000, 200)
-        # TODO directly calculating y gives different results, so probably something to
-        # do with the random seed not working correctly; once minimum numpy version
-        # is >= 1.17, can use np.random.default_rng to get a consistent random
-        # generator and recreate outputs without having to save y as well
-
+        # Use set values to not worry about rng generation changes causing issues.
+        # Used the following to create y:
         # y = x + np.random.default_rng(0).normal(0, 200, x.size)
         y = QUANTILE_Y
 

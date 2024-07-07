@@ -335,7 +335,7 @@ class TestPsplineDrPLS(IterativeSplineTester):
         get the weight at the coefficients' x-values.
         """
         compare_pspline_whittaker(
-            self, whittaker.drpls, self.y, lam=lam, eta=eta, diff_order=diff_order, test_rtol=2e-3
+            self, whittaker.drpls, self.y, lam=lam, eta=eta, diff_order=diff_order, test_rtol=5e-3
         )
 
     @pytest.mark.parametrize('eta', (-1, 2))

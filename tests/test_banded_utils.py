@@ -235,8 +235,7 @@ def test_lower_to_full(data_fixture, num_knots, spline_degree):
     x, y = data_fixture
     # ensure x is a float
     x = x.astype(float, copy=False)
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, x.size)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
     weights = np.clip(weights, 0, 1)
 
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
