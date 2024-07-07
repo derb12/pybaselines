@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines._compat import dia_object
-from pybaselines.utils import ParameterWarning
+from pybaselines.utils import ParameterWarning, optimize_window
 
 from .conftest import get_data
 
@@ -223,8 +223,35 @@ def test_setup_polynomial_too_large_polyorder_fails(small_data, algorithm):
 def test_setup_smooth_shape(small_data, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4
-    y = algorithm._setup_smooth(small_data, pad_length, mode='edge')
+    y, output_half_window = algorithm._setup_smooth(small_data, pad_length, mode='edge')
+    assert pad_length == output_half_window
     assert y.shape[0] == small_data.shape[0] + 2 * pad_length
+
+
+@pytest.mark.parametrize('input_half_window', (None, 5))
+@pytest.mark.parametrize('window_multiplier', (1, 0.5, 2))
+@pytest.mark.parametrize('pad_type', (None, 'full', 'half'))
+def test_setup_smooth_padding(small_data, algorithm, input_half_window, pad_type,
+                              window_multiplier):
+    """Ensures the padding inputs are correctly handled."""
+    if input_half_window is None:
+        expected_half_window = max(1, int(window_multiplier * optimize_window(small_data)))
+    else:
+        expected_half_window = input_half_window
+    if pad_type is None:
+        expected_shape = len(small_data)
+    elif pad_type == 'half':
+        expected_shape = len(small_data) + 2 * expected_half_window
+    else:
+        expected_shape = len(small_data) + 2 * (expected_half_window * 2 + 1)
+
+    y, output_half_window = algorithm._setup_smooth(
+        small_data, input_half_window, pad_type=pad_type,
+        window_multiplier=window_multiplier, mode='edge'
+    )
+
+    assert output_half_window == expected_half_window
+    assert y.shape[0] == expected_shape
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))

@@ -39,10 +39,10 @@ class _Algorithm2D:
     pspline : PSpline2D or None
         The PSpline2D object for setting up and solving penalized spline algorithms. Is None
         if no penalized spline setup has been performed (typically done in
-        :meth:`~_Algorithm2D._setup_spline`).
+        :meth:`~._Algorithm2D._setup_spline`).
     vandermonde : numpy.ndarray or None
         The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`~_Algorithm2D._setup_polynomial`).
+        setup has been performed (typically done in :meth:`~._Algorithm2D._setup_polynomial`).
     whittaker_system : PenalizedSystem2D or None
         The PenalizedSystem2D object for setting up and solving Whittaker-smoothing-based
         algorithms. Is None if no Whittaker setup has been performed (typically done in
@@ -428,7 +428,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M ,N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         lam : float or Sequence[float, float], optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
@@ -506,7 +506,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
@@ -620,7 +620,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
@@ -702,7 +702,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         half_window : int or Sequence[int, int], optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
@@ -749,7 +749,7 @@ class _Algorithm2D:
 
         return y, output_half_window
 
-    def _setup_smooth(self, y, half_window=0, allow_zero=True, hw_multiplier=2, **pad_kwargs):
+    def _setup_smooth(self, y, half_window=0, window_multiplier=1, **pad_kwargs):
         """
         Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -757,17 +757,16 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         half_window : int or Sequence[int, int], optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
-            effects. Default is 0, which provides no padding.
-        allow_zero : bool, optional
-            If True (default), allows `half_window` to be 0; otherwise, `half_window`
-            must be at least 1.
-        hw_multiplier : int, optional
+            effects. Default is 0, which provides no padding. If `half_window` is None,
+            then the ultimate half-window value will be the output of
+            :func:`pybaselines.utils.optimize_window` multiplied by `window_multiplier`.
+        window_multiplier : int, optional
             The value to multiply the output of :func:`.optimize_window` if half_window
-            is None.
+            is None. Default is 1.
         **pad_kwargs
             Additional keyword arguments to pass to :func:`.pad_edges` for padding
             the edges of the data to prevent edge effects from smoothing.
@@ -781,9 +780,9 @@ class _Algorithm2D:
 
         """
         if half_window is not None:
-            output_hw = _check_half_window(half_window, allow_zero, two_d=True)
+            output_hw = _check_half_window(half_window, allow_zero=False, two_d=True)
         else:
-            output_hw = hw_multiplier * optimize_window(y)
+            output_hw = window_multiplier * optimize_window(y)
 
         return pad_edges2d(y, output_hw, **pad_kwargs), output_hw
 
@@ -795,7 +794,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
@@ -896,7 +895,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
         modules : Sequence[module, ...]
@@ -945,7 +944,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
 
         Returns
         -------

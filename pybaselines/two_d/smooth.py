@@ -57,7 +57,7 @@ class _Smooth(_Algorithm2D):
         artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
         """
-        y, half_window = self._setup_smooth(data, half_window, False, 2, **pad_kwargs)
+        y, half_window = self._setup_smooth(data, half_window, window_multiplier=2, **pad_kwargs)
         window_size = 2 * half_window + 1
         median = median_filter(y, window_size, mode='nearest')
         if smooth_half_window is None:

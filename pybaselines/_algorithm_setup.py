@@ -46,10 +46,10 @@ class _Algorithm:
     pspline : PSpline or None
         The PSpline object for setting up and solving penalized spline algorithms. Is None
         if no penalized spline setup has been performed (typically done in
-        :meth:`~_Algorithm._setup_spline`).
+        :meth:`~._Algorithm._setup_spline`).
     vandermonde : numpy.ndarray or None
         The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`~_Algorithm._setup_polynomial`).
+        setup has been performed (typically done in :meth:`~._Algorithm._setup_polynomial`).
     whittaker_system : PenalizedSystem or None
         The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
         algorithms. Is None if no Whittaker setup has been performed (typically done in
@@ -366,7 +366,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm._register`.
+            array by :meth:`~._Algorithm._register`.
         lam : float, optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
@@ -440,7 +440,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm._register`.
+            array by :meth:`~._Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -519,7 +519,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm._register`.
+            array by :meth:`~._Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -602,7 +602,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm._register`.
+            array by :meth:`~._Algorithm._register`.
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
@@ -643,13 +643,13 @@ class _Algorithm:
 
         """
         if half_window is not None:
-            output_half_window = _check_half_window(half_window)
+            output_half_window = _check_half_window(half_window, allow_zero=False)
         else:
             output_half_window = optimize_window(y, **window_kwargs)
 
         return y, output_half_window
 
-    def _setup_smooth(self, y, half_window=0, allow_zero=True, **pad_kwargs):
+    def _setup_smooth(self, y, half_window=0, pad_type='half', window_multiplier=1, **pad_kwargs):
         """
         Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -657,26 +657,48 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm._register`.
+            array by :meth:`~._Algorithm._register`.
         half_window : int, optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
-            effects. Default is 0, which provides no padding.
-        allow_zero : bool, optional
-            If True (default), allows `half_window` to be 0; otherwise, `half_window`
-            must be at least 1.
+            effects. Default is 0, which provides no padding. If `half_window` is None,
+            then the ultimate half-window value will be the output of
+            :func:`pybaselines.utils.optimize_window` multiplied by `window_multiplier`.
+        pad_type : {'half', 'full', None}
+            If True (default), will pad the input `y` with `half_window` on each side
+            before returning. If False, will return the unmodified `y`.
+        window_multiplier : int or float, optional
+            The multiplier by which the output of :func:`pybaselines.utils.optimize_window`
+            will be multiplied if `half_window` is None.
         **pad_kwargs
             Additional keyword arguments to pass to :func:`.pad_edges` for padding
             the edges of the data to prevent edge effects from smoothing.
 
         Returns
         -------
-        numpy.ndarray, shape (``N + 2 * half_window``,)
-            The padded array of data.
+        output : numpy.ndarray
+            The padded array of data with shape (``N + 2 * output_half_window``,) if `pad_data`
+            is True,
+            otherwise the non-padded data with shape (``N``,).
+        output_half_window : int
+            The final half-window used for potentially padding the data.
 
         """
-        hw = _check_half_window(half_window, allow_zero)
-        return pad_edges(y, hw, **pad_kwargs)
+        if half_window is None:
+            output_half_window = max(1, int(window_multiplier * optimize_window(y)))
+        else:
+            output_half_window = _check_half_window(half_window, allow_zero=False)
+
+        if pad_type is None:
+            output = y
+        else:
+            if pad_type == 'half':
+                padding_window = output_half_window
+            else:
+                padding_window = 2 * output_half_window + 1
+            output = pad_edges(y, padding_window, **pad_kwargs)
+
+        return output, output_half_window
 
     def _setup_classification(self, y, weights=None):
         """
@@ -686,7 +708,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm._register`.
+            array by :meth:`~._Algorithm._register`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -773,7 +795,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm._register`.
+            array by :meth:`~._Algorithm._register`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
         modules : Sequence(module, ...)
@@ -825,7 +847,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm._register`.
+            array by :meth:`~._Algorithm._register`.
 
         Returns
         -------

@@ -14,8 +14,9 @@ from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import trapezoid
+from ._validation import _check_half_window
 from .utils import (
-    ParameterWarning, _check_scalar, _get_edges, gaussian, gaussian_kernel, optimize_window,
+    ParameterWarning, _get_edges, gaussian, gaussian_kernel, optimize_window,
     pad_edges, padded_convolve, relative_difference
 )
 
@@ -64,17 +65,13 @@ class _Smooth(_Algorithm):
         artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
         """
-        if half_window is None:
-            half_window = 2 * optimize_window(data)
+        y, half_window = self._setup_smooth(data, half_window, window_multiplier=2, **pad_kwargs)
         window_size = 2 * half_window + 1
-        median = median_filter(
-            self._setup_smooth(data, half_window, **pad_kwargs),
-            [window_size], mode='nearest'
-        )
+        median = median_filter(y, [window_size], mode='nearest')
         if smooth_half_window is None:
             smooth_window = window_size
         else:
-            smooth_window = 2 * smooth_half_window + 1
+            smooth_window = 2 * _check_half_window(smooth_half_window, allow_zero=True) + 1
         if sigma is None:
             # the gaussian kernel will includes +- 3 sigma
             sigma = smooth_window / 6
@@ -173,7 +170,7 @@ class _Smooth(_Algorithm):
 
         if max_half_window is None:
             max_half_window = optimize_window(data)
-        half_windows = _check_scalar(max_half_window, 2, True, dtype=int)[0]
+        half_windows = _check_half_window(max_half_window, two_d=True)
         for i, half_window in enumerate(half_windows):
             if half_window > (self._size - 1) // 2:
                 warnings.warn(
@@ -188,9 +185,11 @@ class _Smooth(_Algorithm):
         else:
             range_args = (1, max_of_half_windows + 1, 1)
 
-        y = self._setup_smooth(data, max_of_half_windows, **pad_kwargs)
+        y = self._setup_smooth(data, max_of_half_windows, **pad_kwargs)[0]
         num_y = self._size + 2 * max_of_half_windows
         smooth = smooth_half_window is not None and smooth_half_window > 0
+        if smooth:
+            smooth_window = 2 * _check_half_window(smooth_half_window) + 1
         baseline = y.copy()
         for i in range(*range_args):
             i_left = min(i, half_windows[0])
@@ -247,7 +246,7 @@ class _Smooth(_Algorithm):
                 filters = np.maximum(filters, filters_new)
 
             if smooth:
-                previous_baseline = uniform_filter1d(baseline, 2 * smooth_half_window + 1)[i:-i]
+                previous_baseline = uniform_filter1d(baseline, smooth_window)[i:-i]
             else:
                 previous_baseline = baseline[i:-i]
             baseline[i:-i] = np.where(baseline[i:-i] > filters, filters, previous_baseline)
@@ -323,13 +322,14 @@ class _Smooth(_Algorithm):
         """
         if max_half_window is None:
             max_half_window = (self._size - 1) // 2
-        y = self._setup_smooth(data, max_half_window, **pad_kwargs)
+        _check_half_window(min_half_window, allow_zero=True)
+        y = self._setup_smooth(data, max_half_window, **pad_kwargs)[0]
         len_y = self._size + 2 * max_half_window  # includes padding of max_half_window at each side
         data_slice = slice(max_half_window, -max_half_window)
         if smooth_half_window is None:
             smooth_half_window = max(1, (len_y - 2 * max_half_window) // 50)
         if smooth_half_window > 0:
-            y = uniform_filter1d(y, 2 * smooth_half_window + 1)
+            y = uniform_filter1d(y, 2 * _check_half_window(smooth_half_window) + 1)
 
         *_, pseudo_inverse = self._setup_polynomial(
             y, None, poly_order=3, calc_vander=True, calc_pinv=True
@@ -408,13 +408,10 @@ class _Smooth(_Algorithm):
         Polynomial Smoothing. Applied Spectroscopy. 71(6) (2017) 1169-1179.
 
         """
-        # TODO should just move optimize window into _setup_smooth since all smooth functions
-        # could use it; maybe just add a multiplier constant; that way, snip and noise_median
-        # no longer require a half window parameter to at least get a guess
-        if half_window is None:
-            half_window = 4 * optimize_window(data)
-        window_size = 2 * half_window + 1
-        y = self._setup_smooth(data, window_size, **pad_kwargs)
+        y, output_half_window = self._setup_smooth(
+            data, half_window, pad_type='full', window_multiplier=4, **pad_kwargs
+        )
+        window_size = 2 * output_half_window + 1
         y0 = y
         data_slice = slice(window_size, -window_size)
         if original_criteria:
@@ -519,11 +516,8 @@ class _Smooth(_Algorithm):
         side = side.lower()
         if side not in ('left', 'right', 'both'):
             raise ValueError('side must be "left", "right", or "both"')
-        y = self._setup_smooth(data, 0)
-        if half_window is None:
-            half_window = optimize_window(y)
-        min_x = self.x_domain[0]
-        max_x = self.x_domain[1]
+        y, half_window = self._setup_smooth(data, half_window, pad_type=None)
+        min_x, max_x = self.x_domain
         x_range = max_x - min_x
 
         added_window = int(self._size * width_scale)

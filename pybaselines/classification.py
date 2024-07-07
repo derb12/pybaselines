@@ -873,8 +873,8 @@ class _Classification(_Algorithm):
             raise ValueError('x must be strictly increasing')
 
         y, weight_array = self._setup_classification(data, weights)
-        if smooth_half_window is not None and smooth_half_window != 0:
-            y = self._setup_smooth(y, smooth_half_window, allow_zero=False, **pad_kwargs)
+        if smooth_half_window is not None and smooth_half_window > 0:
+            y = self._setup_smooth(y, smooth_half_window, **pad_kwargs)[0]
             y = uniform_filter1d(
                 y, 2 * smooth_half_window + 1
             )[smooth_half_window:-smooth_half_window]
