@@ -895,10 +895,10 @@ class _Classification(_Algorithm):
             vertices = ConvexHull(hull_data[left_idx:total_sections[i + 1]]).vertices
             min_idx = vertices.argmin()
             max_idx = vertices.argmax() + 1
-            if max_idx < min_idx:
-                vertices = np.concatenate((vertices[min_idx:], vertices[:max_idx]))
-            else:
+            if max_idx > min_idx:
                 vertices = vertices[min_idx:max_idx]
+            else:
+                vertices = np.concatenate((vertices[min_idx:], vertices[:max_idx]))
             total_vertices.extend(vertices + left_idx)
 
         mask = np.zeros(self._shape, dtype=bool)

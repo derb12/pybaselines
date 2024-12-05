@@ -12,7 +12,7 @@ import pytest
 import scipy
 
 from pybaselines import classification
-from pybaselines.utils import ParameterWarning, whittaker_smooth
+from pybaselines.utils import ParameterWarning, gaussian, whittaker_smooth
 
 from .conftest import BaseTester, InputWeightsMixin
 from .data import PYWAVELETS_HAAR
@@ -368,6 +368,42 @@ class TestFabc(ClassificationTester):
         super().test_input_weights(weights_as_mask=weights_as_mask)
 
 
+def rubberband_data(x_data):
+    """
+    Creates y-data for testing indexing for the rubberband baseline.
+
+    Parameters
+    ----------
+    x_data : numpy.ndarray
+        The x-values; should be the same x-values used as the default testing values.
+        (ie. np.linspace(1, 100, 1000))
+
+    Returns
+    -------
+    x_data : numpy.ndarray
+        The x-values.
+    y_data : numpy.ndarray
+        The y-values.
+
+    Notes
+    -----
+    Produces a baseline such that the convex hull produces a sitution where the
+    minimum and maximum index occur on the same value, mirroring issue 29.
+
+    """
+    signal = (
+        500  # constant baseline
+        + np.exp(-(x_data - 500) / 60)  # severe exponential baseline
+        + gaussian(x_data, 100, 25)
+        + gaussian(x_data, 200, 50)
+        + gaussian(x_data, 100, 75)
+    )
+    noise = np.random.default_rng(0).normal(0, 0.5, x_data.size)
+    y_data = signal + noise
+
+    return y_data
+
+
 class TestRubberband(ClassificationTester):
     """Class for testing rubberband baseline."""
 
@@ -475,3 +511,14 @@ class TestRubberband(ClassificationTester):
         super().test_unchanged_data(
             use_class, lam=lam, smooth_half_window=smooth_half_window
         )
+
+    def test_indexing(self):
+        """
+        Ensures indexing is handled correctly by the rubberband baseline.
+
+        Addresses issue 29 where the indexing had failed due to the min and max index
+        values occuring on the same value.
+
+        """
+        data = rubberband_data(self.x)
+        self.class_func(data)  # just ensure it runs without issue
