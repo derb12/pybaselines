@@ -46,7 +46,7 @@ class _Spline(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Used to set the initial weights before performing
+            will be given `1 - p` weight. Used to set the initial weights before performing
             expectation-maximization. Default is 1e-2.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
@@ -381,7 +381,7 @@ class _Spline(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
         spline_degree : int, optional
@@ -469,7 +469,7 @@ class _Spline(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         lam_1 : float, optional
             The smoothing parameter for the first derivative of the residual. Default is 1e-4.
         num_knots : int, optional
@@ -621,47 +621,22 @@ class _Spline(_Algorithm):
 
         """
         y, weight_array = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam, copy_weights=True
+            data, weights, spline_degree, num_knots, True, diff_order, lam
         )
 
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            try:
-                output = self.pspline.solve_pspline(y, weight_array)
-            except np.linalg.LinAlgError:
-                warnings.warn(
-                    ('error occurred during fitting, indicating that "tol"'
-                     ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning, stacklevel=2
-                )
+            baseline = self.pspline.solve_pspline(y, weight_array)
+            new_weights, residual_l1_norm, exit_early = _weighting._airpls(y, baseline, i)
+            if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
-            else:
-                baseline = output
-
-            residual = y - baseline
-            neg_mask = residual < 0
-            neg_residual = residual[neg_mask]
-            if len(neg_residual) < 2:
-                # exit if there are < 2 negative residuals since all points or all but one
-                # point would get a weight of 0, which fails the solver
-                warnings.warn(
-                    ('almost all baseline points are below the data, indicating that "tol"'
-                     ' is too low and/or "max_iter" is too high'), ParameterWarning, stacklevel=2
-                )
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-
-            residual_l1_norm = abs(neg_residual.sum())
             calc_difference = residual_l1_norm / y_l1_norm
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
                 break
-            # only use negative residual in exp to avoid exponential overflow warnings
-            # and accidently creating a weight of nan (inf * 0 = nan)
-            weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
-            weight_array[~neg_mask] = 0
+            weight_array = new_weights
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i]}
 
@@ -1068,7 +1043,7 @@ class _Spline(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 0.5.
+            will be given `1 - p` weight. Default is 0.5.
         k : float, optional
             A factor that controls the exponential decay of the weights for baseline
             values greater than the data. Should be approximately the height at which
@@ -1164,7 +1139,7 @@ class _Spline(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         k : float, optional
             A factor that controls the exponential decay of the weights for baseline
             values greater than the data. Should be approximately the height at which
@@ -1414,7 +1389,7 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Used to set the initial weights before performing
+        will be given `1 - p` weight. Used to set the initial weights before performing
         expectation-maximization. Default is 1e-2.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
@@ -1743,7 +1718,7 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Default is 1e-2.
+        will be given `1 - p` weight. Default is 1e-2.
     num_knots : int, optional
         The number of knots for the spline. Default is 100.
     spline_degree : int, optional
@@ -1819,7 +1794,7 @@ def pspline_iasls(data, x_data=None, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Default is 1e-2.
+        will be given `1 - p` weight. Default is 1e-2.
     lam_1 : float, optional
         The smoothing parameter for the first derivative of the residual. Default is 1e-4.
     num_knots : int, optional
@@ -2223,7 +2198,7 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Default is 0.5.
+        will be given `1 - p` weight. Default is 0.5.
     k : float, optional
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
@@ -2302,7 +2277,7 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Default is 1e-2.
+        will be given `1 - p` weight. Default is 1e-2.
     k : float, optional
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which

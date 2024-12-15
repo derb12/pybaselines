@@ -38,7 +38,7 @@ class _Whittaker(_Algorithm2D):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         diff_order : int or Sequence[int, int], optional
             The order of the differential matrix for the rows and columns, respectively. If
             a single value is given, both will use the same value. Must be greater than 0.
@@ -143,7 +143,7 @@ class _Whittaker(_Algorithm2D):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         lam_1 : float or Sequence[float, float], optional
             The smoothing parameter for the rows and columns, respectively, of the first
             derivative of the residual. Default is 1e-4.
@@ -282,50 +282,22 @@ class _Whittaker(_Algorithm2D):
 
         """
         y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, copy_weights=True, num_eigens=num_eigens
+            data, lam, diff_order, weights, num_eigens=num_eigens
 
         )
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
-        # Have to have extensive error handling since the weights can all become
-        # very small due to the exp(i) term if too many iterations are performed;
-        # checking the negative residual length usually prevents any errors, but
-        # sometimes not so have to also catch any errors from the solvers
         for i in range(1, max_iter + 2):
-            try:
-                output = self.whittaker_system.solve(y, weight_array)
-            except np.linalg.LinAlgError:
-                warnings.warn(
-                    ('error occurred during fitting, indicating that "tol"'
-                     ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning, stacklevel=2
-                )
+            baseline = self.whittaker_system.solve(y, weight_array)
+            new_weights, residual_l1_norm, exit_early = _weighting._airpls(y, baseline, i)
+            if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
-            else:
-                baseline = output
-            residual = y - baseline
-            neg_mask = residual < 0
-            neg_residual = residual[neg_mask]
-            if neg_residual.size < 2:
-                # exit if there are < 2 negative residuals since all points or all but one
-                # point would get a weight of 0, which fails the solver
-                warnings.warn(
-                    ('almost all baseline points are below the data, indicating that "tol"'
-                     ' is too low and/or "max_iter" is too high'), ParameterWarning, stacklevel=2
-                )
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-
-            residual_l1_norm = abs(neg_residual.sum())
             calc_difference = residual_l1_norm / y_l1_norm
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
                 break
-            # only use negative residual in exp to avoid exponential overflow warnings
-            # and accidently creating a weight of nan (inf * 0 = nan)
-            weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
-            weight_array[~neg_mask] = 0
+            weight_array = new_weights
 
         params = {'tol_history': tol_history[:i]}
         if self.whittaker_system._using_svd:
@@ -745,7 +717,7 @@ class _Whittaker(_Algorithm2D):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 0.5.
+            will be given `1 - p` weight. Default is 0.5.
         k : float, optional
             A factor that controls the exponential decay of the weights for baseline
             values greater than the data. Should be approximately the height at which

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Contains various weighting schemes used in pybaselines."""
 
+import warnings
+
 import numpy as np
 from scipy.special import expit
 
-from .utils import _MIN_FLOAT
+from .utils import _MIN_FLOAT, ParameterWarning
 
 
 def _asls(y, baseline, p):
@@ -22,7 +24,7 @@ def _asls(y, baseline, p):
     p : float
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight.
+        will be given `1 - p` weight.
 
     Returns
     -------
@@ -38,9 +40,81 @@ def _asls(y, baseline, p):
     asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
 
     """
-    mask = y > baseline
-    weights = p * mask + (1 - p) * (~mask)
+    weights = np.where(y > baseline, p, 1 - p)
     return weights
+
+
+def _airpls(y, baseline, iteration):
+    """
+    The weighting for adaptive iteratively reweighted penalized least squares (airPLS).
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    iteration : int
+        The iteration number. Should be 1-based, such that the first iteration is 1
+        instead of 0.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+    residual_l1_norm : float
+        The L1 norm of the negative residuals, used to calculate the exit criteria
+        for the airPLS algorithm.
+    exit_early : bool
+        Designates if there is a potential error with the calculation such that no further
+        iterations should be performed.
+
+    References
+    ----------
+    Zhang, Z.M., et al. Baseline correction using adaptive iteratively
+    reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
+
+    Notes
+    -----
+    Equation 9 in the original algorithm was misprinted according to the author
+    (https://github.com/zmzhang/airPLS/issues/8), so the correct weighting is used here.
+
+    The pybaselines weighting differs from the original airPLS algorithm by normalizing the
+    weights by their maximum value to ensure that weights are within [0, 1]; the original
+    algorithm is defined such that all weights are greater than or equal to 1 for negative
+    residuals, which would differ from other Whittaker-smoothing based algorithms and could
+    potentially cause issues if combining with optimizer functions.
+
+    """
+    residual = y - baseline
+    neg_mask = residual < 0
+    neg_residual = residual[neg_mask]
+    if neg_residual.size < 2:
+        exit_early = True
+        warnings.warn(
+            ('almost all baseline points are below the data, indicating that "tol"'
+             ' is too low and/or "max_iter" is too high'), ParameterWarning,
+             stacklevel=2
+        )
+        return np.zeros_like(y), 0.0, exit_early
+    else:
+        exit_early = False
+
+    residual_l1_norm = abs(neg_residual.sum())
+    # clip from [0, log(max dtype)] since the positive residuals (negative values) do not matter
+    log_max = np.log(np.finfo(y.dtype).max)
+    inner = np.clip(
+        (-iteration / residual_l1_norm) * neg_residual,
+        a_min=0,
+        a_max=log_max - np.spacing(log_max)
+    )
+    new_weights = np.exp(inner)
+    # Not stated in the paper, but without dividing by the maximum weight, the
+    # calculated weights are all greater than or equal to 1
+    weights = np.zeros_like(y)
+    weights[neg_mask] = new_weights / new_weights.max()
+
+    return weights, residual_l1_norm, exit_early
 
 
 def _safe_std(array, **kwargs):
@@ -228,7 +302,7 @@ def _psalsa(y, baseline, p, k, shape_y):
     p : float
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight.
+        will be given `1 - p` weight.
     k : float
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
@@ -270,7 +344,7 @@ def _derpsalsa(y, baseline, p, k, shape_y, partial_weights):
     p : float
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight.
+        will be given `1 - p` weight.
     k : float
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
