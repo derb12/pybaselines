@@ -51,14 +51,6 @@ from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
 from ._validation import _check_array
 
 
-try:
-    from scipy.interpolate import _bspl
-    _scipy_btb_bty = _bspl._norm_eq_lsq
-except (AttributeError, ImportError):
-    # in case scipy ever changes
-    _scipy_btb_bty = None
-
-
 # adapted from scipy (scipy/interpolate/_bspl.pyx/find_interval); see license above
 @jit(nopython=True, cache=True)
 def _find_interval(knots, spline_degree, x_val, last_left, num_bases):
@@ -561,15 +553,6 @@ def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extr
                 ab = _lower_to_full(ab)
             use_backup = False
 
-    if use_backup and _scipy_btb_bty is not None:
-        ab = np.zeros((spline_degree + 1, num_bases), order='F')
-        rhs = np.zeros((num_bases, 1), order='F')
-        _scipy_btb_bty(x, knots, spline_degree, y.reshape(-1, 1), np.sqrt(weights), ab, rhs)
-        rhs = rhs.reshape(-1)
-        if not lower_only:
-            ab = _lower_to_full(ab)
-        use_backup = False
-
     if use_backup:
         # worst case scenario; have to convert weights to a sparse diagonal matrix,
         # do B.T @ W @ B, and convert back to lower banded
@@ -867,17 +850,6 @@ class PSpline(PenalizedSystem):
             _numba_btb_bty(self.x, self.knots, self.spline_degree, y, weights, ab, rhs, basis_data)
             # TODO can probably make the full matrix directly within the numba
             # btb calculation
-            if not self.lower:
-                ab = _lower_to_full(ab)
-            use_backup = False
-
-        if use_backup and _scipy_btb_bty is not None:
-            ab = np.zeros((self.spline_degree + 1, self._num_bases), order='F')
-            rhs = np.zeros((self._num_bases, 1), order='F')
-            _scipy_btb_bty(
-                self.x, self.knots, self.spline_degree, y.reshape(-1, 1), np.sqrt(weights), ab, rhs
-            )
-            rhs = rhs.reshape(-1)
             if not self.lower:
                 ab = _lower_to_full(ab)
             use_backup = False

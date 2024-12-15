@@ -159,48 +159,6 @@ def test_numba_basis_len(data_fixture, num_knots, spline_degree):
     assert len(basis.tocsr().data) == len(x) * (spline_degree + 1)
 
 
-def test_scipy_btb_bty(data_fixture):
-    """
-    Ensures the private function from Scipy works as intended.
-
-    If numba is not installed, the private function scipy.interpolate._bspl._norm_eq_lsq
-    is used to calculate ``B.T @ W @ B`` and ``B.T @ W @ y``.
-
-    This test is a "canary in the coal mine", and if it ever fails, the scipy
-    support will need to be looked at.
-
-    """
-    # import within this function in case this private file is ever renamed
-    from scipy.interpolate import _bspl
-    _scipy_btb_bty = _bspl._norm_eq_lsq
-
-    x, y = data_fixture
-    # ensure x and y are floats
-    x = x.astype(float, copy=False)
-    y = y.astype(float, copy=False)
-    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
-    weights = np.clip(weights, 0, 1).astype(float, copy=False)
-
-    spline_degree = 3
-    num_knots = 100
-
-    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
-    basis = _spline_utils._spline_basis(x, knots, spline_degree)
-    num_bases = basis.shape[1]
-
-    ab = np.zeros((spline_degree + 1, num_bases), order='F')
-    rhs = np.zeros((num_bases, 1), order='F')
-    _scipy_btb_bty(x, knots, spline_degree, y.reshape(-1, 1), np.sqrt(weights), ab, rhs)
-    rhs = rhs.reshape(-1)
-
-    expected_rhs = basis.T @ (weights * y)
-    expected_ab_full = (basis.T @ diags(weights, format='csr') @ basis).todia().data[::-1]
-    expected_ab_lower = expected_ab_full[len(expected_ab_full) // 2:]
-
-    assert_allclose(rhs, expected_rhs, 1e-10, 1e-12)
-    assert_allclose(ab, expected_ab_lower, 1e-10, 1e-12)
-
-
 @pytest.mark.parametrize('num_knots', (100, 1000))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
@@ -209,13 +167,11 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lowe
     """
     Tests the accuracy of the penalized spline solvers.
 
-    The penalized spline solver has three routes:
+    The penalized spline solver has two routes:
     1) use the custom numba function (preferred if numba is installed)
-    2) use the scipy function scipy.interpolate._bspl._norm_eq_lsq (used if numba is
-       not installed and the scipy import works correctly)
-    3) compute ``B.T @ W @ B`` and ``B.T @ (w * y)`` using the sparse system (last resort)
+    2) compute ``B.T @ W @ B`` and ``B.T @ (w * y)`` using the sparse system (last resort)
 
-    All three are tested here.
+    Both are tested here.
 
     """
     x, y = data_fixture
@@ -240,17 +196,7 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lowe
     )
 
     with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
-        # mock that the scipy import failed, so should use sparse calculation; tested
-        # first since it should be most stable
-        with mock.patch.object(_spline_utils, '_scipy_btb_bty', None):
-            assert_allclose(
-                _spline_utils._solve_pspline(
-                    x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
-                ),
-                expected_coeffs, 1e-10, 1e-12
-            )
-
-        # should use the scipy calculation
+        # use sparse calculation
         assert_allclose(
             _spline_utils._solve_pspline(
                 x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only

@@ -134,7 +134,7 @@ class TestTophat(MorphologicalTester):
     func_name = 'tophat'
 
 
-class TestMpsline(MorphologicalTester, InputWeightsMixin):
+class TestMpspline(MorphologicalTester, InputWeightsMixin):
     """Class for testing mpspline baseline."""
 
     func_name = 'mpspline'
