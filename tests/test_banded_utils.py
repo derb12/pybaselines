@@ -751,3 +751,157 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
             )
             # should also modify the penalty attribute
             assert_allclose(penalized_system.penalty, expected_output, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('dtype', (float, np.float32))
+def test_sparse_to_banded(dtype):
+    """Tests basic functionality of _sparse_to_banded."""
+    data = np.array([
+        [1, 3, 0, 0],
+        [2, 3, 5, 0],
+        [0, 3, 5, 6],
+        [0, 0, 2, 9]
+    ], dtype=dtype)
+    banded_data = np.array([
+        [0, 3, 5, 6],
+        [1, 3, 5, 9],
+        [2, 3, 2, 0]
+    ], dtype=dtype)
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 1
+    assert out.dtype == dtype
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 1
+    assert out2.dtype == dtype
+
+
+def test_sparse_to_banded_truncation():
+    """Ensures _sparse_to_banded works correctly when zeros are truncated from sparse format."""
+    data = np.array([
+        [1, 3, 0, 0],
+        [2, 3, 5, 0],
+        [0, 3, 5, 0],
+        [0, 0, 2, 0]
+    ])
+    banded_data = np.array([
+        [0, 3, 5, 0],
+        [1, 3, 5, 0],
+        [2, 3, 2, 0]
+    ])
+    matrix = dia_object(data)
+
+    expected_data = np.array([
+        [0, 3, 5],
+        [1, 3, 5],
+        [2, 3, 2]
+    ])
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+    # ensure that the last column of zeros should typically get truncated by SciPy's
+    # sparse matrices
+    assert_array_equal(matrix.data[::-1], expected_data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 1
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 1
+
+
+def test_sparse_to_banded_diagonal():
+    """Ensures _sparse_to_banded works with only a single diagonal."""
+    data = np.array([
+        [1, 0, 0, 0],
+        [0, 3, 0, 0],
+        [0, 0, 5, 0],
+        [0, 0, 0, 9]
+    ])
+    banded_data = np.array([[1, 3, 5, 9]])
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 0
+    assert upper == 0
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 0
+    assert upper2 == 0
+
+
+def test_sparse_to_banded_ragged():
+    """Ensures _sparse_to_banded works when the input is a ragged banded matrix."""
+    data = np.array([
+        [1, 3, 0, 2],
+        [2, 3, 5, 0],
+        [0, 3, 5, 6],
+        [0, 0, 2, 9]
+    ])
+    banded_data = np.array([
+        [0, 0, 0, 2],
+        [0, 0, 0, 0],
+        [0, 3, 5, 6],
+        [1, 3, 5, 9],
+        [2, 3, 2, 0]
+    ])
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 3
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 3
+
+    data = np.array([
+        [1, 3, 0, 0],
+        [2, 3, 5, 0],
+        [0, 3, 5, 6],
+        [-1, 0, 2, 9]
+    ])
+    banded_data = np.array([
+        [0, 3, 5, 6],
+        [1, 3, 5, 9],
+        [2, 3, 2, 0],
+        [0, 0, 0, 0],
+        [-1, 0, 0, 0]
+    ])
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 3
+    assert upper == 1
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 3
+    assert upper2 == 1

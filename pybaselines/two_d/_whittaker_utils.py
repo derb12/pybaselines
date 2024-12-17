@@ -84,7 +84,7 @@ class PenalizedSystem2D:
         ----------
         data_size : Sequence[int, int]
             The number of data points for the system.
-        lam : float or Sequence[int, int], optional
+        lam : float or Sequence[float, float], optional
             The penalty factor applied to the difference matrix for the rows and columns,
             respectively. If a single value is given, both will use the same value. Larger
             values produce smoother results. Must be greater than 0. Default is 1.

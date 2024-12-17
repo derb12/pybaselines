@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import _banded_utils, morphological, spline, utils, whittaker
+from pybaselines import _banded_utils, _spline_utils, morphological, spline, utils, whittaker
 
 from .conftest import BaseTester, InputWeightsMixin
 
@@ -49,6 +49,21 @@ class SplineTester(BaseTester):
 
     module = spline
     algorithm_base = spline._Spline
+
+    def test_numba_implementation(self):
+        """
+        Ensures the output is consistent between the two separate pspline solvers.
+
+        Some testing subclasses do not use pspline solvers, but this is the easiest way
+        to cover all affect algorithms.
+
+        """
+        with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
+            normal_output = self.class_func(self.y)[0]
+        with mock.patch.object(_spline_utils, '_HAS_NUMBA', True):
+            numba_output = self.class_func(self.y)[0]
+
+        assert_allclose(numba_output, normal_output, rtol=1e-9)
 
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin):

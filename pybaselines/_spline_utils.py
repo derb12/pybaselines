@@ -44,9 +44,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as np
 from scipy.interpolate import BSpline, splev
-from scipy.linalg import solve_banded, solveh_banded
 
-from ._banded_utils import PenalizedSystem, _add_diagonals, _lower_to_full
+from ._banded_utils import PenalizedSystem, _add_diagonals, _lower_to_full, _sparse_to_banded
 from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
 from ._validation import _check_array
 
@@ -469,122 +468,6 @@ def _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data):
             rhs[row] += work_val * y_val * weight_val
 
 
-# adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above
-def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extra=None,
-                   lower_only=True):
-    """
-    Solves the coefficients for a weighted penalized spline.
-
-    Solves the linear equation ``(B.T @ W @ B + P) c = B.T @ W @ y`` for the spline
-    coefficients, `c`, given the spline basis, `B`, the weights (diagonal of `W`), the
-    penalty `P`, and `y`. Attempts to calculate ``B.T @ W @ B`` and ``B.T @ W @ y`` as
-    a banded system to speed up the calculation.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The x-values for the spline.
-    y : numpy.ndarray, shape (N,)
-        The y-values for fitting the spline.
-    weights : numpy.ndarray, shape (N,)
-        The weights for each y-value.
-    basis : scipy.sparse.base.spmatrix, shape (N, K - `spline_degree` - 1)
-        The sparse spline basis matrix. CSR format is preferred.
-    penalty : numpy.ndarray, shape (D, N)
-        The finite difference penalty matrix, in LAPACK's lower banded format (see
-        :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
-        format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
-    knots : numpy.ndarray, shape (K,)
-        The array of knots for the spline. Should be padded on each end with
-        `spline_degree` extra knots.
-    spline_degree : int
-        The degree of the spline.
-    rhs_extra : float or numpy.ndarray, shape (N,), optional
-        If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
-        of the equation before solving. Default is None, which adds nothing.
-    lower_only : boolean, optional
-        If True (default), will include only the lower non-zero diagonals of
-        ``B.T @ W @ B`` and use :func:`scipy.linalg.solveh_banded` to solve the equation.
-        If False, will use all of the non-zero diagonals and use
-        :func:`scipy.linalg.solve_banded` for solving. `penalty` is not modified, so it
-        must be in the correct lower or full format before passing to this function.
-
-    Returns
-    -------
-    coeffs : numpy.ndarray, shape (K - `spline_degree` - 1,)
-        The coefficients for the spline. To calculate the spline, do ``basis @ coeffs``.
-
-    Raises
-    ------
-    ValueError
-        Raised if `penalty` and the calculated `basis.T @ W @ basis` have different number
-        of columns.
-
-    Notes
-    -----
-    Most checks on the inputs are skipped since this is an internal function and the
-    proper steps are assumed to be done. For more proper error handling in the inputs,
-    see :func:`scipy.interpolate.make_lsq_spline`.
-
-    """
-    use_backup = True
-    num_bases = basis.shape[1]
-    # prefer numba version since it directly uses the basis
-    if _HAS_NUMBA:
-        # the spline basis must explicitly be created such that the csr matrix's data
-        # attribute is not missing any zeros; it is correct for all the internal basis
-        # creation functions used, but need to ensure just in case something ever changes;
-        # could guess if missing_values==2 that the first and last basis functions are
-        # missing a near-zero value, but safer to just move to other options
-        basis_data = basis.tocsr().data
-        missing_values = len(y) * (spline_degree + 1) - len(basis_data)
-        if not missing_values:
-            # TODO if using the numba version, does fortran ordering speed up the calc? or
-            # can ab just be c ordered?
-
-            # create ab and rhs arrays outside of numba function since numba's implementation
-            # of np.zeros is slower than numpy's (https://github.com/numba/numba/issues/7259)
-            ab = np.zeros((spline_degree + 1, num_bases), order='F')
-            rhs = np.zeros(num_bases)
-            _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data)
-            # TODO can probably make the full matrix directly within the numba
-            # btb calculation
-            if not lower_only:
-                ab = _lower_to_full(ab)
-            use_backup = False
-
-    if use_backup:
-        # worst case scenario; have to convert weights to a sparse diagonal matrix,
-        # do B.T @ W @ B, and convert back to lower banded
-        len_y = len(y)
-        full_matrix = basis.T @ dia_object((weights, 0), shape=(len_y, len_y)).tocsr() @ basis
-        rhs = basis.T @ (weights * y)
-        ab = full_matrix.todia().data[::-1]
-        # take only the lower diagonals of the symmetric ab; cannot just do
-        # ab[spline_degree:] since some diagonals become fully 0 and are truncated from
-        # the data attribute, so have to calculate the number of bands first
-        if lower_only:
-            ab = ab[len(ab) // 2:]
-
-    lhs = _add_diagonals(ab, penalty, lower_only)
-    if rhs_extra is not None:
-        rhs = rhs + rhs_extra
-
-    if lower_only:
-        coeffs = solveh_banded(
-            lhs, rhs, overwrite_ab=True, overwrite_b=True, lower=True,
-            check_finite=False
-        )
-    else:
-        bands = len(lhs) // 2
-        coeffs = solve_banded(
-            (bands, bands), lhs, rhs, overwrite_ab=True, overwrite_b=True,
-            check_finite=False
-        )
-
-    return coeffs
-
-
 def _basis_midpoints(knots, spline_degree):
     """
     Calculates the midpoint x-values of spline basis functions assuming evenly spaced knots.
@@ -805,6 +688,7 @@ class PSpline(PenalizedSystem):
             allow_pentapy=False, padding=self.spline_degree - diff_order
         )
 
+    # adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above
     def solve_pspline(self, y, weights, penalty=None, rhs_extra=None):
         """
         Solves the coefficients for a weighted penalized spline.
@@ -862,9 +746,9 @@ class PSpline(PenalizedSystem):
                 @ dia_object((weights, 0), shape=(self._x_len, self._x_len)).tocsr()
                 @ self.basis
             )
-
             rhs = self.basis.T @ (weights * y)
-            ab = full_matrix.todia().data[::-1]
+            ab = _sparse_to_banded(full_matrix, rhs.shape[0])[0]
+
             # take only the lower diagonals of the symmetric ab; cannot just do
             # ab[spline_degree:] since some diagonals become fully 0 and are truncated from
             # the data attribute, so have to calculate the number of bands first

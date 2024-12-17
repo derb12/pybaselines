@@ -163,7 +163,7 @@ def test_numba_basis_len(data_fixture, num_knots, spline_degree):
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 @pytest.mark.parametrize('lower_only', (True, False))
-def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lower_only):
+def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower_only):
     """
     Tests the accuracy of the penalized spline solvers.
 
@@ -194,23 +194,34 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lowe
         basis.T @ diags(weights, format='csr') @ basis + penalty_matrix,
         basis.T @ (weights * y)
     )
+    expected_spline = basis @ expected_coeffs
 
     with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
         # use sparse calculation
+        pspline = _spline_utils.PSpline(
+            x, num_knots=num_knots, spline_degree=spline_degree, lam=1,
+            diff_order=diff_order, allow_lower=lower_only
+        )
         assert_allclose(
-            _spline_utils._solve_pspline(
-                x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
-            ),
-            expected_coeffs, 1e-10, 1e-12
+            pspline.solve_pspline(y, weights=weights, penalty=penalty),
+            expected_spline, 1e-10, 1e-12
+        )
+        assert_allclose(
+            pspline.coef, expected_coeffs, 1e-10, 1e-12
         )
 
     with mock.patch.object(_spline_utils, '_HAS_NUMBA', True):
         # should use the numba calculation
+        pspline = _spline_utils.PSpline(
+            x, num_knots=num_knots, spline_degree=spline_degree, lam=1,
+            diff_order=diff_order, allow_lower=lower_only
+        )
         assert_allclose(
-            _spline_utils._solve_pspline(
-                x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
-            ),
-            expected_coeffs, 1e-10, 1e-12
+            pspline.solve_pspline(y, weights=weights, penalty=penalty),
+            expected_spline, 1e-10, 1e-12
+        )
+        assert_allclose(
+            pspline.coef, expected_coeffs, 1e-10, 1e-12
         )
 
 

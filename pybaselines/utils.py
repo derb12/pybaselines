@@ -22,7 +22,7 @@ from ._validation import (
 )
 
 
-# the minimum positive float values such that a + _MIN_FLOAT != a
+# the minimum positive float values such that 1 + _MIN_FLOAT != 1
 # TODO this is mostly used to prevent dividing by 0; is there a better way to do that?
 # especially since it is usually max(value, _MIN_FLOAT) and in some cases value could be
 # < _MIN_FLOAT but still > 0 and useful; think about it

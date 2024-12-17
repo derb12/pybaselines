@@ -13,7 +13,7 @@ from scipy.ndimage import grey_opening
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
+from ._banded_utils import _add_diagonals, _shift_rows, _sparse_to_banded, diff_penalty_diagonals
 from ._compat import dia_object, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array
@@ -544,7 +544,7 @@ class _Spline(_Algorithm):
         )
         partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array
-        d1_penalty = (d1_penalty @ self.pspline.basis).todia().data[::-1]
+        d1_penalty = _sparse_to_banded(d1_penalty @ self.pspline.basis, self.pspline._num_bases)[0]
         if self.pspline.lower:
             d1_penalty = d1_penalty[len(d1_penalty) // 2:]
         self.pspline.add_penalty(d1_penalty)
