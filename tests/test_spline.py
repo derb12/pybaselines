@@ -232,15 +232,12 @@ class TestPsplineAirPLS(IterativeSplineTester):
 
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
 
         """
         x, y = no_noise_data_fixture
         with pytest.warns(utils.ParameterWarning):
             baseline = self.class_func(y, tol=-1, max_iter=7000)[0]
-        assert np.isfinite(baseline.dot(baseline))
+        assert np.isfinite(baseline).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
@@ -276,7 +273,7 @@ class TestPsplineArPLS(IterativeSplineTester):
         with np.errstate(over='raise'):
             baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
 
-        assert np.isfinite(baseline.dot(baseline))
+        assert np.isfinite(baseline).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
@@ -296,32 +293,26 @@ class TestPsplineDrPLS(IterativeSplineTester):
         lam = {2: 1e6, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures that the function gracefully exits when non-finite weights are created.
+        Ensures that the function does not create non-finite weights.
 
-        When there are no negative residuals or exp(iterations) / std is very high, both
-        of which occur when a low tol value is used with a high max_iter value, the
-        weighting function would produce non-finite values. The returned baseline should
-        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+        drpls should not experience overflow since there is a cap on the iteration used
+        within the exponential, so no warnings or errors should be emitted even when using
+        a very high max_iter and low tol.
 
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
 
         """
         x, y = no_noise_data_fixture
-        with pytest.warns(utils.ParameterWarning):
-            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
+        baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
-        assert np.isfinite(baseline.dot(baseline))
-        # ensure last tolerence calculation was non-finite as a double-check that
+        assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
         # this test is actually doing what it should be doing
-        assert not np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('eta', (0.2, 0.8))

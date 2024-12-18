@@ -471,3 +471,113 @@ def test_arpls_overflow(one_d):
 
     # weights should still be the same as the nieve calculation regardless of exponential overflow
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
+def expected_drpls(y, baseline, iteration):
+    """
+    The weighting for doubly reweighted penalized least squares (drpls).
+
+    Does not perform error checking since this is just used for simple weighting cases.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    iteration : int
+        The iteration number. Should be 1-based, such that the first iteration is 1
+        instead of 0.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+
+    References
+    ----------
+    Xu, D. et al. Baseline correction method based on doubly reweighted
+    penalized least squares, Applied Optics, 2019, 58, 3913-3920.
+
+    """
+    residual = y - baseline
+    neg_residual = residual[residual < 0]
+    std = _weighting._safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+    inner = (np.exp(iteration) / std) * (residual - (2 * std - np.mean(neg_residual)))
+    weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
+    return weights
+
+
+@pytest.mark.parametrize('iteration', (1, 10))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_drpls_normal(iteration, one_d):
+    """Ensures drpls weighting works as intented for a normal baseline."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    weights, exit_early = _weighting._drpls(y_data, baseline, iteration)
+    expected_weights = expected_drpls(y_data, baseline, iteration)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
+@pytest.mark.parametrize('iteration', (1, 10))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_drpls_all_above(iteration, one_d):
+    """Ensures drpls weighting works as intented for a baseline with all points above the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_above()
+    else:
+        y_data, baseline = baseline_2d_all_above()
+    weights, exit_early = _weighting._drpls(y_data, baseline, iteration)
+    expected_weights = expected_drpls(y_data, baseline, iteration)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
+@pytest.mark.parametrize('iteration', (1, 10))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_drpls_all_below(iteration, one_d):
+    """Ensures drpls weighting works as intented for a baseline with all points below the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_below()
+    else:
+        y_data, baseline = baseline_2d_all_below()
+
+    with pytest.warns(utils.ParameterWarning):
+        weights, exit_early = _weighting._drpls(y_data, baseline, iteration)
+    expected_weights = np.zeros_like(y_data)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert exit_early
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_drpls_overflow(one_d):
+    """Ensures exponential overflow does not occur from drpls weighting."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    iteration = 1000
+    # sanity check to ensure overflow actually should occur and that it produces nan weights
+    with pytest.warns(RuntimeWarning):
+        expected_weights = expected_drpls(y_data, baseline, iteration)
+    assert (~np.isfinite(expected_weights)).any()
+
+    with np.errstate(over='raise'):
+        weights, exit_early = _weighting._drpls(y_data, baseline, iteration)
+
+    assert np.isfinite(weights).all()
+    assert not exit_early

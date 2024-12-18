@@ -216,6 +216,9 @@ def _drpls(y, baseline, iteration):
     -------
     weights : numpy.ndarray, shape (N,)
         The calculated weights.
+    exit_early : bool
+        Designates if there is a potential error with the calculation such that no further
+        iterations should be performed.
 
     References
     ----------
@@ -225,10 +228,25 @@ def _drpls(y, baseline, iteration):
     """
     residual = y - baseline
     neg_residual = residual[residual < 0]
+    if neg_residual.size < 2:
+        exit_early = True
+        warnings.warn(
+            ('almost all baseline points are below the data, indicating that "tol"'
+             ' is too low and/or "max_iter" is too high'), ParameterWarning,
+             stacklevel=2
+        )
+        return np.zeros_like(y), exit_early
+    else:
+        exit_early = False
+
     std = _safe_std(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
-    inner = (np.exp(iteration) / std) * (residual - (2 * std - np.mean(neg_residual)))
+    # the exponential term is used to change the shape of the weighting from a logistic curve
+    # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
+    # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
+    # overflow for high iterations
+    inner = (np.exp(min(iteration, 100)) / std) * (residual - (2 * std - np.mean(neg_residual)))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
-    return weights
+    return weights, exit_early
 
 
 def _iarpls(y, baseline, iteration):

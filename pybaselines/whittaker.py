@@ -414,23 +414,14 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.penalty + penalty_with_weights, weight_array * y,
                 overwrite_ab=True, overwrite_b=True, l_and_u=lower_upper_bands
             )
-            new_weights = _weighting._drpls(y, baseline, i)
+            new_weights, exit_early = _weighting._drpls(y, baseline, i)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
+
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
-            if not np.isfinite(calc_difference):
-                # catches nan, inf and -inf due to exp(i) being too high or if there
-                # are too few negative residuals; no way to catch both conditions before
-                # new_weights calculation since it is hard to estimate if
-                # (exp(i) / std) * residual will overflow; check calc_difference rather
-                # than checking new_weights since non-finite values rarely occur and
-                # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
-                warnings.warn(
-                    ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
-                    stacklevel=2
-                )
-                break
-            elif calc_difference < tol:
+            if calc_difference < tol:
                 break
             weight_array = new_weights
 
