@@ -170,6 +170,9 @@ def _arpls(y, baseline):
     -------
     weights : numpy.ndarray, shape (N,)
         The calculated weights.
+    exit_early : bool
+        Designates if there is a potential error with the calculation such that no further
+        iterations should be performed.
 
     References
     ----------
@@ -179,10 +182,20 @@ def _arpls(y, baseline):
     """
     residual = y - baseline
     neg_residual = residual[residual < 0]
+    if neg_residual.size < 2:
+        exit_early = True
+        warnings.warn(
+            ('almost all baseline points are below the data, indicating that "tol"'
+             ' is too low and/or "max_iter" is too high'), ParameterWarning,
+             stacklevel=2
+        )
+        return np.zeros_like(y), exit_early
+    else:
+        exit_early = False
     std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
     # add a negative sign since expit performs 1/(1+exp(-input))
     weights = expit(-(2 / std) * (residual - (2 * std - np.mean(neg_residual))))
-    return weights
+    return weights, exit_early
 
 
 def _drpls(y, baseline, iteration):

@@ -319,7 +319,10 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.add_diagonal(weight_array), weight_array * y,
                 overwrite_b=True
             )
-            new_weights = _weighting._arpls(y, baseline)
+            new_weights, exit_early = _weighting._arpls(y, baseline)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

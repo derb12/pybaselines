@@ -260,7 +260,6 @@ class TestPsplineArPLS(IterativeSplineTester):
         lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    @pytest.mark.skip(reason='overflow will be addressed next version')
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
         """
         Ensures no warning is emitted for exponential overflow.
