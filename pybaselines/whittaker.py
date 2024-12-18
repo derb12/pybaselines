@@ -6,17 +6,13 @@ Created on Sept. 13, 2019
 
 """
 
-import warnings
-
 import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _shift_rows, diff_penalty_diagonals
 from ._validation import _check_lam, _check_optional_array
-from .utils import (
-    ParameterWarning, _mollifier_kernel, pad_edges, padded_convolve, relative_difference
-)
+from .utils import _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 
 
 class _Whittaker(_Algorithm):
@@ -482,23 +478,13 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.add_diagonal(weight_array), weight_array * y,
                 overwrite_b=True
             )
-            new_weights = _weighting._iarpls(y, baseline, i)
+            new_weights, exit_early = _weighting._iarpls(y, baseline, i)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
-            if not np.isfinite(calc_difference):
-                # catches nan, inf and -inf due to exp(i) being too high or if there
-                # are too few negative residuals; no way to catch both conditions before
-                # new_weights calculation since it is hard to estimate if
-                # (exp(i) / std) * residual will overflow; check calc_difference rather
-                # than checking new_weights since non-finite values rarely occur and
-                # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
-                warnings.warn(
-                    ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
-                    stacklevel=2
-                )
-                break
-            elif calc_difference < tol:
+            if calc_difference < tol:
                 break
             weight_array = new_weights
 
