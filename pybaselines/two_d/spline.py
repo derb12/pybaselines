@@ -11,6 +11,7 @@ import warnings
 import numpy as np
 
 from .. import _weighting
+from .._validation import _check_scalar_variable
 from ..utils import ParameterWarning, gaussian, relative_difference
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
@@ -765,7 +766,8 @@ class _Spline(_Algorithm2D):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         See Also
         --------
@@ -789,6 +791,8 @@ class _Spline(_Algorithm2D):
         )
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve(y, weight_array)

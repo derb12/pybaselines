@@ -658,7 +658,8 @@ class _Whittaker(_Algorithm):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         Notes
         -----
@@ -679,6 +680,8 @@ class _Whittaker(_Algorithm):
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.whittaker_system.solve(
@@ -758,7 +761,8 @@ class _Whittaker(_Algorithm):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         References
         ----------
@@ -772,6 +776,8 @@ class _Whittaker(_Algorithm):
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
         if smooth_half_window is None:
             smooth_half_window = self._size // 200
         # could pad the data every iteration, but it is ~2-3 times slower and only affects
@@ -1283,7 +1289,8 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
     Raises
     ------
     ValueError
-        Raised if `p` is not between 0 and 1.
+        Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+        than 0.
 
     Notes
     -----
@@ -1366,7 +1373,8 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
     Raises
     ------
     ValueError
-        Raised if `p` is not between 0 and 1.
+        Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+        than 0.
 
     References
     ----------

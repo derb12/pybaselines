@@ -448,7 +448,7 @@ def _derpsalsa(y, baseline, p, k, shape_y, partial_weights):
     # since it's faster than performing the square and exp on the full residual
     weights = np.full(shape_y, 1 - p, dtype=float)
     mask = residual > 0
-    weights[mask] = p * np.exp(-((residual[mask] / k)**2) / 2)
+    weights[mask] = p * np.exp(-0.5 * ((residual[mask] / k)**2))
     weights *= partial_weights
     return weights
 

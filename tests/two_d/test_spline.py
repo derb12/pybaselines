@@ -275,3 +275,9 @@ class TestPsplinePsalsa(IterativeSplineTester):
         compare_pspline_whittaker(
             self, 'psalsa', self.y, lam=lam, p=p, diff_order=diff_order, test_rtol=1e5
         )
+
+    @pytest.mark.parametrize('k', (0, -1))
+    def test_outside_k_fails(self, k):
+        """Ensures k values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, k=k)

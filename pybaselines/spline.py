@@ -1080,7 +1080,8 @@ class _Spline(_Algorithm):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         See Also
         --------
@@ -1104,6 +1105,8 @@ class _Spline(_Algorithm):
         )
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve_pspline(y, weight_array)
@@ -1185,7 +1188,8 @@ class _Spline(_Algorithm):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         See Also
         --------
@@ -1208,6 +1212,8 @@ class _Spline(_Algorithm):
         )
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
 
         if smooth_half_window is None:
             smooth_half_window = self._size // 200
@@ -2248,7 +2254,8 @@ def pspline_psalsa(data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
     Raises
     ------
     ValueError
-        Raised if `p` is not between 0 and 1.
+        Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+        than 0.
 
     See Also
     --------
@@ -2336,7 +2343,8 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
     Raises
     ------
     ValueError
-        Raised if `p` is not between 0 and 1.
+        Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+        than 0.
 
     See Also
     --------

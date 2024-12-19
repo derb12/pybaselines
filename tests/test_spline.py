@@ -470,6 +470,12 @@ class TestPsplinePsalsa(IterativeSplineTester):
             self, whittaker.psalsa, self.y, lam=lam, p=p, diff_order=diff_order
         )
 
+    @pytest.mark.parametrize('k', (0, -1))
+    def test_outside_k_fails(self, k):
+        """Ensures k values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, k=k)
+
 
 class TestPsplineDerpsalsa(IterativeSplineTester):
     """Class for testing pspline_derpsalsa baseline."""
@@ -496,6 +502,12 @@ class TestPsplineDerpsalsa(IterativeSplineTester):
         compare_pspline_whittaker(
             self, whittaker.derpsalsa, self.y, lam=lam, p=p, diff_order=diff_order
         )
+
+    @pytest.mark.parametrize('k', (0, -1))
+    def test_outside_k_fails(self, k):
+        """Ensures k values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, k=k)
 
 
 class TestPsplineMPLS(SplineTester, InputWeightsMixin):

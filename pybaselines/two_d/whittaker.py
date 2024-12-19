@@ -763,7 +763,8 @@ class _Whittaker(_Algorithm2D):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         Notes
         -----
@@ -789,6 +790,8 @@ class _Whittaker(_Algorithm2D):
         )
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
 
         shape = self._shape if self.whittaker_system._using_svd else self._size
         tol_history = np.empty(max_iter + 1)

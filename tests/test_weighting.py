@@ -851,3 +851,261 @@ def test_aspls_overflow(one_d, assymetric_coef):
     # weights should still be the same as the nieve calculation regardless of exponential overflow
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert_allclose(residual, expected_residual, rtol=1e-12, atol=1e-12)
+
+
+def expected_psalsa(y, baseline, p, k, shape_y):
+    """
+    Weighting for the peaked signal's asymmetric least squares algorithm (psalsa).
+
+    Does not perform error checking since this is just used for simple weighting cases.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    p : float
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given `p` weight, and values less than the baseline
+        will be given `1 - p` weight.
+    k : float
+        A factor that controls the exponential decay of the weights for baseline
+        values greater than the data. Should be approximately the height at which
+        a value could be considered a peak.
+    shape_y : int or (int,) or (int, int)
+        The length of `y`, `N`. Precomputed to avoid repeated calculations.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+
+    References
+    ----------
+    Oller-Moreno, S., et al. Adaptive Asymmetric Least Squares baseline estimation
+    for analytical instruments. 2014 IEEE 11th International Multi-Conference on
+    Systems, Signals, and Devices, 2014, 1-5.
+
+    """
+    residual = y - baseline
+    weights = np.where(residual > 0, p * np.exp(-residual / k), 1 - p)
+    return weights
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('k', (0.5, 2))
+@pytest.mark.parametrize('p', (0.01, 0.99))
+def test_psalsa_normal(one_d, k, p):
+    """Ensures psalsa weighting works as intented for a normal baseline."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    weights = _weighting._psalsa(y_data, baseline, p, k, y_data.shape)
+    expected_weights = expected_psalsa(y_data, baseline, p, k, y_data.shape)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('k', (0.5, 2))
+@pytest.mark.parametrize('p', (0.01, 0.99))
+def test_psalsa_all_above(one_d, k, p):
+    """Ensures psalsa weighting works as intented for a baseline with all points above the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_above()
+    else:
+        y_data, baseline = baseline_2d_all_above()
+
+    weights = _weighting._psalsa(y_data, baseline, p, k, y_data.shape)
+    expected_weights = np.full_like(y_data, 1 - p)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('k', (0.5, 2))
+@pytest.mark.parametrize('p', (0.01, 0.99))
+def test_psalsa_all_below(one_d, k, p):
+    """Ensures psalsa weighting works as intented for a baseline with all points below the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_below()
+    else:
+        y_data, baseline = baseline_2d_all_below()
+
+    weights = _weighting._psalsa(y_data, baseline, p, k, y_data.shape)
+    expected_weights = p * np.exp(-(y_data - baseline) / k)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('k', (0.5, 2))
+@pytest.mark.parametrize('p', (0.01, 0.99))
+def test_psalsa_overflow(one_d, k, p):
+    """Ensures exponential overflow does not occur from psalsa weighting."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    log_max = np.log(np.finfo(y_data.dtype).max)
+    # for exponential overlow, -(residual / k) > log_max
+    overflow_index = 10
+    overflow_value = k * log_max + 10  # add 10 for good measure
+    if one_d:
+        baseline[overflow_index] = y_data[overflow_index] + overflow_value
+    else:
+        baseline[overflow_index, overflow_index] = (
+            y_data[overflow_index, overflow_index] + overflow_value
+        )
+
+    # sanity check to ensure overflow actually should occur
+    with pytest.warns(RuntimeWarning):
+        expected_weights = expected_psalsa(y_data, baseline, p, k, y_data.shape)
+    # weights in nieve approach should still be finite since overflow only occurs in regions
+    # where the exponential value is not actually used
+    assert np.isfinite(expected_weights).all()
+
+    with np.errstate(over='raise'):
+        weights = _weighting._psalsa(y_data, baseline, p, k, y_data.shape)
+
+    assert np.isfinite(weights).all()
+
+    # the actual weight where overflow should have occurred should be 1 - p
+    if one_d:
+        assert_allclose(weights[overflow_index], 1 - p, atol=1e-14)
+    else:
+        assert_allclose(weights[overflow_index, overflow_index], 1 - p, atol=1e-14)
+    # weights should still be the same as the nieve calculation regardless of exponential overflow
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
+def expected_derpsalsa(y, baseline, p, k, shape_y, partial_weights):
+    """
+    Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    p : float
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given `p` weight, and values less than the baseline
+        will be given `1 - p` weight.
+    k : float
+        A factor that controls the exponential decay of the weights for baseline
+        values greater than the data. Should be approximately the height at which
+        a value could be considered a peak.
+    shape_y : int or (int,) or (int, int)
+        The length of `y`, `N`. Precomputed to avoid repeated calculations.
+    partial_weights : numpy.ndarray, shape (N,)
+        The weights associated with the first and second derivatives of the data.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+
+    Notes
+    -----
+    The reference is not clear as to how `p` and `1-p` are applied. An alternative could
+    be that `partial_weights` are multiplied only where the residual is greater than
+    0 and that all other weights are `1-p`, but based on Figure 1c in the reference, the
+    total weights are never greater than `partial_weights`, so that must mean the non-peak
+    regions have a weight of `1-p` times `partial_weights` rather than just `1-p`;
+    both weighting systems give near identical results, so it is not a big deal.
+
+    References
+    ----------
+    Korepanov, V. Asymmetric least-squares baseline algorithm with peak screening for
+    automatic processing of the Raman spectra. Journal of Raman Spectroscopy. 2020,
+    51(10), 2061-2065.
+
+    """
+    residual = y - baseline
+    weights = partial_weights * np.where(residual > 0, p * np.exp(-((residual / k)**2) / 2), 1 - p)
+    return weights
+
+
+@pytest.mark.parametrize('k', (0.5, 2))
+@pytest.mark.parametrize('p', (0.01, 0.99))
+def test_derpsalsa_normal(k, p):
+    """Ensures derpsalsa weighting works as intented for a normal baseline."""
+    y_data, baseline = baseline_1d_normal()
+
+    diff_y_1 = np.gradient(y_data)
+    diff_y_2 = np.gradient(diff_y_1)
+    rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / y_data.size)
+    rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / y_data.size)
+
+    diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
+    diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
+    partial_weights = diff_1_weights * diff_2_weights
+
+    weights = _weighting._derpsalsa(y_data, baseline, p, k, y_data.shape, partial_weights)
+    expected_weights = expected_derpsalsa(y_data, baseline, p, k, y_data.shape, partial_weights)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
+
+
+@pytest.mark.parametrize('k', (0.5, 2))
+@pytest.mark.parametrize('p', (0.01, 0.99))
+def test_derpsalsa_all_above(k, p):
+    """Ensures derpsalsa weighting works as intented for a baseline completely above the data."""
+    y_data, baseline = baseline_1d_all_above()
+
+    diff_y_1 = np.gradient(y_data)
+    diff_y_2 = np.gradient(diff_y_1)
+    rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / y_data.size)
+    rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / y_data.size)
+
+    diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
+    diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
+    partial_weights = diff_1_weights * diff_2_weights
+
+    weights = _weighting._derpsalsa(y_data, baseline, p, k, y_data.shape, partial_weights)
+    expected_weights = np.full_like(y_data, partial_weights * (1 - p))
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('k', (0.5, 2))
+@pytest.mark.parametrize('p', (0.01, 0.99))
+def test_derpsalsa_all_below(k, p):
+    """Ensures derpsalsa weighting works as intented for a baseline completely below the data."""
+    y_data, baseline = baseline_1d_all_below()
+
+    diff_y_1 = np.gradient(y_data)
+    diff_y_2 = np.gradient(diff_y_1)
+    rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / y_data.size)
+    rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / y_data.size)
+
+    diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
+    diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
+    partial_weights = diff_1_weights * diff_2_weights
+
+    weights = _weighting._derpsalsa(y_data, baseline, p, k, y_data.shape, partial_weights)
+    expected_weights = partial_weights * p * np.exp(-0.5 * ((y_data - baseline) / k)**2)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
