@@ -301,7 +301,7 @@ def _iarpls(y, baseline, iteration):
     return weights, exit_early
 
 
-def _aspls(y, baseline):
+def _aspls(y, baseline, assymetric_coef):
     """
     Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
 
@@ -311,6 +311,9 @@ def _aspls(y, baseline):
         The measured data.
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
+    assymetric_coef : float
+        The assymetric coefficient for the weighting. Higher values leads to a steeper
+        weighting curve (ie. more step-like).
 
     Returns
     -------
@@ -318,10 +321,13 @@ def _aspls(y, baseline):
         The calculated weights.
     residual : numpy.ndarray, shape (N,)
         The residual, ``y - baseline``.
+    exit_early : bool
+        Designates if there is a potential error with the calculation such that no further
+        iterations should be performed.
 
     Notes
     -----
-    The weighting uses an asymmetric coefficient (`k` in the asPLS paper) of 0.5 instead
+    The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
     of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
     matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
     factor of 2 and fits noisy data much better.
@@ -333,10 +339,22 @@ def _aspls(y, baseline):
 
     """
     residual = y - baseline
-    std = _safe_std(residual[residual < 0], ddof=1)  # use dof=1 since sampling a subset
+    neg_residual = residual[residual < 0]
+    if neg_residual.size < 2:
+        exit_early = True
+        warnings.warn(
+            ('almost all baseline points are below the data, indicating that "tol"'
+             ' is too low and/or "max_iter" is too high'), ParameterWarning,
+             stacklevel=2
+        )
+        return np.zeros_like(y), residual, exit_early
+    else:
+        exit_early = False
+    std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+
     # add a negative sign since expit performs 1/(1+exp(-input))
-    weights = expit(-(0.5 / std) * (residual - std))
-    return weights, residual
+    weights = expit(-(assymetric_coef / std) * (residual - std))
+    return weights, residual, exit_early
 
 
 def _psalsa(y, baseline, p, k, shape_y):

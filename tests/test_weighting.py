@@ -158,6 +158,8 @@ def test_asls_normal(p, one_d):
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
 
 
 @pytest.mark.parametrize('p', (0.01, 0.99))
@@ -269,6 +271,8 @@ def test_airpls_normal(iteration, one_d):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert_allclose(residual_l1_norm, expected_residual_l1_norm, rtol=1e-12, atol=1e-12)
     assert not exit_early
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
 
 
 @pytest.mark.parametrize('iteration', (1, 10))
@@ -392,6 +396,8 @@ def test_arpls_normal(one_d):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -447,9 +453,11 @@ def test_arpls_overflow(one_d):
     overflow_index = 10
     overflow_value = (0.5 * log_max + 2) * std - mean + 10  # add 10 for good measure
     if one_d:
-        baseline[overflow_index] = overflow_value
+        baseline[overflow_index] = y_data[overflow_index] - overflow_value
     else:
-        baseline[overflow_index, overflow_index] = overflow_value
+        baseline[overflow_index, overflow_index] = (
+            y_data[overflow_index, overflow_index] - overflow_value
+        )
 
     # sanity check to ensure overflow actually should occur
     with pytest.warns(RuntimeWarning):
@@ -524,6 +532,8 @@ def test_drpls_normal(iteration, one_d):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
 
 
 @pytest.mark.parametrize('iteration', (1, 10))
@@ -640,6 +650,8 @@ def test_iarpls_normal(iteration, one_d):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
 
 
 @pytest.mark.parametrize('iteration', (1, 10))
@@ -697,3 +709,145 @@ def test_iarpls_overflow(one_d):
 
     assert np.isfinite(weights).all()
     assert not exit_early
+
+
+def expected_aspls(y, baseline, assymetric_coef=0.5):
+    """
+    The weighting for adaptive smoothness penalized least squares smoothing (aspls).
+
+    Does not perform error checking since this is just used for simple weighting cases.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    assymetric_coef : float
+        The assymetric coefficient for the weighting. Higher values leads to a steeper
+        weighting curve (ie. more step-like). Default is 0.5.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+
+    References
+    ----------
+    Zhang, F., et al. Baseline correction for infrared spectra using adaptive smoothness
+    parameter penalized least squares method. Spectroscopy Letters, 2020, 53(3), 222-233.
+
+    """
+    residual = y - baseline
+    std = np.std(residual[residual < 0], ddof=1)  # use dof=1 since sampling subset
+
+    weights = 1 / (1 + np.exp(assymetric_coef * (residual - std) / std))
+
+    return weights, residual
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('assymetric_coef', (0.5, 2))
+def test_aspls_normal(one_d, assymetric_coef):
+    """Ensures aspls weighting works as intented for a normal baseline."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    weights, residual, exit_early = _weighting._aspls(y_data, baseline, assymetric_coef)
+    expected_weights, expected_residual = expected_aspls(y_data, baseline, assymetric_coef)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert_allclose(residual, expected_residual, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('assymetric_coef', (0.5, 2))
+def test_aspls_all_above(one_d, assymetric_coef):
+    """Ensures aspls weighting works as intented for a baseline with all points above the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_above()
+    else:
+        y_data, baseline = baseline_2d_all_above()
+
+    weights, residual, exit_early = _weighting._aspls(y_data, baseline, assymetric_coef)
+    expected_weights, expected_residual = expected_aspls(y_data, baseline, assymetric_coef)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert_allclose(residual, expected_residual, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('assymetric_coef', (0.5, 2))
+def test_aspls_all_below(one_d, assymetric_coef):
+    """Ensures aspls weighting works as intented for a baseline with all points below the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_below()
+    else:
+        y_data, baseline = baseline_2d_all_below()
+
+    with pytest.warns(utils.ParameterWarning):
+        weights, residual, exit_early = _weighting._aspls(y_data, baseline, assymetric_coef)
+    expected_weights = np.zeros_like(y_data)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert_allclose(residual, y_data - baseline, rtol=1e-12, atol=1e-12)
+    assert exit_early
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('assymetric_coef', (0.5, 2))
+def test_aspls_overflow(one_d, assymetric_coef):
+    """Ensures exponential overflow does not occur from aspls weighting."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    log_max = np.log(np.finfo(y_data.dtype).max)
+    residual = y_data - baseline
+    std = np.std(residual[residual < 0], ddof=1)
+    # for exponential overlow, (residual / std) > (log_max / assymetric_coef) + 1
+    # changing one value in the baseline to cause overflow will not cause the
+    # standard deviation to change since the residual value will be positive at that index
+    overflow_index = 10
+    overflow_value = ((log_max / assymetric_coef) + 1) * std + 10  # add 10 for good measure
+    if one_d:
+        baseline[overflow_index] = y_data[overflow_index] - overflow_value
+    else:
+        baseline[overflow_index, overflow_index] = (
+            y_data[overflow_index, overflow_index] - overflow_value
+        )
+
+    # sanity check to ensure overflow actually should occur
+    with pytest.warns(RuntimeWarning):
+        expected_weights, expected_residual = expected_aspls(y_data, baseline, assymetric_coef)
+    # the resulting weights should still be finite since 1 / (1 + inf) == 0
+    assert np.isfinite(expected_weights).all()
+
+    with np.errstate(over='raise'):
+        weights, residual, exit_early = _weighting._aspls(y_data, baseline, assymetric_coef)
+
+    assert np.isfinite(weights).all()
+    assert not exit_early
+
+    # the actual weight where overflow should have occurred should be 0
+    if one_d:
+        assert_allclose(weights[overflow_index], 0.0, atol=1e-14)
+    else:
+        assert_allclose(weights[overflow_index, overflow_index], 0.0, atol=1e-14)
+
+    # weights should still be the same as the nieve calculation regardless of exponential overflow
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert_allclose(residual, expected_residual, rtol=1e-12, atol=1e-12)

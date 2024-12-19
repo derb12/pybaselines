@@ -437,6 +437,12 @@ class TestPsplineAsPLS(IterativeSplineTester):
             self, whittaker.aspls, self.y, lam=lam, diff_order=diff_order, test_rtol=rtol
         )
 
+    @pytest.mark.parametrize('assymetric_coef', (0, -1))
+    def test_outside_assymetric_coef_fails(self, assymetric_coef):
+        """Ensures assymetric_coef values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, assymetric_coef=assymetric_coef)
+
 
 class TestPsplinePsalsa(IterativeSplineTester):
     """Class for testing pspline_psalsa baseline."""

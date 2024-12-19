@@ -180,6 +180,12 @@ class TestAsPLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha=alpha)
 
+    @pytest.mark.parametrize('assymetric_coef', (0, -1))
+    def test_outside_assymetric_coef_fails(self, assymetric_coef):
+        """Ensures assymetric_coef values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, assymetric_coef=assymetric_coef)
+
 
 class TestPsalsa(WhittakerTester, EigenvalueMixin):
     """Class for testing psalsa baseline."""

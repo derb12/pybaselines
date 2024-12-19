@@ -10,7 +10,7 @@ import numpy as np
 
 from .. import _weighting
 from .._compat import diags
-from .._validation import _check_optional_array
+from .._validation import _check_optional_array, _check_scalar_variable
 from ..utils import _MIN_FLOAT, relative_difference
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
@@ -585,7 +585,7 @@ class _Whittaker(_Algorithm2D):
         sort_keys=('weights', 'alpha'), reshape_keys=('weights', 'alpha'), reshape_baseline=True
     )
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
-              weights=None, alpha=None):
+              weights=None, alpha=None, assymetric_coef=0.5):
         """
         Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -612,6 +612,9 @@ class _Whittaker(_Algorithm2D):
             An array of values that control the local value of `lam` to better
             fit peak and non-peak regions. If None (default), then the initial values
             will be an array with shape equal to (M, N) and all values set to 1.
+        assymetric_coef : float
+            The assymetric coefficient for the weighting. Higher values leads to a steeper
+            weighting curve (ie. more step-like). Default is 0.5.
 
         Returns
         -------
@@ -630,9 +633,15 @@ class _Whittaker(_Algorithm2D):
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
 
+        Raises
+        ------
+        ValueError
+            Raised if `alpha` and `data` do not have the same shape. Also raised if
+            `assymetric_coef` is not greater than 0.
+
         Notes
         -----
-        The weighting uses an asymmetric coefficient (`k` in the asPLS paper) of 0.5 instead
+        The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
         of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
         matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
         factor of 2 and fits noisy data much better.
@@ -651,6 +660,7 @@ class _Whittaker(_Algorithm2D):
         )
         if self._sort_order is not None and alpha is not None:
             alpha_array = alpha_array[self._sort_order]
+        assymetric_coef = _check_scalar_variable(assymetric_coef, variable_name='assymetric_coef')
 
         # use a sparse matrix to maintain sparsity after multiplication; implementation note:
         # could skip making an alpha matrix and just use alpha_array[:, None] * penalty once
@@ -660,7 +670,10 @@ class _Whittaker(_Algorithm2D):
         for i in range(max_iter + 1):
             penalty = alpha_matrix @ self.whittaker_system.penalty
             baseline = self.whittaker_system.solve(y, weight_array, penalty=penalty)
-            new_weights, residual = _weighting._aspls(y, baseline)
+            new_weights, residual, exit_early = _weighting._aspls(y, baseline, assymetric_coef)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

@@ -16,7 +16,7 @@ from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _add_diagonals, _shift_rows, diff_penalty_diagonals
 from ._compat import dia_object, jit, trapezoid
 from ._spline_utils import _basis_midpoints
-from ._validation import _check_lam, _check_optional_array
+from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .utils import (
     ParameterWarning, _mollifier_kernel, _sort_array, gaussian, pad_edges, padded_convolve,
     relative_difference
@@ -907,7 +907,7 @@ class _Spline(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights', 'alpha'), dtype=float, order='C')
     def pspline_aspls(self, data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
-                      max_iter=100, tol=1e-3, weights=None, alpha=None):
+                      max_iter=100, tol=1e-3, weights=None, alpha=None, assymetric_coef=0.5):
         """
         A penalized spline version of the asPLS algorithm.
 
@@ -937,6 +937,9 @@ class _Spline(_Algorithm):
             An array of values that control the local value of `lam` to better
             fit peak and non-peak regions. If None (default), then the initial values
             will be an array with size equal to N and all values set to 1.
+        assymetric_coef : float
+            The assymetric coefficient for the weighting. Higher values leads to a steeper
+            weighting curve (ie. more step-like). Default is 0.5.
 
         Returns
         -------
@@ -955,13 +958,19 @@ class _Spline(_Algorithm):
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
 
+        Raises
+        ------
+        ValueError
+            Raised if `alpha` and `data` do not have the same shape. Also raised if
+            `assymetric_coef` is not greater than 0.
+
         See Also
         --------
         Baseline.aspls
 
         Notes
         -----
-        The weighting uses an asymmetric coefficient (`k` in the asPLS paper) of 0.5 instead
+        The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
         of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
         matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
         factor of 2 and fits noisy data much better.
@@ -985,6 +994,7 @@ class _Spline(_Algorithm):
         )
         if self._sort_order is not None and alpha is not None:
             alpha_array = alpha_array[self._sort_order]
+        assymetric_coef = _check_scalar_variable(assymetric_coef, variable_name='assymetric_coef')
 
         interp_pts = _basis_midpoints(self.pspline.knots, self.pspline.spline_degree)
         tol_history = np.empty(max_iter + 1)
@@ -995,7 +1005,10 @@ class _Spline(_Algorithm):
                 self.pspline.num_bands, self.pspline.num_bands
             )
             baseline = self.pspline.solve_pspline(y, weight_array, alpha_penalty)
-            new_weights, residual = _weighting._aspls(y, baseline)
+            new_weights, residual, exit_early = _weighting._aspls(y, baseline, assymetric_coef)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -2091,7 +2104,8 @@ def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 
 @_spline_wrapper
 def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
-                  max_iter=100, tol=1e-3, weights=None, alpha=None, x_data=None):
+                  max_iter=100, tol=1e-3, weights=None, alpha=None, x_data=None,
+                  assymetric_coef=0.5):
     """
     A penalized spline version of the asPLS algorithm.
 
@@ -2124,6 +2138,9 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
+    assymetric_coef : float
+        The assymetric coefficient for the weighting. Higher values leads to a steeper
+        weighting curve (ie. more step-like). Default is 0.5.
 
     Returns
     -------
@@ -2142,13 +2159,19 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
 
+    Raises
+    ------
+    ValueError
+        Raised if `alpha` and `data` do not have the same shape. Also raised if
+        `assymetric_coef` is not greater than 0.
+
     See Also
     --------
     pybaselines.whittaker.aspls
 
     Notes
     -----
-    The weighting uses an asymmetric coefficient (`k` in the asPLS paper) of 0.5 instead
+    The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
     of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
     matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
     factor of 2 and fits noisy data much better.

@@ -289,6 +289,12 @@ class TestAsPLS(WhittakerTester):
         result = _banded_utils._shift_rows(result, diff_order, diff_order)
         assert_allclose(result, expected_result, rtol=1e-13, atol=1e-13)
 
+    @pytest.mark.parametrize('assymetric_coef', (0, -1))
+    def test_outside_assymetric_coef_fails(self, assymetric_coef):
+        """Ensures assymetric_coef values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, assymetric_coef=assymetric_coef)
+
 
 class TestPsalsa(WhittakerTester):
     """Class for testing psalsa baseline."""
