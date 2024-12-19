@@ -82,7 +82,7 @@ def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_
 
     Notes
     -----
-    This is the same code as in pybaselines.utils.gaussian, but
+    This is the same code as in pybaselines.utils.gaussian2d, but
     this removes the dependence on pybaselines so that if an error
     with pybaselines occurs, this will be unaffected.
 

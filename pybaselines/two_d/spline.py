@@ -11,6 +11,7 @@ import warnings
 import numpy as np
 
 from .. import _weighting
+from .._validation import _check_scalar_variable
 from ..utils import ParameterWarning, gaussian, relative_difference
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
@@ -39,7 +40,7 @@ class _Spline(_Algorithm2D):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Used to set the initial weights before performing
+            will be given `1 - p` weight. Used to set the initial weights before performing
             expectation-maximization. Default is 1e-2.
         num_knots : int or Sequence[int, int], optional
             The number of knots for the splines along the rows and columns, respectively. If a
@@ -292,7 +293,7 @@ class _Spline(_Algorithm2D):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         num_knots : int or Sequence[int, int], optional
             The number of knots for the splines along the rows and columns, respectively. If a
             single value is given, both will use the same value. Default is 25.
@@ -383,7 +384,7 @@ class _Spline(_Algorithm2D):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         lam_1 : float, optional
             The smoothing parameter for the first derivative of the residual. Default is 1e-4.
         num_knots : int, optional
@@ -529,48 +530,22 @@ class _Spline(_Algorithm2D):
 
         """
         y, weight_array = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam, copy_weights=True
+            data, weights, spline_degree, num_knots, True, diff_order, lam
         )
 
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            try:
-                output = self.pspline.solve(y, weight_array)
-            except np.linalg.LinAlgError:
-                warnings.warn(
-                    ('error occurred during fitting, indicating that "tol"'
-                     ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning, stacklevel=2
-                )
+            baseline = self.pspline.solve(y, weight_array)
+            new_weights, residual_l1_norm, exit_early = _weighting._airpls(y, baseline, i)
+            if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
-            else:
-                baseline = output
-
-            residual = y - baseline
-            neg_mask = residual < 0
-            neg_residual = residual[neg_mask]
-            if len(neg_residual) < 2:
-                # exit if there are < 2 negative residuals since all points or all but one
-                # point would get a weight of 0, which fails the solver
-                warnings.warn(
-                    ('almost all baseline points are below the data, indicating that "tol"'
-                     ' is too low and/or "max_iter" is too high'), ParameterWarning,
-                    stacklevel=2
-                )
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-
-            residual_l1_norm = abs(neg_residual.sum())
             calc_difference = residual_l1_norm / y_l1_norm
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
                 break
-            # only use negative residual in exp to avoid exponential overflow warnings
-            # and accidently creating a weight of nan (inf * 0 = nan)
-            weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
-            weight_array[~neg_mask] = 0
+            weight_array = new_weights
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i]}
 
@@ -639,7 +614,10 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve(y, weight_array)
-            new_weights = _weighting._arpls(y, baseline)
+            new_weights, exit_early = _weighting._arpls(y, baseline)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -717,23 +695,13 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = self.pspline.solve(y, weight_array)
-            new_weights = _weighting._iarpls(y, baseline, i)
+            new_weights, exit_early = _weighting._iarpls(y, baseline, i)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
-            if not np.isfinite(calc_difference):
-                # catches nan, inf and -inf due to exp(i) being too high or if there
-                # are too few negative residuals; no way to catch both conditions before
-                # new_weights calculation since it is hard to estimate if
-                # (exp(i) / std) * residual will overflow; check calc_difference rather
-                # than checking new_weights since non-finite values rarely occur and
-                # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
-                warnings.warn(
-                    ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
-                    stacklevel=2
-                )
-                break
-            elif calc_difference < tol:
+            if calc_difference < tol:
                 break
             weight_array = new_weights
 
@@ -758,7 +726,7 @@ class _Spline(_Algorithm2D):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 0.5.
+            will be given `1 - p` weight. Default is 0.5.
         k : float, optional
             A factor that controls the exponential decay of the weights for baseline
             values greater than the data. Should be approximately the height at which
@@ -798,7 +766,8 @@ class _Spline(_Algorithm2D):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         See Also
         --------
@@ -822,6 +791,8 @@ class _Spline(_Algorithm2D):
         )
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.pspline.solve(y, weight_array)

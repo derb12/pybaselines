@@ -10,7 +10,6 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import utils
 from pybaselines.two_d import spline, whittaker
 
 from ..conftest import BaseTester2D, InputWeightsMixin
@@ -211,32 +210,6 @@ class TestPsplineAirPLS(IterativeSplineTester):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
 
-    @pytest.mark.skip(reason='test is too slow')
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
-    def test_avoid_nonfinite_weights(self, no_noise_data_fixture2d):
-        """
-        Ensures that the function gracefully exits when errors occur.
-
-        When there are no negative residuals, which occurs when a low tol value is used with
-        a high max_iter value, the weighting function would produce values all ~0, which
-        can fail the solvers. The returned baseline should be the last iteration that was
-        successful, and thus should not contain nan or +/- inf.
-
-        Use data without noise since the lack of noise makes it easier to induce failure.
-        Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
-
-        """
-        x, z, y = no_noise_data_fixture2d
-        with pytest.warns(utils.ParameterWarning):
-            baseline, _ = getattr(self.algorithm_base(x, z), self.func_name)(
-                y, tol=-1, max_iter=7000
-            )
-        assert np.isfinite(baseline).all()
-
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
@@ -254,27 +227,6 @@ class TestPsplineArPLS(IterativeSplineTester):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
 
-    @pytest.mark.skip(reason='test is too slow')
-    def test_avoid_overflow_warning(self, no_noise_data_fixture2d):
-        """
-        Ensures no warning is emitted for exponential overflow.
-
-        The weighting is 1 / (1 + exp(values)), so if values is too high,
-        exp(values) is inf, which should usually emit an overflow warning.
-        However, the resulting weight is 0, which is fine, so the warning is
-        not needed and should be avoided. This test ensures the overflow warning
-        is not emitted, and also ensures that the output is all finite, just in
-        case the weighting was not actually stable.
-
-        """
-        x, z, y = no_noise_data_fixture2d
-        with np.errstate(over='raise'):
-            baseline, params = getattr(self.algorithm_base(x, z), self.func_name)(
-                y, tol=-1, max_iter=1000
-            )
-
-        assert np.isfinite(baseline).all()
-
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
@@ -291,36 +243,6 @@ class TestPsplineIArPLS(IterativeSplineTester):
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
-
-    @pytest.mark.skip(reason='test is too slow')
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
-    def test_avoid_nonfinite_weights(self, no_noise_data_fixture2d):
-        """
-        Ensures that the function gracefully exits when non-finite weights are created.
-
-        When there are no negative residuals or exp(iterations) / std is very high, both
-        of which occur when a low tol value is used with a high max_iter value, the
-        weighting function would produce non-finite values. The returned baseline should
-        be the last iteration that was successful, and thus should not contain nan or +/- inf.
-
-        Use data without noise since the lack of noise makes it easier to induce failure.
-        Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
-
-        """
-        x, z, y = no_noise_data_fixture2d
-        with pytest.warns(utils.ParameterWarning):
-            baseline, params = getattr(self.algorithm_base(x, z), self.func_name)(
-                y, tol=-1, max_iter=1000
-            )
-
-        assert np.isfinite(baseline).all()
-        # ensure last tolerence calculation was non-finite as a double-check that
-        # this test is actually doing what it should be doing
-        assert not np.isfinite(params['tol_history'][-1])
 
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
@@ -354,3 +276,8 @@ class TestPsplinePsalsa(IterativeSplineTester):
             self, 'psalsa', self.y, lam=lam, p=p, diff_order=diff_order, test_rtol=1e5
         )
 
+    @pytest.mark.parametrize('k', (0, -1))
+    def test_outside_k_fails(self, k):
+        """Ensures k values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, k=k)

@@ -6,17 +6,13 @@ Created on Sept. 13, 2019
 
 """
 
-import warnings
-
 import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _shift_rows, diff_penalty_diagonals
-from ._validation import _check_lam, _check_optional_array
-from .utils import (
-    ParameterWarning, _mollifier_kernel, pad_edges, padded_convolve, relative_difference
-)
+from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
+from .utils import _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 
 
 class _Whittaker(_Algorithm):
@@ -38,7 +34,7 @@ class _Whittaker(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -117,7 +113,7 @@ class _Whittaker(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         lam_1 : float, optional
             The smoothing parameter for the first derivative of the residual. Default is 1e-4.
         max_iter : int, optional
@@ -245,54 +241,23 @@ class _Whittaker(_Algorithm):
         reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
         """
-        y, weight_array = self._setup_whittaker(
-            data, lam, diff_order, weights, copy_weights=True
-        )
+        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
-        # Have to have extensive error handling since the weights can all become
-        # very small due to the exp(i) term if too many iterations are performed;
-        # checking the negative residual length usually prevents any errors, but
-        # sometimes not so have to also catch any errors from the solvers
         for i in range(1, max_iter + 2):
-            try:
-                output = self.whittaker_system.solve(
-                    self.whittaker_system.add_diagonal(weight_array), weight_array * y,
-                    overwrite_b=True, check_output=True
-                )
-            except np.linalg.LinAlgError:
-                warnings.warn(
-                    ('error occurred during fitting, indicating that "tol"'
-                     ' is too low, "max_iter" is too high, or "lam" is too high'),
-                    ParameterWarning, stacklevel=2
-                )
+            baseline = self.whittaker_system.solve(
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True, check_output=True
+            )
+            new_weights, residual_l1_norm, exit_early = _weighting._airpls(y, baseline, i)
+            if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
-            else:
-                baseline = output
-            residual = y - baseline
-            neg_mask = residual < 0
-            neg_residual = residual[neg_mask]
-            if len(neg_residual) < 2:
-                # exit if there are < 2 negative residuals since all points or all but one
-                # point would get a weight of 0, which fails the solver
-                warnings.warn(
-                    ('almost all baseline points are below the data, indicating that "tol"'
-                     ' is too low and/or "max_iter" is too high'), ParameterWarning,
-                     stacklevel=2
-                )
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-
-            residual_l1_norm = abs(neg_residual.sum())
             calc_difference = residual_l1_norm / y_l1_norm
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
                 break
-            # only use negative residual in exp to avoid exponential overflow warnings
-            # and accidently creating a weight of nan (inf * 0 = nan)
-            weight_array[neg_mask] = np.exp(i * neg_residual / residual_l1_norm)
-            weight_array[~neg_mask] = 0
+            weight_array = new_weights
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i]}
 
@@ -350,7 +315,10 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.add_diagonal(weight_array), weight_array * y,
                 overwrite_b=True
             )
-            new_weights = _weighting._arpls(y, baseline)
+            new_weights, exit_early = _weighting._arpls(y, baseline)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -442,23 +410,14 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.penalty + penalty_with_weights, weight_array * y,
                 overwrite_ab=True, overwrite_b=True, l_and_u=lower_upper_bands
             )
-            new_weights = _weighting._drpls(y, baseline, i)
+            new_weights, exit_early = _weighting._drpls(y, baseline, i)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
+
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
-            if not np.isfinite(calc_difference):
-                # catches nan, inf and -inf due to exp(i) being too high or if there
-                # are too few negative residuals; no way to catch both conditions before
-                # new_weights calculation since it is hard to estimate if
-                # (exp(i) / std) * residual will overflow; check calc_difference rather
-                # than checking new_weights since non-finite values rarely occur and
-                # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
-                warnings.warn(
-                    ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
-                    stacklevel=2
-                )
-                break
-            elif calc_difference < tol:
+            if calc_difference < tol:
                 break
             weight_array = new_weights
 
@@ -519,23 +478,13 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.add_diagonal(weight_array), weight_array * y,
                 overwrite_b=True
             )
-            new_weights = _weighting._iarpls(y, baseline, i)
+            new_weights, exit_early = _weighting._iarpls(y, baseline, i)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
-            if not np.isfinite(calc_difference):
-                # catches nan, inf and -inf due to exp(i) being too high or if there
-                # are too few negative residuals; no way to catch both conditions before
-                # new_weights calculation since it is hard to estimate if
-                # (exp(i) / std) * residual will overflow; check calc_difference rather
-                # than checking new_weights since non-finite values rarely occur and
-                # checking a scalar is faster; cannot use np.errstate since it is not 100% reliable
-                warnings.warn(
-                    ('nan and/or +/- inf occurred in weighting calculation, likely meaning '
-                     '"tol" is too low and/or "max_iter" is too high'), ParameterWarning,
-                    stacklevel=2
-                )
-                break
-            elif calc_difference < tol:
+            if calc_difference < tol:
                 break
             weight_array = new_weights
 
@@ -545,7 +494,7 @@ class _Whittaker(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights', 'alpha'))
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
-              weights=None, alpha=None):
+              weights=None, alpha=None, assymetric_coef=0.5):
         """
         Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -571,6 +520,9 @@ class _Whittaker(_Algorithm):
             An array of values that control the local value of `lam` to better
             fit peak and non-peak regions. If None (default), then the initial values
             will be an array with size equal to N and all values set to 1.
+        assymetric_coef : float
+            The assymetric coefficient for the weighting. Higher values leads to a steeper
+            weighting curve (ie. more step-like). Default is 0.5.
 
         Returns
         -------
@@ -589,9 +541,15 @@ class _Whittaker(_Algorithm):
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
 
+        Raises
+        ------
+        ValueError
+            Raised if `alpha` and `data` do not have the same shape. Also raised if
+            `assymetric_coef` is not greater than 0.
+
         Notes
         -----
-        The weighting uses an asymmetric coefficient (`k` in the asPLS paper) of 0.5 instead
+        The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
         of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
         matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
         factor of 2 and fits noisy data much better.
@@ -611,6 +569,7 @@ class _Whittaker(_Algorithm):
         )
         if self._sort_order is not None and alpha is not None:
             alpha_array = alpha_array[self._sort_order]
+        assymetric_coef = _check_scalar_variable(assymetric_coef, variable_name='assymetric_coef')
 
         main_diag_idx = self.whittaker_system.main_diagonal_index
         lower_upper_bands = (diff_order, diff_order)
@@ -624,7 +583,10 @@ class _Whittaker(_Algorithm):
                 lhs, weight_array * y, overwrite_ab=True, overwrite_b=True,
                 l_and_u=lower_upper_bands
             )
-            new_weights, residual = _weighting._aspls(y, baseline)
+            new_weights, residual, exit_early = _weighting._aspls(y, baseline, assymetric_coef)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -660,7 +622,7 @@ class _Whittaker(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 0.5.
+            will be given `1 - p` weight. Default is 0.5.
         k : float, optional
             A factor that controls the exponential decay of the weights for baseline
             values greater than the data. Should be approximately the height at which
@@ -696,7 +658,8 @@ class _Whittaker(_Algorithm):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         Notes
         -----
@@ -717,6 +680,8 @@ class _Whittaker(_Algorithm):
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = self.whittaker_system.solve(
@@ -751,7 +716,7 @@ class _Whittaker(_Algorithm):
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
             than the baseline will be given `p` weight, and values less than the baseline
-            will be given `p - 1` weight. Default is 1e-2.
+            will be given `1 - p` weight. Default is 1e-2.
         k : float, optional
             A factor that controls the exponential decay of the weights for baseline
             values greater than the data. Should be approximately the height at which
@@ -796,7 +761,8 @@ class _Whittaker(_Algorithm):
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
 
         References
         ----------
@@ -810,6 +776,8 @@ class _Whittaker(_Algorithm):
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
         if k is None:
             k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
         if smooth_half_window is None:
             smooth_half_window = self._size // 200
         # could pad the data every iteration, but it is ~2-3 times slower and only affects
@@ -868,7 +836,7 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Default is 1e-2.
+        will be given `1 - p` weight. Default is 1e-2.
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
@@ -935,7 +903,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Default is 1e-2.
+        will be given `1 - p` weight. Default is 1e-2.
     lam_1 : float, optional
         The smoothing parameter for the first derivative of the residual. Default is 1e-4.
     max_iter : int, optional
@@ -1189,7 +1157,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_d
 
 @_whittaker_wrapper
 def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
-          alpha=None, x_data=None):
+          alpha=None, x_data=None, assymetric_coef=0.5):
     """
     Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -1218,6 +1186,9 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
+    assymetric_coef : float
+        The assymetric coefficient for the weighting. Higher values leads to a steeper
+        weighting curve (ie. more step-like). Default is 0.5.
 
     Returns
     -------
@@ -1239,11 +1210,12 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
     Raises
     ------
     ValueError
-        Raised if `alpha` and `data` do not have the same shape.
+        Raised if `alpha` and `data` do not have the same shape. Also raised if `assymetric_coef`
+        is not greater than 0.
 
     Notes
     -----
-    The weighting uses an asymmetric coefficient (`k` in the asPLS paper) of 0.5 instead
+    The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
     of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
     matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
     factor of 2 and fits noisy data much better.
@@ -1278,7 +1250,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Default is 0.5.
+        will be given `1 - p` weight. Default is 0.5.
     k : float, optional
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
@@ -1317,7 +1289,8 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
     Raises
     ------
     ValueError
-        Raised if `p` is not between 0 and 1.
+        Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+        than 0.
 
     Notes
     -----
@@ -1352,7 +1325,7 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
     p : float, optional
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
-        will be given `p - 1` weight. Default is 1e-2.
+        will be given `1 - p` weight. Default is 1e-2.
     k : float, optional
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
@@ -1400,7 +1373,8 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
     Raises
     ------
     ValueError
-        Raised if `p` is not between 0 and 1.
+        Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+        than 0.
 
     References
     ----------

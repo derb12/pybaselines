@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 
 from pybaselines.two_d import whittaker
-from pybaselines.utils import ParameterWarning
 
 from ..conftest import BaseTester2D, InputWeightsMixin
 
@@ -108,33 +107,6 @@ class TestAirPLS(WhittakerTester, EigenvalueMixin):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
 
-    @pytest.mark.skip(reason='test is too slow')
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
-    def test_avoid_nonfinite_weights(self, no_noise_data_fixture2d):
-        """
-        Ensures that the function gracefully exits when errors occur.
-
-        When there are no negative residuals, which occurs when a low tol value is used with
-        a high max_iter value, the weighting function would produce values all ~0, which
-        can fail the solvers. The returned baseline should be the last iteration that was
-        successful, and thus should not contain nan or +/- inf.
-
-        Use data without noise since the lack of noise makes it easier to induce failure.
-        Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
-
-        """
-        x, z, y = no_noise_data_fixture2d
-        with pytest.warns(ParameterWarning):
-            baseline, _ = getattr(self.algorithm_base(x, z), self.func_name)(
-                y, tol=-1, max_iter=3000
-            )
-
-        assert np.isfinite(baseline).all()
-
 
 class TestArPLS(WhittakerTester, EigenvalueMixin):
     """Class for testing arpls baseline."""
@@ -145,27 +117,6 @@ class TestArPLS(WhittakerTester, EigenvalueMixin):
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
-
-    @pytest.mark.skip(reason='test is too slow')
-    def test_avoid_overflow_warning(self, no_noise_data_fixture2d):
-        """
-        Ensures no warning is emitted for exponential overflow.
-
-        The weighting is 1 / (1 + exp(values)), so if values is too high,
-        exp(values) is inf, which should usually emit an overflow warning.
-        However, the resulting weight is 0, which is fine, so the warning is
-        not needed and should be avoided. This test ensures the overflow warning
-        is not emitted, and also ensures that the output is all finite, just in
-        case the weighting was not actually stable.
-
-        """
-        x, z, y = no_noise_data_fixture2d
-        with np.errstate(over='raise'):
-            baseline, _ = getattr(self.algorithm_base(x, z), self.func_name)(
-                y, tol=-1, max_iter=1000
-            )
-
-        assert np.isfinite(baseline).all()
 
 
 class TestDrPLS(WhittakerTester):
@@ -195,36 +146,6 @@ class TestDrPLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, lam=1e2, diff_order=[2, 1])
 
-    @pytest.mark.skip(reason='test is too slow')
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
-    def test_avoid_nonfinite_weights(self, no_noise_data_fixture2d):
-        """
-        Ensures that the function gracefully exits when non-finite weights are created.
-
-        When there are no negative residuals or exp(iterations) / std is very high, both
-        of which occur when a low tol value is used with a high max_iter value, the
-        weighting function would produce non-finite values. The returned baseline should
-        be the last iteration that was successful, and thus should not contain nan or +/- inf.
-
-        Use data without noise since the lack of noise makes it easier to induce failure.
-        Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
-
-        """
-        x, z, y = no_noise_data_fixture2d
-        with pytest.warns(ParameterWarning):
-            baseline, params = getattr(self.algorithm_base(x, z), self.func_name)(
-                y, tol=-1, max_iter=1000
-            )
-
-        assert np.isfinite(baseline).all()
-        # ensure last tolerence calculation was non-finite as a double-check that
-        # this test is actually doing what it should be doing
-        assert not np.isfinite(params['tol_history'][-1])
-
 
 class TestIArPLS(WhittakerTester, EigenvalueMixin):
     """Class for testing iarpls baseline."""
@@ -235,36 +156,6 @@ class TestIArPLS(WhittakerTester, EigenvalueMixin):
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
-
-    @pytest.mark.skip(reason='test is too slow')
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
-    def test_avoid_nonfinite_weights(self, no_noise_data_fixture2d):
-        """
-        Ensures that the function gracefully exits when non-finite weights are created.
-
-        When there are no negative residuals or exp(iterations) / std is very high, both
-        of which occur when a low tol value is used with a high max_iter value, the
-        weighting function would produce non-finite values. The returned baseline should
-        be the last iteration that was successful, and thus should not contain nan or +/- inf.
-
-        Use data without noise since the lack of noise makes it easier to induce failure.
-        Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
-
-        """
-        x, z, y = no_noise_data_fixture2d
-        with pytest.warns(ParameterWarning):
-            baseline, params = getattr(self.algorithm_base(x, z), self.func_name)(
-                y, tol=-1, max_iter=1000
-            )
-
-        assert np.isfinite(baseline).all()
-        # ensure last tolerence calculation was non-finite as a double-check that
-        # this test is actually doing what it should be doing
-        assert not np.isfinite(params['tol_history'][-1])
 
 
 class TestAsPLS(WhittakerTester):
@@ -289,26 +180,11 @@ class TestAsPLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha=alpha)
 
-    @pytest.mark.skip(reason='test is too slow')
-    def test_avoid_overflow_warning(self, no_noise_data_fixture2d):
-        """
-        Ensures no warning is emitted for exponential overflow.
-
-        The weighting is 1 / (1 + exp(values)), so if values is too high,
-        exp(values) is inf, which should usually emit an overflow warning.
-        However, the resulting weight is 0, which is fine, so the warning is
-        not needed and should be avoided. This test ensures the overflow warning
-        is not emitted, and also ensures that the output is all finite, just in
-        case the weighting was not actually stable.
-
-        """
-        x, z, y = no_noise_data_fixture2d
-        with np.errstate(over='raise'):
-            baseline, _ = getattr(self.algorithm_base(x, z), self.func_name)(
-                y, tol=-1, max_iter=1000
-            )
-
-        assert np.isfinite(baseline).all()
+    @pytest.mark.parametrize('assymetric_coef', (0, -1))
+    def test_outside_assymetric_coef_fails(self, assymetric_coef):
+        """Ensures assymetric_coef values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, assymetric_coef=assymetric_coef)
 
 
 class TestPsalsa(WhittakerTester, EigenvalueMixin):
@@ -326,3 +202,9 @@ class TestPsalsa(WhittakerTester, EigenvalueMixin):
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
+
+    @pytest.mark.parametrize('k', (0, -1))
+    def test_outside_k_fails(self, k):
+        """Ensures k values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, k=k)
