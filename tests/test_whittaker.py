@@ -98,8 +98,8 @@ class TestAirPLS(WhittakerTester):
         lam = {1: 1e3, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    # ignore the ParameterWarning that can occur from the fit not being good at high iterations
+    @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
         Ensures that the function gracefully exits when errors occur.
@@ -117,10 +117,14 @@ class TestAirPLS(WhittakerTester):
 
         """
         x, y = no_noise_data_fixture
-        with pytest.warns(ParameterWarning):
-            baseline = self.class_func(y, tol=-1, max_iter=3000)[0]
+        with np.errstate(over='raise'):
+            baseline, params = self.class_func(y, tol=-1, max_iter=3000)
 
-        assert np.isfinite(baseline.dot(baseline))
+        assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
 
 class TestArPLS(WhittakerTester):
@@ -148,9 +152,13 @@ class TestArPLS(WhittakerTester):
         """
         x, y = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
 
 class TestDrPLS(WhittakerTester):

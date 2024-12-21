@@ -79,12 +79,6 @@ def _airpls(y, baseline, iteration):
     Equation 9 in the original algorithm was misprinted according to the author
     (https://github.com/zmzhang/airPLS/issues/8), so the correct weighting is used here.
 
-    The pybaselines weighting differs from the original airPLS algorithm by normalizing the
-    weights by their maximum value to ensure that weights are within [0, 1]; the original
-    algorithm is defined such that all weights are greater than or equal to 1 for negative
-    residuals, which would differ from other Whittaker-smoothing based algorithms and could
-    potentially cause issues if combining with optimizer functions.
-
     """
     residual = y - baseline
     neg_mask = residual < 0
@@ -101,18 +95,27 @@ def _airpls(y, baseline, iteration):
         exit_early = False
 
     residual_l1_norm = abs(neg_residual.sum())
+
+    # the exponential of the iteration term is used to make weights more binary at higher
+    # iterations (ie. the largest residuals control the weighting); setting the maximum
+    # iteration to 50 still acheives this purpose while avoiding unnecessarily high
+    # weights at high iterations which causes numerical instability
+    # TODO a better way to address the high weighting would be to normalize the weights by
+    # dividing by the max weight since the original airpls weighting sets all weights for
+    # negative residuals to be 1 or higher while all other weighting schemes keep the weights
+    # within the range [0, 1]; doing so would deviate from the paper, however, which takes
+    # priority -> in reality, as long as a reasonable tolerance value is used, numerical
+    # instability should never actually be an issue
+
     # clip from [0, log(max dtype)] since the positive residuals (negative values) do not matter
     log_max = np.log(np.finfo(y.dtype).max)
     inner = np.clip(
-        (-iteration / residual_l1_norm) * neg_residual,
+        (-min(iteration, 50) / residual_l1_norm) * neg_residual,
         a_min=0,
         a_max=log_max - np.spacing(log_max)
     )
-    new_weights = np.exp(inner)
-    # Not stated in the paper, but without dividing by the maximum weight, the
-    # calculated weights are all greater than or equal to 1
     weights = np.zeros_like(y)
-    weights[neg_mask] = new_weights / new_weights.max()
+    weights[neg_mask] = np.exp(inner)
 
     return weights, residual_l1_norm, exit_early
 

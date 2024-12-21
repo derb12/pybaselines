@@ -231,22 +231,14 @@ def expected_airpls(y, baseline, iteration):
     Equation 9 in the original algorithm was misprinted according to the author
     (https://github.com/zmzhang/airPLS/issues/8), so the correct weighting is used here.
 
-    The pybaselines weighting differs from the original airPLS algorithm by dividing the
-    weights by their maximum value to ensure that weights are within [0, 1]; the original
-    algorithm allowed weights to be greater than 1 which does not make sense mathematically
-    and does not match any other Whittaker-smoothing based algorithms.
-
     """
     residual = y - baseline
     neg_mask = residual < 0
     neg_residual = residual[neg_mask]
     residual_l1_norm = abs(neg_residual).sum()
 
-    new_weights = np.exp((-iteration / residual_l1_norm) * neg_residual)
-    # Not stated in the paper, but without dividing by the maximum weight, the
-    # calculated weights can be greater than 1 which does not make sense mathematically
     weights = np.zeros_like(y)
-    weights[neg_mask] = new_weights / new_weights.max()
+    weights[neg_mask] = np.exp((-iteration / residual_l1_norm) * neg_residual)
 
     return weights
 
@@ -271,8 +263,11 @@ def test_airpls_normal(iteration, one_d):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert_allclose(residual_l1_norm, expected_residual_l1_norm, rtol=1e-12, atol=1e-12)
     assert not exit_early
-    # ensure all weights are between 0 and 1
-    assert ((weights >= 0) & (weights <= 1)).all()
+
+    # airpls differs from other weighting schemes in that all negative residuals
+    # should have a weight of 1 or more rather than being in the range [0, 1]
+    assert (weights >= 0).all()
+    assert (weights[residual < 0] >= 1).all()
 
 
 @pytest.mark.parametrize('iteration', (1, 10))

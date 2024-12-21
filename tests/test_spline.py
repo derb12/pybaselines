@@ -234,8 +234,8 @@ class TestPsplineAirPLS(IterativeSplineTester):
         lam = {1: 1e3, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    # ignore the ParameterWarning that can occur from the fit not being good at high iterations
+    @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
         Ensures that the function gracefully exits when errors occur.
@@ -250,9 +250,14 @@ class TestPsplineAirPLS(IterativeSplineTester):
 
         """
         x, y = no_noise_data_fixture
-        with pytest.warns(utils.ParameterWarning):
-            baseline = self.class_func(y, tol=-1, max_iter=7000)[0]
+        with np.errstate(over='raise'):
+            baseline, params = self.class_func(y, tol=-1, max_iter=7000)
+
         assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
@@ -272,6 +277,9 @@ class TestPsplineArPLS(IterativeSplineTester):
         lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
+    # ignore the ParameterWarning that can occur from the fit not being good at high iterations
+    # only relevant for earlier SciPy versions, so maybe due to change within scipy.special.expit
+    @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
         """
         Ensures no warning is emitted for exponential overflow.
@@ -286,9 +294,13 @@ class TestPsplineArPLS(IterativeSplineTester):
         """
         x, y = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
