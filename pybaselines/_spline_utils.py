@@ -747,7 +747,7 @@ class PSpline(PenalizedSystem):
                 @ self.basis
             )
             rhs = self.basis.T @ (weights * y)
-            ab = _sparse_to_banded(full_matrix, rhs.shape[0])[0]
+            ab = _sparse_to_banded(full_matrix, self._num_bases)[0]
 
             # take only the lower diagonals of the symmetric ab; cannot just do
             # ab[spline_degree:] since some diagonals become fully 0 and are truncated from
