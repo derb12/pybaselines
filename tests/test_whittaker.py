@@ -14,7 +14,6 @@ import pytest
 
 from pybaselines import _banded_utils, whittaker
 from pybaselines._compat import diags
-from pybaselines.utils import ParameterWarning
 
 from .conftest import BaseTester, InputWeightsMixin, has_pentapy
 
@@ -297,11 +296,11 @@ class TestAsPLS(WhittakerTester):
         result = _banded_utils._shift_rows(result, diff_order, diff_order)
         assert_allclose(result, expected_result, rtol=1e-13, atol=1e-13)
 
-    @pytest.mark.parametrize('assymetric_coef', (0, -1))
-    def test_outside_assymetric_coef_fails(self, assymetric_coef):
-        """Ensures assymetric_coef values not greater than 0 raise an exception."""
+    @pytest.mark.parametrize('asymmetric_coef', (0, -1))
+    def test_outside_asymmetric_coef_fails(self, asymmetric_coef):
+        """Ensures asymmetric_coef values not greater than 0 raise an exception."""
         with pytest.raises(ValueError):
-            self.class_func(self.y, assymetric_coef=assymetric_coef)
+            self.class_func(self.y, asymmetric_coef=asymmetric_coef)
 
 
 class TestPsalsa(WhittakerTester):

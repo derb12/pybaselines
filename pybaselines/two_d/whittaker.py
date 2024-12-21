@@ -585,7 +585,7 @@ class _Whittaker(_Algorithm2D):
         sort_keys=('weights', 'alpha'), reshape_keys=('weights', 'alpha'), reshape_baseline=True
     )
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
-              weights=None, alpha=None, assymetric_coef=0.5):
+              weights=None, alpha=None, asymmetric_coef=0.5):
         """
         Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -612,8 +612,8 @@ class _Whittaker(_Algorithm2D):
             An array of values that control the local value of `lam` to better
             fit peak and non-peak regions. If None (default), then the initial values
             will be an array with shape equal to (M, N) and all values set to 1.
-        assymetric_coef : float
-            The assymetric coefficient for the weighting. Higher values leads to a steeper
+        asymmetric_coef : float
+            The asymmetric coefficient for the weighting. Higher values leads to a steeper
             weighting curve (ie. more step-like). Default is 0.5.
 
         Returns
@@ -637,7 +637,7 @@ class _Whittaker(_Algorithm2D):
         ------
         ValueError
             Raised if `alpha` and `data` do not have the same shape. Also raised if
-            `assymetric_coef` is not greater than 0.
+            `asymmetric_coef` is not greater than 0.
 
         Notes
         -----
@@ -660,7 +660,7 @@ class _Whittaker(_Algorithm2D):
         )
         if self._sort_order is not None and alpha is not None:
             alpha_array = alpha_array[self._sort_order]
-        assymetric_coef = _check_scalar_variable(assymetric_coef, variable_name='assymetric_coef')
+        asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
         # use a sparse matrix to maintain sparsity after multiplication; implementation note:
         # could skip making an alpha matrix and just use alpha_array[:, None] * penalty once
@@ -670,7 +670,7 @@ class _Whittaker(_Algorithm2D):
         for i in range(max_iter + 1):
             penalty = alpha_matrix @ self.whittaker_system.penalty
             baseline = self.whittaker_system.solve(y, weight_array, penalty=penalty)
-            new_weights, residual, exit_early = _weighting._aspls(y, baseline, assymetric_coef)
+            new_weights, residual, exit_early = _weighting._aspls(y, baseline, asymmetric_coef)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break

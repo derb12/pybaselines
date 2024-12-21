@@ -706,7 +706,7 @@ def test_iarpls_overflow(one_d):
     assert not exit_early
 
 
-def expected_aspls(y, baseline, assymetric_coef=0.5):
+def expected_aspls(y, baseline, asymmetric_coef=0.5):
     """
     The weighting for adaptive smoothness penalized least squares smoothing (aspls).
 
@@ -718,8 +718,8 @@ def expected_aspls(y, baseline, assymetric_coef=0.5):
         The measured data.
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
-    assymetric_coef : float
-        The assymetric coefficient for the weighting. Higher values leads to a steeper
+    asymmetric_coef : float
+        The asymmetric coefficient for the weighting. Higher values leads to a steeper
         weighting curve (ie. more step-like). Default is 0.5.
 
     Returns
@@ -736,22 +736,22 @@ def expected_aspls(y, baseline, assymetric_coef=0.5):
     residual = y - baseline
     std = np.std(residual[residual < 0], ddof=1)  # use dof=1 since sampling subset
 
-    weights = 1 / (1 + np.exp(assymetric_coef * (residual - std) / std))
+    weights = 1 / (1 + np.exp(asymmetric_coef * (residual - std) / std))
 
     return weights, residual
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-@pytest.mark.parametrize('assymetric_coef', (0.5, 2))
-def test_aspls_normal(one_d, assymetric_coef):
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2))
+def test_aspls_normal(one_d, asymmetric_coef):
     """Ensures aspls weighting works as intented for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, residual, exit_early = _weighting._aspls(y_data, baseline, assymetric_coef)
-    expected_weights, expected_residual = expected_aspls(y_data, baseline, assymetric_coef)
+    weights, residual, exit_early = _weighting._aspls(y_data, baseline, asymmetric_coef)
+    expected_weights, expected_residual = expected_aspls(y_data, baseline, asymmetric_coef)
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
@@ -763,16 +763,16 @@ def test_aspls_normal(one_d, assymetric_coef):
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-@pytest.mark.parametrize('assymetric_coef', (0.5, 2))
-def test_aspls_all_above(one_d, assymetric_coef):
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2))
+def test_aspls_all_above(one_d, asymmetric_coef):
     """Ensures aspls weighting works as intented for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
 
-    weights, residual, exit_early = _weighting._aspls(y_data, baseline, assymetric_coef)
-    expected_weights, expected_residual = expected_aspls(y_data, baseline, assymetric_coef)
+    weights, residual, exit_early = _weighting._aspls(y_data, baseline, asymmetric_coef)
+    expected_weights, expected_residual = expected_aspls(y_data, baseline, asymmetric_coef)
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
@@ -782,8 +782,8 @@ def test_aspls_all_above(one_d, assymetric_coef):
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-@pytest.mark.parametrize('assymetric_coef', (0.5, 2))
-def test_aspls_all_below(one_d, assymetric_coef):
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2))
+def test_aspls_all_below(one_d, asymmetric_coef):
     """Ensures aspls weighting works as intented for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
@@ -791,7 +791,7 @@ def test_aspls_all_below(one_d, assymetric_coef):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, residual, exit_early = _weighting._aspls(y_data, baseline, assymetric_coef)
+        weights, residual, exit_early = _weighting._aspls(y_data, baseline, asymmetric_coef)
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -802,8 +802,8 @@ def test_aspls_all_below(one_d, assymetric_coef):
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-@pytest.mark.parametrize('assymetric_coef', (0.5, 2))
-def test_aspls_overflow(one_d, assymetric_coef):
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2))
+def test_aspls_overflow(one_d, asymmetric_coef):
     """Ensures exponential overflow does not occur from aspls weighting."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
@@ -813,11 +813,11 @@ def test_aspls_overflow(one_d, assymetric_coef):
     log_max = np.log(np.finfo(y_data.dtype).max)
     residual = y_data - baseline
     std = np.std(residual[residual < 0], ddof=1)
-    # for exponential overlow, (residual / std) > (log_max / assymetric_coef) + 1
+    # for exponential overlow, (residual / std) > (log_max / asymmetric_coef) + 1
     # changing one value in the baseline to cause overflow will not cause the
     # standard deviation to change since the residual value will be positive at that index
     overflow_index = 10
-    overflow_value = ((log_max / assymetric_coef) + 1) * std + 10  # add 10 for good measure
+    overflow_value = ((log_max / asymmetric_coef) + 1) * std + 10  # add 10 for good measure
     if one_d:
         baseline[overflow_index] = y_data[overflow_index] - overflow_value
     else:
@@ -827,12 +827,12 @@ def test_aspls_overflow(one_d, assymetric_coef):
 
     # sanity check to ensure overflow actually should occur
     with pytest.warns(RuntimeWarning):
-        expected_weights, expected_residual = expected_aspls(y_data, baseline, assymetric_coef)
+        expected_weights, expected_residual = expected_aspls(y_data, baseline, asymmetric_coef)
     # the resulting weights should still be finite since 1 / (1 + inf) == 0
     assert np.isfinite(expected_weights).all()
 
     with np.errstate(over='raise'):
-        weights, residual, exit_early = _weighting._aspls(y_data, baseline, assymetric_coef)
+        weights, residual, exit_early = _weighting._aspls(y_data, baseline, asymmetric_coef)
 
     assert np.isfinite(weights).all()
     assert not exit_early

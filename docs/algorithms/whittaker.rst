@@ -309,11 +309,13 @@ Weighting:
 
     w_i = \left\{\begin{array}{cr}
         0 & y_i \ge z_i \\
-        exp{\left(\frac{t (y_i - z_i)}{|\mathbf{r}^-|}\right)} & y_i < z_i
+        exp{\left(\frac{abs(y_i - z_i) t}{|\mathbf{r}^-|}\right)} & y_i < z_i
     \end{array}\right.
 
 where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the l1-norm of the negative
 values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z_i < 0} |y_i - z_i|`.
+Note that the absolute value within the weighting was mistakenly omitted in the original
+publication, as `specified by the author <https://github.com/zmzhang/airPLS/issues/8>`_.
 
 .. plot::
    :align: center
@@ -505,14 +507,14 @@ Weighting:
     w_i = \frac
         {1}
         {1 + exp{\left(\frac
-            {0.5 (r_i - \sigma^-)}
+            {k (r_i - \sigma^-)}
             {\sigma^-}
         \right)}}
 
-where :math:`r_i = y_i - z_i`  and :math:`\sigma^-` is the standard deviation
-of the negative values in the residual vector :math:`\mathbf r`. (Note that the
-:math:`0.5 (r_i - \sigma^-) / \sigma^-` term is different than the published
-version of the asPLS, which used :math:`2 (r_i - \sigma^-) / \sigma^-`. pybaselines
+where :math:`r_i = y_i - z_i`, :math:`\sigma^-` is the standard deviation
+of the negative values in the residual vector :math:`\mathbf r`, and :math:`k`
+is the asymmetric coefficient (Note that the default value of :math:`k` is 0.5 in
+pybaselines rather than 2 in the published version of the asPLS. pybaselines
 uses the factor of 0.5 since it matches the results in Table 2 and Figure 5
 of the asPLS paper closer than the factor of 2 and fits noisy data much better).
 

@@ -494,7 +494,7 @@ class _Whittaker(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights', 'alpha'))
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
-              weights=None, alpha=None, assymetric_coef=0.5):
+              weights=None, alpha=None, asymmetric_coef=0.5):
         """
         Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -520,8 +520,8 @@ class _Whittaker(_Algorithm):
             An array of values that control the local value of `lam` to better
             fit peak and non-peak regions. If None (default), then the initial values
             will be an array with size equal to N and all values set to 1.
-        assymetric_coef : float
-            The assymetric coefficient for the weighting. Higher values leads to a steeper
+        asymmetric_coef : float
+            The asymmetric coefficient for the weighting. Higher values leads to a steeper
             weighting curve (ie. more step-like). Default is 0.5.
 
         Returns
@@ -545,7 +545,7 @@ class _Whittaker(_Algorithm):
         ------
         ValueError
             Raised if `alpha` and `data` do not have the same shape. Also raised if
-            `assymetric_coef` is not greater than 0.
+            `asymmetric_coef` is not greater than 0.
 
         Notes
         -----
@@ -569,7 +569,7 @@ class _Whittaker(_Algorithm):
         )
         if self._sort_order is not None and alpha is not None:
             alpha_array = alpha_array[self._sort_order]
-        assymetric_coef = _check_scalar_variable(assymetric_coef, variable_name='assymetric_coef')
+        asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
         main_diag_idx = self.whittaker_system.main_diagonal_index
         lower_upper_bands = (diff_order, diff_order)
@@ -583,7 +583,7 @@ class _Whittaker(_Algorithm):
                 lhs, weight_array * y, overwrite_ab=True, overwrite_b=True,
                 l_and_u=lower_upper_bands
             )
-            new_weights, residual, exit_early = _weighting._aspls(y, baseline, assymetric_coef)
+            new_weights, residual, exit_early = _weighting._aspls(y, baseline, asymmetric_coef)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -1157,7 +1157,7 @@ def iarpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_d
 
 @_whittaker_wrapper
 def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
-          alpha=None, x_data=None, assymetric_coef=0.5):
+          alpha=None, x_data=None, asymmetric_coef=0.5):
     """
     Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -1186,8 +1186,8 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    assymetric_coef : float
-        The assymetric coefficient for the weighting. Higher values leads to a steeper
+    asymmetric_coef : float
+        The asymmetric coefficient for the weighting. Higher values leads to a steeper
         weighting curve (ie. more step-like). Default is 0.5.
 
     Returns
@@ -1210,7 +1210,7 @@ def aspls(data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3, weights=None,
     Raises
     ------
     ValueError
-        Raised if `alpha` and `data` do not have the same shape. Also raised if `assymetric_coef`
+        Raised if `alpha` and `data` do not have the same shape. Also raised if `asymmetric_coef`
         is not greater than 0.
 
     Notes

@@ -304,7 +304,7 @@ def _iarpls(y, baseline, iteration):
     return weights, exit_early
 
 
-def _aspls(y, baseline, assymetric_coef):
+def _aspls(y, baseline, asymmetric_coef):
     """
     Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
 
@@ -314,8 +314,8 @@ def _aspls(y, baseline, assymetric_coef):
         The measured data.
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
-    assymetric_coef : float
-        The assymetric coefficient for the weighting. Higher values leads to a steeper
+    asymmetric_coef : float
+        The asymmetric coefficient for the weighting. Higher values leads to a steeper
         weighting curve (ie. more step-like).
 
     Returns
@@ -356,7 +356,7 @@ def _aspls(y, baseline, assymetric_coef):
     std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
 
     # add a negative sign since expit performs 1/(1+exp(-input))
-    weights = expit(-(assymetric_coef / std) * (residual - std))
+    weights = expit(-(asymmetric_coef / std) * (residual - std))
     return weights, residual, exit_early
 
 

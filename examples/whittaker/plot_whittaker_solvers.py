@@ -31,7 +31,10 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, whittaker
-from pybaselines.utils import difference_matrix, gaussian, relative_difference
+from pybaselines.utils import difference_matrix, relative_difference
+
+# local import with setup code
+from example_helpers import make_data
 
 
 def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -89,26 +92,6 @@ def scipy_asls(*args, **kwargs):
     return output
 
 
-def make_data(num_x):
-    """Creates the data for the example."""
-    x = np.linspace(0, 1000, num_x)
-    signal = (
-        gaussian(x, 9, 100, 12)
-        + gaussian(x, 6, 180, 5)
-        + gaussian(x, 8, 350, 11)
-        + gaussian(x, 15, 400, 18)
-        + gaussian(x, 6, 550, 6)
-        + gaussian(x, 13, 700, 8)
-        + gaussian(x, 9, 800, 9)
-        + gaussian(x, 9, 880, 7)
-    )
-    baseline = 5 + 15 * np.exp(-x / 200)
-    noise = np.random.default_rng(0).normal(0, 0.1, num_x)
-    y = signal + baseline + noise
-
-    return y
-
-
 if __name__ == '__main__':
 
     if not _banded_utils._HAS_PENTAPY:
@@ -129,7 +112,7 @@ if __name__ == '__main__':
     for i, (func, func_name) in enumerate(functions):
         timings = []
         for num_x in np.logspace(np.log10(500), np.log10(40000), 8, dtype=int):
-            y = make_data(num_x)
+            y = make_data(num_x)[0]
             lam = lam_equation(num_x)
             times = []
             for j in range(repeats + 1):

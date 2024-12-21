@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import _banded_utils, _spline_utils, morphological, spline, utils, whittaker
+from pybaselines import _banded_utils, _spline_utils, morphological, spline, whittaker
 
 from .conftest import BaseTester, InputWeightsMixin
 
@@ -464,11 +464,11 @@ class TestPsplineAsPLS(IterativeSplineTester):
             self, whittaker.aspls, self.y, lam=lam, diff_order=diff_order, test_rtol=rtol
         )
 
-    @pytest.mark.parametrize('assymetric_coef', (0, -1))
-    def test_outside_assymetric_coef_fails(self, assymetric_coef):
-        """Ensures assymetric_coef values not greater than 0 raise an exception."""
+    @pytest.mark.parametrize('asymmetric_coef', (0, -1))
+    def test_outside_asymmetric_coef_fails(self, asymmetric_coef):
+        """Ensures asymmetric_coef values not greater than 0 raise an exception."""
         with pytest.raises(ValueError):
-            self.class_func(self.y, assymetric_coef=assymetric_coef)
+            self.class_func(self.y, asymmetric_coef=asymmetric_coef)
 
 
 class TestPsplinePsalsa(IterativeSplineTester):
