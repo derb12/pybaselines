@@ -529,10 +529,11 @@ class _Optimizers(_Algorithm):
             The baseline calculated with the optimum parameter.
         params : dict
             A dictionary with the following items:
-                * 'x_fit': numpy.ndarray, shape (P,)
-                    The truncated x-values used for fitting the baseline.
-                * 'y_fit': numpy.ndarray, shape (P,)
-                    The truncated y-values used for fitting the baseline.
+
+            * 'x_fit': numpy.ndarray, shape (P,)
+                The truncated x-values used for fitting the baseline.
+            * 'y_fit': numpy.ndarray, shape (P,)
+                The truncated y-values used for fitting the baseline.
 
             Additional items depend on the output of the selected method.
 
@@ -965,10 +966,11 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
         The baseline calculated with the optimum parameter.
     params : dict
         A dictionary with the following items:
-            * 'x_fit': numpy.ndarray, shape (P,)
-                The truncated x-values used for fitting the baseline.
-            * 'y_fit': numpy.ndarray, shape (P,)
-                The truncated y-values used for fitting the baseline.
+
+        * 'x_fit': numpy.ndarray, shape (P,)
+            The truncated x-values used for fitting the baseline.
+        * 'y_fit': numpy.ndarray, shape (P,)
+            The truncated y-values used for fitting the baseline.
 
         Additional items depend on the output of the selected method.
 

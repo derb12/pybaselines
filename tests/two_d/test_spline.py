@@ -66,6 +66,27 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin):
 
         assert params['tol_history'].size == max_iter + 1
 
+    def test_recreation(self):
+        """
+        Ensures inputting weights can recreate the same baseline.
+
+        Optimizers such as `collab_pls` require this functionality, so ensure
+        it works.
+
+        Note that if `max_iter` is set such that the function does not converge,
+        then this will fail; that behavior is fine since exiting before convergence
+        should not be a typical usage.
+        """
+        # TODO this should eventually be incorporated into InputWeightsMixin
+        first_baseline, params = self.class_func(self.y)
+        kwargs = {'weights': params['weights']}
+        if self.func_name in ('aspls', 'pspline_aspls'):
+            kwargs['alpha'] = params['alpha']
+        second_baseline, params_2 = self.class_func(self.y, tol=np.inf, **kwargs)
+
+        assert len(params_2['tol_history']) == 1
+        assert_allclose(second_baseline, first_baseline, rtol=1e-12)
+
 
 class TestMixtureModel(IterativeSplineTester):
     """Class for testing mixture_model baseline."""

@@ -374,10 +374,13 @@ class BaseTester:
             assert key in functional_parameters
             class_value = class_parameters[key].default
             functional_value = functional_parameters[key].default
-            if isinstance(class_value, float):
-                assert_allclose(class_value, functional_value, rtol=1e-14, atol=1e-14)
+            if isinstance(class_value, float) or isinstance(functional_value, float):
+                assert_allclose(
+                    class_value, functional_value, rtol=1e-14, atol=1e-14,
+                    err_msg=f'Parameter mismatch for key "{key}"'
+                )
             else:
-                assert class_value == functional_value
+                assert class_value == functional_value, f'Parameter mismatch for key "{key}"'
 
     def test_list_input(self, **assertion_kwargs):
         """Ensures that function works the same for both array and list inputs."""
