@@ -191,6 +191,7 @@ def test_check_scalar_coerce_0d(coerce_0d):
     if coerce_0d:
         assert output == 1
         assert is_scalar
+        assert not isinstance(output, np.ndarray)
     else:
         assert_array_equal(output, np.array([1]))
         assert output.shape == (1,)
@@ -208,6 +209,28 @@ def test_check_scalar_length_none():
         assert output.shape == (np.array(data).flatten().size,)
         with pytest.raises(ValueError):
             _validation._check_scalar(data, desired_length=10000)
+
+
+def test_check_scalar_length_none_fill_fails():
+    """
+    Ensures an exception is raised if fill_scalar is True when length is None.
+
+    Should only get an error if the input is a scalar and fill_scalar is True.
+    """
+    value = 6
+    with pytest.raises(ValueError):
+        _validation._check_scalar(value, desired_length=None, fill_scalar=True)
+
+    with pytest.raises(ValueError):
+        # should also emit since coerce_0d will make the input scalar
+        _validation._check_scalar([value], desired_length=None, fill_scalar=True, coerce_0d=True)
+
+    # should work for an array-like since it is ignored
+    output, is_scalar = _validation._check_scalar(
+        [value], desired_length=None, fill_scalar=True, coerce_0d=False
+    )
+    assert_array_equal(output, np.array([value]))
+    assert not is_scalar
 
 
 def test_check_scalar_variable_single():

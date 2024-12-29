@@ -27,8 +27,8 @@ def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asa
         If True and `data` is a scalar, then will output an array with a length of
         `desired_length`. Default is False, which leaves scalar values unchanged.
     coerce_0d : bool, optional
-        If True (default) and `data` is an array-like, `output` will be a scalar. If
-        False, `output` will also be an array with shape (1,).
+        If True (default) and `data` is an array-like with a single item, `output`
+        will be a scalar. If False, `output` will also be an array with shape (1,).
     **asarray_kwargs : dict
         Additional keyword arguments to pass to :func:`numpy.asarray`.
 
@@ -61,6 +61,8 @@ def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asa
 
     if is_scalar:
         if fill_scalar:
+            if desired_length is None:
+                raise ValueError('desired length must not be None if fill_scalar is True')
             output = np.full(desired_length, output)
         else:
             # index with an empty tuple to get the single scalar while maintaining the numpy dtype
