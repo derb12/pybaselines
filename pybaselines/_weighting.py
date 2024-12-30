@@ -4,7 +4,7 @@
 import warnings
 
 import numpy as np
-from scipy.special import expit
+from scipy.special import erf, expit
 
 from .utils import _MIN_FLOAT, ParameterWarning
 
@@ -499,3 +499,72 @@ def _quantile(y, fit, quantile, eps=None):
     denominator = np.sqrt(residual**2 + max(eps, _MIN_FLOAT))  # approximates abs(residual)
 
     return numerator / denominator
+
+
+def _brpls(y, baseline, beta):
+    """
+    The weighting for Bayesian Reweighted Penalized Least Squares (BrPLS).
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    beta : float
+        A value between 0 and 1 designating the probability of signal within the data.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+    exit_early : bool
+        Designates if there is a potential error with the calculation such that no further
+        iterations should be performed.
+
+    References
+    ----------
+    Wang, Q., et al. Spectral baseline estimation using penalized least squares
+    with weights derived from the Bayesian method. Nuclear Science and Techniques,
+    2022, 140, 250-257.
+
+    """
+    residual = y - baseline
+    # exclude residual == 0 to ensure mean and sigma are both nonzero since both
+    # are used within the demoninator
+    neg_residual = residual[residual < 0].ravel()  # ravel so x.dot(x) == sum(x**2) for 2D too
+    pos_residual = residual[residual > 0]
+    if neg_residual.size < 2:
+        exit_early = True
+        warnings.warn(
+            ('almost all baseline points are below the data, indicating that "tol"'
+             ' is too low and/or "max_iter" is too high'), ParameterWarning,
+             stacklevel=2
+        )
+        return np.zeros_like(y), exit_early
+    elif pos_residual.size < 2:
+        exit_early = True
+        warnings.warn(
+            ('almost all baseline points are above the data, indicating that "tol"'
+             ' is too low and/or "max_iter" is too high'), ParameterWarning,
+             stacklevel=2
+        )
+        return np.zeros_like(y), exit_early
+    else:
+        exit_early = False
+
+    mean = np.mean(pos_residual)
+    # sigma is the quadratic mean, ie. the root mean square
+    sigma = np.sqrt(neg_residual.dot(neg_residual) / neg_residual.size)
+
+    multiplier = ((beta * np.sqrt(0.5 * np.pi)) / (1 - beta)) * (sigma / mean)
+    # overflow occurs at 2 * multiplier * exp(max_val**2), where the 2 is from 1 + max(erf(x));
+    # use max(2, 2 * multplier) since multiplier may be < 1
+    # clip just to ignore overflow warning since 1 / (1 + inf) == 0, which is fine
+    max_val = np.sqrt(np.log(np.finfo(y.dtype).max / max(2, 2 * multiplier)))
+
+    inner = (residual / (sigma * np.sqrt(2))) - (sigma / (mean * np.sqrt(2)))
+    partial = (1 + erf(inner)) * np.exp(np.clip(inner, -max_val, max_val)**2)
+
+    weights = 1 / (1 + multiplier * partial)
+    return weights, exit_early

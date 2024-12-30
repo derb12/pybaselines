@@ -203,7 +203,7 @@ class _Whittaker(_Algorithm):
 
         Parameters
         ----------
-        data : array-like
+        data : array-like, shape (N,)
             The y-values of the measured data, with N data points. Must not
             contain missing data (NaN) or Inf.
         lam : float, optional
@@ -816,6 +816,111 @@ class _Whittaker(_Algorithm):
 
         return baseline, params
 
+    @_Algorithm._register(sort_keys=('weights',))
+    def brpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, max_iter_2=50,
+              tol_2=1e-3, weights=None):
+        """
+        Bayesian Reweighted Penalized Least Squares (BrPLS) baseline.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points. Must not
+            contain missing data (NaN) or Inf.
+        lam : float, optional
+            The smoothing parameter. Larger values will create smoother baselines.
+            Default is 1e5.
+        diff_order : int, optional
+            The order of the differential matrix. Must be greater than 0. Default is 2
+            (second order differential matrix). Typical values are 2 or 1.
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        max_iter_2 : float, optional
+            The number of iterations for updating the proportion of data occupied by peaks.
+            Default is 50.
+        tol_2 : float, optional
+            The exit criteria for the difference between the calculated proportion of data
+            occupied by peaks. Default is 1e-3.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then the initial weights
+            will be an array with size equal to N and all values set to 1.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray, shape (J, K)
+                An array containing the calculated tolerance values for each iteration of
+                both threshold values and fit values. Index 0 are the tolerence values for
+                the difference in the peak proportion, and indices >= 1 are the tolerance values
+                for each fit. All values that were not used in fitting have values of 0. Shape J
+                is 2 plus the number of iterations for the threshold to converge (related to
+                `max_iter_2`, `tol_2`), and shape K is the maximum of the number of
+                iterations for the threshold and the maximum number of iterations for all of
+                the fits of the various threshold values (related to `max_iter` and `tol`).
+
+        References
+        ----------
+        Wang, Q., et al. Spectral baseline estimation using penalized least squares
+        with weights derived from the Bayesian method. Nuclear Science and Techniques,
+        2022, 140, 250-257.
+
+        """
+        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        beta = 0.5
+        j_max = 0
+        baseline = y
+        baseline_weights = weight_array
+        tol_history = np.zeros((max_iter_2 + 2, max(max_iter, max_iter_2) + 1))
+        # implementation note: weight_array must always be updated since otherwise when
+        # reentering the inner loop, new_baseline and baseline would be the same; instead,
+        # use baseline_weights to track which weights produced the output baseline
+        for i in range(max_iter_2 + 1):
+            for j in range(max_iter + 1):
+                new_baseline = self.whittaker_system.solve(
+                    self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                    overwrite_b=True
+                )
+                new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
+                if exit_early:
+                    raise NotImplementedError('algorithm exited early')
+                    #TODO figure out how to correct i and j and also what to do with new_baseline;
+                    # maybe have to override tol_2 to be inf so that outer loop exits too
+                # Paper used norm(old - new) / norm(new) rather than old in the denominator,
+                # but I use old in the denominator instead to be consistant with all other
+                # algorithms; does not make a major difference
+                calc_difference = relative_difference(baseline, new_baseline)
+                tol_history[i + 1, j] = calc_difference
+                if calc_difference < tol:
+                    if i == 0 and j == 0:  # for cases where tol == inf
+                        baseline = new_baseline
+                    break
+                baseline_weights = weight_array
+                weight_array = new_weights
+                baseline = new_baseline
+            j_max = max(j, j_max)
+
+            weight_array = new_weights
+            weight_mean = weight_array.mean()
+            calc_difference_2 = abs(beta + weight_mean - 1)
+            tol_history[0, i] = calc_difference_2
+            if calc_difference_2 < tol_2:
+                break
+            beta = 1 - weight_mean
+
+        params = {
+            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1]
+        }
+
+        return baseline, params
+
 
 _whittaker_wrapper = _class_wrapper(_Whittaker)
 
@@ -952,7 +1057,7 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_d
 
     Parameters
     ----------
-    data : array-like
+    data : array-like, shape (N,)
         The y-values of the measured data, with N data points. Must not
         contain missing data (NaN) or Inf.
     lam : float, optional
@@ -1381,5 +1486,67 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
     Korepanov, V. Asymmetric least-squares baseline algorithm with peak screening for
     automatic processing of the Raman spectra. Journal of Raman Spectroscopy. 2020,
     51(10), 2061-2065.
+
+    """
+
+
+@_whittaker_wrapper
+def brpls(data, x_data=None, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, max_iter_2=50,
+          tol_2=1e-3, weights=None):
+    """
+    Bayesian Reweighted Penalized Least Squares (BrPLS) baseline.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    x_data : array-like, optional
+        The x-values. Not used by this function, but input is allowed for consistency
+        with other functions.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e5.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    max_iter_2 : float, optional
+        The number of iterations for updating the proportion of data occupied by peaks.
+        Default is 50.
+    tol_2 : float, optional
+        The exit criteria for the difference between the calculated proportion of data
+        occupied by peaks. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray, shape (J, K)
+            An array containing the calculated tolerance values for each iteration of
+            both threshold values and fit values. Index 0 are the tolerence values for
+            the difference in the peak proportion, and indices >= 1 are the tolerance values
+            for each fit. All values that were not used in fitting have values of 0. Shape J
+            is 2 plus the number of iterations for the threshold to converge (related to
+            `max_iter_2`, `tol_2`), and shape K is the maximum of the number of
+            iterations for the threshold and the maximum number of iterations for all of
+            the fits of the various threshold values (related to `max_iter` and `tol`).
+
+    References
+    ----------
+    Wang, Q., et al. Spectral baseline estimation using penalized least squares
+    with weights derived from the Bayesian method. Nuclear Science and Techniques,
+    2022, 140, 250-257.
 
     """

@@ -62,9 +62,15 @@ class WhittakerTester(BaseTester, InputWeightsMixin):
         kwargs = {'weights': params['weights']}
         if self.func_name in ('aspls', 'pspline_aspls'):
             kwargs['alpha'] = params['alpha']
+        elif self.func_name in ('brpls', 'pspline_brpls'):
+            kwargs['tol_2'] = np.inf
         second_baseline, params_2 = self.class_func(self.y, tol=np.inf, **kwargs)
 
-        assert len(params_2['tol_history']) == 1
+        if self.func_name in ('brpls', 'pspline_brpls'):
+            assert params_2['tol_history'].shape == (2, 1)
+            assert params_2['tol_history'].size == 2
+        else:
+            assert len(params_2['tol_history']) == 1
         assert_allclose(second_baseline, first_baseline, rtol=1e-12)
 
 
@@ -374,3 +380,20 @@ class TestDerpsalsa(WhittakerTester):
         """Ensures k values not greater than 0 raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, k=k)
+
+
+class TestBrPLS(WhittakerTester):
+    """Class for testing brpls baseline."""
+
+    func_name = 'brpls'
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        max_iter_2 = 2
+        _, params = self.class_func(
+            self.y, max_iter=max_iter, max_iter_2=max_iter_2, tol=-1, tol_2=-1
+        )
+
+        assert params['tol_history'].size == (max_iter_2 + 2) * (max_iter + 1)
+        assert params['tol_history'].shape == (max_iter_2 + 2, max_iter + 1)

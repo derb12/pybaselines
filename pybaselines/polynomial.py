@@ -962,8 +962,7 @@ class _Polynomial(_Algorithm):
                 tol_history[i + 2, j] = calc_difference
                 if calc_difference < tol:
                     break
-            if j > j_max:
-                j_max = j
+            j_max = max(j, j_max)
 
             up_count = (y > baseline).sum()
             up_down_ratio = up_count / max(1, self._size - up_count)
