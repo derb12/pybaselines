@@ -534,18 +534,14 @@ def _brpls(y, baseline, beta):
     # are used within the demoninator
     neg_residual = residual[residual < 0].ravel()  # ravel so x.dot(x) == sum(x**2) for 2D too
     pos_residual = residual[residual > 0]
-    if neg_residual.size < 2:
+    if neg_residual.size < 2 or pos_residual.size < 2:
         exit_early = True
+        if neg_residual.size < 2:
+            position = 'below'
+        else:
+            position = 'above'
         warnings.warn(
-            ('almost all baseline points are below the data, indicating that "tol"'
-             ' is too low and/or "max_iter" is too high'), ParameterWarning,
-             stacklevel=2
-        )
-        return np.zeros_like(y), exit_early
-    elif pos_residual.size < 2:
-        exit_early = True
-        warnings.warn(
-            ('almost all baseline points are above the data, indicating that "tol"'
+            (f'almost all baseline points are {position} the data, indicating that "tol"'
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
              stacklevel=2
         )
@@ -562,6 +558,7 @@ def _brpls(y, baseline, beta):
     # use max(2, 2 * multplier) since multiplier may be < 1
     # clip just to ignore overflow warning since 1 / (1 + inf) == 0, which is fine
     max_val = np.sqrt(np.log(np.finfo(y.dtype).max / max(2, 2 * multiplier)))
+    max_val -= np.spacing(max_val)  # ensure limit is below max value
 
     inner = (residual / (sigma * np.sqrt(2))) - (sigma / (mean * np.sqrt(2)))
     partial = (1 + erf(inner)) * np.exp(np.clip(inner, -max_val, max_val)**2)

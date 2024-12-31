@@ -4,6 +4,7 @@
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
+from scipy.special import erf
 
 from pybaselines import _weighting, utils, Baseline2D
 
@@ -442,7 +443,7 @@ def test_arpls_overflow(one_d):
     neg_residual = residual[residual < 0]
     std = np.std(neg_residual, ddof=1)
     mean = np.mean(neg_residual)
-    # for exponential overlow, (residual + mean) / std > 0.5 * log_max + 2
+    # for exponential overflow, (residual + mean) / std > 0.5 * log_max + 2
     # changing one value in the baseline to cause overflow will not cause the mean and
     # standard deviation to change since the residual value will be positive at that index
     overflow_index = 10
@@ -813,7 +814,7 @@ def test_aspls_overflow(one_d, asymmetric_coef):
     log_max = np.log(np.finfo(y_data.dtype).max)
     residual = y_data - baseline
     std = np.std(residual[residual < 0], ddof=1)
-    # for exponential overlow, (residual / std) > (log_max / asymmetric_coef) + 1
+    # for exponential overflow, (residual / std) > (log_max / asymmetric_coef) + 1
     # changing one value in the baseline to cause overflow will not cause the
     # standard deviation to change since the residual value will be positive at that index
     overflow_index = 10
@@ -955,7 +956,7 @@ def test_psalsa_overflow(one_d, k, p):
         y_data, baseline = baseline_2d_normal()
 
     log_max = np.log(np.finfo(y_data.dtype).max)
-    # for exponential overlow, -(residual / k) > log_max
+    # for exponential overflow, -(residual / k) > log_max
     overflow_index = 10
     overflow_value = k * log_max + 10  # add 10 for good measure
     if one_d:
@@ -1104,3 +1105,181 @@ def test_derpsalsa_all_below(k, p):
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
+def expected_brpls(y, baseline, beta):
+    """
+    The weighting for Bayesian Reweighted Penalized Least Squares (BrPLS).
+
+    Does not perform error checking since this is just used for simple weighting cases.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    beta : float
+        A value between 0 and 1 designating the probability of signal within the data.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+
+    References
+    ----------
+    Wang, Q., et al. Spectral baseline estimation using penalized least squares
+    with weights derived from the Bayesian method. Nuclear Science and Techniques,
+    2022, 140, 250-257.
+
+    """
+    residual = y - baseline
+    # exclude residual == 0 to ensure mean and sigma are both nonzero since both
+    # are used within the demoninator
+    neg_residual = residual[residual < 0]
+    pos_residual = residual[residual > 0]
+
+    mean = np.mean(pos_residual)
+    sigma = np.sqrt((neg_residual**2).sum() / neg_residual.size)
+
+    multiplier = ((beta * np.sqrt(0.5 * np.pi)) / (1 - beta)) * (sigma / mean)
+    inner = (residual / (sigma * np.sqrt(2))) - (sigma / (mean * np.sqrt(2)))
+
+    calc = (1 + erf(inner)) * np.exp(inner**2)
+    # nan can apper where erf(x) = -1 and exp(x**2) = inf since 0 * inf = nan; in that
+    # case, overflow should have been avoided so it would be 0 * large number -> set to 0
+    calc[np.isnan(calc)] = 0
+
+    weights = 1 / (1 + multiplier * calc)
+    return weights
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('beta', (0.1, 0.5, 0.9))
+def test_brpls_normal(one_d, beta):
+    """Ensures brpls weighting works as intented for a normal baseline."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+    expected_weights = expected_brpls(y_data, baseline, beta)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_brpls_all_above(one_d):
+    """Ensures brpls weighting works as intented for a baseline with all points above the data."""
+    beta = 0.5
+    if one_d:
+        y_data, baseline = baseline_1d_all_above()
+    else:
+        y_data, baseline = baseline_2d_all_above()
+
+    with pytest.warns(utils.ParameterWarning):
+        weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+    expected_weights = np.zeros_like(y_data)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert exit_early
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_brpls_all_below(one_d):
+    """Ensures brpls weighting works as intented for a baseline with all points below the data."""
+    beta = 0.5
+    if one_d:
+        y_data, baseline = baseline_1d_all_below()
+    else:
+        y_data, baseline = baseline_2d_all_below()
+
+    with pytest.warns(utils.ParameterWarning):
+        weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+    expected_weights = np.zeros_like(y_data)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert exit_early
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('beta', (0.1, 0.5, 0.9))
+@pytest.mark.parametrize('positive', (True, False))
+@pytest.mark.parametrize('dtype', (float, np.float32))
+def test_brpls_overflow(one_d, beta, positive, dtype):
+    """Ensures overflow does not occur from brpls weighting."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+    y_data = y_data.astype(dtype)
+    baseline = baseline.astype(dtype)
+
+    residual = y_data - baseline
+    neg_residual = residual[residual < 0]
+    pos_residual = residual[residual > 0]
+    mean = np.mean(pos_residual)
+    sigma = np.sqrt((neg_residual**2).sum() / neg_residual.size)
+
+    sqrt_log_max = np.sqrt(np.log(np.finfo(y_data.dtype).max))
+    # for exponential overflow, either
+    # residual > sigma * sqrt(2) * (sqrt_log_max + sigma / (mean * sqrt(2)))
+    # or residual < sigma * sqrt(2) * (-sqrt_log_max + sigma / (mean * sqrt(2)))
+    # changing a positive or negative residual will change mean and sigma, so just
+    # add 10000 to ensure overflow in either case
+    max_val_pos = 10000 + np.sqrt(2) * sigma * (sqrt_log_max + sigma / (np.sqrt(2) * mean))
+    max_val_neg = -10000 + np.sqrt(2) * sigma * (-sqrt_log_max + sigma / (np.sqrt(2) * mean))
+    assert np.isfinite(max_val_neg)
+    if positive:
+        overflow_value = max_val_pos
+        expected_value = 0.
+    else:
+        overflow_value = max_val_neg
+        expected_value = 1.
+    overflow_index = 10
+    if one_d:
+        baseline[overflow_index] = y_data[overflow_index] - overflow_value
+    else:
+        baseline[overflow_index, overflow_index] = (
+            y_data[overflow_index, overflow_index] - overflow_value
+        )
+
+    # sanity check to ensure overflow should actually occur; note that multiplication
+    # overflow also occurs for positive=False
+    with pytest.warns(RuntimeWarning):
+        expected_weights = expected_brpls(y_data, baseline, beta)
+    # the resulting weights should still be finite since 1 / (1 + inf) == 0
+    assert np.isfinite(expected_weights).all()
+
+    with np.errstate(over='raise'):
+        weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+
+    assert np.isfinite(weights).all()
+    assert not exit_early
+
+    assert_allclose(weights, expected_weights, rtol=1e-6, atol=1e-9)
+
+    # the actual weight where overflow should have occurred should be 0 or 1
+    if one_d:
+        assert_allclose(weights[overflow_index], expected_value, atol=1e-14)
+        assert_allclose(expected_weights[overflow_index], expected_value, atol=1e-14)
+    else:
+        assert_allclose(weights[overflow_index, overflow_index], expected_value, atol=1e-14)
+        assert_allclose(
+            expected_weights[overflow_index, overflow_index], expected_value, atol=1e-14
+        )
+
+    # weights should still be the same as the nieve calculation regardless
+    # of overflow; have to use relatively high rtol to cover float32 cases
+    assert_allclose(weights, expected_weights, rtol=5e-6, atol=1e-10)
