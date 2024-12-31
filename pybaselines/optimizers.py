@@ -114,6 +114,8 @@ class _Optimizers(_Algorithm):
         # to fit each individual data entry; set tol to infinity so that only one
         # iteration is done and new weights are not calculated
         method_kws['tol'] = np.inf
+        if method in ('brpls', 'pspline_brpls'):
+            method_kws['tol_2'] = np.inf
         baselines = np.empty(data_shape)
         params = {'average_weights': method_kws['weights']}
         if calc_alpha:
