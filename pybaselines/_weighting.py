@@ -44,7 +44,7 @@ def _asls(y, baseline, p):
     return weights
 
 
-def _airpls(y, baseline, iteration):
+def _airpls(y, baseline, iteration, normalize_weights):
     """
     The weighting for adaptive iteratively reweighted penalized least squares (airPLS).
 
@@ -116,6 +116,8 @@ def _airpls(y, baseline, iteration):
     )
     weights = np.zeros_like(y)
     weights[neg_mask] = np.exp(inner)
+    if normalize_weights:
+        weights[neg_mask] /= weights[neg_mask].max()
 
     return weights, residual_l1_norm, exit_early
 

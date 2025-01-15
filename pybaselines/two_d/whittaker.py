@@ -217,7 +217,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               num_eigens=(10, 10), return_dof=False):
+               num_eigens=(10, 10), return_dof=False, normalize_weights=True):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -250,6 +250,10 @@ class _Whittaker(_Algorithm2D):
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
             Default is False since the calculation takes time.
+        normalize_weights : bool, optional
+            If True (default), will normalize the computed weights between 0 and 1 to improve
+            the numerical stabilty. Set to False to use the original implementation, which
+            sets weights for all negative residuals to be greater than 1.
 
         Returns
         -------
@@ -287,7 +291,9 @@ class _Whittaker(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = self.whittaker_system.solve(y, weight_array)
-            new_weights, residual_l1_norm, exit_early = _weighting._airpls(y, baseline, i)
+            new_weights, residual_l1_norm, exit_early = _weighting._airpls(
+                y, baseline, i, normalize_weights
+            )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break

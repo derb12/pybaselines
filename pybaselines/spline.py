@@ -565,7 +565,7 @@ class _Spline(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
     def pspline_airpls(self, data, lam=1e3, num_knots=100, spline_degree=3,
-                       diff_order=2, max_iter=50, tol=1e-3, weights=None):
+                       diff_order=2, max_iter=50, tol=1e-3, weights=None, normalize_weights=True):
         """
         A penalized spline version of the airPLS algorithm.
 
@@ -591,6 +591,10 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
+        normalize_weights : bool, optional
+            If True (default), will normalize the computed weights between 0 and 1 to improve
+            the numerical stabilty. Set to False to use the original implementation, which
+            sets weights for all negative residuals to be greater than 1.
 
         Returns
         -------
@@ -628,7 +632,9 @@ class _Spline(_Algorithm):
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = self.pspline.solve_pspline(y, weight_array)
-            new_weights, residual_l1_norm, exit_early = _weighting._airpls(y, baseline, i)
+            new_weights, residual_l1_norm, exit_early = _weighting._airpls(
+                y, baseline, i, normalize_weights
+            )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -1967,7 +1973,7 @@ def pspline_iasls(data, x_data=None, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
 
 @_spline_wrapper
 def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
-                   max_iter=50, tol=1e-3, weights=None, x_data=None):
+                   max_iter=50, tol=1e-3, weights=None, x_data=None, normalize_weights=True):
     """
     A penalized spline version of the airPLS algorithm.
 
@@ -1996,6 +2002,10 @@ def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
+    normalize_weights : bool, optional
+        If True (default), will normalize the computed weights between 0 and 1 to improve
+        the numerical stabilty. Set to False to use the original implementation, which
+        sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------

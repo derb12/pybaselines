@@ -197,7 +197,8 @@ class _Whittaker(_Algorithm):
         return baseline, params
 
     @_Algorithm._register(sort_keys=('weights',))
-    def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+    def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
+               normalize_weights=True):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -219,6 +220,10 @@ class _Whittaker(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
+        normalize_weights : bool, optional
+            If True (default), will normalize the computed weights between 0 and 1 to improve
+            the numerical stabilty. Set to False to use the original implementation, which
+            sets weights for all negative residuals to be greater than 1.
 
         Returns
         -------
@@ -249,7 +254,9 @@ class _Whittaker(_Algorithm):
                 self.whittaker_system.add_diagonal(weight_array), weight_array * y,
                 overwrite_b=True, check_output=True
             )
-            new_weights, residual_l1_norm, exit_early = _weighting._airpls(y, baseline, i)
+            new_weights, residual_l1_norm, exit_early = _weighting._airpls(
+                y, baseline, i, normalize_weights
+            )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -1051,7 +1058,8 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
 
 
 @_whittaker_wrapper
-def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None):
+def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None,
+           normalize_weights=True):
     """
     Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -1126,6 +1134,10 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_da
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
+    normalize_weights : bool, optional
+        If True (default), will normalize the computed weights between 0 and 1 to improve
+        the numerical stabilty. Set to False to use the original implementation, which
+        sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------

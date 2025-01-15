@@ -195,7 +195,7 @@ def test_asls_all_below(p, one_d):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
-def expected_airpls(y, baseline, iteration):
+def expected_airpls(y, baseline, iteration, normalize_weights):
     """
     The weighting for adaptive iteratively reweighted penalized least squares (airPLS).
 
@@ -221,6 +221,10 @@ def expected_airpls(y, baseline, iteration):
     exit_early : bool
         Designates if there is a potential error with the calculation such that no further
         iterations should be performed.
+    normalize_weights : bool
+        If True, will normalize the computed weights between 0 and 1 to improve
+        the numerical stabilty. Set to False to use the original implementation, which
+        sets weights for all negative residuals to be greater than 1.
 
     References
     ----------
@@ -240,21 +244,26 @@ def expected_airpls(y, baseline, iteration):
 
     weights = np.zeros_like(y)
     weights[neg_mask] = np.exp((-iteration / residual_l1_norm) * neg_residual)
+    if normalize_weights:
+        weights /= weights.max()
 
     return weights
 
 
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
-def test_airpls_normal(iteration, one_d):
+@pytest.mark.parametrize('normalize', (True, False))
+def test_airpls_normal(iteration, one_d, normalize):
     """Ensures airpls weighting works as intented for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, residual_l1_norm, exit_early = _weighting._airpls(y_data, baseline, iteration)
-    expected_weights = expected_airpls(y_data, baseline, iteration)
+    weights, residual_l1_norm, exit_early = _weighting._airpls(
+        y_data, baseline, iteration, normalize
+    )
+    expected_weights = expected_airpls(y_data, baseline, iteration, normalize)
 
     residual = y_data - baseline
     expected_residual_l1_norm = abs(residual[residual < 0].sum())
@@ -268,19 +277,25 @@ def test_airpls_normal(iteration, one_d):
     # airpls differs from other weighting schemes in that all negative residuals
     # should have a weight of 1 or more rather than being in the range [0, 1]
     assert (weights >= 0).all()
-    assert (weights[residual < 0] >= 1).all()
+    if normalize:
+        assert (weights <= 1).all()
+    else:
+        assert (weights[residual < 0] >= 1).all()
 
 
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
-def test_airpls_all_above(iteration, one_d):
+@pytest.mark.parametrize('normalize', (True, False))
+def test_airpls_all_above(iteration, one_d, normalize):
     """Ensures airpls weighting works as intented for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
-    weights, residual_l1_norm, exit_early = _weighting._airpls(y_data, baseline, iteration)
-    expected_weights = expected_airpls(y_data, baseline, iteration)
+    weights, residual_l1_norm, exit_early = _weighting._airpls(
+        y_data, baseline, iteration, normalize
+    )
+    expected_weights = expected_airpls(y_data, baseline, iteration, normalize)
     expected_residual_l1_norm = abs(y_data - baseline).sum()  # all residuals should be negative
 
     assert isinstance(weights, np.ndarray)
@@ -292,7 +307,8 @@ def test_airpls_all_above(iteration, one_d):
 
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
-def test_airpls_all_below(iteration, one_d):
+@pytest.mark.parametrize('normalize', (True, False))
+def test_airpls_all_below(iteration, one_d, normalize):
     """Ensures airpls weighting works as intented for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
@@ -300,7 +316,9 @@ def test_airpls_all_below(iteration, one_d):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, residual_l1_norm, exit_early = _weighting._airpls(y_data, baseline, iteration)
+        weights, residual_l1_norm, exit_early = _weighting._airpls(
+            y_data, baseline, iteration, normalize
+        )
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -312,7 +330,8 @@ def test_airpls_all_below(iteration, one_d):
 
 @pytest.mark.parametrize('one_d', (True, False))
 @pytest.mark.parametrize('dtype', (float, np.float16, np.float32))
-def test_airpls_overflow(one_d, dtype):
+@pytest.mark.parametrize('normalize', (True, False))
+def test_airpls_overflow(one_d, dtype, normalize):
     """Ensures exponential overflow does not occur from airpls weighting."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
@@ -335,11 +354,13 @@ def test_airpls_overflow(one_d, dtype):
 
     # sanity check to ensure overflow actually should occur and that it produces nan weights
     with pytest.warns(RuntimeWarning):
-        expected_weights = expected_airpls(y_data, baseline, iteration)
+        expected_weights = expected_airpls(y_data, baseline, iteration, normalize)
     assert (~np.isfinite(expected_weights)).any()
 
     with np.errstate(over='raise'):
-        weights, residual_l1_norm, exit_early = _weighting._airpls(y_data, baseline, iteration)
+        weights, residual_l1_norm, exit_early = _weighting._airpls(
+            y_data, baseline, iteration, normalize
+        )
 
     assert np.isfinite(weights).all()
     assert not exit_early
