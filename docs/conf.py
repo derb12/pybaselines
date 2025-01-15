@@ -62,7 +62,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'pybaselines'
-copyright = "2021-2024, Donald Erb"
+copyright = "2021 Donald Erb"
 author = "Donald Erb"
 
 # The version info for the project you're documenting, acts as replacement
