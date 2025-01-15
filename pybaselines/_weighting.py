@@ -553,15 +553,19 @@ def _brpls(y, baseline, beta):
     # sigma is the quadratic mean, ie. the root mean square
     sigma = np.sqrt(neg_residual.dot(neg_residual) / neg_residual.size)
 
+    inner = (residual / (sigma * np.sqrt(2))) - (sigma / (mean * np.sqrt(2)))
     multiplier = ((beta * np.sqrt(0.5 * np.pi)) / (1 - beta)) * (sigma / mean)
     # overflow occurs at 2 * multiplier * exp(max_val**2), where the 2 is from 1 + max(erf(x));
-    # use max(2, 2 * multplier) since multiplier may be < 1
     # clip just to ignore overflow warning since 1 / (1 + inf) == 0, which is fine
-    max_val = np.sqrt(np.log(np.finfo(y.dtype).max / max(2, 2 * multiplier)))
+    max_val = np.sqrt(np.log(np.finfo(y.dtype).max))
     max_val -= np.spacing(max_val)  # ensure limit is below max value
 
-    inner = (residual / (sigma * np.sqrt(2))) - (sigma / (mean * np.sqrt(2)))
-    partial = (1 + erf(inner)) * np.exp(np.clip(inner, -max_val, max_val)**2)
+    partial = np.exp(np.clip(inner, -max_val, max_val)**2)
+    if multiplier < 0.5:  # no need to worry about multiplication overflow
+        weights = 1 / (1 + multiplier * (1 + erf(inner)) * partial)
+    else:
+        max_val_mult = np.finfo(y.dtype).max / (2 * multiplier)
+        max_val_mult -= np.spacing(max_val_mult)  # ensure limit is below max value
 
-    weights = 1 / (1 + multiplier * partial)
+        weights = 1 / (1 + multiplier * (1 + erf(inner)) * np.clip(partial, None, max_val_mult))
     return weights, exit_early

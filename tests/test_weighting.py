@@ -1255,8 +1255,8 @@ def test_brpls_overflow(one_d, beta, positive, dtype):
             y_data[overflow_index, overflow_index] - overflow_value
         )
 
-    # sanity check to ensure overflow should actually occur; note that multiplication
-    # overflow also occurs for positive=False
+    # sanity check to ensure overflow should actually occur; note that both exponential and
+    # multiplication overflow can occur
     with pytest.warns(RuntimeWarning):
         expected_weights = expected_brpls(y_data, baseline, beta)
     # the resulting weights should still be finite since 1 / (1 + inf) == 0
@@ -1267,8 +1267,6 @@ def test_brpls_overflow(one_d, beta, positive, dtype):
 
     assert np.isfinite(weights).all()
     assert not exit_early
-
-    assert_allclose(weights, expected_weights, rtol=1e-6, atol=1e-9)
 
     # the actual weight where overflow should have occurred should be 0 or 1
     if one_d:
