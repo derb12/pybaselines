@@ -127,6 +127,64 @@ def test_setup_whittaker_array_lam(small_data):
         )
 
 
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('reverse_diags', (True, False, None))
+def test_setup_whittaker_reset_penalized_system(small_data, algorithm, diff_order, allow_lower,
+                                                reverse_diags):
+    """Ensures the whittaker_system is correctly updated when reusing."""
+    if reverse_diags and allow_lower:
+        # this configuration is never used
+        return
+
+    lam = 20.5
+    lam_2 = 30.3
+    lam_3 = 12
+    _ = algorithm._setup_whittaker(
+        small_data, lam, diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
+    )
+
+    numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
+    original_diagonals = dia_object(numpy_diff.T @ numpy_diff).data[::-1]
+    desired_diagonals = lam * original_diagonals
+    if allow_lower and not algorithm.whittaker_system.using_pentapy:
+        # only include the lower diagonals
+        desired_diagonals = desired_diagonals[diff_order:]
+        original_diagonals = original_diagonals[diff_order:]
+
+    # the diagonals should be in the opposite order as the diagonal matrix's data
+    # if reverse_diags is False
+    if reverse_diags or (algorithm.whittaker_system.using_pentapy and reverse_diags is not False):
+        desired_diagonals = desired_diagonals[::-1]
+        original_diagonals = original_diagonals[::-1]
+
+    assert_allclose(algorithm.whittaker_system.penalty, desired_diagonals, 1e-10)
+    assert_allclose(algorithm.whittaker_system.original_diagonals, original_diagonals, 1e-10)
+
+    # add a diagonal like a Whittaker-based algorithm to ensure the penalty is changed
+    weights = np.linspace(0.01, 1, small_data.shape[0])
+    algorithm.whittaker_system.add_diagonal(weights)
+
+    # now reset with a new lam value
+    _ = algorithm._setup_whittaker(
+        small_data, lam_2, diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
+    )
+    assert_allclose(algorithm.whittaker_system.penalty, (lam_2 / lam) * desired_diagonals, 1e-10)
+    assert_allclose(algorithm.whittaker_system.original_diagonals, original_diagonals, 1e-10)
+
+    # now add an additional penalty in addition to adding a diagonal
+    added_penalty = np.ones_like(algorithm.whittaker_system.penalty)
+    algorithm.whittaker_system.add_penalty(added_penalty)
+    algorithm.whittaker_system.add_diagonal(weights)
+
+    # and reset again with a new lam value
+    _ = algorithm._setup_whittaker(
+        small_data, lam_3, diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
+    )
+    assert_allclose(algorithm.whittaker_system.penalty, (lam_3 / lam) * desired_diagonals, 1e-10)
+    assert_allclose(algorithm.whittaker_system.original_diagonals, original_diagonals, 1e-10)
+
+
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
 def test_setup_polynomial_weights(small_data, algorithm, weight_enum):
     """Ensures output weight array is correctly handled."""

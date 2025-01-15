@@ -499,6 +499,17 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
             bool(reverse_diags), padding, False, data_size
         )
 
+        # also check after resetting with a different lam
+        for new_lam in (2.5, 12):
+            initial_system.reset_diagonals(
+                lam=new_lam, diff_order=diff_order, allow_lower=allow_lower,
+                reverse_diags=reverse_diags, allow_pentapy=False, padding=padding
+            )
+            check_penalized_system(
+                initial_system, expected_penalty, new_lam, diff_order, allow_lower,
+                bool(reverse_diags), padding, False, data_size
+            )
+
 
 @has_pentapy
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
@@ -707,7 +718,7 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
     lam = 5
     diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
     penalty = lam * diff_matrix.T @ diff_matrix
-
+    penalty_bands = _banded_utils._sparse_to_banded(penalty, data_size)[0] / lam
     for penalty_order in range(1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
             data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
@@ -751,6 +762,17 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
             )
             # should also modify the penalty attribute
             assert_allclose(penalized_system.penalty, expected_output, rtol=1e-12, atol=1e-12)
+
+            # ensure original diagonals are also not affected
+            expected_diagonals = penalty_bands.copy()
+            if penalized_system.reversed:
+                expected_diagonals = expected_diagonals[::-1]
+            if penalized_system.lower:
+                expected_diagonals = expected_diagonals[expected_diagonals.shape[0] // 2:]
+            assert_allclose(
+                penalized_system.original_diagonals, expected_diagonals,
+                rtol=1e-12, atol=1e-12
+            )
 
 
 @pytest.mark.parametrize('dtype', (float, np.float32))
