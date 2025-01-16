@@ -113,7 +113,8 @@ class _Optimizers(_Algorithm):
         # step 2: use the dataset weights from step 1 (stored in method_kws['weights'])
         # to fit each individual data entry; set tol to infinity so that only one
         # iteration is done and new weights are not calculated
-        method_kws['tol'] = np.inf
+        if method not in ('mpls', 'pspline_mpls', 'fabc'):
+            method_kws['tol'] = np.inf
         if method in ('brpls', 'pspline_brpls'):
             method_kws['tol_2'] = np.inf
         baselines = np.empty(data_shape)

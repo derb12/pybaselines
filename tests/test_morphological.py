@@ -12,6 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
+import pybaselines
 from pybaselines import _banded_utils, morphological
 
 from .conftest import BaseTester, InputWeightsMixin, has_pentapy
@@ -67,6 +68,22 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
+
+    def test_tol_deprecation(self):
+        """Ensures a DeprecationWarning is given when tol is input."""
+        version = [int(val) for val in pybaselines.__version__.lstrip('v').split('.')[:2]]
+        if version[0] > 1 or version[1] >= 4:
+            raise AssertionError('Need to address this deprecation')
+        with pytest.warns(DeprecationWarning):
+            self.class_func(self.y, tol=1e-3)
+
+    def test_max_iter_deprecation(self):
+        """Ensures a DeprecationWarning is given when max_iter is input."""
+        version = [int(val) for val in pybaselines.__version__.lstrip('v').split('.')[:2]]
+        if version[0] > 1 or version[1] >= 4:
+            raise AssertionError('Need to address this deprecation')
+        with pytest.warns(DeprecationWarning):
+            self.class_func(self.y, max_iter=20)
 
 
 class TestMor(MorphologicalTester):

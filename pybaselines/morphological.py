@@ -6,6 +6,8 @@ Created on March 5, 2021
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
@@ -18,7 +20,7 @@ class _Morphological(_Algorithm):
     """A base class for all morphological algorithms."""
 
     @_Algorithm._register(sort_keys=('weights',))
-    def mpls(self, data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_iter=50,
+    def mpls(self, data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_iter=None,
              weights=None, **window_kwargs):
         """
         The Morphological penalized least squares (MPLS) baseline algorithm.
@@ -41,10 +43,18 @@ class _Morphological(_Algorithm):
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
-        max_iter : int, optional
-            The max number of fit iterations. Default is 50.
-        tol : float, optional
-            The exit criteria. Default is 1e-3.
+        tol : float, optional, deprecated
+
+            .. deprecated:: 1.2.0
+                ``tol`` is deprecated since it was not used within mpls
+                and will be removed in pybaselines version 1.4.0.
+
+        max_iter : int, optional, deprecated
+
+            .. deprecated:: 1.2.0
+                ``max_iter`` is deprecated since it was not used within mpls
+                and will be removed in pybaselines version 1.4.0.
+
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the weights will be
             calculated following the procedure in [4]_.
@@ -92,6 +102,12 @@ class _Morphological(_Algorithm):
         """
         if not 0 <= p <= 1:
             raise ValueError('p must be between 0 and 1')
+        if tol is not None or max_iter is not None:
+            warnings.warn(
+                ('passing "tol" or "max_iter" to mpls was deprecated in version 1.2.0 and '
+                 'will be removed in version 1.4.0'),
+                DeprecationWarning, stacklevel=2
+            )
 
         y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
         if weights is not None:
@@ -943,7 +959,7 @@ def _avg_opening(y, half_window, opening=None):
 
 
 @_morphological_wrapper
-def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_iter=50,
+def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_iter=None,
          weights=None, x_data=None, **window_kwargs):
     """
     The Morphological penalized least squares (MPLS) baseline algorithm.
@@ -966,10 +982,18 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=1e-3, max_ite
     diff_order : int, optional
         The order of the differential matrix. Must be greater than 0. Default is 2
         (second order differential matrix). Typical values are 2 or 1.
-    max_iter : int, optional
-        The max number of fit iterations. Default is 50.
-    tol : float, optional
-        The exit criteria. Default is 1e-3.
+    tol : float, optional, deprecated
+
+        .. deprecated:: 1.2.0
+            ``tol`` is deprecated since it was not used within mpls
+            and will be removed in pybaselines version 1.4.0.
+
+    max_iter : int, optional, deprecated
+
+        .. deprecated:: 1.2.0
+            ``max_iter`` is deprecated since it was not used within mpls
+            and will be removed in pybaselines version 1.4.0.
+
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the weights will be
         calculated following the procedure in [1]_.

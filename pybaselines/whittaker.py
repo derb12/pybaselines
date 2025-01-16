@@ -1134,10 +1134,6 @@ def arpls(data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_da
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    normalize_weights : bool, optional
-        If True (default), will normalize the computed weights between 0 and 1 to improve
-        the numerical stabilty. Set to False to use the original implementation, which
-        sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------
@@ -1192,6 +1188,10 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_orde
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
+    normalize_weights : bool, optional
+        If True (default), will normalize the computed weights between 0 and 1 to improve
+        the numerical stabilty. Set to False to use the original implementation, which
+        sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------

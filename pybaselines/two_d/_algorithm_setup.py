@@ -920,11 +920,6 @@ class _Algorithm2D:
         class_object : pybaselines._algorithm_setup._Algorithm
             The `_Algorithm` object which will be used for fitting.
 
-        Warns
-        -----
-        DeprecationWarning
-            Passed if `kwargs` is not empty.
-
         """
         baseline_func, func_module, class_object = self._get_function(method, modules)
         if method_kwargs is None:
