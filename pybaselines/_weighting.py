@@ -57,6 +57,10 @@ def _airpls(y, baseline, iteration, normalize_weights):
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
+    normalize_weights : bool
+        If True, will normalize the computed weights between 0 and 1 to improve
+        the numerical stabilty. Set to False to use the original implementation, which
+        sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------
@@ -570,4 +574,55 @@ def _brpls(y, baseline, beta):
         max_val_mult -= np.spacing(max_val_mult)  # ensure limit is below max value
 
         weights = 1 / (1 + multiplier * (1 + erf(inner)) * np.clip(partial, None, max_val_mult))
+    return weights, exit_early
+
+
+def _lsrpls(y, baseline, iteration):
+    """
+    The weighting for the locally symmetric reweighted penalized least squares (lsrpls).
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    iteration : int
+        The iteration number. Should be 1-based, such that the first iteration is 1
+        instead of 0.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+    exit_early : bool
+        Designates if there is a potential error with the calculation such that no further
+        iterations should be performed.
+
+    References
+    ----------
+    Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+    Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+
+    """
+    residual = y - baseline
+    neg_residual = residual[residual < 0]
+    if neg_residual.size < 2:
+        exit_early = True
+        warnings.warn(
+            ('almost all baseline points are below the data, indicating that "tol"'
+             ' is too low and/or "max_iter" is too high'), ParameterWarning,
+             stacklevel=2
+        )
+        return np.zeros_like(y), exit_early
+    else:
+        exit_early = False
+
+    std = _safe_std(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
+    # the exponential term is used to change the shape of the weighting from a logistic curve
+    # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
+    # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
+    # overflow for high iterations
+    inner = (10**(min(iteration, 100)) / std) * (residual - (2 * std - np.mean(neg_residual)))
+    weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
     return weights, exit_early

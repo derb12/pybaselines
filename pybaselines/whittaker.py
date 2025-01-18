@@ -928,6 +928,72 @@ class _Whittaker(_Algorithm):
 
         return baseline, params
 
+    @_Algorithm._register(sort_keys=('weights',))
+    def lsrpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+        """
+        Locally Symmetric Reweighted Penalized Least Squares (LSRPLS).
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points. Must not
+            contain missing data (NaN) or Inf.
+        lam : float, optional
+            The smoothing parameter. Larger values will create smoother baselines.
+            Default is 1e5.
+        diff_order : int, optional
+            The order of the differential matrix. Must be greater than 0. Default is 2
+            (second order differential matrix). Typical values are 2 or 1.
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then the initial weights
+            will be an array with size equal to N and all values set to 1.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+
+        References
+        ----------
+        Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+        Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+
+        """
+        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        tol_history = np.empty(max_iter + 1)
+        for i in range(1, max_iter + 2):
+            baseline = self.whittaker_system.solve(
+                self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+                overwrite_b=True
+            )
+            new_weights, exit_early = _weighting._lsrpls(y, baseline, i)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
+            calc_difference = relative_difference(weight_array, new_weights)
+            tol_history[i - 1] = calc_difference
+            if calc_difference < tol:
+                break
+            weight_array = new_weights
+
+        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+
+        return baseline, params
+
 
 _whittaker_wrapper = _class_wrapper(_Whittaker)
 
@@ -1084,6 +1150,10 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_d
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
+    normalize_weights : bool, optional
+        If True (default), will normalize the computed weights between 0 and 1 to improve
+        the numerical stabilty. Set to False to use the original implementation, which
+        sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------
@@ -1188,10 +1258,6 @@ def drpls(data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_orde
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    normalize_weights : bool, optional
-        If True (default), will normalize the computed weights between 0 and 1 to improve
-        the numerical stabilty. Set to False to use the original implementation, which
-        sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------
@@ -1560,5 +1626,55 @@ def brpls(data, x_data=None, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, max_i
     Wang, Q., et al. Spectral baseline estimation using penalized least squares
     with weights derived from the Bayesian method. Nuclear Science and Techniques,
     2022, 140, 250-257.
+
+    """
+
+
+@_whittaker_wrapper
+def lsrpls(data, x_data=None, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
+    """
+    Locally Symmetric Reweighted Penalized Least Squares (LSRPLS).
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points. Must not
+        contain missing data (NaN) or Inf.
+    x_data : array-like, optional
+        The x-values. Not used by this function, but input is allowed for consistency
+        with other functions.
+    lam : float, optional
+        The smoothing parameter. Larger values will create smoother baselines.
+        Default is 1e5.
+    diff_order : int, optional
+        The order of the differential matrix. Must be greater than 0. Default is 2
+        (second order differential matrix). Typical values are 2 or 1.
+    max_iter : int, optional
+        The max number of fit iterations. Default is 50.
+    tol : float, optional
+        The exit criteria. Default is 1e-3.
+    weights : array-like, shape (N,), optional
+        The weighting array. If None (default), then the initial weights
+        will be an array with size equal to N and all values set to 1.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'weights': numpy.ndarray, shape (N,)
+            The weight array used for fitting the data.
+        * 'tol_history': numpy.ndarray
+            An array containing the calculated tolerance values for
+            each iteration. The length of the array is the number of iterations
+            completed. If the last value in the array is greater than the input
+            `tol` value, then the function did not converge.
+
+    References
+    ----------
+    Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+    Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
 
     """

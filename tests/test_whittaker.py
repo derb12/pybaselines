@@ -397,3 +397,40 @@ class TestBrPLS(WhittakerTester):
 
         assert params['tol_history'].size == (max_iter_2 + 2) * (max_iter + 1)
         assert params['tol_history'].shape == (max_iter_2 + 2, max_iter + 1)
+
+
+class TestLSRPLS(WhittakerTester):
+    """Class for testing lsrpls baseline."""
+
+    func_name = 'lsrpls'
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
+
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures that the function does not create non-finite weights.
+
+        lsrpls should not experience overflow since there is a cap on the iteration used
+        within the exponential, so no warnings or errors should be emitted even when using
+        a very high max_iter and low tol.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        x, y = no_noise_data_fixture
+        with np.errstate(over='raise'):
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
+
+        assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()

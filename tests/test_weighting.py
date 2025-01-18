@@ -210,21 +210,15 @@ def expected_airpls(y, baseline, iteration, normalize_weights):
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
+    normalize_weights : bool
+        If True, will normalize the computed weights between 0 and 1 to improve
+        the numerical stabilty. Set to False to use the original implementation, which
+        sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------
     weights : numpy.ndarray, shape (N,)
         The calculated weights.
-    residual_l1_norm : float
-        The L1 norm of the negative residuals, used to calculate the exit criteria
-        for the airPLS algorithm.
-    exit_early : bool
-        Designates if there is a potential error with the calculation such that no further
-        iterations should be performed.
-    normalize_weights : bool
-        If True, will normalize the computed weights between 0 and 1 to improve
-        the numerical stabilty. Set to False to use the original implementation, which
-        sets weights for all negative residuals to be greater than 1.
 
     References
     ----------
@@ -1302,3 +1296,115 @@ def test_brpls_overflow(one_d, beta, positive, dtype):
     # weights should still be the same as the nieve calculation regardless
     # of overflow; have to use relatively high rtol to cover float32 cases
     assert_allclose(weights, expected_weights, rtol=5e-6, atol=1e-10)
+
+
+def expected_lsrpls(y, baseline, iteration):
+    """
+    The weighting for the locally symmetric reweighted penalized least squares (lsrpls).
+
+    Does not perform error checking since this is just used for simple weighting cases.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    iteration : int
+        The iteration number. Should be 1-based, such that the first iteration is 1
+        instead of 0.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+
+    References
+    ----------
+    Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+    Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+
+    """
+    residual = y - baseline
+    neg_residual = residual[residual < 0]
+
+    std = _weighting._safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+    inner = ((10**iteration) / std) * (residual - (2 * std - np.mean(neg_residual)))
+    weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
+    return weights
+
+
+@pytest.mark.parametrize('iteration', (1, 10))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_lsrpls_normal(iteration, one_d):
+    """Ensures lsrpls weighting works as intented for a normal baseline."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration)
+    expected_weights = expected_lsrpls(y_data, baseline, iteration)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
+
+
+@pytest.mark.parametrize('iteration', (1, 10))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_lsrpls_all_above(iteration, one_d):
+    """Ensures lsrpls weighting works as intented for a baseline with all points above the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_above()
+    else:
+        y_data, baseline = baseline_2d_all_above()
+    weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration)
+    expected_weights = expected_lsrpls(y_data, baseline, iteration)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
+@pytest.mark.parametrize('iteration', (1, 10))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_lsrpls_all_below(iteration, one_d):
+    """Ensures lsrpls weighting works as intented for a baseline with all points below the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_below()
+    else:
+        y_data, baseline = baseline_2d_all_below()
+
+    with pytest.warns(utils.ParameterWarning):
+        weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration)
+    expected_weights = np.zeros_like(y_data)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert exit_early
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_lsrpls_overflow(one_d):
+    """Ensures exponential overflow does not occur from lsrpls weighting."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    iteration = 10000
+    # sanity check to ensure overflow actually should occur
+    with pytest.raises(OverflowError):
+        expected_lsrpls(y_data, baseline, iteration)
+
+    with np.errstate(over='raise'):
+        weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration)
+
+    assert np.isfinite(weights).all()
+    assert not exit_early
