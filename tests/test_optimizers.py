@@ -80,7 +80,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
             'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc', 'pspline_asls',
             'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
             'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa',
-            'brpls', 'pspline_brpls', 'pspline_mpls'
+            'brpls', 'pspline_brpls', 'pspline_mpls', 'lsrpls', 'pspline_lsrpls'
         )
     )
     def test_all_methods(self, method):

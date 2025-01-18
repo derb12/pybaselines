@@ -947,3 +947,94 @@ class _Whittaker(_Algorithm2D):
             params['weights'] = baseline_weights.reshape(self._shape)
 
         return baseline, params
+
+    @_Algorithm2D._register(sort_keys=('weights',))
+    def lsrpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
+              num_eigens=(10, 10), return_dof=False):
+        """
+        Locally Symmetric Reweighted Penalized Least Squares (LSRPLS).
+
+        Parameters
+        ----------
+        data : array-like, shape (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter for the rows and columns, respectively. If a single
+            value is given, both will use the same value. Larger values will create smoother
+            baselines. Default is 1e3.
+        diff_order : int or Sequence[int, int], optional
+            The order of the differential matrix for the rows and columns, respectively. If
+            a single value is given, both will use the same value. Must be greater than 0.
+            Default is 2 (second order differential matrix). Typical values are 2 or 1.
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        weights : array-like, shape (M, N), optional
+            The weighting array. If None (default), then the initial weights
+            will be an array with shape equal to (M, N) and all values set to 1.
+        num_eigens : int or Sequence[int, int] or None
+            The number of eigenvalues for the rows and columns, respectively, to use
+            for eigendecomposition. Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower.
+            Default is (10, 10).
+        return_dof : bool, optional
+            If True and `num_eigens` is not None, then the effective degrees of freedom for
+            each eigenvector will be calculated and returned in the parameter dictionary.
+            Default is False since the calculation takes time.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
+
+        References
+        ----------
+        Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+        Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+
+        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
+        (Preprint), 2023.
+
+        """
+        y, weight_array = self._setup_whittaker(
+            data, lam, diff_order, weights, num_eigens=num_eigens
+        )
+        tol_history = np.empty(max_iter + 1)
+        for i in range(1, max_iter + 2):
+            baseline = self.whittaker_system.solve(y, weight_array)
+            new_weights, exit_early = _weighting._lsrpls(y, baseline, i)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
+            calc_difference = relative_difference(weight_array, new_weights)
+            tol_history[i - 1] = calc_difference
+            if calc_difference < tol:
+                break
+            weight_array = new_weights
+
+        params = {'tol_history': tol_history[:i]}
+        if self.whittaker_system._using_svd:
+            params['weights'] = weight_array
+            if return_dof:
+                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+        else:
+            baseline = baseline.reshape(self._shape)
+            params['weights'] = weight_array.reshape(self._shape)
+
+        return baseline, params

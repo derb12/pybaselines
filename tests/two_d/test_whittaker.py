@@ -258,3 +258,14 @@ class TestBrPLS(WhittakerTester, EigenvalueMixin):
 
         assert params['tol_history'].size == (max_iter_2 + 2) * (max_iter + 1)
         assert params['tol_history'].shape == (max_iter_2 + 2, max_iter + 1)
+
+
+class TestLSRPLS(WhittakerTester, EigenvalueMixin):
+    """Class for testing lsrpls baseline."""
+
+    func_name = 'lsrpls'
+
+    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        self.class_func(self.y, diff_order=diff_order)
