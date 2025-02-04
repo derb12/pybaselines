@@ -638,7 +638,8 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
     }
     expected_params['b'][sort_indices] = expected_params['b'][sort_indices]
     expected_baseline = baseline.copy()
-    if change_order and not assume_sorted:
+    should_change_order = change_order and not assume_sorted
+    if should_change_order:
         expected_baseline[sort_indices] = expected_baseline[sort_indices][::-1]
         expected_params['a'][sort_indices] = expected_params['a'][sort_indices][::-1]
 
@@ -649,8 +650,17 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
         baseline, params, dtype=output_dtype, sort_keys=('a',)
     )
 
+    if not should_change_order and (output_dtype is None or baseline.dtype == output_dtype):
+        assert np.shares_memory(output, baseline)  # should be the same object
+    else:
+        assert baseline is not output
+
+    if output_dtype is not None:
+        assert output.dtype == output_dtype
+    else:
+        assert output.dtype == baseline.dtype
+
     assert_allclose(output, expected_baseline, 1e-16, 1e-16)
-    assert output.dtype == output_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key])
 
@@ -671,8 +681,9 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     is False.
 
     """
-    x = np.arange(20)
+    x = np.arange(20, dtype=int)
     y = 5 * x
+    x_dtype = x.dtype
     y_dtype = y.dtype
     sort_indices = slice(0, 10)
 
@@ -699,6 +710,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
 
         @_algorithm_setup._Algorithm._register(sort_keys=('a',), skip_sorting=skip_sorting)
         def func2(self, data, *args, **kwargs):
+            """For checking skip_sorting."""
             expected_x = np.arange(20)
             expected_input = 5 * expected_x
             if change_order and assume_sorted:
@@ -714,6 +726,14 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
                 'b': np.arange(len(x))
             }
             return 1 * data, params
+
+        @_algorithm_setup._Algorithm._register(dtype=float)
+        def func3(self, data, *args, **kwargs):
+            """Ensures dtypes are correctly set by the decorator."""
+            assert self.x.dtype == float
+            assert data.dtype == float
+
+            return 1 * data, {}
 
     if change_order:
         x[sort_indices] = x[sort_indices][::-1]
@@ -757,6 +777,18 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     assert isinstance(output2, np.ndarray)
     for key, value in expected_params.items():
         assert_array_equal(value, output_params2[key])
+
+    output3, output_params3 = algorithm.func3(y)
+    # dtypes should not be changed outside of the function
+    if output_dtype is None:
+        assert output3.dtype == float
+    else:
+        assert output3.dtype == expected_dtype
+
+    if not list_input:
+        assert y.dtype == y_dtype
+        assert x.dtype == x_dtype
+        assert algorithm.x.dtype == x_dtype
 
 
 def test_class_wrapper():

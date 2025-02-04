@@ -47,11 +47,11 @@ def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asa
     """
     output = np.asarray(data, **asarray_kwargs)
     ndim = output.ndim
-    if not ndim:
+    if ndim == 0:
         is_scalar = True
     else:
         if ndim > 1:  # coerce to 1d shape
-            output = output.reshape(-1)
+            output = output.ravel()
         len_output = len(output)
         if len_output == 1 and coerce_0d:
             is_scalar = True
@@ -160,6 +160,8 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
     ValueError
         Raised if `ensure_1d` is True and `array` does not have a shape of (N,) or
         (N, 1) or (1, N).
+    TypeError
+        Raised if `array` is a scalar value.
 
     Notes
     -----
@@ -167,23 +169,26 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
     (N,) for better compatibility for all functions. Likewise, `ensure_2d` will flatten to
     (M, N).
 
+    Does not increase dimensionality of the input, so a scalar will not be made 1D or a 1D
+    array will not be made 2D. Instead, an error is raised.
+
     """
     if check_finite:
         array_func = np.asarray_chkfinite
     else:
         array_func = np.asarray
     output = array_func(array, dtype=dtype, order=order)
+    dimensions = output.ndim
+    if dimensions < 1:
+        raise TypeError('input cannot be a scalar')
+
     if ensure_1d:
-        output = np.array(output, copy=False, ndmin=1)
-        dimensions = output.ndim
         if dimensions == 2 and 1 in output.shape:
-            output = output.reshape(-1)
+            output = output.ravel()
         elif dimensions != 1:
             raise ValueError('must be a one dimensional array')
     elif two_d:
-        output = np.array(output, copy=False, ndmin=2)
-        dimensions = output.ndim
-        if dimensions == 2 and 1 in output.shape:
+        if dimensions < 2 or (dimensions == 2 and 1 in output.shape):
             raise ValueError(
                 'input data must be a two dimensional array with more than just one row or column'
             )

@@ -206,7 +206,7 @@ class _Algorithm:
             if not skip_sorting:
                 baseline = _sort_array(baseline, sort_order=self._inverted_order)
 
-        baseline = baseline.astype(dtype, copy=False)
+        baseline = np.asarray(baseline, dtype=dtype)
 
         return baseline, params
 
@@ -278,9 +278,7 @@ class _Algorithm:
                     input_y = False
                 # update self.x just to ensure dtype and order are correct
                 x_dtype = self.x.dtype
-                self.x = _check_array(
-                    self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
-                )
+                self.x = np.asarray(self.x, dtype=dtype, order=order)
 
             if input_y and not skip_sorting:
                 y = _sort_array(y, sort_order=self._sort_order)
@@ -292,7 +290,7 @@ class _Algorithm:
 
             baseline, params = func(self, y, *args, **kwargs)
             if reset_x:
-                self.x = np.array(self.x, dtype=x_dtype, copy=False)
+                self.x = np.asarray(self.x, dtype=x_dtype)
 
             return self._return_results(baseline, params, output_dtype, sort_keys, skip_sorting)
 

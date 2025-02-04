@@ -233,7 +233,7 @@ class _Algorithm2D:
 
             if not skip_sorting:
                 baseline = _sort_array2d(baseline, sort_order=self._inverted_order)
-        baseline = baseline.astype(dtype, copy=False)
+        baseline = np.asarray(baseline, dtype=dtype)
 
         return baseline, params
 
@@ -322,17 +322,13 @@ class _Algorithm2D:
             # update self.x and/or self.z just to ensure dtype and order are correct
             if reset_x:
                 x_dtype = self.x.dtype
-                self.x = _check_array(
-                    self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
-                )
+                self.x = np.asarray(self.x, dtype=dtype, order=order)
             else:
                 self._shape = (y.shape[-2], self._shape[1])
                 self.x = np.linspace(-1, 1, self._shape[0])
             if reset_z:
                 z_dtype = self.z.dtype
-                self.z = _check_array(
-                    self.z, dtype=dtype, order=order, check_finite=False, ensure_1d=False
-                )
+                self.z = np.asarray(self.z, dtype=dtype, order=order)
             else:
                 self._shape = (self._shape[0], y.shape[-1])
                 self.z = np.linspace(-1, 1, self._shape[1])
@@ -346,9 +342,9 @@ class _Algorithm2D:
 
             baseline, params = func(self, y, *args, **kwargs)
             if reset_x:
-                self.x = np.array(self.x, dtype=x_dtype, copy=False)
+                self.x = np.asarray(self.x, dtype=x_dtype)
             if reset_z:
-                self.z = np.array(self.z, dtype=z_dtype, copy=False)
+                self.z = np.asarray(self.z, dtype=z_dtype)
 
             return self._return_results(
                 baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_2d=ensure_2d,
