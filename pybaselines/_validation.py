@@ -196,7 +196,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
             if dimensions == 3 and 1 in output.shape:
                 output_shape = np.array(output.shape)
                 flat_dims = ~np.equal(output_shape, 1)
-                output = output.reshape(output_shape[flat_dims]).shape
+                output = output.reshape(output_shape[flat_dims])
             elif dimensions != 2:
                 raise ValueError('must be a two dimensional array')
     elif ensure_2d and not two_d:

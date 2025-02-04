@@ -425,6 +425,12 @@ def test_check_array_dtype(small_data, list_input):
             assert output.dtype == dtype
 
 
+def test_check_array_scalar_fails():
+    """Ensures an exception is raised if a scalar is input into _check_array."""
+    with pytest.raises(TypeError):
+        _validation._check_array(5, ensure_1d=True)
+
+
 def test_check_array_ensure_1d():
     """Tests all valid inputs for 1d arrays."""
     original_shape = (10, 1)
@@ -444,6 +450,65 @@ def test_check_array_ensure_1d():
     # also ensure the shape is ignored when ensure_1d is False
     output = _validation._check_array(array.reshape(-1, 2), ensure_1d=False)
     assert output.shape == array.reshape(-1, 2).shape
+
+
+def test_check_array_ensure_2d():
+    """Tests all valid inputs for 2d arrays."""
+    original_shape = (10, 2, 1)
+    desired_shape = (10, 2)
+    array = np.ones(original_shape)
+
+    output = _validation._check_array(array, ensure_1d=False, ensure_2d=True, two_d=True)
+    assert output.shape == desired_shape
+    assert array.shape == original_shape  # ensure it did not modify the input array
+
+    output = _validation._check_array(
+        array.reshape(desired_shape), ensure_1d=False, ensure_2d=True, two_d=True
+    )
+    assert output.shape == desired_shape
+
+    output = _validation._check_array(array.T, ensure_1d=False, ensure_2d=True, two_d=True)
+    assert output.shape == desired_shape[::-1]
+
+    # also ensure the truncation of dimensions can happen regardless of if it is (M, N, 1),
+    # (1, M, N) or (M, 1, N)
+    for input_shape in ((10, 2, 1), (10, 1, 2), (1, 10, 2)):
+        output = _validation._check_array(
+            np.ones(input_shape), ensure_1d=False, ensure_2d=True, two_d=True
+        )
+        assert output.shape == desired_shape
+
+    # ensure an exception is raised if the array is only has shape (N, 1) or (N,)
+    with pytest.raises(ValueError):
+        _validation._check_array(array.ravel(), ensure_1d=False, ensure_2d=True, two_d=True)
+    with pytest.raises(ValueError):
+        _validation._check_array(array.reshape(-1, 1), ensure_1d=False, ensure_2d=True, two_d=True)
+
+    # ensure the shape is ignored when ensure_2d is False
+    output = _validation._check_array(array, ensure_1d=False, two_d=True, ensure_2d=False)
+    assert output.shape == original_shape
+
+
+def test_check_array_ensure_2d_failures():
+    """Ensure an exception is raised when ensure_2d is True and two_d is False.
+
+    Also ensures an exception is raised if input has greater than 2 dimensions
+    """
+    with pytest.raises(ValueError):
+        _validation._check_array(np.ones((15, 2)), ensure_1d=False, ensure_2d=True, two_d=False)
+
+    with pytest.raises(ValueError):
+        _validation._check_array(np.ones((15, 2, 3)), ensure_1d=False, ensure_2d=True, two_d=True)
+
+    with pytest.raises(ValueError):
+        _validation._check_array(
+            np.ones((15, 2, 1, 1)), ensure_1d=False, ensure_2d=True, two_d=True
+        )
+
+    with pytest.raises(ValueError):
+        _validation._check_array(
+            np.ones((15, 2, 3, 3)), ensure_1d=False, ensure_2d=True, two_d=True
+        )
 
 
 def test_check_array_ensure_1d_fails():
@@ -602,6 +667,24 @@ def test_optional_array_no_input():
 
     assert isinstance(output, np.ndarray)
     assert_array_equal(output, np.ones(length))
+
+
+def test_optional_array_copy_input():
+    """Ensures copy semantics are handled correctly."""
+    length = 5
+    array = np.ones(length, dtype=int)
+
+    # should not make a copy if dtype and order are unchanged
+    output = _validation._check_optional_array(length, array, copy_input=False)
+    assert np.shares_memory(array, output)
+
+    # should make a copy if explicitly stated
+    output = _validation._check_optional_array(length, array, copy_input=True)
+    assert not np.shares_memory(array, output)
+
+    # should make a copy if dtype changes
+    output = _validation._check_optional_array(length, array, dtype=float, copy_input=False)
+    assert not np.shares_memory(array, output)
 
 
 def test_get_row_col_values():
