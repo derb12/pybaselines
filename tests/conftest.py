@@ -260,6 +260,34 @@ class DummyAlgorithm:
         raise NotImplementedError('need to set func')
 
 
+def check_param_keys(expected_keys, output_keys):
+    """
+    Ensures the output keys within the parameter dictionary matched the expected keys.
+
+    Parameters
+    ----------
+    expected_keys : Iterable[str, ...]
+        An iterable of the expected keys within the parameter dictionary.
+    output_keys : Iterable[str, ...]
+        An iterable of the actual keys within the parameter dictionary.
+
+    Raises
+    ------
+    AssertionError
+        Raised if `expected_keys` and `output_keys` are not the same.
+
+    """
+    expected = set(expected_keys)
+    output = set(output_keys)
+
+    missed_keys = expected.difference(output)
+    if missed_keys:
+        raise AssertionError(f'key(s) missing from param dictionary: {missed_keys}')
+    unchecked_keys = output.difference(expected)
+    if unchecked_keys:
+        raise AssertionError(f'unchecked key(s) in param dictionary output: {unchecked_keys}')
+
+
 class BaseTester:
     """
     A base class for testing all algorithms.
@@ -347,8 +375,7 @@ class BaseTester:
         func_output, func_params = self.func(data=self.y, x_data=self.x, **self.kwargs)
 
         assert_allclose(class_output, func_output, **assertion_kwargs)
-        for key in class_params:
-            assert key in func_params
+        check_param_keys(class_params.keys(), func_params.keys())
 
     def test_functional_vs_class_parameters(self):
         """
@@ -412,7 +439,7 @@ class BaseTester:
             **assertion_kwargs
         )
 
-    def test_output(self, additional_keys=None, **kwargs):
+    def test_output(self, additional_keys=None, optimizer_keys=None, **kwargs):
         """
         Ensures that the output has the desired format.
 
@@ -423,6 +450,8 @@ class BaseTester:
         ----------
         additional_keys : Iterable(str, ...), optional
             Additional keys to check for in the output parameter dictionary. Default is None.
+        optimizer_keys : Iterable(str, ...), optional
+            Keys to check within the 'method_params' key for optimizer algorithms.
         **kwargs
             Additional keyword arguments to pass to the function.
 
@@ -438,13 +467,15 @@ class BaseTester:
             total_keys = list(self.param_keys) + list(additional_keys)
         else:
             total_keys = self.param_keys
-        # check all entries in output param dictionary
-        for key in total_keys:
-            if key not in output[1]:
-                raise AssertionError(f'key "{key}" missing from param dictionary')
-            output[1].pop(key)
-        if output[1]:
-            raise AssertionError(f'unchecked keys in param dictionary: {output[1]}')
+
+        # ensure input keys are correct before checking output
+        total_key_set = set(total_keys)
+        assert len(total_key_set) == len(total_keys), 'repeated keys within param_keys'
+
+        check_param_keys(total_key_set, output[1].keys())
+
+        if optimizer_keys is not None:
+            check_param_keys(optimizer_keys, output[1]['method_params'].keys())
 
     def test_x_ordering(self, assertion_kwargs=None, **kwargs):
         """Ensures arrays are correctly sorted within the function."""
@@ -658,7 +689,7 @@ class BaseTester2D:
             **assertion_kwargs
         )
 
-    def test_output(self, additional_keys=None, **kwargs):
+    def test_output(self, additional_keys=None, optimizer_keys=None, **kwargs):
         """
         Ensures that the output has the desired format.
 
@@ -669,6 +700,8 @@ class BaseTester2D:
         ----------
         additional_keys : Iterable(str, ...), optional
             Additional keys to check for in the output parameter dictionary. Default is None.
+        optimizer_keys : Iterable(str, ...), optional
+            Keys to check within the 'method_params' key for optimizer algorithms.
         **kwargs
             Additional keyword arguments to pass to the function.
 
@@ -684,13 +717,15 @@ class BaseTester2D:
             total_keys = list(self.param_keys) + list(additional_keys)
         else:
             total_keys = self.param_keys
-        # check all entries in output param dictionary
-        for key in total_keys:
-            if key not in output[1]:
-                raise AssertionError(f'key "{key}" missing from param dictionary')
-            output[1].pop(key)
-        if output[1]:
-            raise AssertionError(f'unchecked keys in param dictionary: {output[1]}')
+
+        # ensure input keys are correct before checking output
+        total_key_set = set(total_keys)
+        assert len(total_key_set) == len(total_keys), 'repeated keys within param_keys'
+
+        check_param_keys(total_key_set, output[1].keys())
+
+        if optimizer_keys is not None:
+            check_param_keys(optimizer_keys, output[1]['method_params'].keys())
 
     def test_xz_ordering(self, assertion_kwargs=None, **kwargs):
         """Ensures arrays are correctly sorted within the function."""

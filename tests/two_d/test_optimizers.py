@@ -42,10 +42,18 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
             assertion_kwargs['atol'] = 1e-14
 
         for key in self.weight_keys:
-            assert_allclose(
-                regular_output_params[key], self.reverse_array(reverse_output_params[key]),
-                **assertion_kwargs
-            )
+            if key in regular_output_params:
+                assert_allclose(
+                    regular_output_params[key],
+                    self.reverse_array(reverse_output_params[key]),
+                    **assertion_kwargs
+                )
+            else:
+                assert_allclose(
+                    regular_output_params['method_params'][key],
+                    self.reverse_array(reverse_output_params['method_params'][key]),
+                    **assertion_kwargs
+                )
         assert_allclose(
             regular_output, self.reverse_array(reverse_output), **assertion_kwargs
         )
@@ -56,14 +64,36 @@ class OptimizersTester(BaseTester2D):
 
     module = optimizers
     algorithm_base = optimizers._Optimizers
+    checked_method_keys = None
+
+    def test_output(self, additional_keys=None, additional_method_keys=None,
+                    check_method_params=True, **kwargs):
+        """Ensures the keys within the method_params dictionary are also checked."""
+        if check_method_params:
+            if additional_keys is None:
+                added_keys = ['method_params']
+            else:
+                added_keys = list(additional_keys) + ['method_params']
+        else:
+            added_keys = additional_keys
+        if additional_method_keys is None:
+            optimizer_keys = self.checked_method_keys
+        elif self.checked_method_keys is None:
+            optimizer_keys = additional_method_keys
+        else:
+            optimizer_keys = list(self.checked_method_keys) + list(additional_method_keys)
+        super().test_output(
+            additional_keys=added_keys, optimizer_keys=optimizer_keys, **kwargs
+        )
 
 
 class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing collab_pls baseline."""
 
     func_name = "collab_pls"
+    checked_keys = ('average_weights',)
     # will need to change checked_keys if default method is changed
-    checked_keys = ('average_weights', 'weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history')
     three_d = True
     weight_keys = ('average_weights', 'weights')
 
@@ -147,6 +177,7 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
 
     func_name = 'adaptive_minmax'
     checked_keys = ('weights', 'constrained_weights', 'poly_order')
+    checked_method_keys = ('weights', 'tol_history')
     weight_keys = ('weights', 'constrained_weights')
 
     @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
@@ -218,6 +249,18 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
             constrained_weight=weightings, constrained_fraction=constrained_fractions
         )
 
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        """Ensures the polynomial coefficients are output if `return_coef` is True."""
+        if return_coef:
+            additional_method_keys = ['coef']
+        else:
+            additional_method_keys = None
+        super().test_output(
+            additional_method_keys=additional_method_keys,
+            method_kwargs={'return_coef': return_coef}
+        )
+
 
 class TestIndividualAxes(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing individual_axes baseline."""
@@ -227,7 +270,13 @@ class TestIndividualAxes(OptimizersTester, OptimizerInputWeightsMixin):
 
     @pytest.mark.parametrize('axes', (0, 1, [0], [1], (0, 1), [1, 0]))
     def test_output(self, axes):
-        """Tests the output fitting the rows and/or columns."""
+        """
+        Tests the output fitting the rows and/or columns.
+
+        individual_axes has individual names for each of the parameters for the rows
+        and columns, so skip the check for method_params.
+
+        """
         if isinstance(axes, int):
             input_axes = [axes]
         else:
@@ -239,7 +288,7 @@ class TestIndividualAxes(OptimizersTester, OptimizerInputWeightsMixin):
         if 1 in input_axes:
             additional_keys.extend(['params_columns', 'baseline_columns'])
 
-        super().test_output(additional_keys=additional_keys, axes=axes)
+        super().test_output(additional_keys=additional_keys, axes=axes, check_method_params=False)
 
     def test_xz_ordering(self):
         """

@@ -14,7 +14,7 @@ from pybaselines import (
     api, classification, misc, morphological, optimizers, polynomial, smooth, spline, whittaker
 )
 
-from .conftest import get_data
+from .conftest import get_data, check_param_keys
 
 
 _ALL_CLASSES = (
@@ -112,14 +112,7 @@ class TestBaseline:
         )(fit_data, **kwargs)
 
         assert_allclose(api_baseline, class_baseline, rtol=1e-12, atol=1e-12)
-        assert len(api_params.keys()) == len(class_params.keys())
-        for key, value in api_params.items():
-            assert key in class_params
-            class_value = class_params[key]
-            if isinstance(value, (int, float, np.ndarray, list, tuple)):
-                assert_allclose(value, class_value, rtol=1e-12, atol=1e-12)
-            else:
-                assert value == class_value
+        check_param_keys(api_params.keys(), class_params.keys())
 
     def test_method_availability(self):
         """Ensures all public algorithms are available through the Baseline class."""

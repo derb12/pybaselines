@@ -46,15 +46,21 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
             assertion_kwargs['atol'] = 1e-14
 
         for key in self.weight_keys:
-            assert_allclose(
-                regular_output_params[key], self.reverse_array(reverse_output_params[key]),
-                **assertion_kwargs
-            )
+            if key in regular_output_params:
+                assert_allclose(
+                    regular_output_params[key],
+                    self.reverse_array(reverse_output_params[key]),
+                    **assertion_kwargs
+                )
+            else:
+                assert_allclose(
+                    regular_output_params['method_params'][key],
+                    self.reverse_array(reverse_output_params['method_params'][key]),
+                    **assertion_kwargs
+                )
         assert_allclose(
             regular_output, self.reverse_array(reverse_output), **assertion_kwargs
         )
-
-        return regular_output, regular_output_params, reverse_output, reverse_output_params
 
 
 class OptimizersTester(BaseTester):
@@ -62,14 +68,32 @@ class OptimizersTester(BaseTester):
 
     module = optimizers
     algorithm_base = optimizers._Optimizers
+    checked_method_keys = None
+
+    def test_output(self, additional_keys=None, additional_method_keys=None, **kwargs):
+        """Ensures the keys within the method_params dictionary are also checked."""
+        if additional_keys is None:
+            added_keys = ['method_params']
+        else:
+            added_keys = list(additional_keys) + ['method_params']
+        if additional_method_keys is None:
+            optimizer_keys = self.checked_method_keys
+        elif self.checked_method_keys is None:
+            optimizer_keys = additional_method_keys
+        else:
+            optimizer_keys = list(self.checked_method_keys) + list(additional_method_keys)
+        super().test_output(
+            additional_keys=added_keys, optimizer_keys=optimizer_keys, **kwargs
+        )
 
 
 class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing collab_pls baseline."""
 
     func_name = "collab_pls"
+    checked_keys = ('average_weights',)
     # will need to change checked_keys if default method is changed
-    checked_keys = ('average_weights', 'weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history')
     two_d = True
     weight_keys = ('average_weights', 'weights')
 
@@ -114,8 +138,8 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
         )
 
         assert_allclose(
-            regular_output_params['alpha'],
-            self.reverse_array(reverse_output_params['alpha']),
+            regular_output_params['method_params']['alpha'],
+            self.reverse_array(reverse_output_params['method_params']['alpha']),
             rtol=1e-12, atol=1e-14
         )
 
@@ -124,8 +148,9 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing collab_pls baseline."""
 
     func_name = "optimize_extended_range"
+    checked_keys = ('optimal_parameter', 'min_rmse')
     # will need to change checked_keys if default method is changed
-    checked_keys = ('weights', 'tol_history', 'optimal_parameter', 'min_rmse')
+    checked_method_keys = ('weights', 'tol_history')
     required_kwargs = {'pad_kwargs': {'extrapolate_window': 100}}
 
     @pytest.mark.parametrize('use_class', (True, False))
@@ -160,10 +185,10 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         output = self.class_func(
             self.y, method=method, height_scale=0.1, **kwargs, **self.kwargs
         )
-        if 'weights' in output[1]:
-            assert self.y.shape == output[1]['weights'].shape
-        elif 'alpha' in output[1]:
-            assert self.y.shape == output[1]['alpha'].shape
+        if 'weights' in output[1]['method_params']:
+            assert self.y.shape == output[1]['method_params']['weights'].shape
+        elif 'alpha' in output[1]['method_params']:
+            assert self.y.shape == output[1]['method_params']['alpha'].shape
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
@@ -213,7 +238,8 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
 
         for key in ('weights', 'alpha'):
             assert_allclose(
-                regular_output_params[key], reverse_output_params[key][::-1],
+                regular_output_params['method_params'][key],
+                reverse_output_params['method_params'][key][::-1],
                 rtol=1e-10, atol=1e-14
             )
         assert_allclose(
@@ -279,6 +305,7 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
 
     func_name = 'adaptive_minmax'
     checked_keys = ('weights', 'constrained_weights', 'poly_order')
+    checked_method_keys = ('weights', 'tol_history')
     weight_keys = ('weights', 'constrained_weights')
 
     @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
@@ -346,13 +373,26 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
             constrained_weight=weightings, constrained_fraction=constrained_fractions
         )
 
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        """Ensures the polynomial coefficients are output if `return_coef` is True."""
+        if return_coef:
+            additional_method_keys = ['coef']
+        else:
+            additional_method_keys = None
+        super().test_output(
+            additional_method_keys=additional_method_keys,
+            method_kwargs={'return_coef': return_coef}
+        )
+
 
 class TestCustomBC(OptimizersTester):
     """Class for testing custom_bc baseline."""
 
     func_name = 'custom_bc'
+    checked_keys = ('y_fit', 'x_fit', 'baseline_fit')
     # will need to change checked_keys if default method is changed
-    checked_keys = ('weights', 'tol_history', 'y_fit', 'x_fit')
+    checked_method_keys = ('weights', 'tol_history')
     required_kwargs = {'sampling': 5}
 
     @pytest.mark.parametrize(

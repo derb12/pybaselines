@@ -11,6 +11,7 @@ Created on January 14, 2024
 
 from collections import defaultdict
 from functools import partial
+import itertools
 from math import ceil
 
 import numpy as np
@@ -62,10 +63,10 @@ class _Optimizers(_Algorithm2D):
                 Only returned if `method` is 'aspls'. The
                 `alpha` array used to fit all of the baselines for the
                 :meth:`~.Baseline2D.aspls`.
-
-            Additional items depend on the output of the selected method. Every
-            other key will have a list of values, with each item corresponding to a
-            fit.
+            * 'method_params': dict[str, list]
+                A dictionary containing the output parameters for each individual fit.
+                Keys will depend on the selected method and will have a list of values,
+                with each item corresponding to a fit.
 
         Notes
         -----
@@ -120,7 +121,7 @@ class _Optimizers(_Algorithm2D):
         if method in ('brpls', 'pspline_brpls'):
             method_kws['tol_2'] = np.inf
         baselines = np.empty(data_shape)
-        params = {'average_weights': method_kws['weights']}
+        params = {'average_weights': method_kws['weights'], 'method_params': defaultdict(list)}
         if calc_alpha:
             params['average_alpha'] = method_kws['alpha']
         if method == 'fabc':
@@ -130,10 +131,7 @@ class _Optimizers(_Algorithm2D):
         for i, entry in enumerate(dataset):
             baselines[i], param = baseline_func(entry, **method_kws)
             for key, value in param.items():
-                if key in params:
-                    params[key].append(value)
-                else:
-                    params[key] = [value]
+                params['method_params'][key].append(value)
 
         return baselines, params
 
@@ -194,6 +192,10 @@ class _Optimizers(_Algorithm2D):
                 The weight array used for the endpoint-constrained fits.
             * 'poly_order': numpy.ndarray, shape (2,)
                 An array of the two polynomial orders used for the fitting.
+            * 'method_params': dict[str, list]
+                A dictionary containing the output parameters for each individual fit.
+                Keys will depend on the selected method and will have a list of values,
+                with each item corresponding to a fit.
 
         References
         ----------
@@ -244,29 +246,21 @@ class _Optimizers(_Algorithm2D):
             weight_array = _sort_array2d(weight_array, self._inverted_order)
             constrained_weights = _sort_array2d(constrained_weights, self._inverted_order)
 
-        # TODO should make parameters available; a list with an item for each fit like collab_pls
-        # TODO could maybe just use itertools.permutations, but would want to know the order in
-        # which the parameters are used
-        baselines = np.empty((4, *self._shape))
-        baselines[0] = baseline_func(
-            data=y, poly_order=poly_orders[0], weights=weight_array, **method_kws
-        )[0]
-        baselines[1] = baseline_func(
-            data=y, poly_order=poly_orders[0], weights=constrained_weights, **method_kws
-        )[0]
-        baselines[2] = baseline_func(
-            data=y, poly_order=poly_orders[1], weights=weight_array, **method_kws
-        )[0]
-        baselines[3] = baseline_func(
-            data=y, poly_order=poly_orders[1], weights=constrained_weights, **method_kws
-        )[0]
-
-        # TODO should the coefficients also be made available? Would need to get them from
-        # each of the fits
         params = {
             'weights': weight_array, 'constrained_weights': constrained_weights,
-            'poly_order': poly_orders
+            'poly_order': poly_orders, 'method_params': defaultdict(list)
         }
+        # order of inputs is (poly_orders[0], weight_array), (poly_orders[0], constrained_weights),
+        # (poly_orders[1], weight_array), (poly_orders[1], constrained_weights)
+        baselines = np.empty((4, *self._shape))
+        for i, (p_order, weight) in enumerate(
+            itertools.product(poly_orders, (weight_array, constrained_weights))
+        ):
+            baselines[i], method_params = baseline_func(
+                data=y, poly_order=p_order, weights=weight, **method_kws
+            )
+            for key, value in method_params.items():
+                params['method_params'][key].append(value)
 
         return np.maximum.reduce(baselines), params
 

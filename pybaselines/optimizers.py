@@ -9,6 +9,8 @@ Created on March 3, 2021
 
 """
 
+from collections import defaultdict
+import itertools
 from math import ceil
 
 import numpy as np
@@ -59,10 +61,10 @@ class _Optimizers(_Algorithm):
                 Only returned if `method` is 'aspls' or 'pspline_aspls'. The
                 `alpha` array used to fit all of the baselines for the
                 :meth:`~.Baseline.aspls` or :meth:`~.Baseline.pspline_aspls` methods.
-
-            Additional items depend on the output of the selected method. Every
-            other key will have a list of values, with each item corresponding to a
-            fit.
+            * 'method_params': dict[str, list]
+                A dictionary containing the output parameters for each individual fit.
+                Keys will depend on the selected method and will have a list of values,
+                with each item corresponding to a fit.
 
         Notes
         -----
@@ -118,7 +120,7 @@ class _Optimizers(_Algorithm):
         if method in ('brpls', 'pspline_brpls'):
             method_kws['tol_2'] = np.inf
         baselines = np.empty(data_shape)
-        params = {'average_weights': method_kws['weights']}
+        params = {'average_weights': method_kws['weights'], 'method_params': defaultdict(list)}
         if calc_alpha:
             params['average_alpha'] = method_kws['alpha']
         if method == 'fabc':
@@ -128,10 +130,7 @@ class _Optimizers(_Algorithm):
         for i, entry in enumerate(dataset):
             baselines[i], param = baseline_func(entry, **method_kws)
             for key, value in param.items():
-                if key in params:
-                    params[key].append(value)
-                else:
-                    params[key] = [value]
+                params['method_params'][key].append(value)
 
         return baselines, params
 
@@ -204,8 +203,9 @@ class _Optimizers(_Algorithm):
             * 'min_rmse': float
                 The minimum root-mean-squared-error obtained when using
                 the optimal parameter.
-
-            Additional items depend on the output of the selected method.
+            * 'method_params': dict
+                A dictionary containing the output parameters for the optimal fit.
+                Items will depend on the selected method.
 
         Raises
         ------
@@ -345,16 +345,17 @@ class _Optimizers(_Algorithm):
                 sum_squares = residual.dot(residual)
                 if sum_squares < min_sum_squares:
                     baseline = fit_baseline[lower_bound:upper_idx]
-                    params = fit_params
+                    method_params = fit_params
                     best_val = var
                     min_sum_squares = sum_squares
 
-        params.update(
-            {'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len)}
-        )
+        params = {
+            'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len),
+            'method_params': method_params
+        }
         for key in ('weights', 'alpha'):
-            if key in params:
-                params[key] = params[key][
+            if key in params['method_params']:
+                params['method_params'][key] = params['method_params'][key][
                     0 if side == 'right' else added_window:
                     None if side == 'left' else -added_window
                 ]
@@ -418,6 +419,10 @@ class _Optimizers(_Algorithm):
                 The weight array used for the endpoint-constrained fits.
             * 'poly_order': numpy.ndarray, shape (2,)
                 An array of the two polynomial orders used for the fitting.
+            * 'method_params': dict[str, list]
+                A dictionary containing the output parameters for each individual fit.
+                Keys will depend on the selected method and will have a list of values,
+                with each item corresponding to a fit.
 
         References
         ----------
@@ -463,29 +468,21 @@ class _Optimizers(_Algorithm):
             weight_array = _sort_array(weight_array, self._inverted_order)
             constrained_weights = _sort_array(constrained_weights, self._inverted_order)
 
-        # TODO should make parameters available; a list with an item for each fit like collab_pls
-        # TODO could maybe just use itertools.permutations, but would want to know the order in
-        # which the parameters are used
-        baselines = np.empty((4, self._size))
-        baselines[0] = baseline_func(
-            data=y, poly_order=poly_orders[0], weights=weight_array, **method_kws
-        )[0]
-        baselines[1] = baseline_func(
-            data=y, poly_order=poly_orders[0], weights=constrained_weights, **method_kws
-        )[0]
-        baselines[2] = baseline_func(
-            data=y, poly_order=poly_orders[1], weights=weight_array, **method_kws
-        )[0]
-        baselines[3] = baseline_func(
-            data=y, poly_order=poly_orders[1], weights=constrained_weights, **method_kws
-        )[0]
-
-        # TODO should the coefficients also be made available? Would need to get them from
-        # each of the fits
         params = {
             'weights': weight_array, 'constrained_weights': constrained_weights,
-            'poly_order': poly_orders
+            'poly_order': poly_orders, 'method_params': defaultdict(list)
         }
+        # order of inputs is (poly_orders[0], weight_array), (poly_orders[0], constrained_weights),
+        # (poly_orders[1], weight_array), (poly_orders[1], constrained_weights)
+        baselines = np.empty((4, self._size))
+        for i, (p_order, weight) in enumerate(
+            itertools.product(poly_orders, (weight_array, constrained_weights))
+        ):
+            baselines[i], method_params = baseline_func(
+                data=y, poly_order=p_order, weights=weight, **method_kws
+            )
+            for key, value in method_params.items():
+                params['method_params'][key].append(value)
 
         return np.maximum.reduce(baselines), params
 
@@ -537,8 +534,11 @@ class _Optimizers(_Algorithm):
                 The truncated x-values used for fitting the baseline.
             * 'y_fit': numpy.ndarray, shape (P,)
                 The truncated y-values used for fitting the baseline.
-
-            Additional items depend on the output of the selected method.
+            * 'baseline_fit': numpy.ndarray, shape (P,)
+                The truncated baseline before interpolating from `P` points to `N` points.
+            * 'method_params': dict
+                A dictionary containing the output parameters for the fit using the selected
+                method.
 
         Raises
         ------
@@ -623,11 +623,12 @@ class _Optimizers(_Algorithm):
 
         # param sorting will be wrong, but most params that need sorting will have
         # no meaning since they correspond to a truncated dataset
+        params = {'x_fit': x_fit, 'y_fit': y_fit}
         with fitting_object._override_x(x_fit):
-            baseline_fit, params = baseline_func(y_fit, **method_kws)
+            baseline_fit, params['method_params'] = baseline_func(y_fit, **method_kws)
 
         baseline = np.interp(self.x, x_fit, baseline_fit)
-        params.update({'x_fit': x_fit, 'y_fit': y_fit})
+        params['baseline_fit'] = baseline_fit
         if lam is not None and lam != 0:
             self._setup_whittaker(y, lam=lam, diff_order=diff_order)
             baseline = self.whittaker_system.solve(
@@ -680,10 +681,10 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
             Only returned if `method` is 'aspls' or 'pspline_aspls'. The
             `alpha` array used to fit all of the baselines for the
             :meth:`~.Baseline.aspls` or :meth:`~.Baseline.pspline_aspls` methods.
-
-        Additional items depend on the output of the selected method. Every
-        other key will have a list of values, with each item corresponding to a
-        fit.
+        * 'method_params': dict[str, list]
+            A dictionary containing the output parameters for each individual fit.
+            Keys will depend on the selected method and will have a list of values,
+            with each item corresponding to a fit.
 
     Notes
     -----
@@ -771,8 +772,9 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         * 'min_rmse': float
             The minimum root-mean-squared-error obtained when using
             the optimal parameter.
-
-        Additional items depend on the output of the selected method.
+        * 'method_params': dict
+            A dictionary containing the output parameters for the optimal fit.
+            Items will depend on the selected method.
 
     Raises
     ------
@@ -916,6 +918,10 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
             The weight array used for the endpoint-constrained fits.
         * 'poly_order': numpy.ndarray, shape (2,)
             An array of the two polynomial orders used for the fitting.
+        * 'method_params': dict[str, list]
+            A dictionary containing the output parameters for each individual fit.
+            Keys will depend on the selected method and will have a list of values,
+            with each item corresponding to a fit.
 
     References
     ----------
@@ -974,8 +980,11 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
             The truncated x-values used for fitting the baseline.
         * 'y_fit': numpy.ndarray, shape (P,)
             The truncated y-values used for fitting the baseline.
-
-        Additional items depend on the output of the selected method.
+        * 'baseline_fit': numpy.ndarray, shape (P,)
+            The truncated baseline before interpolating from `P` points to `N` points.
+        * 'method_params': dict
+            A dictionary containing the output parameters for the fit using the selected
+            method.
 
     Raises
     ------
