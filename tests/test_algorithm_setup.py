@@ -864,16 +864,17 @@ def test_override_x(algorithm):
     old_size = algorithm._size
     new_size = 20
     new_x = np.arange(new_size)
-    with algorithm._override_x(new_x) as new_algorithm:
-        assert len(new_algorithm.x) == new_size
-        assert new_algorithm._size == new_size
-        assert new_algorithm._shape == (new_size,)
-        assert new_algorithm.poly_order == -1
-        assert new_algorithm.vandermonde is None
-        assert new_algorithm.whittaker_system is None
-        assert new_algorithm.pspline is None
+    new_algorithm = algorithm._override_x(new_x)
 
-    # also ensure things are reset correctly
+    assert len(new_algorithm.x) == new_size
+    assert new_algorithm._size == new_size
+    assert new_algorithm._shape == (new_size,)
+    assert new_algorithm.poly_order == -1
+    assert new_algorithm.vandermonde is None
+    assert new_algorithm.whittaker_system is None
+    assert new_algorithm.pspline is None
+
+    # also ensure original things are unchanged
     assert len(algorithm.x) == old_size
     assert algorithm._size == old_size
     assert algorithm._shape == (old_size,)
@@ -893,15 +894,15 @@ def test_override_x_polynomial(algorithm):
 
     new_len = 20
     new_x = np.arange(new_len)
-    with algorithm._override_x(new_x) as new_algorithm:
-        assert new_algorithm.vandermonde is None
-        new_algorithm._setup_polynomial(
-            np.arange(new_len), poly_order=new_poly_order, calc_vander=True
-        )
-        assert new_algorithm.vandermonde.shape == (new_len, new_poly_order + 1)
-        assert new_algorithm.poly_order == new_poly_order
+    new_algorithm = algorithm._override_x(new_x)
+    assert new_algorithm.vandermonde is None
+    new_algorithm._setup_polynomial(
+        np.arange(new_len), poly_order=new_poly_order, calc_vander=True
+    )
+    assert new_algorithm.vandermonde.shape == (new_len, new_poly_order + 1)
+    assert new_algorithm.poly_order == new_poly_order
 
-    # ensure vandermonde is reset
+    # ensure vandermonde is unchanged
     assert algorithm.vandermonde.shape == (old_len, poly_order + 1)
     assert_allclose(old_vandermonde, algorithm.vandermonde, rtol=1e-14, atol=1e-14)
     assert algorithm.poly_order == poly_order
@@ -912,19 +913,23 @@ def test_override_x_whittaker(algorithm):
     old_len = len(algorithm.x)
     diff_order = 2
     new_diff_order = 3
+    pentapy_solver = 1
 
     algorithm._setup_whittaker(np.arange(old_len), diff_order=diff_order)
+    algorithm.pentapy_solver = 1
     # sanity check
     assert algorithm.whittaker_system.diff_order == diff_order
 
     new_len = 20
     new_x = np.arange(new_len)
-    with algorithm._override_x(new_x) as new_algorithm:
-        assert new_algorithm.whittaker_system is None
-        new_algorithm._setup_whittaker(np.arange(new_len), diff_order=new_diff_order)
-        assert new_algorithm.whittaker_system.diff_order == new_diff_order
+    new_algorithm = algorithm._override_x(new_x)
+    assert new_algorithm.whittaker_system is None
+    assert new_algorithm.pentapy_solver == 1
+    new_algorithm._setup_whittaker(np.arange(new_len), diff_order=new_diff_order)
+    assert new_algorithm.whittaker_system.diff_order == new_diff_order
+    assert new_algorithm.whittaker_system.pentapy_solver == 1
 
-    # ensure Whittaker system is reset
+    # ensure Whittaker system is unchanged
     assert algorithm.whittaker_system.diff_order == diff_order
 
 
@@ -941,13 +946,13 @@ def test_override_x_spline(algorithm):
 
     new_len = 20
     new_x = np.arange(new_len)
-    with algorithm._override_x(new_x) as new_algorithm:
-        assert new_algorithm.pspline is None
-        new_algorithm._setup_spline(np.arange(new_len), spline_degree=new_spline_degree)
-        assert new_algorithm.pspline.spline_degree == new_spline_degree
-        assert old_basis.shape != algorithm.pspline.basis.shape
+    new_algorithm = algorithm._override_x(new_x)
+    assert new_algorithm.pspline is None
+    new_algorithm._setup_spline(np.arange(new_len), spline_degree=new_spline_degree)
+    assert new_algorithm.pspline.spline_degree == new_spline_degree
+    assert old_basis.shape != new_algorithm.pspline.basis.shape
 
-    # ensure P-spline system is reset
+    # ensure P-spline system is unchanged
     assert algorithm.pspline.spline_degree == spline_degree
     assert old_basis.shape == algorithm.pspline.basis.shape
     assert_allclose(algorithm.pspline.basis.toarray(), old_basis, 1e-14, 1e-14)

@@ -922,13 +922,7 @@ def test_override_x(algorithm):
     new_len = 20
     new_x = np.arange(new_len)
     with pytest.raises(NotImplementedError):
-        with algorithm._override_x(new_x) as new_algorithm:
-            assert len(new_algorithm.x) == new_len
-            assert new_algorithm._shape[0] == new_len
-            assert new_algorithm.poly_order == -1
-            assert new_algorithm.vandermonde is None
-            assert new_algorithm.whittaker_system is None
-            assert new_algorithm.pspline is None
+        new_algorithm = algorithm._override_x(new_x)
 
 
 @pytest.mark.parametrize(

@@ -354,10 +354,9 @@ class _Algorithm2D:
 
         return inner
 
-    @contextmanager
     def _override_x(self, new_x, new_sort_order=None):
         """
-        Temporarily sets the x-values for the object to a different array.
+        Creates a new fitting object for the given x-values and z-values.
 
         Useful when fitting extensions of the x attribute.
 
@@ -368,52 +367,18 @@ class _Algorithm2D:
         new_sort_order : [type], optional
             The sort order for the new x values. Default is None, which will not sort.
 
-        Yields
-        ------
+        Returns
+        -------
         pybaselines._algorithm_setup._Algorithm
             The _Algorithm object with the new x attribute.
 
+        Raises
+        ------
+        NotImplementedError
+            Raised since this usage is not currently needed so no 2D implementation was made.
+
         """
         raise NotImplementedError
-
-        old_x = self.x
-        old_len = self._len
-        old_x_domain = self.x_domain
-        old_sort_order = self._sort_order
-        old_inverted_order = self._inverted_order
-        # also have to reset any sized attributes to force recalculation for new x
-        old_poly_order = self.poly_order
-        old_vandermonde = self.vandermonde
-        old_whittaker_system = self.whittaker_system
-        old_pspline = self.pspline
-
-        try:
-            self.x = _check_array(new_x, check_finite=self._check_finite)
-            self._len = len(self.x)
-            self.x_domain = np.polynomial.polyutils.getdomain(self.x)
-            self._sort_order = new_sort_order
-            if self._sort_order is not None:
-                self._inverted_order = _inverted_sort(self._sort_order)
-            else:
-                self._inverted_order = None
-
-            self.vandermonde = None
-            self.poly_order = -1
-            self.whittaker_system = None
-            self.pspline = None
-
-            yield self
-
-        finally:
-            self.x = old_x
-            self._len = old_len
-            self.x_domain = old_x_domain
-            self._sort_order = old_sort_order
-            self._inverted_order = old_inverted_order
-            self.vandermonde = old_vandermonde
-            self.poly_order = old_poly_order
-            self.whittaker_system = old_whittaker_system
-            self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
                          num_eigens=None):

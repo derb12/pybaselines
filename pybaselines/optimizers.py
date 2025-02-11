@@ -240,7 +240,7 @@ class _Optimizers(_Algorithm):
         if side not in ('left', 'right', 'both'):
             raise ValueError('side must be "left", "right", or "both"')
 
-        y, baseline_func, func_module, method_kws, fit_object = self._setup_optimizer(
+        y, _, func_module, method_kws, fit_object = self._setup_optimizer(
             data, method, (whittaker, polynomial, morphological, spline, classification),
             method_kwargs, True
         )
@@ -328,26 +328,27 @@ class _Optimizers(_Algorithm):
                     np.arange(self._size + added_window, self._size + added_len, dtype=np.intp)
                 ), dtype=np.intp)
 
+        new_fitter = fit_object._override_x(fit_x_data, new_sort_order=new_sort_order)
+        baseline_func = getattr(new_fitter, method)
         # TODO maybe switch to linspace since arange is inconsistent when using floats
-        with fit_object._override_x(fit_x_data, new_sort_order=new_sort_order):
-            for var in np.arange(min_value, max_value + step, step):
-                if param_name == 'lam':
-                    method_kws[param_name] = 10**var
-                else:
-                    method_kws[param_name] = var
-                fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
-                # TODO change the known baseline so that np.roll does not have to be
-                # calculated each time, since it requires additional time
-                residual = (
-                    known_background - np.roll(fit_baseline, upper_bound)[:added_len]
-                )
-                # just calculate the sum of squares to reduce time from using sqrt for rmse
-                sum_squares = residual.dot(residual)
-                if sum_squares < min_sum_squares:
-                    baseline = fit_baseline[lower_bound:upper_idx]
-                    method_params = fit_params
-                    best_val = var
-                    min_sum_squares = sum_squares
+        for var in np.arange(min_value, max_value + step, step):
+            if param_name == 'lam':
+                method_kws[param_name] = 10**var
+            else:
+                method_kws[param_name] = var
+            fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
+            # TODO change the known baseline so that np.roll does not have to be
+            # calculated each time, since it requires additional time
+            residual = (
+                known_background - np.roll(fit_baseline, upper_bound)[:added_len]
+            )
+            # just calculate the sum of squares to reduce time from using sqrt for rmse
+            sum_squares = residual.dot(residual)
+            if sum_squares < min_sum_squares:
+                baseline = fit_baseline[lower_bound:upper_idx]
+                method_params = fit_params
+                best_val = var
+                min_sum_squares = sum_squares
 
         params = {
             'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len),
@@ -562,7 +563,7 @@ class _Optimizers(_Algorithm):
                 Intelligent Laboratory Systems, 2011, 109(1), 51-56.
 
         """
-        y, baseline_func, _, method_kws, fitting_object = self._setup_optimizer(
+        y, _, _, method_kws, fitting_object = self._setup_optimizer(
             data, method,
             (classification, misc, morphological, polynomial, smooth, spline, whittaker),
             method_kwargs, True
@@ -624,8 +625,8 @@ class _Optimizers(_Algorithm):
         # param sorting will be wrong, but most params that need sorting will have
         # no meaning since they correspond to a truncated dataset
         params = {'x_fit': x_fit, 'y_fit': y_fit}
-        with fitting_object._override_x(x_fit):
-            baseline_fit, params['method_params'] = baseline_func(y_fit, **method_kws)
+        new_fitter = fitting_object._override_x(x_fit)
+        baseline_fit, params['method_params'] = getattr(new_fitter, method.lower())(y_fit, **method_kws)
 
         baseline = np.interp(self.x, x_fit, baseline_fit)
         params['baseline_fit'] = baseline_fit
