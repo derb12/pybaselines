@@ -11,12 +11,15 @@ authors = [
 ]
 description = "A library of algorithms for the baseline correction of experimental data."
 readme = "README.rst"
-license = {file = "LICENSE.txt"}
+license = "BSD-3-Clause"
+license-files = [
+    "LICENSE.txt",
+    "LICENSES_bundled.txt"
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -74,13 +77,6 @@ release = [
     "twine",
 ]
 dev = ["pybaselines[full, docs, test, release]"]
-
-[tool.setuptools]
-# TODO license-files usage may change in the future once PEP 639 is accepted
-license-files = [
-    "LICENSE.txt",
-    "LICENSES_bundled.txt",
-]
 
 [tool.setuptools.packages.find]
 include = ["pybaselines", "pybaselines.*"]
