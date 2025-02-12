@@ -98,7 +98,7 @@ def _airpls(y, baseline, iteration, normalize_weights):
     else:
         exit_early = False
 
-    residual_l1_norm = abs(neg_residual.sum())
+    residual_l1_norm = neg_residual.sum()
 
     # the exponential of the iteration term is used to make weights more binary at higher
     # iterations (ie. the largest residuals control the weighting); setting the maximum
@@ -114,7 +114,7 @@ def _airpls(y, baseline, iteration, normalize_weights):
     # clip from [0, log(max dtype)] since the positive residuals (negative values) do not matter
     log_max = np.log(np.finfo(y.dtype).max)
     inner = np.clip(
-        (-min(iteration, 50) / residual_l1_norm) * neg_residual,
+        (min(iteration, 50) / residual_l1_norm) * neg_residual,
         a_min=0,
         a_max=log_max - np.spacing(log_max)
     )
@@ -123,7 +123,7 @@ def _airpls(y, baseline, iteration, normalize_weights):
     if normalize_weights:
         weights[neg_mask] /= weights[neg_mask].max()
 
-    return weights, residual_l1_norm, exit_early
+    return weights, abs(residual_l1_norm), exit_early
 
 
 def _safe_std(array, **kwargs):
@@ -555,6 +555,8 @@ def _brpls(y, baseline, beta):
     else:
         exit_early = False
 
+    # note: both mean and sigma are calculated following expectation-maximization for exponential
+    # and gaussian distributions, respectively
     mean = np.mean(pos_residual)
     # sigma is the quadratic mean, ie. the root mean square
     sigma = np.sqrt(neg_residual.dot(neg_residual) / neg_residual.size)

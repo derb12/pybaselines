@@ -194,6 +194,16 @@ def test_averaged_interp_warns():
     assert_allclose(output, expected_output)
 
 
+def test_averaged_interp_negative_interp_half_window():
+    """Ensure exception is raised when input interp_half_window is negative."""
+    x = np.arange(5)
+    y = 1 * x
+    mask = np.ones_like(y, dtype=bool)
+    mask[1] = False  # so no warning is emitted about all points belonging to baseline
+    with pytest.raises(ValueError):
+        classification._averaged_interp(x, y, mask, interp_half_window=-1)
+
+
 @pytest.mark.parametrize('window_size', [20, 21])
 @pytest.mark.parametrize('scale', [2, 3, 4, 5, 6, 7, 8, 9, 10])
 def test_haar(scale, window_size):

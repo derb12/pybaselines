@@ -55,7 +55,7 @@ from scipy.spatial import ConvexHull
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit, trapezoid
-from ._validation import _check_scalar
+from ._validation import _check_scalar, _check_scalar_variable
 from .utils import (
     _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
     pad_edges, relative_difference
@@ -91,7 +91,7 @@ class _Classification(_Algorithm):
             will assign more points as baseline. Default is 3.0.
         sections : int, optional
             The number of sections to divide the input data into for finding the minimum
-            standard deviation.
+            standard deviation. Default is 32.
         smooth_half_window : int, optional
             The half window to use for smoothing the interpolated baseline with a moving average.
             Default is None, which will use `half_window`. Set to 0 to not smooth the baseline.
@@ -138,12 +138,10 @@ class _Classification(_Algorithm):
         if smooth_half_window is None:
             smooth_half_window = half_window
         min_sigma = np.inf
-        for i in range(sections):
+        indices = np.linspace(0, self._size, sections + 1, dtype=np.intp)
+        for (left_idx, right_idx) in zip(indices[:-1], indices[1:]):
             # use ddof=1 since sampling subsets of the data
-            min_sigma = min(
-                min_sigma,
-                np.std(y[i * self._size // sections:((i + 1) * self._size) // sections], ddof=1)
-            )
+            min_sigma = min(min_sigma, np.std(y[left_idx:right_idx], ddof=1))
 
         mask = (
             grey_dilation(y, 2 * half_window + 1) - grey_erosion(y, 2 * half_window + 1)
@@ -797,6 +795,7 @@ class _Classification(_Algorithm):
             if self._sort_order is not None:
                 whittaker_weights = whittaker_weights[self._inverted_order]
 
+        whittaker_weights = whittaker_weights.astype(float)
         baseline = self.whittaker_system.solve(
             self.whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
             overwrite_b=True, overwrite_ab=True
@@ -880,11 +879,10 @@ class _Classification(_Algorithm):
             )[smooth_half_window:-smooth_half_window]
 
         if scalar_sections:
-            total_sections = np.arange(sections + 1, dtype=np.intp) * self._size // sections
+            total_sections = np.linspace(0, self._size, sections + 1, dtype=np.intp)
         else:
-            total_sections = np.concatenate(([0], sections, [self._size]))
             # np.unique already sorts so do not need to check order
-            total_sections = np.unique(total_sections)
+            total_sections = np.unique(np.concatenate(([0], sections, [self._size])))
             for i, section in enumerate(total_sections[:-1]):
                 if total_sections[i + 1] - section < 3:
                     raise ValueError('Each segment must have at least 3 points.')
@@ -1023,6 +1021,10 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
         interpolation.
 
     """
+    interp_hw = _check_scalar_variable(
+        interp_half_window, allow_zero=True, variable_name='interp_half_window', dtype=np.intp
+    )
+
     output = y.copy()
     mask_sum = mask.sum()
     if not mask_sum:  # all points belong to peaks
@@ -1035,12 +1037,8 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
     peak_starts, peak_ends = _find_peak_segments(mask)
     num_y = y.shape[0]
     for start, end in zip(peak_starts, peak_ends):
-        left_mean = np.mean(
-            y[max(0, start - interp_half_window):min(start + interp_half_window + 1, num_y)]
-        )
-        right_mean = np.mean(
-            y[max(0, end - interp_half_window):min(end + interp_half_window + 1, num_y)]
-        )
+        left_mean = np.mean(y[max(0, start - interp_hw):min(start + interp_hw + 1, num_y)])
+        right_mean = np.mean(y[max(0, end - interp_hw):min(end + interp_hw + 1, num_y)])
         _interp_inplace(x[start:end + 1], output[start:end + 1], left_mean, right_mean)
 
     return output
@@ -1076,7 +1074,7 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
         will assign more points as baseline. Default is 3.0.
     sections : int, optional
         The number of sections to divide the input data into for finding the minimum
-        standard deviation.
+        standard deviation. Default is 32.
     smooth_half_window : int, optional
         The half window to use for smoothing the interpolated baseline with a moving average.
         Default is None, which will use `half_window`. Set to 0 to not smooth the baseline.
