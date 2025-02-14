@@ -1605,7 +1605,7 @@ def _loess_solver(AT, b):
     return np.linalg.solve(AT.dot(AT.T), AT.dot(b))
 
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _fill_skips(x, baseline, skips):
     """
     Fills in the skipped baseline points using linear interpolation.
