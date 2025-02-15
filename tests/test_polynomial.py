@@ -287,7 +287,7 @@ class TestLoess(IterativePolynomialTester):
         The outputs from statsmodels were created using::
 
             from statsmodels.nonparametric.smoothers_lowess import lowess
-            output = lowess(y, x, fraction, iterations).T[1]
+            output = lowess(y, x, fraction, iterations, delta=0.0).T[1]
 
         with statsmodels version 0.11.1.
 
@@ -308,7 +308,8 @@ class TestLoess(IterativePolynomialTester):
         for iterations in range(4):
             output = self.algorithm_base(x, check_finite=False, assume_sorted=True).loess(
                 y, conserve_memory=conserve_memory, total_points=total_points,
-                max_iter=iterations, tol=-1, scale=4.0469385011764905, symmetric_weights=True
+                max_iter=iterations, tol=-1, scale=4.0469385011764905, symmetric_weights=True,
+                delta=0.0
             )
 
             assert_allclose(
@@ -336,8 +337,6 @@ class TestLoess(IterativePolynomialTester):
           m-a-v * scale / 0.6744897501960817, so set scale to 4.0469385011764905 to
           get 6 and match statsmodels.
         * set symmetric weights to True.
-        * since x is scaled to (-1, 1) in pybaselines, use delta = delta * 2 rather than
-          delta = delta * (x.max() - x.min()) for statsmodels.
         * only test the first iteration, since just want to check which points are selected
           for fitting
 
@@ -363,7 +362,7 @@ class TestLoess(IterativePolynomialTester):
 
         output = self.algorithm_base(x, check_finite=False, assume_sorted=True).loess(
             y, total_points=total_points, max_iter=0, scale=4.0469385011764905,
-            symmetric_weights=True, delta=2 * delta
+            symmetric_weights=True, delta=delta * (x.max() - x.min())
         )
 
         assert_allclose(output[0], STATSMODELS_LOESS_DELTA[delta])

@@ -488,7 +488,7 @@ class _Polynomial(_Algorithm):
     def loess(self, data, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
               tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False,
               num_std=1, use_original=False, weights=None, return_coef=False,
-              conserve_memory=True, delta=0.0):
+              conserve_memory=True, delta=None):
         """
         Locally estimated scatterplot smoothing (LOESS).
 
@@ -551,14 +551,13 @@ class _Polynomial(_Algorithm):
             numba is installed, there is no significant time difference since the calculations are
             sped up.
         delta : float, optional
-            If `delta` is > 0, will skip all but the last x-value in the range x_last + `delta`,
-            where x_last is the last x-value to be fit using weighted least squares, and instead
-            use linear interpolation to calculate the fit for those x-values (same behavior as in
+            If `delta` is > 0, will skip all but the last x-value in the range `x_last + delta`,
+            where `x_last` is the last x-value to be fit using weighted least squares, and instead
+            use linear interpolation to calculate the fit for those x-values, which can
+            significantly reduce the calculation time (same behavior as in
             statsmodels [21]_ and Cleveland's original Fortran lowess implementation [22]_).
-            Fits all x-values if `delta` is <= 0. Default is 0.0. Note that `x_data` is scaled to
-            fit in the range [-1, 1], so `delta` should likewise be scaled. For example, if the
-            desired `delta` value was ``0.01 * (max(x_data) - min(x_data))``, then the
-            correctly scaled `delta` would be 0.02 (ie. ``0.01 * (1 - (-1))``).
+            Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
+            `0.01 * (max(x_data) - min(x_data))`.
 
         Returns
         -------
@@ -642,12 +641,15 @@ class _Polynomial(_Algorithm):
         if use_original:
             y0 = y
 
+        if delta is None:
+            delta = 0.01 * (self.x_domain[1] - self.x_domain[0])
+
         # x is the scaled version of self.x to fit within the [-1, 1] domain
         x = np.polynomial.polyutils.mapdomain(self.x, self.x_domain, np.array([-1., 1.]))
         # find the indices for fitting beforehand so that the fitting can be done
         # in parallel; cast delta as float so numba does not have to compile for
         # both int and float
-        windows, fits, skips = _determine_fits(x, self._size, total_points, float(delta))
+        windows, fits, skips = _determine_fits(self.x, self._size, total_points, float(delta))
 
         # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
         # when matrix multiplied with the C-ordered coefficient array gives a warning
@@ -1933,7 +1935,7 @@ def _determine_fits(x, num_x, total_points, delta):
 @_polynomial_wrapper
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
           tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
-          use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=0.0):
+          use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=None):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -1999,14 +2001,13 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         numba is installed, there is no significant time difference since the calculations are
         sped up.
     delta : float, optional
-        If `delta` is > 0, will skip all but the last x-value in the range x_last + `delta`,
-        where x_last is the last x-value to be fit using weighted least squares, and instead
-        use linear interpolation to calculate the fit for those x-values (same behavior as in
+        If `delta` is > 0, will skip all but the last x-value in the range `x_last + delta`,
+        where `x_last` is the last x-value to be fit using weighted least squares, and instead
+        use linear interpolation to calculate the fit for those x-values, which can
+        significantly reduce the calculation time (same behavior as in
         statsmodels [14]_ and Cleveland's original Fortran lowess implementation [15]_).
-        Fits all x-values if `delta` is <= 0. Default is 0.0. Note that `x_data` is scaled to
-        fit in the range [-1, 1], so `delta` should likewise be scaled. For example, if the
-        desired `delta` value was ``0.01 * (max(x_data) - min(x_data))``, then the
-        correctly scaled `delta` would be 0.02 (ie. ``0.01 * (1 - (-1))``).
+        Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
+        `0.01 * (max(x_data) - min(x_data))`.
 
     Returns
     -------
