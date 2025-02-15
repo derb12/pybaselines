@@ -97,8 +97,7 @@ class _Algorithm:
             if self._sort_order is not None:
                 self.x = self.x[self._sort_order]
 
-        self.vandermonde = None
-        self.poly_order = -1
+        self._polynomial = None
         self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
@@ -419,14 +418,10 @@ class _Algorithm:
         )
 
         if calc_vander:
-            if self.vandermonde is None or poly_order > self.poly_order:
-                mapped_x = np.polynomial.polyutils.mapdomain(
-                    self.x, self.x_domain, np.array([-1., 1.])
-                )
-                self.vandermonde = np.polynomial.polynomial.polyvander(mapped_x, poly_order)
-            elif poly_order < self.poly_order:
-                self.vandermonde = self.vandermonde[:, :poly_order + 1]
-        self.poly_order = poly_order
+            if self._polynomial is None:
+                self._polynomial = _PolyHelper(self.x, self.x_domain, poly_order)
+            else:
+                self._polynomial.recalc_vandermonde(self.x, self.x_domain, poly_order)
 
         if not calc_pinv:
             return y, weight_array
@@ -434,9 +429,11 @@ class _Algorithm:
             raise ValueError('if calc_pinv is True, then calc_vander must also be True')
 
         if weights is None:
-            pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            pseudo_inverse = self._polynomial.pseudo_inverse
         else:
-            pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(
+                np.sqrt(weight_array)[:, None] * self._polynomial.vandermonde
+            )
 
         return y, weight_array, pseudo_inverse
 
@@ -815,3 +812,85 @@ def _class_wrapper(klass):
         return inner
 
     return outer
+
+
+class _PolyHelper:
+    """
+    An object to help with solving polynomials.
+
+    Allows only recalculating the Vandermonde and pseudo-inverse matrices when necessary.
+
+    Attributes
+    ----------
+    poly_order : int
+        The last polynomial order used to calculate the Vadermonde matrix.
+    pseudo_inverse : numpy.ndarray or None
+        The pseudo-inverse of the current Vandermonde matrix.
+    vandermonde : numpy.ndarray
+        The Vandermonde matrix for solving polynomial equations.
+
+    """
+    def __init__(self, x, x_domain, poly_order):
+        """
+        Initializes the object and calculates the Vandermonde matrix.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        poly_order : int
+            The polynomial order.
+
+        """
+        poly_order = _check_scalar_variable(
+            poly_order, allow_zero=True, variable_name='polynomial order', dtype=int
+        )
+        self.poly_order = -1
+        self.vandermonde = None
+        self._pseudo_inverse = None
+        self.pinv_stale = True
+
+        self.recalc_vandermonde(x, x_domain, poly_order)
+
+    def recalc_vandermonde(self, x, x_domain, poly_order):
+        """
+        Recalculates the Vandermonde matrix for the polynomial only if necessary.
+
+        Also flags whether the pseudo-inverse needs to be recalculated.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        poly_order : int
+            The polynomial order.
+
+        """
+        if self.vandermonde is None or poly_order > self.poly_order:
+            mapped_x = np.polynomial.polyutils.mapdomain(
+                x, x_domain, np.array([-1., 1.])
+            )
+            self.vandermonde = np.polynomial.polynomial.polyvander(mapped_x, poly_order)
+            self.pinv_stale = True
+        elif poly_order < self.poly_order:
+            self.vandermonde = self.vandermonde[:, :poly_order + 1]
+            self.pinv_stale = True
+
+        self.poly_order = poly_order
+
+    @property
+    def pseudo_inverse(self):
+        """
+        The pseudo-inverse of the Vandermonde.
+
+        Only recalculates the pseudo-inverse if the Vandermonde has been updated.
+
+        """
+        if self.pinv_stale or self._pseudo_inverse is None:
+            self._pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            self.pinv_stale = False
+        return self._pseudo_inverse

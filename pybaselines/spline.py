@@ -529,7 +529,7 @@ class _Spline(_Algorithm):
             _, _, pseudo_inverse = self._setup_polynomial(
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
-            baseline = self.vandermonde @ (pseudo_inverse @ data)
+            baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data)
             weights = _weighting._asls(data, baseline, p)
 
         y, weight_array, pspline = self._setup_spline(

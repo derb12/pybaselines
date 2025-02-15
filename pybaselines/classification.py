@@ -266,13 +266,13 @@ class _Classification(_Algorithm):
                 y, poly_order=poly_order, calc_vander=True, calc_pinv=True
             )
             old_coef = coef = pseudo_inverse @ rough_baseline
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             if max_iter > 1:
                 tol_history = np.empty(max_iter - 1)
                 for i in range(max_iter - 1):
                     rough_baseline[mask] = baseline[mask]
                     coef = pseudo_inverse @ rough_baseline
-                    baseline = self.vandermonde @ coef
+                    baseline = self._polynomial.vandermonde @ coef
                     calc_difference = relative_difference(old_coef, coef)
                     tol_history[i] = calc_difference
                     if calc_difference < tol:
@@ -669,8 +669,8 @@ class _Classification(_Algorithm):
         mask = wavelet_mask.copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            coef = np.linalg.lstsq(self.vandermonde[mask], y[mask], None)[0]
-            baseline = self.vandermonde @ coef
+            coef = np.linalg.lstsq(self._polynomial.vandermonde[mask], y[mask], None)[0]
+            baseline = self._polynomial.vandermonde @ coef
             residual = y - baseline
             mask[residual > num_std * np.std(residual)] = False
 
@@ -679,8 +679,8 @@ class _Classification(_Algorithm):
             # maybe make it a param called symmetric, like for mixture_model, and only
             # do if not symmetric; also probably only need to do it the first iteration
             # since after that the masking above will not remove negative residuals
-            coef = np.linalg.lstsq(self.vandermonde[mask], y[mask], None)[0]
-            baseline = self.vandermonde @ coef
+            coef = np.linalg.lstsq(self._polynomial.vandermonde[mask], y[mask], None)[0]
+            baseline = self._polynomial.vandermonde @ coef
 
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
