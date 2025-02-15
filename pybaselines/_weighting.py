@@ -34,7 +34,9 @@ def _asls(y, baseline, p):
     References
     ----------
     Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
-    Leiden University Medical Centre Report, 2005, 1(1).
+    Leiden University Medical Centre Report, 2005, [unpublished].
+
+    Eilers, P. Parametric Time Warping. Analytical Chemistry, 2004, 76(2), 404-411.
 
     He, S., et al. Baseline correction for raman spectra using an improved
     asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.

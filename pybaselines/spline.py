@@ -426,7 +426,9 @@ class _Spline(_Algorithm):
         Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
 
         Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
-        Leiden University Medical Centre Report, 2005, 1(1).
+        Leiden University Medical Centre Report, 2005, [unpublished].
+
+        Eilers, P. Parametric Time Warping. Analytical Chemistry, 2004, 76(2), 404-411.
 
         Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
@@ -1974,7 +1976,9 @@ def pspline_asls(data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_ord
     Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
 
     Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
-    Leiden University Medical Centre Report, 2005, 1(1).
+    Leiden University Medical Centre Report, 2005, [unpublished].
+
+    Eilers, P. Parametric Time Warping. Analytical Chemistry, 2004, 76(2), 404-411.
 
     Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
     Reviews: Computational Statistics, 2010, 2(6), 637-653.

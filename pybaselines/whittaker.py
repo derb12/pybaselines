@@ -71,7 +71,9 @@ class _Whittaker(_Algorithm):
         Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
 
         Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
-        Leiden University Medical Centre Report, 2005, 1(1).
+        Leiden University Medical Centre Report, 2005, [unpublished].
+
+        Eilers, P. Parametric Time Warping. Analytical Chemistry, 2004, 76(2), 404-411.
 
         """
         if not 0 < p < 1:
@@ -1054,7 +1056,9 @@ def asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=Non
     Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
 
     Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
-    Leiden University Medical Centre Report, 2005, 1(1).
+    Leiden University Medical Centre Report, 2005, [unpublished].
+
+    Eilers, P. Parametric Time Warping. Analytical Chemistry, 2004, 76(2), 404-411.
 
     """
 
