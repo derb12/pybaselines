@@ -16,7 +16,7 @@ from scipy.special import binom
 from ._banded_utils import PenalizedSystem
 from ._banded_utils import difference_matrix as _difference_matrix
 from ._compat import jit
-from ._spline_utils import PSpline
+from ._spline_utils import PSpline, SplineBasis
 from ._validation import (
     _check_array, _check_optional_array, _check_scalar, _get_row_col_values, _yx_arrays
 )
@@ -1067,7 +1067,8 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
 
     """
     y, x = _yx_arrays(data, x_data, check_finite=check_finite, ensure_1d=True)
-    pspline = PSpline(x, num_knots, spline_degree, check_finite, lam, diff_order)
+    spline_basis = SplineBasis(x, num_knots, spline_degree, check_finite)
+    pspline = PSpline(spline_basis, lam, diff_order)
 
     weight_array = _check_optional_array(
         len(y), weights, dtype=float, order='C', check_finite=check_finite

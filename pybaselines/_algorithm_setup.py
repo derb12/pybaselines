@@ -20,7 +20,7 @@ import warnings
 import numpy as np
 
 from ._banded_utils import PenalizedSystem
-from ._spline_utils import PSpline
+from ._spline_utils import PSpline, SplineBasis
 from ._validation import (
     _check_array, _check_half_window, _check_optional_array, _check_scalar_variable,
     _check_sized_array, _yx_arrays
@@ -548,7 +548,7 @@ class _Algorithm:
         if diff_order > 4:
             warnings.warn(
                 ('differential orders greater than 4 can have numerical issues;'
-                    ' consider using a differential order of 2 or 3 instead'),
+                 ' consider using a differential order of 2 or 3 instead'),
                 ParameterWarning, stacklevel=2
             )
 
@@ -556,15 +556,13 @@ class _Algorithm:
             self._spline_basis is None
             or not self._spline_basis.same_basis(num_knots, spline_degree)
         ):
-            pspline = PSpline(
-                self.x, num_knots, spline_degree, self._check_finite, lam, diff_order,
-                allow_lower, reverse_diags
-            )
-            self._spline_basis = pspline.basis
-        else:
-            pspline = PSpline.init_with_basis(
-                self._spline_basis, lam, diff_order, allow_lower, reverse_diags
-            )
+            self._spline_basis = SplineBasis(self.x, num_knots, spline_degree, self._check_finite)
+
+        #TODO should probably also retain the unmodified penalty diagonals if possible to skip
+        # that calculation as well
+        pspline = PSpline(
+            self._spline_basis, lam, diff_order, allow_lower, reverse_diags
+        )
 
         return y, weight_array, pspline
 

@@ -595,23 +595,15 @@ class PSpline(PenalizedSystem):
 
     """
 
-    def __init__(self, x, num_knots=100, spline_degree=3, check_finite=False, lam=1,
-                 diff_order=2, allow_lower=True, reverse_diags=False):
+    def __init__(self, spline_basis, lam=1, diff_order=2, allow_lower=True, reverse_diags=False):
         """
         Initializes the penalized spline by calculating the basis and penalty.
 
         Parameters
         ----------
-        x : array-like, shape (N,)
-            The x-values for the spline.
-        num_knots : int, optional
-            The number of internal knots for the spline, including the endpoints.
-            Default is 100.
-        spline_degree : int, optional
-            The degree of the spline. Default is 3, which is a cubic spline.
-        check_finite : bool, optional
-            If True, will raise an error if any values in `x` are not finite. Default
-            is False, which skips the check.
+        spline_basis : SplineBasis
+            The SplineBasis object that contains the information about the design matrix
+            of the spline being fit.
         lam : float, optional
             The penalty factor applied to the difference matrix. Larger values produce
             smoother results. Must be greater than 0. Default is 1.
@@ -635,8 +627,16 @@ class PSpline(PenalizedSystem):
             (``num_knots + spline_degree - 1``).
 
         """
-        basis = SplineBasis(x, num_knots, spline_degree, check_finite)
-        self.basis = basis
+        self.basis = spline_basis
+        if diff_order < 1:
+            raise ValueError(
+                'the difference order must be > 0 for a penalized spline'
+            )
+        elif diff_order >= self.basis._num_bases:
+            raise ValueError((
+                'the difference order must be less than the number of basis '
+                'functions, which is the number of knots + spline degree - 1'
+            ))
 
         super().__init__(
             self.basis._num_bases, lam, diff_order, allow_lower, reverse_diags,
@@ -656,42 +656,6 @@ class PSpline(PenalizedSystem):
             self._use_numba = True
         else:
             self._use_numba = False
-
-    @classmethod
-    def init_with_basis(cls, basis_object, lam, diff_order, allow_lower, reverse_diags):
-        if diff_order < 1:
-            raise ValueError(
-                'the difference order must be > 0 for a penalized spline'
-            )
-        elif diff_order >= basis_object._num_bases:
-            raise ValueError((
-                'the difference order must be less than the number of basis '
-                'functions, which is the number of knots + spline degree - 1'
-            ))
-
-        self = object.__new__(cls)
-        self.basis = basis_object
-
-        super().__init__(
-            self, self.basis._num_bases, lam, diff_order, allow_lower, reverse_diags,
-            allow_pentapy=False, padding=self.basis.spline_degree - diff_order
-        )
-        self.coef = None
-
-        # if using the numba B.T @ W @ B calculation, the spline basis must explicitly be
-        # created such that the csr matrix's data attribute is not missing any zeros; it is
-        # correct for all the internal basis creation functions used, but need to ensure
-        # just in case something ever changes
-        if (
-            _HAS_NUMBA
-            and (self.basis._x_len * (self.basis.spline_degree + 1))
-                 == len(self.basis.basis.tocsr().data)
-        ):
-            self._use_numba = True
-        else:
-            self._use_numba = False
-
-        return self
 
     @property
     def tck(self):
