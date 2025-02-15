@@ -379,6 +379,11 @@ class TestLoess(IterativePolynomialTester):
         with pytest.raises(ValueError):
             getattr(reverse_fitter, self.func_name)(self.y)
 
+    @pytest.mark.parametrize('conserve_memory', (True, False))
+    @pytest.mark.parametrize('use_threshold', (True, False))
+    def test_threading(self, conserve_memory, use_threshold):
+        super().test_threading(conserve_memory=conserve_memory, use_threshold=use_threshold)
+
 
 class TestQuantReg(IterativePolynomialTester):
     """Class for testing quant_reg baseline."""

@@ -1641,7 +1641,7 @@ def _fill_skips(x, baseline, skips):
 
 
 # adapted from (https://gist.github.com/agramfort/850437); see license above
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     """
     A version of loess that uses near constant memory.
@@ -1701,7 +1701,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
 
 
 # adapted from (https://gist.github.com/agramfort/850437); see license above
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows, fits):
     """
     The initial fit for loess that also caches the window values for each x-value.
@@ -1766,7 +1766,7 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
     return kernels, baseline
 
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fits):
     """
     The loess fit to use after the first loop that uses the cached window values.
