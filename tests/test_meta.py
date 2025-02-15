@@ -7,6 +7,7 @@ Created on March 22, 2021
 """
 
 from contextlib import contextmanager
+import warnings
 
 import numpy as np
 from numpy.testing import assert_allclose
@@ -291,10 +292,7 @@ class DummyAlgorithm:
     @dummy_wrapper
     def repitition_changes(self, data):
         """Changes the output with repeated calls."""
-        if self.calls == 0:
-            output = (data, {})
-        else:
-            output = (10 * data, {})
+        output = (data * self.calls, {})
         self.calls += 1
         return output
 
@@ -321,12 +319,16 @@ class DummyAlgorithm:
     @dummy_wrapper
     def different_function_output(self, data=None, a=10, b=12):
         """A module function with different output than the class function."""
-        return data, {}
+        output = data * self.calls
+        self.calls += 1
+        return output, {}
 
     @dummy_wrapper
     def different_output_params(self, data=None, a=10, b=12):
         """A module function with different output params than the class function."""
-        return data, {'a': 10}
+        params = {f'{self.calls}': self.calls}
+        self.calls += 1
+        return data, params
 
     @dummy_wrapper
     def different_x_output(self, data=None):
@@ -527,6 +529,26 @@ class TestBaseTesterFailures(BaseTester):
             with pytest.raises(AssertionError):
                 super().test_x_ordering()
 
+    def test_threading(self):
+        """
+        Ensures failure when output is different when using threading.
+
+        Test is not completely deterministic and will certainly fail if only 1 thread is made
+        available, so just warn if no AssertionError is raised since it's not critical and was
+        already confirmed to work as intended on a 6-core CPU.
+
+        """
+        with self.set_func('repitition_changes'):
+            try:
+                super().test_threading()
+            except AssertionError:
+                pass  # worked as expected
+            else:
+                warnings.warn(
+                    'Expected exception in TestBaseTesterFailures.test_threading did not occur',
+                    stacklevel=2
+                )
+
 
 class TestBaseTesterNoFunc(BaseTester):
     """Ensures the BaseTester fails if not setup correctly."""
@@ -574,6 +596,11 @@ class TestBaseTesterNoFunc(BaseTester):
         """Ensures arrays are correctly sorted within the function."""
         with pytest.raises(NotImplementedError):
             super().test_x_ordering()
+
+    def test_threading(self):
+        """Ensures the method produces the same output when using within threading."""
+        with pytest.raises(NotImplementedError):
+            super().test_threading()
 
 
 class TestBasePolyTesterWorks(BasePolyTester):
