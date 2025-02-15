@@ -626,7 +626,9 @@ class _Optimizers(_Algorithm):
         # no meaning since they correspond to a truncated dataset
         params = {'x_fit': x_fit, 'y_fit': y_fit}
         new_fitter = fitting_object._override_x(x_fit)
-        baseline_fit, params['method_params'] = getattr(new_fitter, method.lower())(y_fit, **method_kws)
+        baseline_fit, params['method_params'] = getattr(new_fitter, method.lower())(
+            y_fit, **method_kws
+        )
 
         baseline = np.interp(self.x, x_fit, baseline_fit)
         params['baseline_fit'] = baseline_fit

@@ -775,7 +775,9 @@ class _Classification(_Algorithm):
 
         """
         if weights_as_mask:
-            y, whittaker_weights, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
+            y, whittaker_weights, whittaker_system = self._setup_whittaker(
+                data, lam, diff_order, weights
+            )
             mask = whittaker_weights.astype(bool)
         else:
             y, weight_array = self._setup_classification(data, weights)

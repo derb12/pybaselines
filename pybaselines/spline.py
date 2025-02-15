@@ -540,11 +540,15 @@ class _Spline(_Algorithm):
         d1_penalty = _check_lam(lam_1) * diff_penalty_diagonals(self._size, 1, lower_only=False)
         d1_penalty = (
             pspline.basis.basis.T
-            @ dia_object((d1_penalty, np.array([1, 0, -1])), shape=(self._size, self._size)).tocsr()
+            @ dia_object(
+                (d1_penalty, np.array([1, 0, -1])), shape=(self._size, self._size)
+            ).tocsr()
         )
         partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array
-        d1_penalty = _sparse_to_banded(d1_penalty @ pspline.basis.basis, pspline.basis._num_bases)[0]
+        d1_penalty = _sparse_to_banded(
+            d1_penalty @ pspline.basis.basis, pspline.basis._num_bases
+        )[0]
         if pspline.lower:
             d1_penalty = d1_penalty[len(d1_penalty) // 2:]
         pspline.add_penalty(d1_penalty)
@@ -1381,7 +1385,9 @@ class _Spline(_Algorithm):
             # since it will be sorted within _setup_spline
             w = _sort_array(w, self._inverted_order)
 
-        _, weight_array, pspline = self._setup_spline(y, w, spline_degree, num_knots, True, diff_order, lam)
+        _, weight_array, pspline = self._setup_spline(
+            y, w, spline_degree, num_knots, True, diff_order, lam
+        )
         baseline = pspline.solve_pspline(y, weight_array)
 
         params = {'weights': weight_array, 'half_window': half_wind}

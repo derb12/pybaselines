@@ -80,7 +80,7 @@ import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import jit, prange
+from ._compat import jit
 from .utils import _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
 
 
@@ -1633,7 +1633,7 @@ def _fill_skips(x, baseline, skips):
     All changes to `baseline` are done inplace.
 
     """
-    for i in prange(skips.shape[0]):
+    for i in range(skips.shape[0]):
         window = skips[i]
         left = window[0]
         right = window[1]
@@ -1679,7 +1679,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]
@@ -1744,7 +1744,7 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]
@@ -1802,7 +1802,7 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]

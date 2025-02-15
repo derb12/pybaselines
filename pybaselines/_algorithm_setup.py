@@ -323,6 +323,8 @@ class _Algorithm:
             The y-values of the measured data, converted to a numpy array.
         weight_array : numpy.ndarray, shape (N,), optional
             The weighting array.
+        whittaker_system : PenalizedSystem
+            The PenalizedSystem for solving the given penalized least squared system.
 
         Raises
         ------
@@ -483,6 +485,9 @@ class _Algorithm:
             The y-values of the measured data, converted to a numpy array.
         weight_array : numpy.ndarray, shape (N,)
             The weight array for fitting the spline to the data.
+        pspline : PSpline
+            The PSpline object for solving the given penalized least squared system. Only
+            returned if `make_basis` is True.
 
         Warns
         -----
@@ -830,6 +835,7 @@ class _PolyHelper:
         The Vandermonde matrix for solving polynomial equations.
 
     """
+
     def __init__(self, x, x_domain, poly_order):
         """
         Initializes the object and calculates the Vandermonde matrix.

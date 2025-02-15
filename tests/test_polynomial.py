@@ -382,6 +382,7 @@ class TestLoess(IterativePolynomialTester):
     @pytest.mark.parametrize('conserve_memory', (True, False))
     @pytest.mark.parametrize('use_threshold', (True, False))
     def test_threading(self, conserve_memory, use_threshold):
+        """Tests the different possible computation routes under threading."""
         super().test_threading(conserve_memory=conserve_memory, use_threshold=use_threshold)
 
 
