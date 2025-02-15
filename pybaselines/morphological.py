@@ -761,7 +761,7 @@ class _Morphological(_Algorithm):
         elif not 0 <= p <= 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam_smooth
         )
 
@@ -770,7 +770,7 @@ class _Morphological(_Algorithm):
         # overestimated baseline; could alternatively just fit a p-spline to
         # 0.5 * (grey_closing(y, 3) + grey_opening(y, 3)), which averages noisy data better;
         # could add it as a boolean parameter
-        spline_fit = self.pspline.solve_pspline(
+        spline_fit = pspline.solve_pspline(
             y, weights=(y == grey_closing(y, 3)).astype(float, copy=False)
         )
         if weights is None:
@@ -789,8 +789,8 @@ class _Morphological(_Algorithm):
             # TODO should this use np.isclose instead?
             weight_array = np.where(spline_fit == optimal_opening, 1 - p, p)
 
-        self.pspline.penalty = (_check_lam(lam) / lam_smooth) * self.pspline.penalty
-        baseline = self.pspline.solve_pspline(spline_fit, weight_array)
+        pspline.penalty = (_check_lam(lam) / lam_smooth) * pspline.penalty
+        baseline = pspline.solve_pspline(spline_fit, weight_array)
 
         return baseline, {'half_window': half_window, 'weights': weight_array}
 

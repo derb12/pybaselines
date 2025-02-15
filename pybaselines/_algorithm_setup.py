@@ -13,7 +13,6 @@ to something like 'mask'.
 
 """
 
-from contextlib import contextmanager
 from functools import partial, wraps
 from inspect import signature
 import warnings
@@ -108,7 +107,7 @@ class _Algorithm:
         self.whittaker_system = None
         self.vandermonde = None
         self.poly_order = -1
-        self.pspline = None
+        self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
         self.pentapy_solver = 2
@@ -543,25 +542,31 @@ class _Algorithm:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if make_basis:
-            if diff_order > 4:
-                warnings.warn(
-                    ('differential orders greater than 4 can have numerical issues;'
-                     ' consider using a differential order of 2 or 3 instead'),
-                    ParameterWarning, stacklevel=2
-                )
+        if not make_basis:
+            return y, weight_array
 
-            if self.pspline is None or not self.pspline.same_basis(num_knots, spline_degree):
-                self.pspline = PSpline(
-                    self.x, num_knots, spline_degree, self._check_finite, lam, diff_order,
-                    allow_lower, reverse_diags
-                )
-            else:
-                self.pspline.reset_penalty_diagonals(
-                    lam, diff_order, allow_lower, reverse_diags
-                )
+        if diff_order > 4:
+            warnings.warn(
+                ('differential orders greater than 4 can have numerical issues;'
+                    ' consider using a differential order of 2 or 3 instead'),
+                ParameterWarning, stacklevel=2
+            )
 
-        return y, weight_array
+        if (
+            self._spline_basis is None
+            or not self._spline_basis.same_basis(num_knots, spline_degree)
+        ):
+            pspline = PSpline(
+                self.x, num_knots, spline_degree, self._check_finite, lam, diff_order,
+                allow_lower, reverse_diags
+            )
+            self._spline_basis = pspline.basis
+        else:
+            pspline = PSpline.init_with_basis(
+                self._spline_basis, lam, diff_order, allow_lower, reverse_diags
+            )
+
+        return y, weight_array, pspline
 
     def _setup_morphology(self, y, half_window=None, **window_kwargs):
         """

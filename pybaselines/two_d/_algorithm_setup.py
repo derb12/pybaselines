@@ -6,7 +6,6 @@ Created on April 8, 2023
 
 """
 
-from contextlib import contextmanager
 from functools import partial, wraps
 import itertools
 import warnings
@@ -18,7 +17,7 @@ from .._validation import (
     _check_sized_array, _yxz_arrays
 )
 from ..utils import (
-    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, optimize_window, pad_edges2d
+    ParameterWarning, _determine_sorts, _sort_array2d, optimize_window, pad_edges2d
 )
 from ._spline_utils import PSpline2D
 from ._whittaker_utils import WhittakerSystem2D
