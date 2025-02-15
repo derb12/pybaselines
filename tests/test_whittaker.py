@@ -30,10 +30,8 @@ class WhittakerTester(BaseTester, InputWeightsMixin):
         """Ensure pentapy solver gives similar result to SciPy's solver."""
         with mock.patch.object(_banded_utils, '_HAS_PENTAPY', False):
             scipy_output = self.class_func(self.y)[0]
-            assert not self.algorithm.whittaker_system.using_pentapy
 
         pentapy_output = self.class_func(self.y)[0]
-        assert self.algorithm.whittaker_system.using_pentapy
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 

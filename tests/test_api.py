@@ -155,19 +155,6 @@ class TestBaseline:
         for method in total_methods:
             assert method in total_functions
 
-    def test_pentapy_solver(self):
-        """Ensures the pentapy_solver attribute works correctly."""
-        fitter = self.algorithm_base(self.x, check_finite=False, assume_sorted=True)
-        assert fitter._pentapy_solver == fitter.pentapy_solver
-        # ensure whittaker_system is originally None before changing pentapy solver
-        assert fitter.whittaker_system is None
-
-        fitter._setup_whittaker(self.y, lam=1)
-        assert fitter.whittaker_system.pentapy_solver == fitter.pentapy_solver
-
-        fitter.pentapy_solver = 3
-        assert fitter.whittaker_system.pentapy_solver == fitter.pentapy_solver
-
     def test_get_method(self):
         """Ensures the get_method helper function works as intended."""
         method = self.algorithm._get_method('asls')

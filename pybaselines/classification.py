@@ -775,7 +775,7 @@ class _Classification(_Algorithm):
 
         """
         if weights_as_mask:
-            y, whittaker_weights = self._setup_whittaker(data, lam, diff_order, weights)
+            y, whittaker_weights, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
             mask = whittaker_weights.astype(bool)
         else:
             y, weight_array = self._setup_classification(data, weights)
@@ -791,13 +791,13 @@ class _Classification(_Algorithm):
             mask = _refine_mask(_iter_threshold(power, num_std), min_length)
             np.logical_and(mask, weight_array, out=mask)
 
-            _, whittaker_weights = self._setup_whittaker(y, lam, diff_order, mask)
+            _, whittaker_weights, whittaker_system = self._setup_whittaker(y, lam, diff_order, mask)
             if self._sort_order is not None:
                 whittaker_weights = whittaker_weights[self._inverted_order]
 
         whittaker_weights = whittaker_weights.astype(float)
-        baseline = self.whittaker_system.solve(
-            self.whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
+        baseline = whittaker_system.solve(
+            whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
             overwrite_b=True, overwrite_ab=True
         )
         params = {'mask': mask, 'weights': whittaker_weights}
@@ -903,9 +903,9 @@ class _Classification(_Algorithm):
         mask[np.unique(total_vertices)] = True
         np.logical_and(mask, weight_array, out=mask)
         if lam is not None and lam != 0:
-            self._setup_whittaker(y, lam, diff_order, mask)
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(mask), mask * y,
+            _, _, whittaker_system = self._setup_whittaker(y, lam, diff_order, mask)
+            baseline = whittaker_system.solve(
+                whittaker_system.add_diagonal(mask), mask * y,
                 overwrite_b=True, overwrite_ab=True
             )
         else:

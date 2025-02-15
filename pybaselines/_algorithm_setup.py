@@ -39,20 +39,13 @@ class _Algorithm:
 
     Attributes
     ----------
-    poly_order : int
-        The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
-        that no polynomial fitting has been performed.
-    pspline : PSpline or None
-        The PSpline object for setting up and solving penalized spline algorithms. Is None
-        if no penalized spline setup has been performed (typically done in
-        :meth:`~._Algorithm._setup_spline`).
-    vandermonde : numpy.ndarray or None
-        The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`~._Algorithm._setup_polynomial`).
-    whittaker_system : PenalizedSystem or None
-        The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
-        algorithms. Is None if no Whittaker setup has been performed (typically done in
-        :meth:`_setup_whittaker`).
+    petapy_solver : int or str
+        The integer or string designating which solver to use if using pentapy.
+        See :func:`pentapy.solve` for available options, although `1` or `2` are the
+        most relevant options. Default is 2.
+
+        .. versionadded:: 1.1.0
+
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same length as the input `data` and has min and max
@@ -104,7 +97,6 @@ class _Algorithm:
             if self._sort_order is not None:
                 self.x = self.x[self._sort_order]
 
-        self.whittaker_system = None
         self.vandermonde = None
         self.poly_order = -1
         self._spline_basis = None
@@ -138,35 +130,6 @@ class _Algorithm:
         else:
             self.__size = value
             self._shape = (value,)
-
-    @property
-    def pentapy_solver(self):
-        """
-        The integer or string designating which solver to use if using pentapy.
-
-        See :func:`pentapy.solve` for available options, although `1` or `2` are the
-        most relevant options. Default is 2.
-
-        .. versionadded:: 1.1.0
-
-        """
-        return self._pentapy_solver
-
-    @pentapy_solver.setter
-    def pentapy_solver(self, value):
-        """
-        Sets the solver for pentapy.
-
-        Parameters
-        ----------
-        value : int or str
-            The designated solver to use when using pentapy. See :func:`pentapy.core.solve`
-            for available options.
-
-        """
-        if self.whittaker_system is not None:
-            self.whittaker_system.pentapy_solver = value
-        self._pentapy_solver = value
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), skip_sorting=False):
         """
@@ -389,15 +352,15 @@ class _Algorithm:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if self.whittaker_system is not None:
+        if False:#TODO can probably keep the lower diagonals for reuse, much like PenalizedSystem currently does
             self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
         else:
-            self.whittaker_system = PenalizedSystem(
+            whittaker_system = PenalizedSystem(
                 self._size, lam, diff_order, allow_lower, reverse_diags,
                 pentapy_solver=self.pentapy_solver
             )
 
-        return y, weight_array
+        return y, weight_array, whittaker_system
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
                           calc_pinv=False, copy_weights=False):

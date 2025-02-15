@@ -631,9 +631,9 @@ class _Optimizers(_Algorithm):
         baseline = np.interp(self.x, x_fit, baseline_fit)
         params['baseline_fit'] = baseline_fit
         if lam is not None and lam != 0:
-            self._setup_whittaker(y, lam=lam, diff_order=diff_order)
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(1.), baseline,
+            _, _, whittaker_system = self._setup_whittaker(y, lam=lam, diff_order=diff_order)
+            baseline = whittaker_system.solve(
+                whittaker_system.add_diagonal(1.), baseline,
                 overwrite_ab=True, overwrite_b=True
             )
 
