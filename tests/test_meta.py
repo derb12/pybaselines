@@ -856,6 +856,26 @@ class TestBaseTester2DFailures(BaseTester2D):
             with pytest.raises(AssertionError):
                 super().test_xz_ordering()
 
+    def test_threading(self):
+        """
+        Ensures failure when output is different when using threading.
+
+        Test is not completely deterministic and will certainly fail if only 1 thread is made
+        available, so just warn if no AssertionError is raised since it's not critical and was
+        already confirmed to work as intended on a 6-core CPU.
+
+        """
+        with self.set_func('repitition_changes'):
+            try:
+                super().test_threading()
+            except AssertionError:
+                pass  # worked as expected
+            else:
+                warnings.warn(
+                    'Expected exception in TestBaseTesterFailures.test_threading did not occur',
+                    stacklevel=2
+                )
+
 
 class TestBaseTester2DNoFunc(BaseTester2D):
     """Ensures the BaseTester2D fails if not setup correctly."""
@@ -894,3 +914,8 @@ class TestBaseTester2DNoFunc(BaseTester2D):
         """Ensures arrays are correctly sorted within the function."""
         with pytest.raises(NotImplementedError):
             super().test_xz_ordering()
+
+    def test_threading(self):
+        """Ensures the method produces the same output when using within threading."""
+        with pytest.raises(NotImplementedError):
+            super().test_threading()
