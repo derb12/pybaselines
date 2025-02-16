@@ -32,20 +32,6 @@ class _Algorithm2D:
 
     Attributes
     ----------
-    poly_order : Sequence[int, int]
-        The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
-        that no polynomial fitting has been performed.
-    pspline : PSpline2D or None
-        The PSpline2D object for setting up and solving penalized spline algorithms. Is None
-        if no penalized spline setup has been performed (typically done in
-        :meth:`~._Algorithm2D._setup_spline`).
-    vandermonde : numpy.ndarray or None
-        The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`~._Algorithm2D._setup_polynomial`).
-    whittaker_system : PenalizedSystem2D or None
-        The PenalizedSystem2D object for setting up and solving Whittaker-smoothing-based
-        algorithms. Is None if no Whittaker setup has been performed (typically done in
-        :meth:`_setup_whittaker`).
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same size as the input `data.shape[-2]` and has min
@@ -132,8 +118,7 @@ class _Algorithm2D:
             self._inverted_order = (x_inverted_order[:, None], z_inverted_order[None, :])
 
         self.whittaker_system = None
-        self.vandermonde = None
-        self.poly_order = -1
+        self._polynomial = None
         self.pspline = None
         self._check_finite = check_finite
         self._dtype = output_dtype
@@ -471,7 +456,7 @@ class _Algorithm2D:
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
         poly_order : int or Sequence[int, int], optional
-            The polynomial orders for the rows and columns. Default is 2.
+            The polynomial orders for the rows and columns, respectively. Default is 2.
         calc_vander : bool, optional
             If True, will calculate and the Vandermonde matrix. Default is False.
         calc_pinv : bool, optional
@@ -524,39 +509,16 @@ class _Algorithm2D:
         poly_orders = _check_scalar_variable(
             poly_order, allow_zero=True, variable_name='polynomial order', two_d=True, dtype=int
         )
-        if max_cross is not None:
-            max_cross = _check_scalar_variable(
-                max_cross, allow_zero=True, variable_name='max_cross', dtype=int
-            )
         if calc_vander:
-            if (
-                self.vandermonde is None or self._max_cross != max_cross
-                or np.any(self.poly_order != poly_order)
-            ):
-                mapped_x = np.polynomial.polyutils.mapdomain(
-                    self.x, self.x_domain, np.array([-1., 1.])
+            if self._polynomial is None:
+                self._polynomial = _PolyHelper2D(
+                    self.x, self.z, self.x_domain, self.z_domain, poly_orders, max_cross
                 )
-                mapped_z = np.polynomial.polyutils.mapdomain(
-                    self.z, self.z_domain, np.array([-1., 1.])
+            else:
+                self._polynomial.recalc_vandermonde(
+                    self.x, self.z, self.x_domain, self.z_domain, poly_orders, max_cross
                 )
-                # rearrange the vandermonde such that it matches the typical A c = b where b
-                # is the flattened version of y and c are the coefficients
-                self.vandermonde = np.polynomial.polynomial.polyvander2d(
-                    *np.meshgrid(mapped_x, mapped_z, indexing='ij'),
-                    [poly_orders[0], poly_orders[1]]
-                ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
 
-                if max_cross is not None:
-                    # lists out (z_0, x_0), (z_1, x_0), etc
-                    for idx, val in enumerate(
-                        itertools.product(range(poly_orders[0] + 1), range(poly_orders[1] + 1))
-                    ):
-                        # 0 designates pure z or x terms
-                        if 0 not in val and any(v > max_cross for v in val):
-                            self.vandermonde[:, idx] = 0
-
-        self.poly_order = poly_orders
-        self._max_cross = max_cross
         y = y.ravel()
         if not calc_pinv:
             return y, weight_array
@@ -564,9 +526,11 @@ class _Algorithm2D:
             raise ValueError('if calc_pinv is True, then calc_vander must also be True')
 
         if weights is None:
-            pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            pseudo_inverse = self._polynomial.pseudo_inverse
         else:
-            pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(
+                np.sqrt(weight_array)[:, None] * self._polynomial.vandermonde
+            )
 
         return y, weight_array, pseudo_inverse
 
@@ -913,3 +877,123 @@ class _Algorithm2D:
 
         """
         return y
+
+
+class _PolyHelper2D:
+    """
+    An object to help with solving polynomials.
+
+    Allows only recalculating the Vandermonde and pseudo-inverse matrices when necessary.
+
+    Attributes
+    ----------
+    max_cross : int
+        The maximum degree for the cross terms.
+    poly_order : Container[int, int]
+        The last polynomial order used to calculate the Vadermonde matrix.
+    pseudo_inverse : numpy.ndarray or None
+        The pseudo-inverse of the current Vandermonde matrix.
+    vandermonde : numpy.ndarray
+        The Vandermonde matrix for solving polynomial equations.
+
+    """
+
+    def __init__(self, x, z, x_domain, z_domain, poly_orders, max_cross):
+        """
+        Initializes the object and calculates the Vandermonde matrix.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        z : numpy.ndarray
+            The z-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        z_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `z`.
+        poly_orders : Container[int, int]
+            The polynomial orders for the rows and columns, respectively.
+        max_cross: int
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
+
+        """
+        self.poly_order = -1
+        self.max_cross = None
+        self.vandermonde = None
+        self._pseudo_inverse = None
+        self.pinv_stale = True
+
+        self.recalc_vandermonde(x, z, x_domain, z_domain, poly_orders, max_cross)
+
+    def recalc_vandermonde(self, x, z, x_domain, z_domain, poly_orders, max_cross):
+        """
+        Recalculates the Vandermonde matrix for the polynomial only if necessary.
+
+        Also flags whether the pseudo-inverse needs to be recalculated.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        z : numpy.ndarray
+            The z-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        z_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `z`.
+        poly_orders : Container[int, int]
+            The polynomial orders for the rows and columns, respectively.
+        max_cross: int
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
+
+        """
+        if max_cross is not None:
+            max_cross = _check_scalar_variable(
+                max_cross, allow_zero=True, variable_name='max_cross', dtype=int
+            )
+
+        if (
+            self.vandermonde is None or self.max_cross != max_cross
+            or np.any(self.poly_order != poly_orders)
+        ):
+            self.pinv_stale = True
+            mapped_x = np.polynomial.polyutils.mapdomain(
+                x, x_domain, np.array([-1., 1.])
+            )
+            mapped_z = np.polynomial.polyutils.mapdomain(
+                z, z_domain, np.array([-1., 1.])
+            )
+            # rearrange the vandermonde such that it matches the typical A c = b where b
+            # is the flattened version of y and c are the coefficients
+            self.vandermonde = np.polynomial.polynomial.polyvander2d(
+                *np.meshgrid(mapped_x, mapped_z, indexing='ij'),
+                [poly_orders[0], poly_orders[1]]
+            ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
+
+            if max_cross is not None:
+                # lists out (z_0, x_0), (z_1, x_0), etc
+                for idx, val in enumerate(
+                    itertools.product(range(poly_orders[0] + 1), range(poly_orders[1] + 1))
+                ):
+                    # 0 designates pure z or x terms
+                    if 0 not in val and any(v > max_cross for v in val):
+                        self.vandermonde[:, idx] = 0
+
+        self.poly_order = poly_orders
+        self.max_cross = max_cross
+
+    @property
+    def pseudo_inverse(self):
+        """
+        The pseudo-inverse of the Vandermonde.
+
+        Only recalculates the pseudo-inverse if the Vandermonde has been updated.
+
+        """
+        if self.pinv_stale or self._pseudo_inverse is None:
+            self._pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            self.pinv_stale = False
+        return self._pseudo_inverse

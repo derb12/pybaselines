@@ -192,7 +192,7 @@ class _Whittaker(_Algorithm2D):
             _, _, pseudo_inverse = self._setup_polynomial(
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
-            baseline = self.vandermonde @ (pseudo_inverse @ data.ravel())
+            baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data.ravel())
             weights = _weighting._asls(data, baseline.reshape(self._shape), p)
 
         y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
