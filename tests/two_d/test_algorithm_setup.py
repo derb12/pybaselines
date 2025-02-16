@@ -650,7 +650,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
     """
     x, z, y = get_data2d()
-    y_dtype = y.dtype
 
     class SubClass(_algorithm_setup._Algorithm2D):
         # 'a' values will be sorted and 'b' values will be kept the same
@@ -742,15 +741,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm2D._register(dtype=float)
-        def func5(self, data, *args, **kwargs):
-            """Ensures dtypes are correctly set by the decorator."""
-            assert self.x.dtype == float
-            assert self.z.dtype == float
-            assert data.dtype == float
-
-            return 1 * data, {}
-
     if change_order:
         x = x[::-1]
         z = z[::-1]
@@ -806,36 +796,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
     assert output4.dtype == expected_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params4[key], err_msg=f'{key} failed')
-
-    x_new_dtype = np.float32
-    z_new_dtype = np.int32
-    if list_input:
-        x = np.array(x, dtype=x_new_dtype).tolist()
-        z = np.array(z, dtype=z_new_dtype).tolist()
-    else:
-        x = x.astype(x_new_dtype)
-        z = z.astype(z_new_dtype)
-    x_dtype = np.ones(5, dtype=x_new_dtype).dtype
-    z_dtype = np.ones(5, dtype=z_new_dtype).dtype
-
-    # create a new object after changing the dtype to lower precision so that previous closeness
-    # checks do not fail
-    algorithm2 = SubClass(
-        x, z, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-    )
-    output5, params5 = algorithm2.func5(y)
-    # dtypes should not be changed outside of the function
-    if output_dtype is None:
-        assert output5.dtype == float
-    else:
-        assert output5.dtype == expected_dtype
-
-    if not list_input:
-        assert algorithm2.x.dtype == x_dtype
-        assert algorithm2.z.dtype == z_dtype
-        assert y.dtype == y_dtype
-        assert x.dtype == x_dtype
-        assert z.dtype == z_dtype
 
 
 def test_algorithm_register_no_data_fails():

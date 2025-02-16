@@ -685,10 +685,8 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     is False.
 
     """
-    x = np.arange(20, dtype=int)
+    x = np.arange(20)
     y = 5 * x
-    x_dtype = x.dtype
-    y_dtype = y.dtype
     sort_indices = slice(0, 10)
 
     class SubClass(_algorithm_setup._Algorithm):
@@ -731,20 +729,12 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
             }
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm._register(dtype=float)
-        def func3(self, data, *args, **kwargs):
-            """Ensures dtypes are correctly set by the decorator."""
-            assert self.x.dtype == float
-            assert data.dtype == float
-
-            return 1 * data, {}
-
     if change_order:
         x[sort_indices] = x[sort_indices][::-1]
         y[sort_indices] = y[sort_indices][::-1]
     expected_baseline = (1 * y).astype(output_dtype)
     if output_dtype is None:
-        expected_dtype = y_dtype
+        expected_dtype = y.dtype
     else:
         expected_dtype = expected_baseline.dtype
     if list_input:
@@ -781,18 +771,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     assert isinstance(output2, np.ndarray)
     for key, value in expected_params.items():
         assert_array_equal(value, output_params2[key])
-
-    output3, output_params3 = algorithm.func3(y)
-    # dtypes should not be changed outside of the function
-    if output_dtype is None:
-        assert output3.dtype == float
-    else:
-        assert output3.dtype == expected_dtype
-
-    if not list_input:
-        assert y.dtype == y_dtype
-        assert x.dtype == x_dtype
-        assert algorithm.x.dtype == x_dtype
 
 
 def test_class_wrapper():

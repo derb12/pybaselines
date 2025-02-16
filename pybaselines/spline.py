@@ -26,7 +26,7 @@ from .utils import (
 class _Spline(_Algorithm):
     """A base class for all spline algorithms."""
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def mixture_model(self, data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_order=3,
                       max_iter=50, tol=1e-3, weights=None, symmetric=False, num_bins=None):
         """
@@ -201,7 +201,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def irsqr(self, data, lam=100, quantile=0.05, num_knots=100, spline_degree=3,
               diff_order=3, max_iter=100, tol=1e-6, weights=None, eps=None):
         """
@@ -364,7 +364,7 @@ class _Spline(_Algorithm):
         # function public and do input validation
         return baseline, {}
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_asls(self, data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_order=2,
                      max_iter=50, tol=1e-3, weights=None):
         """
@@ -452,7 +452,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_iasls(self, data, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
                       spline_degree=3, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
@@ -567,7 +567,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_airpls(self, data, lam=1e3, num_knots=100, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None, normalize_weights=True):
         """
@@ -652,7 +652,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_arpls(self, data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
                       max_iter=50, tol=1e-3, weights=None):
         """
@@ -729,7 +729,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_drpls(self, data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3,
                       diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -837,7 +837,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_iarpls(self, data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
                        max_iter=50, tol=1e-3, weights=None):
         """
@@ -915,7 +915,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights', 'alpha'), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights', 'alpha'))
     def pspline_aspls(self, data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
                       max_iter=100, tol=1e-3, weights=None, alpha=None, asymmetric_coef=0.5):
         """
@@ -1033,7 +1033,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_psalsa(self, data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -1131,7 +1131,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_derpsalsa(self, data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degree=3,
                           diff_order=2, max_iter=50, tol=1e-3, weights=None,
                           smooth_half_window=None, num_smooths=16, **pad_kwargs):
@@ -1393,7 +1393,7 @@ class _Spline(_Algorithm):
         params = {'weights': weight_array, 'half_window': half_wind}
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_brpls(self, data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
                       max_iter=50, tol=1e-3, max_iter_2=50, tol_2=1e-3, weights=None):
         """
@@ -1508,7 +1508,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def pspline_lsrpls(self, data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
                        max_iter=50, tol=1e-3, weights=None):
         """

@@ -659,7 +659,7 @@ class _Morphological(_Algorithm):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def mpspline(self, data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0,
                  num_knots=100, spline_degree=3, diff_order=2, weights=None,
                  pad_kwargs=None, **window_kwargs):

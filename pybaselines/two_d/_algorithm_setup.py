@@ -222,8 +222,8 @@ class _Algorithm2D:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_2d=True,
-                  reshape_baseline=False, reshape_keys=(), skip_sorting=False):
+    def _register(cls, func=None, *, sort_keys=(), ensure_2d=True, reshape_baseline=False,
+                  reshape_keys=(), skip_sorting=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -238,11 +238,6 @@ class _Algorithm2D:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        dtype : type or numpy.dtype, optional
-            The dtype to cast the output array. Default is None, which uses the typing of `array`.
-        order : {None, 'C', 'F'}, optional
-            The order for the output array. Default is None, which will use the default array
-            ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
         ensure_2d : bool, optional
             If True (default), will raise an error if the shape of `array` is not a two dimensional
             array with shape (M, N) or a three dimensional array with shape (M, N, 1), (M, 1, N),
@@ -268,7 +263,7 @@ class _Algorithm2D:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, dtype=dtype, order=order, ensure_2d=ensure_2d,
+                cls._register, sort_keys=sort_keys, ensure_2d=ensure_2d,
                 reshape_baseline=reshape_baseline, reshape_keys=reshape_keys,
                 skip_sorting=skip_sorting
             )
@@ -280,40 +275,31 @@ class _Algorithm2D:
                 # be None in 2D
                 raise TypeError('"data" cannot be None')
 
-            reset_x = self.x is not None
-            reset_z = self.z is not None
-            if reset_x or reset_z:
-                if reset_x and reset_z:
+            has_x = self.x is not None
+            has_z = self.z is not None
+            if has_x or has_z:
+                if has_x and has_z:
                     expected_shape = self._shape
                     axis = slice(-2, None)
-                elif reset_x:
+                elif has_x:
                     expected_shape = self._shape[0]
                     axis = -2
                 else:
                     expected_shape = self._shape[1]
                     axis = -1
                 y = _check_sized_array(
-                    data, expected_shape, check_finite=self._check_finite, dtype=dtype,
-                    order=order, ensure_1d=False, axis=axis, name='data', ensure_2d=ensure_2d,
-                    two_d=True
+                    data, expected_shape, check_finite=self._check_finite, ensure_1d=False,
+                    axis=axis, name='data', ensure_2d=ensure_2d, two_d=True
                 )
             else:
                 y, self.x, self.z = _yxz_arrays(
-                    data, self.x, self.z, check_finite=self._check_finite, dtype=dtype,
-                    order=order, ensure_2d=ensure_2d
+                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_2d
                 )
 
-            # update self.x and/or self.z just to ensure dtype and order are correct
-            if reset_x:
-                x_dtype = self.x.dtype
-                self.x = np.asarray(self.x, dtype=dtype, order=order)
-            else:
+            if not has_x:
                 self._shape = (y.shape[-2], self._shape[1])
                 self.x = np.linspace(-1, 1, self._shape[0])
-            if reset_z:
-                z_dtype = self.z.dtype
-                self.z = np.asarray(self.z, dtype=dtype, order=order)
-            else:
+            if not has_z:
                 self._shape = (self._shape[0], y.shape[-1])
                 self.z = np.linspace(-1, 1, self._shape[1])
 
@@ -325,10 +311,6 @@ class _Algorithm2D:
                 output_dtype = self._dtype
 
             baseline, params = func(self, y, *args, **kwargs)
-            if reset_x:
-                self.x = np.asarray(self.x, dtype=x_dtype)
-            if reset_z:
-                self.z = np.asarray(self.z, dtype=z_dtype)
 
             return self._return_results(
                 baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_2d=ensure_2d,

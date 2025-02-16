@@ -172,8 +172,7 @@ class _Algorithm:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True,
-                  skip_sorting=False):
+    def _register(cls, func=None, *, sort_keys=(), ensure_1d=True, skip_sorting=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -188,11 +187,6 @@ class _Algorithm:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        dtype : type or numpy.dtype, optional
-            The dtype to cast the output array. Default is None, which uses the typing of `array`.
-        order : {None, 'C', 'F'}, optional
-            The order for the output array. Default is None, which will use the default array
-            ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
         ensure_1d : bool, optional
             If True (default), will raise an error if the shape of `array` is not a one dimensional
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
@@ -210,8 +204,7 @@ class _Algorithm:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, dtype=dtype, order=order,
-                ensure_1d=ensure_1d, skip_sorting=skip_sorting
+                cls._register, sort_keys=sort_keys, ensure_1d=ensure_1d, skip_sorting=skip_sorting
             )
 
         @wraps(func)
@@ -219,27 +212,21 @@ class _Algorithm:
             if self.x is None:
                 if data is None:
                     raise TypeError('"data" and "x_data" cannot both be None')
-                reset_x = False
                 input_y = True
                 y, self.x = _yx_arrays(
-                    data, check_finite=self._check_finite, dtype=dtype, order=order,
-                    ensure_1d=ensure_1d
+                    data, check_finite=self._check_finite, ensure_1d=ensure_1d
                 )
                 self._size = y.shape[-1]
             else:
-                reset_x = True
                 if data is not None:
                     input_y = True
                     y = _check_sized_array(
-                        data, self._size, check_finite=self._check_finite, dtype=dtype, order=order,
-                        ensure_1d=ensure_1d, name='data'
+                        data, self._size, check_finite=self._check_finite, ensure_1d=ensure_1d,
+                        name='data'
                     )
                 else:
                     y = data
                     input_y = False
-                # update self.x just to ensure dtype and order are correct
-                x_dtype = self.x.dtype
-                self.x = np.asarray(self.x, dtype=dtype, order=order)
 
             if input_y and not skip_sorting:
                 y = _sort_array(y, sort_order=self._sort_order)
@@ -250,8 +237,6 @@ class _Algorithm:
                 output_dtype = self._dtype
 
             baseline, params = func(self, y, *args, **kwargs)
-            if reset_x:
-                self.x = np.asarray(self.x, dtype=x_dtype)
 
             return self._return_results(baseline, params, output_dtype, sort_keys, skip_sorting)
 
