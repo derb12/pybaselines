@@ -117,7 +117,6 @@ class _Algorithm2D:
             self._sort_order = (x_sort_order[:, None], z_sort_order[None, :])
             self._inverted_order = (x_inverted_order[:, None], z_inverted_order[None, :])
 
-        self.whittaker_system = None
         self._polynomial = None
         self._spline_basis = None
         self._check_finite = check_finite
@@ -381,6 +380,8 @@ class _Algorithm2D:
             The y-values of the measured data after flattening.
         weight_array : numpy.ndarray, shape (``M * N``)
             The weight array after flattening.
+        whittaker_system : WhittakerSystem2D
+            The WhittakerSystem2D for solving the given penalized least squared system.
 
         Raises
         ------
@@ -409,20 +410,24 @@ class _Algorithm2D:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if (
-            self.whittaker_system is not None
-            and self.whittaker_system.same_basis(diff_order, num_eigens)
-        ):
+        if False:#(
+            #TODO can probably keep the basis for reuse if using SVD, like _setup_spline does, and
+            # retain the unmodified penalties for the rows and columns if possible to skip that
+            # calculation as well
+
+            #self.whittaker_system is not None
+            #and self.whittaker_system.same_basis(diff_order, num_eigens)
+        #):
             self.whittaker_system.update_penalty(lam)
         else:
-            self.whittaker_system = WhittakerSystem2D(
+            whittaker_system = WhittakerSystem2D(
                 self._shape, lam, diff_order, num_eigens
             )
-        if not self.whittaker_system._using_svd:
+        if not whittaker_system._using_svd:
             y = y.ravel()
             weight_array = weight_array.ravel()
 
-        return y, weight_array
+        return y, weight_array, whittaker_system
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
                           calc_pinv=False, copy_weights=False, max_cross=None):

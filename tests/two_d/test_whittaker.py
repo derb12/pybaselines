@@ -79,11 +79,18 @@ class EigenvalueMixin:
         assert 'dof' in params
         assert params['dof'].shape == num_eigens
 
+    @pytest.mark.parametrize('num_eigens', (10, None))
+    def test_threading(self, num_eigens):
+        """Tests thread safety using SVD solver and analytical solution."""
+        # set tol to higher values to reduce overall computation time
+        super().test_threading(num_eigens=num_eigens, tol=1e-1)
 
-class TestAsLS(WhittakerTester, EigenvalueMixin):
+
+class TestAsLS(EigenvalueMixin, WhittakerTester):
     """Class for testing asls baseline."""
 
     func_name = 'asls'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -101,6 +108,7 @@ class TestIAsLS(WhittakerTester):
     """Class for testing iasls baseline."""
 
     func_name = 'iasls'
+    required_repeated_kwargs = {'lam': 1e-1, 'tol': 1e-1}
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -125,10 +133,11 @@ class TestIAsLS(WhittakerTester):
             self.class_func(self.y, lam=1e2, diff_order=[2, 1])
 
 
-class TestAirPLS(WhittakerTester, EigenvalueMixin):
+class TestAirPLS(EigenvalueMixin, WhittakerTester):
     """Class for testing airpls baseline."""
 
     func_name = 'airpls'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('diff_order', (1, [1, 2]))
     def test_diff_orders(self, diff_order):
@@ -136,10 +145,11 @@ class TestAirPLS(WhittakerTester, EigenvalueMixin):
         self.class_func(self.y, diff_order=diff_order)
 
 
-class TestArPLS(WhittakerTester, EigenvalueMixin):
+class TestArPLS(EigenvalueMixin, WhittakerTester):
     """Class for testing arpls baseline."""
 
     func_name = 'arpls'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('diff_order', (1, [1, 2]))
     def test_diff_orders(self, diff_order):
@@ -151,6 +161,7 @@ class TestDrPLS(WhittakerTester):
     """Class for testing drpls baseline."""
 
     func_name = 'drpls'
+    required_repeated_kwargs = {'lam': 1e1, 'tol': 1e-1}
 
     @pytest.mark.parametrize('eta', (-1, 2))
     def test_outside_eta_fails(self, eta):
@@ -175,10 +186,11 @@ class TestDrPLS(WhittakerTester):
             self.class_func(self.y, lam=1e2, diff_order=[2, 1])
 
 
-class TestIArPLS(WhittakerTester, EigenvalueMixin):
+class TestIArPLS(EigenvalueMixin, WhittakerTester):
     """Class for testing iarpls baseline."""
 
     func_name = 'iarpls'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('diff_order', (1, [1, 2]))
     def test_diff_orders(self, diff_order):
@@ -192,6 +204,7 @@ class TestAsPLS(WhittakerTester):
     func_name = 'aspls'
     checked_keys = ('weights', 'alpha', 'tol_history')
     weight_keys = ('weights', 'alpha')
+    required_repeated_kwargs = {'lam': 1e2, 'tol': 1e-1}
 
     @pytest.mark.parametrize('diff_order', (1, [1, 2]))
     def test_diff_orders(self, diff_order):
@@ -215,10 +228,11 @@ class TestAsPLS(WhittakerTester):
             self.class_func(self.y, asymmetric_coef=asymmetric_coef)
 
 
-class TestPsalsa(WhittakerTester, EigenvalueMixin):
+class TestPsalsa(EigenvalueMixin, WhittakerTester):
     """Class for testing psalsa baseline."""
 
     func_name = 'psalsa'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -238,10 +252,11 @@ class TestPsalsa(WhittakerTester, EigenvalueMixin):
             self.class_func(self.y, k=k)
 
 
-class TestBrPLS(WhittakerTester, EigenvalueMixin):
+class TestBrPLS(EigenvalueMixin, WhittakerTester):
     """Class for testing brpls baseline."""
 
     func_name = 'brpls'
+    required_repeated_kwargs = {'lam': 1e2, 'tol_2': 1e-1}
 
     @pytest.mark.parametrize('diff_order', (1, [1, 2]))
     def test_diff_orders(self, diff_order):
@@ -260,10 +275,11 @@ class TestBrPLS(WhittakerTester, EigenvalueMixin):
         assert params['tol_history'].shape == (max_iter_2 + 2, max_iter + 1)
 
 
-class TestLSRPLS(WhittakerTester, EigenvalueMixin):
+class TestLSRPLS(EigenvalueMixin, WhittakerTester):
     """Class for testing lsrpls baseline."""
 
     func_name = 'lsrpls'
+    required_repeated_kwargs = {'lam': 1e2}
 
     @pytest.mark.parametrize('diff_order', (1, [1, 2]))
     def test_diff_orders(self, diff_order):
