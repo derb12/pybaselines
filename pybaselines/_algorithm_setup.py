@@ -521,7 +521,7 @@ class _Algorithm:
             self._spline_basis is None
             or not self._spline_basis.same_basis(num_knots, spline_degree)
         ):
-            self._spline_basis = SplineBasis(self.x, num_knots, spline_degree, self._check_finite)
+            self._spline_basis = SplineBasis(self.x, num_knots, spline_degree)
 
         #TODO should probably also retain the unmodified penalty diagonals if possible to skip
         # that calculation as well

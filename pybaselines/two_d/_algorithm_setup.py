@@ -19,7 +19,7 @@ from .._validation import (
 from ..utils import (
     ParameterWarning, _determine_sorts, _sort_array2d, optimize_window, pad_edges2d
 )
-from ._spline_utils import PSpline2D
+from ._spline_utils import PSpline2D, SplineBasis2D
 from ._whittaker_utils import WhittakerSystem2D
 
 
@@ -119,7 +119,7 @@ class _Algorithm2D:
 
         self.whittaker_system = None
         self._polynomial = None
-        self.pspline = None
+        self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
         self.pentapy_solver = 2
@@ -580,6 +580,9 @@ class _Algorithm2D:
             The y-values of the measured data.
         weight_array : numpy.ndarray, shape (M, N)
             The weight array for fitting the spline to the data.
+        pspline : PSpline2D
+            The PSpline2D object for solving the given penalized least squared system. Only
+            returned if `make_basis` is True.
 
         Warns
         -----
@@ -601,22 +604,27 @@ class _Algorithm2D:
         diff_order = _check_scalar_variable(
             diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
         )
-        if make_basis:
-            if (diff_order > 4).any():
-                warnings.warn(
-                    ('differential orders greater than 4 can have numerical issues;'
-                     ' consider using a differential order of 2 or 3 instead'),
-                    ParameterWarning, stacklevel=2
-                )
+        if not make_basis:
+            return y, weight_array
 
-            if self.pspline is None or not self.pspline.same_basis(num_knots, spline_degree):
-                self.pspline = PSpline2D(
-                    self.x, self.z, num_knots, spline_degree, self._check_finite, lam, diff_order
-                )
-            else:
-                self.pspline.reset_penalty(lam, diff_order)
+        if (diff_order > 4).any():
+            warnings.warn(
+                ('differential orders greater than 4 can have numerical issues;'
+                    ' consider using a differential order of 2 or 3 instead'),
+                ParameterWarning, stacklevel=2
+            )
 
-        return y, weight_array
+        if (
+            self._spline_basis is None
+            or not self._spline_basis.same_basis(num_knots, spline_degree)
+        ):
+            self._spline_basis = SplineBasis2D(self.x, self.z, num_knots, spline_degree)
+
+        #TODO should probably also retain the unmodified penalties for the rows and
+        # columns if possible to skip that calculation as well
+        pspline = PSpline2D(self._spline_basis, lam, diff_order)
+
+        return y, weight_array, pspline
 
     def _setup_morphology(self, y, half_window=None, **window_kwargs):
         """

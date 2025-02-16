@@ -100,7 +100,7 @@ class _Spline(_Algorithm2D):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         # scale y between -1 and 1 so that the residual fit is more numerically stable
@@ -110,7 +110,7 @@ class _Spline(_Algorithm2D):
         y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
         if weights is not None:
-            baseline = self.pspline.solve(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
         else:
             # perform 2 iterations: first is a least-squares fit and second is initial
             # reweighted fit; 2 fits are needed to get weights to have a decent starting
@@ -123,7 +123,7 @@ class _Spline(_Algorithm2D):
                     ParameterWarning, stacklevel=2
                 )
             for _ in range(2):
-                baseline = self.pspline.solve(y, weight_array)
+                baseline = pspline.solve(y, weight_array)
                 weight_array = _weighting._asls(y, baseline, p)
 
         residual = y - baseline
@@ -177,7 +177,7 @@ class _Spline(_Algorithm2D):
                 fraction_positive = positive_sum / total_sum
 
             weight_array = posterior_prob_noise
-            baseline = self.pspline.solve(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             residual = y - baseline
 
         params = {
@@ -258,18 +258,18 @@ class _Spline(_Algorithm2D):
         if not 0 < quantile < 1:
             raise ValueError('quantile must be between 0 and 1')
 
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
-        old_coef = np.zeros(self.pspline._num_bases[0] * self.pspline._num_bases[1])
+        old_coef = np.zeros(np.prod(self._spline_basis._num_bases))
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve(y, weight_array)
-            calc_difference = relative_difference(old_coef, self.pspline.coef)
+            baseline = pspline.solve(y, weight_array)
+            calc_difference = relative_difference(old_coef, pspline.coef)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
-            old_coef = self.pspline.coef
+            old_coef = pspline.coef
             weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
@@ -350,12 +350,12 @@ class _Spline(_Algorithm2D):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -452,20 +452,20 @@ class _Spline(_Algorithm2D):
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data.ravel())
             weights = _weighting._asls(data, baseline.reshape(self._shape), p)
 
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
 
         # B.T @ P_1 @ B and B.T @ P_1 @ y
         penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
-        p1_partial_penalty = self.pspline.basis.T @ penalized_system_1.penalty
+        p1_partial_penalty = pspline.basis.basis.T @ penalized_system_1.penalty
 
         partial_rhs = p1_partial_penalty @ y.ravel()
-        self.pspline.add_penalty(p1_partial_penalty @ self.pspline.basis)
+        pspline.add_penalty(p1_partial_penalty @ pspline.basis.basis)
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve(y, weight_array**2, rhs_extra=partial_rhs)
+            baseline = pspline.solve(y, weight_array**2, rhs_extra=partial_rhs)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -541,14 +541,14 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
 
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.pspline.solve(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
                 y, baseline, i, normalize_weights
             )
@@ -625,12 +625,12 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights, exit_early = _weighting._arpls(y, baseline)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -706,12 +706,12 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.pspline.solve(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights, exit_early = _weighting._iarpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -806,7 +806,7 @@ class _Spline(_Algorithm2D):
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         if k is None:
@@ -815,7 +815,7 @@ class _Spline(_Algorithm2D):
             k = _check_scalar_variable(k, variable_name='k')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.pspline.solve(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -898,7 +898,7 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         beta = 0.5
@@ -911,7 +911,7 @@ class _Spline(_Algorithm2D):
         # use baseline_weights to track which weights produced the output baseline
         for i in range(max_iter_2 + 1):
             for j in range(max_iter + 1):
-                new_baseline = self.pspline.solve(y, weight_array)
+                new_baseline = pspline.solve(y, weight_array)
                 new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
                 if exit_early:
                     raise NotImplementedError('algorithm exited early')
@@ -1005,12 +1005,12 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.pspline.solve(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights, exit_early = _weighting._lsrpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct

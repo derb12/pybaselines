@@ -495,6 +495,27 @@ def _basis_midpoints(knots, spline_degree):
 
 
 class SplineBasis:
+    """
+    Object containing the information about the B-spline design matrix.
+
+    Attributes
+    ----------
+    basis : scipy.sparse.csr.csr_matrix, shape (N, M)
+        The spline basis. Has a shape of (`N,` `M`), where `N` is the number of points
+        in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
+        or equivalently ``num_knots + spline_degree - 1``).
+    knots : numpy.ndarray, shape (K,)
+        The knots for the spline. Has a shape of `K`, which is equal to
+        ``num_knots + 2 * spline_degree``.
+    num_knots : int
+        The number of internal knots (including the endpoints). The total number of knots
+        for the spline, `K`, is equal to ``num_knots + 2 * spline_degree``.
+    spline_degree : int
+        The degree of the spline (eg. a cubic spline would have a `spline_degree` of 3).
+    x : numpy.ndarray, shape (N,)
+        The x-values for the spline.
+
+    """
 
     def __init__(self, x, num_knots=100, spline_degree=3, check_finite=False):
         """
@@ -567,23 +588,11 @@ class PSpline(PenalizedSystem):
 
     Attributes
     ----------
-    basis : scipy.sparse.csr.csr_matrix, shape (N, M)
-        The spline basis. Has a shape of (`N,` `M`), where `N` is the number of points
-        in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
-        or equivalently ``num_knots + spline_degree - 1``).
+    basis : SplineBasis
+        The SplineBasis object that contains information about the B-spline design matrix.
     coef : None or numpy.ndarray, shape (M,)
         The spline coefficients. Is None if :meth:`~PSpline.solve_pspline` has not been called
         at least once.
-    knots : numpy.ndarray, shape (K,)
-        The knots for the spline. Has a shape of `K`, which is equal to
-        ``num_knots + 2 * spline_degree``.
-    num_knots : int
-        The number of internal knots (including the endpoints). The total number of knots
-        for the spline, `K`, is equal to ``num_knots + 2 * spline_degree``.
-    spline_degree : int
-        The degree of the spline (eg. a cubic spline would have a `spline_degree` of 3).
-    x : numpy.ndarray, shape (N,)
-        The x-values for the spline.
 
     References
     ----------

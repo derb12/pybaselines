@@ -16,15 +16,9 @@ from .._validation import _check_array, _check_scalar_variable
 from ._whittaker_utils import PenalizedSystem2D, _face_splitting
 
 
-class PSpline2D(PenalizedSystem2D):
+class SplineBasis2D:
     """
-    A Penalized Spline, which penalizes the difference of the spline coefficients.
-
-    Penalized splines (P-Splines) are solved with the following equation
-    ``(B.T @ W @ B + P) c = B.T @ W @ y`` where `c` is the spline coefficients, `B` is the
-    spline basis, the weights are the diagonal of `W`, the penalty is `P`, and `y` is the
-    fit data. The penalty `P` is usually in the form ``lam * D.T @ D``, where `lam` is a
-    penalty factor and `D` is the matrix version of the finite difference operator.
+    Object containing the information about the 2D B-spline design matrix.
 
     Attributes
     ----------
@@ -36,9 +30,6 @@ class PSpline2D(PenalizedSystem2D):
         The spline basis for the columns. Has a shape of (`M,` `Q`), where `M` is the number of
         points in `z`, and `Q` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[1] + spline_degree[1] - 1``).
-    coef : None or numpy.ndarray, shape (M,)
-        The spline coefficients. Is None if :meth:`~PSpline2D.solve_pspline` has not been called
-        at least once.
     knots_r : numpy.ndarray, shape (K,)
         The knots for the spline along the rows. Has a shape of `K`, which is equal to
         ``num_knots[0] + 2 * spline_degree[0]``.
@@ -56,13 +47,6 @@ class PSpline2D(PenalizedSystem2D):
     z : numpy.ndarray, shape (M,)
         The z-values for the spline.
 
-    Notes
-    -----
-    If the penalty is symmetric, the sparse system could be solved much faster using
-    CHOLMOD from SuiteSparse (https://github.com/DrTimothyAldenDavis/SuiteSparse) through
-    the python bindings provided by scikit-sparse (https://github.com/scikit-sparse/scikit-sparse),
-    but it is not worth implementing here since this code will rarely be used.
-
     References
     ----------
     Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
@@ -70,8 +54,7 @@ class PSpline2D(PenalizedSystem2D):
 
     """
 
-    def __init__(self, x, z, num_knots=100, spline_degree=3, check_finite=False, lam=1,
-                 diff_order=2):
+    def __init__(self, x, z, num_knots=100, spline_degree=3, check_finite=False):
         """
         Initializes the penalized spline by calculating the basis and penalty.
 
@@ -89,21 +72,8 @@ class PSpline2D(PenalizedSystem2D):
         check_finite : bool, optional
             If True, will raise an error if any values in `x` are not finite. Default
             is False, which skips the check.
-        lam : float or Sequence[float, float], optional
-            The penalty factor applied to the difference matrix. Larger values produce
-            smoother results. Must be greater than 0. Default is 1.
-        diff_order : int or Sequence[int, int], optional
-            The difference order of the penalty. Default is 2 (second order difference).
-
-        Raises
-        ------
-        ValueError
-            Raised if `spline_degree` is less than 0 or if `diff_order` is less than 1
-            or greater than or equal to the number of spline basis functions
-            (``num_knots + spline_degree - 1``).
 
         """
-        self.coef = None
         self._basis = None
 
         self.x = _check_array(x, dtype=float, check_finite=check_finite, ensure_1d=True)
@@ -122,14 +92,7 @@ class PSpline2D(PenalizedSystem2D):
         self.knots_c = _spline_knots(self.z, self.num_knots[1], self.spline_degree[1], True)
         self.basis_c = _spline_basis(self.z, self.knots_c, self.spline_degree[1])
 
-        super().__init__((self.basis_r.shape[1], self.basis_c.shape[1]), lam, diff_order)
-
-        if (self.diff_order >= self._num_bases).any():
-            raise ValueError((
-                'the difference order must be less than the number of basis '
-                'functions, which is the number of knots + spline degree - 1'
-            ))
-
+        self._num_bases = (self.basis_r.shape[1], self.basis_c.shape[1])
         # TODO how much time is save by precomputaing G_r and G_c rather than computing
         # each iteration in solve? -> worth the memory usage?
         self._G_r = _face_splitting(self.basis_r)
@@ -166,6 +129,104 @@ class PSpline2D(PenalizedSystem2D):
             np.array_equal(num_knots, self.num_knots)
             and np.array_equal(spline_degree, self.spline_degree)
         )
+
+    @property
+    def basis(self):
+        """
+        The full spline basis matrix.
+
+        This is a lazy implementation since the full basis is typically not needed for
+        computations.
+
+        """
+        if self._basis is None:
+            self._basis = kron(self.basis_r, self.basis_c)
+        return self._basis
+
+    def _make_btwb(self, weights):
+        """Computes ``Basis.T @ Weights @ Basis`` using a more efficient method.
+
+        References
+        ----------
+        Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+        Statistics and Data Analysis, 2006, 50(1), 61-76.
+
+        """
+        # do not save intermediate results since they are memory intensive for high number of bases
+        F = csr_object(
+            np.transpose(
+                (self._G_r.T @ weights @ self._G_c).reshape((
+                    self._num_bases[0], self._num_bases[0], self._num_bases[1], self._num_bases[1]
+                )),
+                [0, 2, 1, 3]
+            ).reshape((np.prod(self._num_bases), np.prod(self._num_bases)))
+        )
+
+        return F
+
+
+class PSpline2D(PenalizedSystem2D):
+    """
+    A Penalized Spline, which penalizes the difference of the spline coefficients.
+
+    Penalized splines (P-Splines) are solved with the following equation
+    ``(B.T @ W @ B + P) c = B.T @ W @ y`` where `c` is the spline coefficients, `B` is the
+    spline basis, the weights are the diagonal of `W`, the penalty is `P`, and `y` is the
+    fit data. The penalty `P` is usually in the form ``lam * D.T @ D``, where `lam` is a
+    penalty factor and `D` is the matrix version of the finite difference operator.
+
+    Attributes
+    ----------
+    coef : None or numpy.ndarray, shape (M,)
+        The spline coefficients. Is None if :meth:`~PSpline2D.solve_pspline` has not been called
+        at least once.
+
+    Notes
+    -----
+    If the penalty is symmetric, the sparse system could be solved much faster using
+    CHOLMOD from SuiteSparse (https://github.com/DrTimothyAldenDavis/SuiteSparse) through
+    the python bindings provided by scikit-sparse (https://github.com/scikit-sparse/scikit-sparse),
+    but it is not worth implementing here since this code will rarely be used.
+
+    References
+    ----------
+    Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+    Statistics and Data Analysis, 2006, 50(1), 61-76.
+
+    """
+
+    def __init__(self, spline_basis, lam=1, diff_order=2):
+        """
+        Initializes the penalized spline by calculating the basis and penalty.
+
+        Parameters
+        ----------
+        spline_basis : SplineBasis2D
+            The SplineBasis2D object that contains information about the B-spline design matrix.
+        lam : float or Sequence[float, float], optional
+            The penalty factor applied to the difference matrix. Larger values produce
+            smoother results. Must be greater than 0. Default is 1.
+        diff_order : int or Sequence[int, int], optional
+            The difference order of the penalty. Default is 2 (second order difference).
+
+        Raises
+        ------
+        ValueError
+            Raised if `spline_degree` is less than 0 or if `diff_order` is less than 1
+            or greater than or equal to the number of spline basis functions
+            (``num_knots + spline_degree - 1``).
+
+        """
+        self.coef = None
+        self.basis = spline_basis
+
+        super().__init__(self.basis._num_bases, lam, diff_order)
+
+        if (self.diff_order >= self.basis._num_bases).any():
+            raise ValueError((
+                'the difference order must be less than the number of basis '
+                'functions, which is the number of knots + spline degree - 1'
+            ))
 
     def reset_penalty(self, lam=1, diff_order=2):
         """
@@ -222,41 +283,19 @@ class PSpline2D(PenalizedSystem2D):
         which will be the more typical use case.
 
         """
-        # do not save intermediate results since they are memory intensive for high number of knots
-        F = csr_object(
-            np.transpose(
-                (self._G_r.T @ weights @ self._G_c).reshape(
-                    (self._num_bases[0], self._num_bases[0], self._num_bases[1], self._num_bases[1])
-                ),
-                [0, 2, 1, 3]
-            ).reshape(
-                (self._num_bases[0] * self._num_bases[1], self._num_bases[0] * self._num_bases[1])
-            )
-        )
         if penalty is None:
             penalty = self.penalty
 
-        rhs = (self.basis_r.T @ (weights * y) @ self.basis_c).ravel()
+        rhs = (self.basis.basis_r.T @ (weights * y) @ self.basis.basis_c).ravel()
         if rhs_extra is not None:
             rhs = rhs + rhs_extra
 
-        self.coef = spsolve(F + penalty, rhs)
-        output = self.basis_r @ self.coef.reshape(self._num_bases) @ self.basis_c.T
+        self.coef = spsolve(self.basis._make_btwb(weights) + penalty, rhs)
+        output = (
+            self.basis.basis_r @ self.coef.reshape(self.basis._num_bases) @ self.basis.basis_c.T
+        )
 
         return output
-
-    @property
-    def basis(self):
-        """
-        The full spline basis matrix.
-
-        This is a lazy implementation since the full basis is typically not needed for
-        computations.
-
-        """
-        if self._basis is None:
-            self._basis = kron(self.basis_r, self.basis_c)
-        return self._basis
 
     @property
     def tck(self):
@@ -287,5 +326,6 @@ class PSpline2D(PenalizedSystem2D):
         if self.coef is None:
             raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
         return (
-            (self.knots_r, self.knots_c), self.coef.reshape(self._num_bases), self.spline_degree
+            (self.basis.knots_r, self.basis.knots_c), self.coef.reshape(self.basis._num_bases),
+            self.basis.spline_degree
         )
