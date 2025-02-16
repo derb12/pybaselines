@@ -950,6 +950,9 @@ class _PolyHelper2D:
                 max_cross, allow_zero=True, variable_name='max_cross', dtype=int
             )
 
+        # TODO if self.max_cross is None and x- and z- poly_orders are
+        # less than self.poly_order, then can just using slicing to reuse
+        # the vandermonde like for 1D; would then just need to recalc pinv
         if (
             self.vandermonde is None or self.max_cross != max_cross
             or np.any(self.poly_order != poly_orders)
