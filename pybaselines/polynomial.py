@@ -80,7 +80,7 @@ import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import jit
+from ._compat import _HAS_NUMBA, jit
 from .utils import _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
 
 
@@ -650,9 +650,13 @@ class _Polynomial(_Algorithm):
         windows, fits, skips = _determine_fits(x, self._size, total_points, float(delta))
 
         # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
-        # when matrix multiplied with the C-ordered coefficient array gives a warning
-        # when using numba, so convert Vandermonde matrix to C-ordering.
-        self._polynomial.vandermonde = np.ascontiguousarray(self._polynomial.vandermonde)
+        # is not continguous when indexed (ie. vandermonde[i]) and issues a warning
+        # when using numba, so convert Vandermonde matrix to C-ordering; without Numba,
+        # there is no major slowdown using the non-contiguous array
+        if _HAS_NUMBA:
+            vandermonde = np.ascontiguousarray(self._polynomial.vandermonde)
+        else:
+            vandermonde = self._polynomial.vandermonde
 
         baseline = y
         coefs = np.zeros((self._size, poly_order + 1))
@@ -663,17 +667,15 @@ class _Polynomial(_Algorithm):
             baseline_old = baseline
             if conserve_memory:
                 baseline = _loess_low_memory(
-                    x, y, sqrt_w, coefs, self._polynomial.vandermonde, self._size, windows, fits
+                    x, y, sqrt_w, coefs, vandermonde, self._size, windows, fits
                 )
             elif i == 0:
                 kernels, baseline = _loess_first_loop(
-                    x, y, sqrt_w, coefs, self._polynomial.vandermonde, total_points, self._size,
-                    windows, fits
+                    x, y, sqrt_w, coefs, vandermonde, total_points, self._size, windows, fits
                 )
             else:
                 baseline = _loess_nonfirst_loops(
-                    y, sqrt_w, coefs, self._polynomial.vandermonde, kernels, windows, self._size,
-                    fits
+                    y, sqrt_w, coefs, vandermonde, kernels, windows, self._size, fits
                 )
 
             _fill_skips(x, baseline, skips)
