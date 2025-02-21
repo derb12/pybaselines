@@ -24,6 +24,8 @@ Baseline Correction for Two Dimensional Data.
     * iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
     * aspls (Adaptive Smoothness Penalized Least Squares)
     * psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
+    * brpls (Bayesian Reweighted Penalized Least Squares)
+    * lsrpls (Locally Symmetric Reweighted Penalized Least Squares)
 
 * Morphological methods (:mod:`pybaselines.two_d.morphological`)
 
@@ -42,6 +44,8 @@ Baseline Correction for Two Dimensional Data.
     * pspline_arpls (Penalized Spline Version of arpls)
     * pspline_iarpls (Penalized Spline Version of iarpls)
     * pspline_psalsa (Penalized Spline Version of psalsa)
+    * pspline_brpls (Penalized Spline Version of brpls)
+    * pspline_lsrpls (Penalized Spline Version of lsrpls)
 
 * Smoothing-based methods (:mod:`pybaselines.two_d.smooth`)
 

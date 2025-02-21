@@ -346,7 +346,7 @@ imodpoly (Improved Modified Polynomial)
 :meth:`~.Baseline.imodpoly` is an attempt to improve the modpoly algorithm for noisy data,
 by including the standard deviation of the residual (data - baseline) when performing
 the thresholding. The number of standard deviations included in the thresholding can
-be adjusted by setting ``num_std``. `imodpoly` is also sometimes called "IModPolyFit" in literature,
+be adjusted by setting ``num_std``. `imodpoly` is also sometimes called "IModPolyFit" or "Vancouver Raman Algorithm" in literature,
 and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterative Polynomial Fit".
 
 .. note::

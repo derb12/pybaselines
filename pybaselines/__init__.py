@@ -28,6 +28,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
     * derpsalsa (Derivative Peak-Screening Asymmetric Least Squares Algorithm)
     * brpls (Bayesian Reweighted Penalized Least Squares)
+    * lsrpls (Locally Symmetric Reweighted Penalized Least Squares)
 
 * Morphological methods (:mod:`pybaselines.morphological`)
 
@@ -58,6 +59,7 @@ pybaselines provides different techniques for fitting baselines to experimental 
     * pspline_derpsalsa (Penalized Spline Version of derpsalsa)
     * pspline_mpls (Penalized Spline Version of mpls)
     * pspline_brpls (Penalized Spline Version of brpls)
+    * pspline_lsrpls (Penalized Spline Version of lsrpls)
 
 * Smoothing-based methods (:mod:`pybaselines.smooth`)
 

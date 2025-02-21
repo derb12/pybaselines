@@ -31,6 +31,8 @@ names of the algorithms were used. The algorithms are grouped accordingly:
     * aspls (Adaptive Smoothness Penalized Least Squares)
     * psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
     * derpsalsa (Derivative Peak-Screening Asymmetric Least Squares Algorithm)
+    * brpls (Bayesian Reweighted Penalized Least Squares)
+    * lsrpls (Locally Symmetric Reweighted Penalized Least Squares)
 
 * Morphological methods (:mod:`pybaselines.morphological`)
 
@@ -59,6 +61,8 @@ names of the algorithms were used. The algorithms are grouped accordingly:
     * pspline_aspls (Penalized Spline Version of aspls)
     * pspline_psalsa (Penalized Spline Version of psalsa)
     * pspline_derpsalsa (Penalized Spline Version of derpsalsa)
+    * pspline_brpls (Penalized Spline Version of brpls)
+    * pspline_lsrpls (Penalized Spline Version of lsrpls)
 
 * Smoothing-based methods (:mod:`pybaselines.smooth`)
 

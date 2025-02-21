@@ -275,3 +275,33 @@ psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.psalsa(y, lam=(1e3, 1e2), k=0.5)
     create_plots(y, baseline)
+
+
+brpls (Bayesian Reweighted Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline2D.brpls`:
+:ref:`explanation for the algorithm <algorithms/whittaker:brpls (Bayesian Reweighted Penalized Least Squares)>`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_plots function, look at the top-most algorithm's code
+    baseline, params = baseline_fitter.brpls(y, lam=(1e4, 1e2))
+    create_plots(y, baseline)
+
+
+lsrpls (Locally Symmetric Reweighted Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline2D.lsrpls`:
+:ref:`explanation for the algorithm <algorithms/whittaker:lsrpls (Locally Symmetric Reweighted Penalized Least Squares)>`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_plots function, look at the top-most algorithm's code
+    baseline, params = baseline_fitter.lsrpls(y, lam=(1e4, 1e2))
+    create_plots(y, baseline)

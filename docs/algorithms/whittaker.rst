@@ -242,14 +242,14 @@ Minimized function:
 .. math::
 
     \sum\limits_{i}^N (w_i (y_i - z_i))^2
-    + \lambda \sum\limits_{i}^{N - 2} (\Delta^2 z_i)^2
+    + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
     + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - z_i))^2
 
 Linear system:
 
 .. math::
 
-    (W^{\top} W + \lambda_1 D_1^{\top} D_1 + \lambda D_2^{\top} D_2) z
+    (W^{\top} W + \lambda_1 D_1^{\top} D_1 + \lambda D_d^{\top} D_d) z
     = (W^{\top} W + \lambda_1 D_1^{\top} D_1) y
 
 Weighting:
@@ -309,7 +309,7 @@ Weighting:
 
     w_i = \left\{\begin{array}{cr}
         0 & y_i \ge z_i \\
-        exp{\left(\frac{abs(y_i - z_i) t}{|\mathbf{r}^-|}\right)} & y_i < z_i
+        \exp{\left(\frac{\text{abs}(y_i - z_i) t}{|\mathbf{r}^-|}\right)} & y_i < z_i
     \end{array}\right.
 
 where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the l1-norm of the negative
@@ -352,7 +352,7 @@ Weighting:
 
     w_i = \frac
         {1}
-        {1 + exp{\left(\frac
+        {1 + \exp{\left(\frac
             {2(r_i - (-\mu^- + 2 \sigma^-))}
             {\sigma^-}
         \right)}}
@@ -384,7 +384,7 @@ Minimized function:
 .. math::
 
     \sum\limits_{i}^N w_i (y_i - z_i)^2
-    + \lambda \sum\limits_{i}^{N - 2}(1 - \eta w_i) (\Delta^2 z_i)^2
+    + \lambda \sum\limits_{i}^{N - d}(1 - \eta w_i) (\Delta^d z_i)^2
     + \sum\limits_{i}^{N - 1} (\Delta^1 (z_i))^2
 
 where :math:`\eta` is a value between 0 and 1 that controls the
@@ -394,7 +394,7 @@ Linear system:
 
 .. math::
 
-    (W + D_1^{\top} D_1 + \lambda (I - \eta W) D_2^{\top} D_2) z = W y
+    (W + D_1^{\top} D_1 + \lambda (I - \eta W) D_d^{\top} D_d) z = W y
 
 where :math:`I` is the identity matrix.
 
@@ -405,8 +405,8 @@ Weighting:
     w_i = \frac{1}{2}\left(
         1 -
         \frac
-            {exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
-            {1 + abs[exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
+            {\exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
+            {1 + \text{abs}[\exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
     \right)
 
 where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
@@ -454,8 +454,8 @@ Weighting:
     w_i = \frac{1}{2}\left(
         1 -
         \frac
-            {exp(t)(r_i - 2 \sigma^-)/\sigma^-}
-            {\sqrt{1 + [exp(t)(r_i - 2 \sigma^-)/\sigma^-]^2}}
+            {\exp(t)(r_i - 2 \sigma^-)/\sigma^-}
+            {\sqrt{1 + [\exp(t)(r_i - 2 \sigma^-)/\sigma^-]^2}}
     \right)
 
 where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
@@ -491,8 +491,8 @@ where
 .. math::
 
     \alpha_i = \frac
-        {abs(r_i)}
-        {max(abs(\mathbf r))}
+        {\text{abs}(r_i)}
+        {\max(\text{abs}(\mathbf r))}
 
 Linear system:
 
@@ -506,7 +506,7 @@ Weighting:
 
     w_i = \frac
         {1}
-        {1 + exp{\left(\frac
+        {1 + \exp{\left(\frac
             {k (r_i - \sigma^-)}
             {\sigma^-}
         \right)}}
@@ -552,7 +552,7 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p \cdot exp{\left(\frac{-(y_i - z_i)}{k}\right)} & y_i > z_i \\
+        p \cdot \exp{\left(\frac{-(y_i - z_i)}{k}\right)} & y_i > z_i \\
         1 - p & y_i \le z_i
     \end{array}\right.
 
@@ -605,17 +605,17 @@ where:
 .. math::
 
     w_{0i} = \left\{\begin{array}{cr}
-        p \cdot exp{\left(\frac{-[(y_i - z_i)/k]^2}{2}\right)} & y_i > z_i \\
+        p \cdot \exp{\left(\frac{-[(y_i - z_i)/k]^2}{2}\right)} & y_i > z_i \\
         1 - p & y_i \le z_i
     \end{array}\right.
 
 .. math::
 
-    w_{1i} = exp{\left(\frac{-[y_{sm_i}' / rms(y_{sm}')]^2}{2}\right)}
+    w_{1i} = \exp{\left(\frac{-[y_{sm_i}' / rms(y_{sm}')]^2}{2}\right)}
 
 .. math::
 
-    w_{2i} = exp{\left(\frac{-[y_{sm_i}'' / rms(y_{sm}'')]^2}{2}\right)}
+    w_{2i} = \exp{\left(\frac{-[y_{sm_i}'' / rms(y_{sm}'')]^2}{2}\right)}
 
 :math:`k` is a factor that controls the exponential decay of the weights for baseline
 values greater than the data and should be approximately the height at which a value could
@@ -635,4 +635,103 @@ respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the roo
         else:
             k = 0.5
         baseline, params = baseline_fitter.psalsa(y, 1e5, k=k)
+        ax.plot(baseline, 'g--')
+
+
+brpls (Bayesian Reweighted Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline.brpls` calculates weights by considering the probability that each
+data point is part of the signal following Bayes' theorem.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+
+Linear system:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
+
+Weighting:
+
+.. math::
+
+    w_i = \frac
+        {1}
+        {1 + \frac{\beta}{1-\beta}\sqrt{\frac{\pi}{2}}F_i}
+
+where:
+
+.. math::
+
+    F_i = \frac{\sigma^-}{\mu^+}
+    \left(
+        1 + \text{erf}{\left[\frac{r_i}{\sqrt{2}\sigma^-} - \frac{\sigma^-}{\sqrt{2}\mu^+}\right]}
+    \right)
+    \exp{\left(
+        \left[\frac{r_i}{\sqrt{2}\sigma^-} - \frac{\sigma^-}{\sqrt{2}\mu^+}\right]^2
+    \right)}
+
+:math:`r_i = y_i - z_i`, :math:`\beta` is 1 minus the mean of the weights of the previous
+iteration, :math:`\sigma^-` is the root mean square of the negative values
+in the residual vector :math:`\mathbf r`, and :math:`\mu^+` is the mean of the positive values
+within :math:`\mathbf r`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_plots function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        baseline, params = baseline_fitter.brpls(y, 1e5)
+        ax.plot(baseline, 'g--')
+
+
+lsrpls (Locally Symmetric Reweighted Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline.lsrpls` uses a single weighting function that is designed to account
+for noisy data. The weighting for lsrpls is nearly identical to drpls, but the two differ
+in the minimized function.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+
+Linear system:
+
+.. math::
+
+    (W + \lambda D_d^{\top} D_d) z = W y
+
+Weighting:
+
+.. math::
+
+    w_i = \frac{1}{2}\left(
+        1 -
+        \frac
+            {10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
+            {1 + \text{abs}[10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
+    \right)
+
+where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+:math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
+respectively, of the negative values in the residual vector :math:`\mathbf r`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_plots function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        baseline, params = baseline_fitter.lsrpls(y, 1e5)
         ax.plot(baseline, 'g--')
