@@ -40,7 +40,7 @@ class Baseline(
 
     Attributes
     ----------
-    petapy_solver : int or str
+    pentapy_solver : int or str
         The integer or string designating which solver to use if using pentapy.
         See :func:`pentapy.solve` for available options, although `1` or `2` are the
         most relevant options. Default is 2.

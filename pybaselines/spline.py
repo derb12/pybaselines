@@ -271,7 +271,7 @@ class _Spline(_Algorithm):
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
         )
-        old_coef = np.zeros(pspline._num_bases)
+        old_coef = np.zeros(self._spline_basis._num_bases)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = pspline.solve_pspline(y, weight_array)

@@ -338,13 +338,10 @@ class _Algorithm:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if False:#TODO can probably keep the lower diagonals for reuse, much like PenalizedSystem currently does
-            self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
-        else:
-            whittaker_system = PenalizedSystem(
-                self._size, lam, diff_order, allow_lower, reverse_diags,
-                pentapy_solver=self.pentapy_solver
-            )
+        whittaker_system = PenalizedSystem(
+            self._size, lam, diff_order, allow_lower, reverse_diags,
+            pentapy_solver=self.pentapy_solver
+        )
 
         return y, weight_array, whittaker_system
 
@@ -508,8 +505,6 @@ class _Algorithm:
         ):
             self._spline_basis = SplineBasis(self.x, num_knots, spline_degree)
 
-        #TODO should probably also retain the unmodified penalty diagonals if possible to skip
-        # that calculation as well
         pspline = PSpline(
             self._spline_basis, lam, diff_order, allow_lower, reverse_diags
         )

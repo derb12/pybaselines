@@ -383,7 +383,10 @@ class TestLoess(IterativePolynomialTester):
     @pytest.mark.parametrize('use_threshold', (True, False))
     def test_threading(self, conserve_memory, use_threshold):
         """Tests the different possible computation routes under threading."""
-        super().test_threading(conserve_memory=conserve_memory, use_threshold=use_threshold)
+        delta = 0.05 * (self.x.max() - self.x.min())  # use a larger delta to speed up method
+        super().test_threading(
+            conserve_memory=conserve_memory, use_threshold=use_threshold, delta=delta
+        )
 
 
 class TestQuantReg(IterativePolynomialTester):
@@ -391,6 +394,7 @@ class TestQuantReg(IterativePolynomialTester):
 
     func_name = 'quant_reg'
     required_kwargs = {'tol': 1e-9}
+    required_repeated_kwargs = {'tol': 1e-3}
 
     @pytest.mark.parametrize('quantile', (0, 1, -0.1, 1.1))
     def test_outside_quantile_fails(self, quantile):

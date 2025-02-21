@@ -847,6 +847,7 @@ def test_override_x(algorithm):
     new_size = 20
     new_x = np.arange(new_size)
     new_algorithm = algorithm._override_x(new_x)
+    assert isinstance(new_algorithm, _algorithm_setup._Algorithm)
 
     assert len(new_algorithm.x) == new_size
     assert new_algorithm._size == new_size
