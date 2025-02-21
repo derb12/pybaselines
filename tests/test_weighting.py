@@ -1298,6 +1298,35 @@ def test_brpls_overflow(one_d, beta, positive, dtype):
     assert_allclose(weights, expected_weights, rtol=5e-6, atol=1e-10)
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('beta', (0, 1))
+def test_brpls_beta_extremes(one_d, beta):
+    """Ensures beta values of 0 and 1 are handled correctly."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    if beta == 1:
+        # the resulting weights should still be finite since 1 / (1 + inf) == 0
+        with pytest.warns(RuntimeWarning):
+            expected_weights = expected_brpls(y_data, baseline, beta)
+        fill_value = 0
+    else:
+        expected_weights = expected_brpls(y_data, baseline, beta)
+        fill_value = 1
+    assert np.isfinite(expected_weights).all()
+    assert_allclose(np.full(y_data.shape, fill_value), expected_weights, rtol=1e-10, atol=1e-10)
+
+    with np.errstate(divide='raise'):
+        weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+
+    assert np.isfinite(weights).all()
+    assert not exit_early
+
+    assert_allclose(weights, expected_weights, rtol=1e-10, atol=1e-10)
+
+
 def expected_lsrpls(y, baseline, iteration):
     """
     The weighting for the locally symmetric reweighted penalized least squares (lsrpls).

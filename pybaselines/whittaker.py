@@ -899,9 +899,9 @@ class _Whittaker(_Algorithm):
                 )
                 new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
                 if exit_early:
-                    raise NotImplementedError('algorithm exited early')
-                    #TODO figure out how to correct i and j and also what to do with new_baseline;
-                    # maybe have to override tol_2 to be inf so that outer loop exits too
+                    j -= 1  # reduce j so that output tol_history indexing is correct
+                    tol_2 = np.inf  # ensure it exits outer loop
+                    break
                 # Paper used norm(old - new) / norm(new) rather than old in the denominator,
                 # but I use old in the denominator instead to be consistant with all other
                 # algorithms; does not make a major difference

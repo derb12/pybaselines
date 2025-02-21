@@ -564,9 +564,10 @@ def _brpls(y, baseline, beta):
     sigma = np.sqrt(neg_residual.dot(neg_residual) / neg_residual.size)
 
     inner = (residual / (sigma * np.sqrt(2))) - (sigma / (mean * np.sqrt(2)))
-    multiplier = ((beta * np.sqrt(0.5 * np.pi)) / (1 - beta)) * (sigma / mean)
+    multiplier = ((beta * np.sqrt(0.5 * np.pi)) / max(1 - beta, _MIN_FLOAT)) * (sigma / mean)
     # overflow occurs at 2 * multiplier * exp(max_val**2), where the 2 is from 1 + max(erf(x));
-    # clip just to ignore overflow warning since 1 / (1 + inf) == 0, which is fine
+    # clip to ignore overflow warning since 1 / (1 + inf) == 0, which is fine, but can
+    # also cause nan if erf(x) = -1 and exp(x**2) = inf since 0 * inf = nan
     max_val = np.sqrt(np.log(np.finfo(y.dtype).max))
     max_val -= np.spacing(max_val)  # ensure limit is below max value
 
