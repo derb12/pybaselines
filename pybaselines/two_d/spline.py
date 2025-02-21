@@ -12,7 +12,7 @@ import numpy as np
 
 from .. import _weighting
 from .._validation import _check_scalar_variable
-from ..utils import ParameterWarning, gaussian, relative_difference
+from ..utils import ParameterWarning, gaussian, relative_difference, _MIN_FLOAT
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
 
@@ -138,20 +138,21 @@ class _Spline(_Algorithm2D):
         for i in range(max_iter + 1):
             # expectation part of expectation-maximization -> calc pdfs and
             # posterior probabilities
-            positive_pdf = (
-                fraction_positive * (residual >= 0) * (1 / max(abs(residual.max()), 1e-6))
+            positive_pdf = np.where(
+                residual >= 0, fraction_positive / max(abs(residual.max()), 1e-6), 0
             )
             noise_pdf = (
                 fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
             )
             total_pdf = noise_pdf + positive_pdf
             if symmetric:
-                negative_pdf = (
-                    (1 - fraction_noise - fraction_positive)
-                    * (residual < 0) * (1 / max(abs(residual.min()), 1e-6))
+                negative_pdf = np.where(
+                    residual < 0,
+                    (1 - fraction_noise - fraction_positive) / max(abs(residual.min()), 1e-6),
+                    0
                 )
                 total_pdf += negative_pdf
-            posterior_prob_noise = noise_pdf / total_pdf
+            posterior_prob_noise = noise_pdf / np.maximum(total_pdf, _MIN_FLOAT)
 
             calc_difference = relative_difference(weight_array, posterior_prob_noise)
             tol_history[i] = calc_difference

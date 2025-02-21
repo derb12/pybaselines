@@ -19,7 +19,7 @@ from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .utils import (
     ParameterWarning, _mollifier_kernel, _sort_array, gaussian, pad_edges, padded_convolve,
-    relative_difference
+    relative_difference, _MIN_FLOAT
 )
 
 
@@ -151,20 +151,21 @@ class _Spline(_Algorithm):
         for i in range(max_iter + 1):
             # expectation part of expectation-maximization -> calc pdfs and
             # posterior probabilities
-            positive_pdf = (
-                fraction_positive * (residual >= 0) * (1 / max(abs(residual.max()), 1e-6))
+            positive_pdf = np.where(
+                residual >= 0, fraction_positive / max(abs(residual.max()), 1e-6), 0
             )
             noise_pdf = (
                 fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
             )
             total_pdf = noise_pdf + positive_pdf
             if symmetric:
-                negative_pdf = (
-                    (1 - fraction_noise - fraction_positive)
-                    * (residual < 0) * (1 / max(abs(residual.min()), 1e-6))
+                negative_pdf = np.where(
+                    residual < 0,
+                    (1 - fraction_noise - fraction_positive) / max(abs(residual.min()), 1e-6),
+                    0
                 )
                 total_pdf += negative_pdf
-            posterior_prob_noise = noise_pdf / total_pdf
+            posterior_prob_noise = noise_pdf / np.maximum(total_pdf, _MIN_FLOAT)
 
             calc_difference = relative_difference(weight_array, posterior_prob_noise)
             tol_history[i] = calc_difference
