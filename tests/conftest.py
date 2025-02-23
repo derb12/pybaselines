@@ -351,13 +351,18 @@ class BaseTester:
         if self.two_d:
             y = np.vstack((y, y))
             y2 = np.vstack((y2, y2))
+        x.setflags(write=False)
+        y.setflags(write=False)
 
-        if use_class:
-            getattr(self.algorithm_base(x_data=x), self.func_name)(
-                data=y, **self.kwargs, **kwargs
-            )
-        else:
-            self.func(data=y, x_data=x, **self.kwargs, **kwargs)
+        try:
+            if use_class:
+                getattr(self.algorithm_base(x_data=x), self.func_name)(
+                    data=y, **self.kwargs, **kwargs
+                )
+            else:
+                self.func(data=y, x_data=x, **self.kwargs, **kwargs)
+        except ValueError as e:  # from trying to assign value to read-only array
+            raise AssertionError('method modified the input x- or y-data.') from e
 
         assert_array_equal(y2, y, err_msg='the y-data was changed by the algorithm')
         assert_array_equal(x2, x, err_msg='the x-data was changed by the algorithm')
@@ -630,16 +635,28 @@ class BaseTester2D:
             y = np.array((y, y))
             y2 = np.array((y2, y2))
 
-        if new_instance:
-            getattr(self.algorithm_base(x_data=x, z_data=z), self.func_name)(
-                data=y, **self.kwargs, **kwargs
-            )
-            compared_x = x
-            compared_z = z
-        else:
-            self.class_func(data=y, **self.kwargs, **kwargs)
-            compared_x = self.x
-            compared_z = self.z
+        y.setflags(write=False)
+        try:
+            if new_instance:
+                x.setflags(write=False)
+                z.setflags(write=False)
+                getattr(self.algorithm_base(x_data=x, z_data=z), self.func_name)(
+                    data=y, **self.kwargs, **kwargs
+                )
+                compared_x = x
+                compared_z = z
+            else:
+                self.x.setflags(write=False)
+                self.z.setflags(write=False)
+                self.class_func(data=y, **self.kwargs, **kwargs)
+                compared_x = self.x
+                compared_z = self.z
+        except ValueError as e:  # from trying to assign value to read-only array
+            raise AssertionError('method modified the input x- or y-data.') from e
+        finally:
+            if not new_instance:
+                self.x.setflags(write=True)
+                self.z.setflags(write=True)
 
         assert_array_equal(y2, y, err_msg='the y-data was changed by the algorithm')
         assert_array_equal(x2, compared_x, err_msg='the x-data was changed by the algorithm')
