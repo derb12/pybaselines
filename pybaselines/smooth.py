@@ -13,8 +13,8 @@ from scipy.ndimage import median_filter, uniform_filter1d
 from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import trapezoid
-from ._validation import _check_half_window
+from ._compat import jit, trapezoid
+from ._validation import _check_half_window, _check_scalar
 from .utils import (
     ParameterWarning, _get_edges, gaussian, gaussian_kernel, optimize_window,
     pad_edges, padded_convolve, relative_difference
@@ -405,7 +405,7 @@ class _Smooth(_Algorithm):
         References
         ----------
         Wang, T., et al. Background Subtraction of Raman Spectra Based on Iterative
-        Polynomial Smoothing. Applied Spectroscopy. 71(6) (2017) 1169-1179.
+        Polynomial Smoothing. Applied Spectroscopy. 2017, 71(6), 1169-1179.
 
         """
         y, output_half_window = self._setup_smooth(
@@ -509,8 +509,8 @@ class _Smooth(_Algorithm):
         References
         ----------
         Krishna, H., et al. Range-independent background subtraction algorithm for
-        recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 43(12)
-        (2012) 1884-1894.
+        recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 2012,
+        43(12), 1884-1894.
 
         """
         side = side.lower()
@@ -579,6 +579,130 @@ class _Smooth(_Algorithm):
         baseline = smoother_array[data_slice][lower_bound:upper_max]
 
         return baseline, {'tol_history': tol_history[:i + 1]}
+
+    @_Algorithm._register
+    def peak_filling(self, data, half_window=None, sections=None, max_iter=5, lam_smooth=None):
+        """
+        The 4S (Smooth, Subsample, Suppress, Stretch) Peak Filling algorithm.
+
+        Smooths and truncates the input. Each value is then replaced in-place by the minimum of
+        the value or the average of the moving window, with the half-window size decreasing
+        exponentially from the input `half_window` to 1. The result is then interpolated back
+        into the original data size.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        half_window : int, optional
+            The index-based size to use for the moving average window. The total window
+            size will range from [-half_window, ..., half_window] with size
+            ``2 * half_window + 1``. Default is None, which will use two or three times the
+            output from func:`.optimize_window`, which is an okay starting value.
+        sections : int, optional
+            The number of sections to divide the input data into for subsampling. The
+            minimum of each section will be used to represent the input data for determining
+            the baseline. Higher `sections` values are needed for baselines with higher
+            curvature. Default is None, which will use ``N // 10``.
+        max_iter : int, optional
+            The number of iterations to perform smoothing. Each iteration, the size of the
+            window used for the moving average will shrink logarithmically, starting at
+            ``2 * half_window + 1`` and ending at 3. Default is 5.
+        lam_smooth : float or None, optional
+            The parameter for smoothing the input using Whittaker smoothing.
+            Set to 0 or None (default) to skip smoothing.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'x_fit': numpy.ndarray, shape (P,)
+                The truncated x-values used for fitting the baseline.
+            * 'baseline_fit': numpy.ndarray, shape (P,)
+                The truncated y-values used for fitting the baseline.
+
+        Raises
+        ------
+        TypeError
+            Raised if `sections` is not an integer.
+
+        Notes
+        -----
+        The input parameter `sections` will determine the necessary `half_window` and `max_iter`
+        values required to correctly fit the baseline. Likewise, `max_iter` is highly correlated
+        with `half_window`.
+
+        References
+        ----------
+        Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression. MethodsX.
+        2015, 2, 135-140.
+
+        """
+        if sections is None:
+            sections = self._size // 10
+            scalar_sections = True
+        else:
+            sections, scalar_sections = _check_scalar(
+                sections, None, coerce_0d=False, dtype=np.intp
+            )
+            if scalar_sections and (sections < 1 or sections > self._size):
+                raise ValueError(
+                    f'There must be between 1 and {self._size} sections for the peak filling fit'
+                )
+            elif not scalar_sections and (np.any(sections < 0) or np.any(sections > self._size - 1)):
+                raise ValueError(
+                    f'Section indices must be between 0 and {self._size - 1} for the peak filling fit'
+                )
+
+        if scalar_sections:
+            y_truncated = np.empty(sections)
+            x_truncated = np.empty(sections)
+            indices = np.linspace(0, self._size, sections + 1, dtype=np.intp)
+        else:
+            # np.unique already sorts so do not need to check order
+            indices = np.unique(np.concatenate(([0], sections, [self._size])))
+            len_arrays = len(indices) - 1
+            y_truncated = np.empty(len_arrays)
+            x_truncated = np.empty(len_arrays)
+
+        if lam_smooth is not None and lam_smooth > 0:
+            _, _, whittaker_system = self._setup_whittaker(data, lam_smooth, diff_order=2)
+            data = whittaker_system.solve(self.whittaker_system.add_diagonal(1.), data)
+
+        # TODO should x[0], y[0] and x[-1], y[-1] be padded onto their truncated
+        # versions to prevent edge effects? Similar to what was done for custom_bc?
+        for i, (left_idx, right_idx) in enumerate(zip(indices[:-1], indices[1:])):
+            y_truncated[i] = data[left_idx:right_idx].min()
+            x_truncated[i] = self.x[left_idx:right_idx].mean()
+
+        _, half_win = self._setup_smooth(
+            y_truncated, half_window, pad_type=None, window_multiplier=3 if max_iter < 3 else 2
+        )
+        if half_win > (sections - 1) // 2:
+            if half_window is not None:  # only emit warning if user input half window
+                warnings.warn(
+                    'half_window values greater than (sections - 1) // 2 have no effect.',
+                    ParameterWarning, stacklevel=2
+                )
+            half_win = (sections - 1) // 2
+        # logspace still works when max_iter=1; use ceil rather than using dtype=int
+        # in logspace since the int casting will floor the result and cause several half
+        # windows of 1
+        half_windows = np.ceil(
+            np.logspace(np.log10(half_win), 0, max_iter)
+        ).astype(int)
+        half_windows[0] = half_win  # rounding issues can shift initial half window +- 1
+
+        for half_win in half_windows:
+            y_truncated = _directional_min_moving_avg(y_truncated, sections, half_win)
+            y_truncated = _directional_min_moving_avg(y_truncated[::-1], sections, half_win)[::-1]
+
+        baseline = np.interp(self.x, x_truncated, y_truncated)
+
+        return baseline, {'x_fit': x_truncated, 'baseline_fit': y_truncated}
 
 
 _smooth_wrapper = _class_wrapper(_Smooth)
@@ -930,7 +1054,7 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
     References
     ----------
     Wang, T., et al. Background Subtraction of Raman Spectra Based on Iterative
-    Polynomial Smoothing. Applied Spectroscopy. 71(6) (2017) 1169-1179.
+    Polynomial Smoothing. Applied Spectroscopy. 2017, 71(6), 1169-1179.
 
     """
 
@@ -1001,7 +1125,135 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
     References
     ----------
     Krishna, H., et al. Range-independent background subtraction algorithm for
-    recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 43(12)
-    (2012) 1884-1894.
+    recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 2012,
+    43(12), 1884-1894.
 
     """
+
+
+@jit(nopython=True)
+def _directional_min_moving_avg(y, data_len, half_window):
+    """
+    Calculates the miniumum of a moving average and current value and modifies in-place.
+
+    Since the data is modified in-place, the smoothing has a directional
+    effect that is canceled out by calling this function a second time with
+    the reversed output and then reversing that output.
+
+    Parameters
+    ----------
+    y : numpy.ndarray
+        The array of data to smooth.
+    data_len : int
+        The length of the array `y`. Used to prevent calling ``len(y)`` each
+        time this function is called.
+    half_window : int
+        The half window used for the moving average.
+
+    Returns
+    -------
+    y : numpy.ndarray
+        The smoothed input. The input `y` is also modified in-place.
+
+    Notes
+    -----
+    Increases and decreases the window width on the edges because otherwise the data
+    becomes shifted; to prevent shifting, the window must always be centered.
+
+    Uses a shrinking window rather than padding the data since the reference stated (and is
+    readily observed when using typical moving minimums) that the output can otherwise
+    cause too low of a value when data is steep near the ends.
+
+    References
+    ----------
+    Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression. MethodsX.
+    2 (2015) 135-140.
+
+    """
+    # TODO the fast way of just updating the mean by the delta of the window similar to Welford's
+    # method would not quite work for this since the data is being modified in place, but
+    # there should be a way to adapt that way to account for that
+    if half_window > (data_len - 1) // 2:
+        half_window = (data_len - 1) // 2
+
+    temp_window = 1
+    for i in range(1, half_window):
+        y[i] = min(y[i], y[i - temp_window:i + temp_window + 1].mean())
+        temp_window += 1
+
+    for i in range(half_window, data_len - half_window):
+        y[i] = min(y[i], y[i - half_window:i + half_window + 1].mean())
+
+    temp_window = half_window - 1
+    for i in range(data_len - half_window, data_len - 1):
+        y[i] = min(y[i], y[i - temp_window:i + temp_window + 1:].mean())
+        temp_window -= 1
+
+    return y
+
+
+@_smooth_wrapper
+def peak_filling(data, x_data=None, half_window=None, sections=None, max_iter=5, lam_smooth=None):
+    """
+    The 4S (Smooth, Subsample, Suppress, Stretch) Peak Filling algorithm.
+
+    Smooths and truncates the input. Each value is then replaced in-place by the minimum of
+    the value or the average of the moving window, with the half-window size decreasing
+    exponentially from the input `half_window` to 1. The result is then interpolated back
+    into the original data size.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points. Not used within this function.
+    half_window : int, optional
+        The index-based size to use for the moving average window. The total window
+        size will range from [-half_window, ..., half_window] with size
+        ``2 * half_window + 1``. Default is None, which will use two or three times the
+        output from func:`.optimize_window`, which is an okay starting value.
+    sections : int, optional
+        The number of sections to divide the input data into for subsampling. The
+        minimum of each section will be used to represent the input data for determining
+        the baseline. Higher `sections` values are needed for baselines with higher
+        curvature. Default is None, which will use ``N // 10``.
+    max_iter : int, optional
+        The number of iterations to perform smoothing. Each iteration, the size of the
+        window used for the moving average will shrink logarithmically, starting at
+        ``2 * half_window + 1`` and ending at 3. Default is 5.
+    lam_smooth : float or None, optional
+        The parameter for smoothing the input using Whittaker smoothing.
+        Set to 0 or None (default) to skip smoothing.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'x_fit': numpy.ndarray, shape (P,)
+            The truncated x-values used for fitting the baseline.
+        * 'baseline_fit': numpy.ndarray, shape (P,)
+            The truncated y-values used for fitting the baseline.
+
+    Raises
+    ------
+    TypeError
+        Raised if `sections` is not an integer.
+
+    Notes
+    -----
+    The input parameter `sections` will determine the necessary `half_window` and `max_iter`
+    values required to correctly fit the baseline. Likewise, `max_iter` is highly correlated
+    with `half_window`.
+
+    References
+    ----------
+    Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression. MethodsX.
+    2015, 2, 135-140.
+
+    """
+
