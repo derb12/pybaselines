@@ -1131,7 +1131,7 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
     """
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def _directional_min_moving_avg(y, data_len, half_window):
     """
     Calculates the miniumum of a moving average and current value and modifies in-place.
@@ -1160,34 +1160,60 @@ def _directional_min_moving_avg(y, data_len, half_window):
     Increases and decreases the window width on the edges because otherwise the data
     becomes shifted; to prevent shifting, the window must always be centered.
 
-    Uses a shrinking window rather than padding the data since the reference stated (and is
+    Uses a shrinking window rather than padding the data since [1]_ states (and is
     readily observed when using typical moving minimums) that the output can otherwise
     cause too low of a value when data is steep near the ends.
 
+    Calculates the rolling mean using Welford's method [2]_ to improve calculation speed over
+    calling ``numpy.mean`` on each subarray, which scales quite poorly compared to Welford's
+    method with increasing half-window sizes.
+
     References
     ----------
-    Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression. MethodsX.
-    2 (2015) 135-140.
+    .. [1] Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression.
+           MethodsX. 2 (2015) 135-140.
+
+    .. [2] https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
 
     """
-    # TODO the fast way of just updating the mean by the delta of the window similar to Welford's
-    # method would not quite work for this since the data is being modified in place, but
-    # there should be a way to adapt that way to account for that
     if half_window > (data_len - 1) // 2:
         half_window = (data_len - 1) // 2
 
-    temp_window = 1
-    for i in range(1, half_window):
-        y[i] = min(y[i], y[i - temp_window:i + temp_window + 1].mean())
-        temp_window += 1
+    window_size = 2 * half_window + 1
+    mean = y[0]
+    # fill the first window; have to go to half_window + 1 since the final calculation
+    # needs to adjust for the window finally filling up
+    last_window = 1
+    for i in range(1, half_window + 1):
+        new_window = last_window + 2  # 2 * i + 1 = 2 * (i - 1) + 1 + 2 == last_window + 2
+        # advance and grow window to recenter new window at index i
+        for j in range(last_window, new_window):
+            mean += (y[j] - mean) / (j + 1)
+        last_window = new_window
+        val = y[i]
+        if mean < val:
+            # adjust mean for new value
+            y[i] = mean
+            mean += (mean - val) / new_window
 
-    for i in range(half_window, data_len - half_window):
-        y[i] = min(y[i], y[i - half_window:i + half_window + 1].mean())
+    for i in range(half_window + 1, data_len - half_window):
+        mean += (y[i + half_window] - y[i - half_window - 1]) / window_size
+        val = y[i]
+        if mean < val:
+            y[i] = mean
+            mean += (mean - val) / window_size
 
-    temp_window = half_window - 1
+    # finally shrink window on right edge
+    last_window = window_size
     for i in range(data_len - half_window, data_len - 1):
-        y[i] = min(y[i], y[i - temp_window:i + temp_window + 1:].mean())
-        temp_window -= 1
+        new_window = last_window - 2  # 2 * (i - 1) + 1 = 2 * i - 1 == last_window - 2
+        for j in range(data_len - last_window, data_len - new_window):
+            last_window -= 1
+            mean += (mean - y[j]) / last_window
+        val = y[i]
+        if mean < val:
+            y[i] = mean
+            mean += (mean - val) / new_window
 
     return y
 
