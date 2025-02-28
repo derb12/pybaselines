@@ -1,7 +1,18 @@
 [build-system]
-# setuptools v64.0.0 was first version to allow creating editable installs with only pyproject.toml
-requires = ["setuptools>=64"]
-build-backend = "setuptools.build_meta"
+# hatchling v1.27 was first version to use default metadata version 2.4, allowing project.license
+# and project.license-files fields following PEP-639
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+  "/.*",
+  "/docs",
+  "/examples",
+  "/requirements",
+  "/tools",
+]
+
 
 [project]
 name = "pybaselines"
@@ -78,8 +89,6 @@ release = [
 ]
 dev = ["pybaselines[full, docs, test, release]"]
 
-[tool.setuptools.packages.find]
-include = ["pybaselines", "pybaselines.*"]
 
 [tool.isort]
 skip_glob = ["docs/*", "*__init__.py"]
