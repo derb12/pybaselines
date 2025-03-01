@@ -246,7 +246,7 @@ def test_parabola():
     num_points = 51
     x = np.arange(num_points)
     mid_point = num_points // 2
-    y = np.sin(x) + 0.1 * x + np.random.uniform(0, 0.05, x.size)
+    y = np.sin(x) + 0.1 * x + np.random.default_rng(5).uniform(0, 0.05, x.size)
 
     parabola = misc._parabola(y)
 

@@ -105,11 +105,13 @@ output-format = "full"
 preview = true  # for using experimental rules
 select = [
     "B",  # flake8-bugbear
-    "D",
+    "D",  # pydocstyle
     "E",  # pycodestyle errors
     "F",  # pyflakes
     #"I",  # isort
     "W",  # pycodestyle warnings
+    "C4",  # flake8-comprehensions
+    "NPY",  # numpy specific
 ]
 ignore = [
     "D401",  # D401 first line should be in imperative mood; try rephrasing

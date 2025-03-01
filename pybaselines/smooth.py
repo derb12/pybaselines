@@ -650,11 +650,14 @@ class _Smooth(_Algorithm):
             )
             if scalar_sections and (sections < 1 or sections > self._size):
                 raise ValueError(
-                    f'There must be between 1 and {self._size} sections for the peak filling fit'
+                    f'There must be between 1 and {self._size} sections for peak_filling'
                 )
-            elif not scalar_sections and (np.any(sections < 0) or np.any(sections > self._size - 1)):
+            elif (
+                not scalar_sections
+                and (np.any(sections < 0) or np.any(sections > self._size - 1))
+            ):
                 raise ValueError(
-                    f'Section indices must be between 0 and {self._size - 1} for the peak filling fit'
+                    f'Section indices must be between 0 and {self._size - 1} for peak_filling'
                 )
 
         if scalar_sections:
@@ -1282,4 +1285,3 @@ def peak_filling(data, x_data=None, half_window=None, sections=None, max_iter=5,
     2015, 2, 135-140.
 
     """
-
