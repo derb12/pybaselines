@@ -1,8 +1,8 @@
 -r requirements.txt
 
 sphinx==7.2.6
+sphinx-copybutton==0.5.2
 sphinx-rtd-theme==2.0.0
-sphinx-autoapi==3.0.0
 sphinx-gallery==0.15.0
 matplotlib==3.8.2
 pentapy==1.2.0
