@@ -43,18 +43,6 @@ class Baseline2D(
 
     Attributes
     ----------
-    poly_order : Sequence[int, int]
-        The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
-        that no polynomial fitting has been performed.
-    pspline : pybaselines.two_d._spline_utils.PSpline2D or None
-        The PSpline object for setting up and solving penalized spline algorithms. Is None
-        if no penalized spline setup has been performed.
-    vandermonde : numpy.ndarray or None
-        The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed.
-    whittaker_system : pybaselines.two_d._banded_utils.PenalizedSystem2D or None
-        The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
-        algorithms. Is None if no Whittaker setup has been performed.
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same size as the input `data.shape[-2]` and has min

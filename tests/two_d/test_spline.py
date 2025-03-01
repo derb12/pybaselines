@@ -93,6 +93,10 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin):
             assert len(params_2['tol_history']) == 1
         assert_allclose(second_baseline, first_baseline, rtol=1e-12)
 
+    def test_threading(self):
+        """Tests thread safety using a higher tolerance to reduce overall computation time."""
+        super().test_threading(tol=1e-1)
+
 
 class TestMixtureModel(IterativeSplineTester):
     """Class for testing mixture_model baseline."""
@@ -140,6 +144,7 @@ class TestIRSQR(IterativeSplineTester):
     """Class for testing irsqr baseline."""
 
     func_name = 'irsqr'
+    required_repeated_kwargs = {'lam': 1e2}
 
     @pytest.mark.parametrize('quantile', (-1, 2))
     def test_outside_p_fails(self, quantile):
@@ -163,6 +168,7 @@ class TestPsplineAsLS(IterativeSplineTester):
     """Class for testing pspline_asls baseline."""
 
     func_name = 'pspline_asls'
+    required_repeated_kwargs = {'lam': 1e0}
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -187,6 +193,7 @@ class TestPsplineIAsLS(IterativeSplineTester):
     """Class for testing pspline_iasls baseline."""
 
     func_name = 'pspline_iasls'
+    required_repeated_kwargs = {'lam': 1e-2}
 
     @pytest.mark.parametrize('use_instance', (True, False))
     @pytest.mark.parametrize('weight_bool', (True, False))
@@ -231,6 +238,7 @@ class TestPsplineAirPLS(IterativeSplineTester):
     """Class for testing pspline_airpls baseline."""
 
     func_name = 'pspline_airpls'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
@@ -248,6 +256,7 @@ class TestPsplineArPLS(IterativeSplineTester):
     """Class for testing pspline_arpls baseline."""
 
     func_name = 'pspline_arpls'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
@@ -265,6 +274,7 @@ class TestPsplineIArPLS(IterativeSplineTester):
     """Class for testing pspline_iarpls baseline."""
 
     func_name = 'pspline_iarpls'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
@@ -282,6 +292,7 @@ class TestPsplinePsalsa(IterativeSplineTester):
     """Class for testing pspline_psalsa baseline."""
 
     func_name = 'pspline_psalsa'
+    required_repeated_kwargs = {'lam': 1e0}
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -314,6 +325,7 @@ class TestPsplineBrPLS(IterativeSplineTester):
     """Class for testing pspline_brpls baseline."""
 
     func_name = 'pspline_brpls'
+    required_repeated_kwargs = {'lam': 1e1, 'tol_2': 1e-1}
 
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
@@ -342,6 +354,7 @@ class TestPsplineLSRPLS(IterativeSplineTester):
     """Class for testing pspline_lsrpls baseline."""
 
     func_name = 'pspline_lsrpls'
+    required_repeated_kwargs = {'lam': 1e1}
 
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):

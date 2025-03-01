@@ -80,7 +80,7 @@ import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import jit, prange
+from ._compat import _HAS_NUMBA, jit
 from .utils import _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
 
 
@@ -132,7 +132,7 @@ class _Polynomial(_Algorithm):
         sqrt_w = np.sqrt(weight_array)
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         params = {'weights': weight_array}
         if return_coef:
             params['coef'] = _convert_coef(coef, self.x_domain)
@@ -217,19 +217,19 @@ class _Polynomial(_Algorithm):
             y0 = y
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         if mask_initial_peaks:
             # use baseline + deviation since without deviation, half of y should be above baseline
             weight_array[baseline + np.std(y - baseline) < y] = 0
             sqrt_w = np.sqrt(weight_array)
-            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             y = np.minimum(y0 if use_original else y, baseline)
             coef = pseudo_inverse @ (sqrt_w * y)
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -327,18 +327,18 @@ class _Polynomial(_Algorithm):
             y0 = y
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         deviation = np.std(y - baseline)
         if mask_initial_peaks:
             weight_array[baseline + deviation < y] = 0
             sqrt_w = np.sqrt(weight_array)
-            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
             coef = pseudo_inverse @ (sqrt_w * y)
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             new_deviation = np.std(y - baseline)
             # use new_deviation as dividing term in relative difference
             calc_difference = relative_difference(new_deviation, deviation)
@@ -467,12 +467,12 @@ class _Polynomial(_Algorithm):
         y = sqrt_w * y
 
         coef = pseudo_inverse @ y
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             coef = pseudo_inverse @ (y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -652,9 +652,13 @@ class _Polynomial(_Algorithm):
         windows, fits, skips = _determine_fits(self.x, self._size, total_points, float(delta))
 
         # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
-        # when matrix multiplied with the C-ordered coefficient array gives a warning
-        # when using numba, so convert Vandermonde matrix to C-ordering.
-        self.vandermonde = np.ascontiguousarray(self.vandermonde)
+        # is not continguous when indexed (ie. vandermonde[i]) and issues a warning
+        # when using numba, so convert Vandermonde matrix to C-ordering; without Numba,
+        # there is no major slowdown using the non-contiguous array
+        if _HAS_NUMBA:
+            vandermonde = np.ascontiguousarray(self._polynomial.vandermonde)
+        else:
+            vandermonde = self._polynomial.vandermonde
 
         baseline = y
         coefs = np.zeros((self._size, poly_order + 1))
@@ -665,15 +669,15 @@ class _Polynomial(_Algorithm):
             baseline_old = baseline
             if conserve_memory:
                 baseline = _loess_low_memory(
-                    x, y, sqrt_w, coefs, self.vandermonde, self._size, windows, fits
+                    x, y, sqrt_w, coefs, vandermonde, self._size, windows, fits
                 )
             elif i == 0:
                 kernels, baseline = _loess_first_loop(
-                    x, y, sqrt_w, coefs, self.vandermonde, total_points, self._size, windows, fits
+                    x, y, sqrt_w, coefs, vandermonde, total_points, self._size, windows, fits
                 )
             else:
                 baseline = _loess_nonfirst_loops(
-                    y, sqrt_w, coefs, self.vandermonde, kernels, windows, self._size, fits
+                    y, sqrt_w, coefs, vandermonde, kernels, windows, self._size, fits
                 )
 
             _fill_skips(x, baseline, skips)
@@ -785,14 +789,16 @@ class _Polynomial(_Algorithm):
         y, weight_array = self._setup_polynomial(data, weights, poly_order, calc_vander=True)
         # estimate first iteration using least squares
         sqrt_w = np.sqrt(weight_array)
-        coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-        baseline = self.vandermonde @ coef
+        coef = np.linalg.lstsq(self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
+        baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
-            coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-            baseline = self.vandermonde @ coef
+            coef = np.linalg.lstsq(
+                self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
+            )[0]
+            baseline = self._polynomial.vandermonde @ coef
             # relative_difference(baseline_old, baseline, 1) gives nearly same result and
             # the l2 norm is faster to calculate, so use that instead of l1 norm
             calc_difference = relative_difference(baseline_old, baseline)
@@ -937,7 +943,7 @@ class _Polynomial(_Algorithm):
         y_fit = sqrt_w * y
 
         coef = pseudo_inverse @ y_fit
-        initial_baseline = self.vandermonde @ coef
+        initial_baseline = self._polynomial.vandermonde @ coef
 
         a = 0
         # reference used b=1, but normalized y before fitting; instead, set b as max of
@@ -959,7 +965,7 @@ class _Polynomial(_Algorithm):
                 coef = pseudo_inverse @ (
                     y_fit + loss_function(y_fit - sqrt_w * baseline, **loss_kwargs)
                 )
-                baseline = self.vandermonde @ coef
+                baseline = self._polynomial.vandermonde @ coef
                 calc_difference = relative_difference(baseline_old, baseline)
                 tol_history[i + 2, j] = calc_difference
                 if calc_difference < tol:
@@ -1631,7 +1637,7 @@ def _fill_skips(x, baseline, skips):
     All changes to `baseline` are done inplace.
 
     """
-    for i in prange(skips.shape[0]):
+    for i in range(skips.shape[0]):
         window = skips[i]
         left = window[0]
         right = window[1]
@@ -1639,7 +1645,7 @@ def _fill_skips(x, baseline, skips):
 
 
 # adapted from (https://gist.github.com/agramfort/850437); see license above
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     """
     A version of loess that uses near constant memory.
@@ -1677,7 +1683,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]
@@ -1699,7 +1705,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
 
 
 # adapted from (https://gist.github.com/agramfort/850437); see license above
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows, fits):
     """
     The initial fit for loess that also caches the window values for each x-value.
@@ -1742,7 +1748,7 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]
@@ -1764,7 +1770,7 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
     return kernels, baseline
 
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fits):
     """
     The loess fit to use after the first loop that uses the cached window values.
@@ -1800,7 +1806,7 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]

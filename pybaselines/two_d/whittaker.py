@@ -96,12 +96,12 @@ class _Whittaker(_Algorithm2D):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        y, weight_array = self._setup_whittaker(
+        y, weight_array, whittaker_system = self._setup_whittaker(
             data, lam, diff_order, weights, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.whittaker_system.solve(y, weight_array)
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -110,10 +110,10 @@ class _Whittaker(_Algorithm2D):
             weight_array = new_weights
 
         params = {'tol_history': tol_history[:i + 1]}
-        if self.whittaker_system._using_svd:
+        if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
-                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+                params['dof'] = whittaker_system._calc_dof(weight_array)
         else:
             baseline = baseline.reshape(self._shape)
             params['weights'] = weight_array.reshape(self._shape)
@@ -192,18 +192,18 @@ class _Whittaker(_Algorithm2D):
             _, _, pseudo_inverse = self._setup_polynomial(
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
-            baseline = self.vandermonde @ (pseudo_inverse @ data.ravel())
+            baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data.ravel())
             weights = _weighting._asls(data, baseline.reshape(self._shape), p)
 
-        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
 
         # (W.T @ W + P_1) @ y -> P_1 @ y + W.T @ W @ y
-        self.whittaker_system.add_penalty(penalized_system_1.penalty)
+        whittaker_system.add_penalty(penalized_system_1.penalty)
         p1_y = penalized_system_1.penalty @ y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.whittaker_system.solve(y, weight_array**2, rhs_extra=p1_y)
+            baseline = whittaker_system.solve(y, weight_array**2, rhs_extra=p1_y)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -283,14 +283,14 @@ class _Whittaker(_Algorithm2D):
         (Preprint), 2023.
 
         """
-        y, weight_array = self._setup_whittaker(
+        y, weight_array, whittaker_system = self._setup_whittaker(
             data, lam, diff_order, weights, num_eigens=num_eigens
 
         )
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.whittaker_system.solve(y, weight_array)
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
                 y, baseline, i, normalize_weights
             )
@@ -304,10 +304,10 @@ class _Whittaker(_Algorithm2D):
             weight_array = new_weights
 
         params = {'tol_history': tol_history[:i]}
-        if self.whittaker_system._using_svd:
+        if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
-                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+                params['dof'] = whittaker_system._calc_dof(weight_array)
         else:
             baseline = baseline.reshape(self._shape)
             params['weights'] = weight_array.reshape(self._shape)
@@ -378,12 +378,12 @@ class _Whittaker(_Algorithm2D):
         (Preprint), 2023.
 
         """
-        y, weight_array = self._setup_whittaker(
+        y, weight_array, whittaker_system = self._setup_whittaker(
             data, lam, diff_order, weights, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.whittaker_system.solve(y, weight_array)
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._arpls(y, baseline)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -395,10 +395,10 @@ class _Whittaker(_Algorithm2D):
             weight_array = new_weights
 
         params = {'tol_history': tol_history[:i + 1]}
-        if self.whittaker_system._using_svd:
+        if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
-                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+                params['dof'] = whittaker_system._calc_dof(weight_array)
         else:
             baseline = baseline.reshape(self._shape)
             params['weights'] = weight_array.reshape(self._shape)
@@ -467,16 +467,16 @@ class _Whittaker(_Algorithm2D):
         elif np.less(diff_order, 2).any():
             raise ValueError('diff_order must be 2 or greater')
 
-        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         penalized_system_1 = PenalizedSystem2D(self._shape, 1, diff_order=1)
         # W + P_1 + (I - eta * W) @ P_n -> P_1 + P_n + W @ (I - eta * P_n)
-        partial_penalty = self.whittaker_system.penalty + penalized_system_1.penalty
-        partial_penalty_2 = -eta * self.whittaker_system.penalty
+        partial_penalty = whittaker_system.penalty + penalized_system_1.penalty
+        partial_penalty_2 = -eta * whittaker_system.penalty
         partial_penalty_2.setdiag(partial_penalty_2.diagonal() + 1)
         weight_matrix = diags(weight_array, format='csr')
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.whittaker_system.direct_solve(
+            baseline = whittaker_system.direct_solve(
                 partial_penalty + weight_matrix @ partial_penalty_2, weight_array * y
             )
             new_weights, exit_early = _weighting._drpls(y, baseline, i)
@@ -560,12 +560,12 @@ class _Whittaker(_Algorithm2D):
         (Preprint), 2023.
 
         """
-        y, weight_array = self._setup_whittaker(
+        y, weight_array, whittaker_system = self._setup_whittaker(
             data, lam, diff_order, weights, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.whittaker_system.solve(y, weight_array)
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._iarpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -577,10 +577,10 @@ class _Whittaker(_Algorithm2D):
             weight_array = new_weights
 
         params = {'tol_history': tol_history[:i]}
-        if self.whittaker_system._using_svd:
+        if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
-                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+                params['dof'] = whittaker_system._calc_dof(weight_array)
         else:
             baseline = baseline.reshape(self._shape)
             params['weights'] = weight_array.reshape(self._shape)
@@ -659,7 +659,7 @@ class _Whittaker(_Algorithm2D):
         Spectroscopy Letters, 2020, 53(3), 222-233.
 
         """
-        y, weight_array = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         alpha_array = _check_optional_array(
             self._shape, alpha, check_finite=self._check_finite, name='alpha',
             ensure_1d=False, axis=slice(None)
@@ -674,8 +674,8 @@ class _Whittaker(_Algorithm2D):
         alpha_matrix = diags(alpha_array.ravel(), format='csr')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            penalty = alpha_matrix @ self.whittaker_system.penalty
-            baseline = self.whittaker_system.solve(y, weight_array, penalty=penalty)
+            penalty = alpha_matrix @ whittaker_system.penalty
+            baseline = whittaker_system.solve(y, weight_array, penalty=penalty)
             new_weights, residual, exit_early = _weighting._aspls(y, baseline, asymmetric_coef)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -791,7 +791,7 @@ class _Whittaker(_Algorithm2D):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        y, weight_array = self._setup_whittaker(
+        y, weight_array, whittaker_system = self._setup_whittaker(
             data, lam, diff_order, weights, num_eigens=num_eigens
         )
         if k is None:
@@ -799,10 +799,10 @@ class _Whittaker(_Algorithm2D):
         else:
             k = _check_scalar_variable(k, variable_name='k')
 
-        shape = self._shape if self.whittaker_system._using_svd else self._size
+        shape = self._shape if whittaker_system._using_svd else self._size
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = self.whittaker_system.solve(y, weight_array)
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights = _weighting._psalsa(y, baseline, p, k, shape)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -811,10 +811,10 @@ class _Whittaker(_Algorithm2D):
             weight_array = new_weights
 
         params = {'tol_history': tol_history[:i + 1]}
-        if self.whittaker_system._using_svd:
+        if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
-                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+                params['dof'] = whittaker_system._calc_dof(weight_array)
         else:
             baseline = baseline.reshape(self._shape)
             params['weights'] = weight_array.reshape(self._shape)
@@ -896,7 +896,7 @@ class _Whittaker(_Algorithm2D):
         (Preprint), 2023.
 
         """
-        y, weight_array = self._setup_whittaker(
+        y, weight_array, whittaker_system = self._setup_whittaker(
             data, lam, diff_order, weights, num_eigens=num_eigens
         )
         beta = 0.5
@@ -909,7 +909,7 @@ class _Whittaker(_Algorithm2D):
         # use baseline_weights to track which weights produced the output baseline
         for i in range(max_iter_2 + 1):
             for j in range(max_iter + 1):
-                new_baseline = self.whittaker_system.solve(y, weight_array)
+                new_baseline = whittaker_system.solve(y, weight_array)
                 new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
                 if exit_early:
                     j -= 1  # reduce j so that output tol_history indexing is correct
@@ -938,10 +938,10 @@ class _Whittaker(_Algorithm2D):
             beta = 1 - weight_mean
 
         params = {'tol_history': tol_history[:i + 2, :max(i, j_max) + 1]}
-        if self.whittaker_system._using_svd:
+        if whittaker_system._using_svd:
             params['weights'] = baseline_weights
             if return_dof:
-                params['dof'] = self.whittaker_system._calc_dof(baseline_weights)
+                params['dof'] = whittaker_system._calc_dof(baseline_weights)
         else:
             baseline = baseline.reshape(self._shape)
             params['weights'] = baseline_weights.reshape(self._shape)
@@ -1012,12 +1012,12 @@ class _Whittaker(_Algorithm2D):
         (Preprint), 2023.
 
         """
-        y, weight_array = self._setup_whittaker(
+        y, weight_array, whittaker_system = self._setup_whittaker(
             data, lam, diff_order, weights, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = self.whittaker_system.solve(y, weight_array)
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._lsrpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -1029,10 +1029,10 @@ class _Whittaker(_Algorithm2D):
             weight_array = new_weights
 
         params = {'tol_history': tol_history[:i]}
-        if self.whittaker_system._using_svd:
+        if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
-                params['dof'] = self.whittaker_system._calc_dof(weight_array)
+                params['dof'] = whittaker_system._calc_dof(weight_array)
         else:
             baseline = baseline.reshape(self._shape)
             params['weights'] = weight_array.reshape(self._shape)

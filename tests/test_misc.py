@@ -31,6 +31,7 @@ class TestInterpPts(MiscTester):
 
     func_name = 'interp_pts'
     required_kwargs = {'baseline_points': ((5, 10), (10, 20), (90, 100))}
+    required_repeated_kwargs = {'baseline_points': ((5, 10), (10, 20), (90, 100))}
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('interp_method', ('linear', 'slinear', 'quadratic'))

@@ -161,7 +161,10 @@ class PenalizedSystem2D:
 
     def solve(self, y, weights, penalty=None, rhs_extra=None):
         """
-        Solves the equation ``A @ x = b``.
+        Solves the penalized linear equation.
+
+        Solves ``(P + W) @ x = w * y``, where `P` is the penalty, `w` are the weights,
+        and `W` is a diagonal matrix with `w` on the diagonal.
 
         Parameters
         ----------

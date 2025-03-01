@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for pybaselines._banded_utils.
+"""Tests for pybaselines.two_d._whittaker_utils.
 
 @author: Donald Erb
 Created on Dec. 11, 2021
@@ -122,14 +122,14 @@ def test_compare_to_psplines(data_fixture2d, lam, diff_order):
     """
     x, z, y = data_fixture2d
 
-    pspline = _spline_utils.PSpline2D(
-        x, z, num_knots=(len(x) + 1, len(z) + 1), spline_degree=0, lam=lam, diff_order=diff_order,
-        check_finite=False
+    spline_basis = _spline_utils.SplineBasis2D(
+        x, z, num_knots=(len(x) + 1, len(z) + 1), spline_degree=0, check_finite=False
     )
+    pspline = _spline_utils.PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
 
     # sanity check to ensure it was set up correctly
-    assert_array_equal(pspline.basis_r.shape, (len(x), len(x)))
-    assert_array_equal(pspline.basis_c.shape, (len(z)), len(z))
+    assert_array_equal(spline_basis.basis_r.shape, (len(x), len(x)))
+    assert_array_equal(spline_basis.basis_c.shape, (len(z)), len(z))
 
     whittaker_system = _whittaker_utils.PenalizedSystem2D(
         y.shape, lam=lam, diff_order=diff_order

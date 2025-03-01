@@ -13,7 +13,6 @@ to something like 'mask'.
 
 """
 
-from contextlib import contextmanager
 from functools import partial, wraps
 from inspect import signature
 import warnings
@@ -21,7 +20,7 @@ import warnings
 import numpy as np
 
 from ._banded_utils import PenalizedSystem
-from ._spline_utils import PSpline
+from ._spline_utils import PSpline, SplineBasis
 from ._validation import (
     _check_array, _check_half_window, _check_optional_array, _check_scalar_variable,
     _check_sized_array, _yx_arrays
@@ -40,20 +39,13 @@ class _Algorithm:
 
     Attributes
     ----------
-    poly_order : int
-        The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
-        that no polynomial fitting has been performed.
-    pspline : PSpline or None
-        The PSpline object for setting up and solving penalized spline algorithms. Is None
-        if no penalized spline setup has been performed (typically done in
-        :meth:`~._Algorithm._setup_spline`).
-    vandermonde : numpy.ndarray or None
-        The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`~._Algorithm._setup_polynomial`).
-    whittaker_system : PenalizedSystem or None
-        The PenalizedSystem object for setting up and solving Whittaker-smoothing-based
-        algorithms. Is None if no Whittaker setup has been performed (typically done in
-        :meth:`_setup_whittaker`).
+    petapy_solver : int or str
+        The integer or string designating which solver to use if using pentapy.
+        See :func:`pentapy.solve` for available options, although `1` or `2` are the
+        most relevant options. Default is 2.
+
+        .. versionadded:: 1.1.0
+
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same length as the input `data` and has min and max
@@ -105,10 +97,8 @@ class _Algorithm:
             if self._sort_order is not None:
                 self.x = self.x[self._sort_order]
 
-        self.whittaker_system = None
-        self.vandermonde = None
-        self.poly_order = -1
-        self.pspline = None
+        self._polynomial = None
+        self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
         self.pentapy_solver = 2
@@ -139,35 +129,6 @@ class _Algorithm:
         else:
             self.__size = value
             self._shape = (value,)
-
-    @property
-    def pentapy_solver(self):
-        """
-        The integer or string designating which solver to use if using pentapy.
-
-        See :func:`pentapy.solve` for available options, although `1` or `2` are the
-        most relevant options. Default is 2.
-
-        .. versionadded:: 1.1.0
-
-        """
-        return self._pentapy_solver
-
-    @pentapy_solver.setter
-    def pentapy_solver(self, value):
-        """
-        Sets the solver for pentapy.
-
-        Parameters
-        ----------
-        value : int or str
-            The designated solver to use when using pentapy. See :func:`pentapy.core.solve`
-            for available options.
-
-        """
-        if self.whittaker_system is not None:
-            self.whittaker_system.pentapy_solver = value
-        self._pentapy_solver = value
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), skip_sorting=False):
         """
@@ -211,8 +172,7 @@ class _Algorithm:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_1d=True,
-                  skip_sorting=False):
+    def _register(cls, func=None, *, sort_keys=(), ensure_1d=True, skip_sorting=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -227,11 +187,6 @@ class _Algorithm:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        dtype : type or numpy.dtype, optional
-            The dtype to cast the output array. Default is None, which uses the typing of `array`.
-        order : {None, 'C', 'F'}, optional
-            The order for the output array. Default is None, which will use the default array
-            ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
         ensure_1d : bool, optional
             If True (default), will raise an error if the shape of `array` is not a one dimensional
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
@@ -249,8 +204,7 @@ class _Algorithm:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, dtype=dtype, order=order,
-                ensure_1d=ensure_1d, skip_sorting=skip_sorting
+                cls._register, sort_keys=sort_keys, ensure_1d=ensure_1d, skip_sorting=skip_sorting
             )
 
         @wraps(func)
@@ -258,27 +212,21 @@ class _Algorithm:
             if self.x is None:
                 if data is None:
                     raise TypeError('"data" and "x_data" cannot both be None')
-                reset_x = False
                 input_y = True
                 y, self.x = _yx_arrays(
-                    data, check_finite=self._check_finite, dtype=dtype, order=order,
-                    ensure_1d=ensure_1d
+                    data, check_finite=self._check_finite, ensure_1d=ensure_1d
                 )
                 self._size = y.shape[-1]
             else:
-                reset_x = True
                 if data is not None:
                     input_y = True
                     y = _check_sized_array(
-                        data, self._size, check_finite=self._check_finite, dtype=dtype, order=order,
-                        ensure_1d=ensure_1d, name='data'
+                        data, self._size, check_finite=self._check_finite, ensure_1d=ensure_1d,
+                        name='data'
                     )
                 else:
                     y = data
                     input_y = False
-                # update self.x just to ensure dtype and order are correct
-                x_dtype = self.x.dtype
-                self.x = np.asarray(self.x, dtype=dtype, order=order)
 
             if input_y and not skip_sorting:
                 y = _sort_array(y, sort_order=self._sort_order)
@@ -289,17 +237,14 @@ class _Algorithm:
                 output_dtype = self._dtype
 
             baseline, params = func(self, y, *args, **kwargs)
-            if reset_x:
-                self.x = np.asarray(self.x, dtype=x_dtype)
 
             return self._return_results(baseline, params, output_dtype, sort_keys, skip_sorting)
 
         return inner
 
-    @contextmanager
     def _override_x(self, new_x, new_sort_order=None):
         """
-        Temporarily sets the x-values for the object to a different array.
+        Creates a new fitting object for the given x-values.
 
         Useful when fitting extensions of the x attribute.
 
@@ -310,50 +255,22 @@ class _Algorithm:
         new_sort_order : [type], optional
             The sort order for the new x values. Default is None, which will not sort.
 
-        Yields
-        ------
+        Returns
+        -------
         pybaselines._algorithm_setup._Algorithm
             The _Algorithm object with the new x attribute.
 
         """
-        old_x = self.x
-        old_size = self._size
-        old_x_domain = self.x_domain
-        old_sort_order = self._sort_order
-        old_inverted_order = self._inverted_order
-        # also have to reset any sized attributes to force recalculation for new x
-        old_poly_order = self.poly_order
-        old_vandermonde = self.vandermonde
-        old_whittaker_system = self.whittaker_system
-        old_pspline = self.pspline
+        new_object = type(self)(
+            x_data=new_x, check_finite=self._check_finite, assume_sorted=True,
+            output_dtype=self._dtype
+        )
+        new_object._sort_order = new_sort_order
+        if new_sort_order is not None:
+            new_object._inverted_order = _inverted_sort(new_sort_order)
+        new_object.pentapy_solver = self.pentapy_solver
 
-        try:
-            self.x = _check_array(new_x, check_finite=self._check_finite)
-            self._size = len(self.x)
-            self.x_domain = np.polynomial.polyutils.getdomain(self.x)
-            self._sort_order = new_sort_order
-            if self._sort_order is not None:
-                self._inverted_order = _inverted_sort(self._sort_order)
-            else:
-                self._inverted_order = None
-
-            self.vandermonde = None
-            self.poly_order = -1
-            self.whittaker_system = None
-            self.pspline = None
-
-            yield self
-
-        finally:
-            self.x = old_x
-            self._size = old_size
-            self.x_domain = old_x_domain
-            self._sort_order = old_sort_order
-            self._inverted_order = old_inverted_order
-            self.vandermonde = old_vandermonde
-            self.poly_order = old_poly_order
-            self.whittaker_system = old_whittaker_system
-            self.pspline = old_pspline
+        return new_object
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
                          allow_lower=True, reverse_diags=None):
@@ -391,6 +308,8 @@ class _Algorithm:
             The y-values of the measured data, converted to a numpy array.
         weight_array : numpy.ndarray, shape (N,), optional
             The weighting array.
+        whittaker_system : PenalizedSystem
+            The PenalizedSystem for solving the given penalized least squared system.
 
         Raises
         ------
@@ -419,15 +338,12 @@ class _Algorithm:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if self.whittaker_system is not None:
-            self.whittaker_system.reset_diagonals(lam, diff_order, allow_lower, reverse_diags)
-        else:
-            self.whittaker_system = PenalizedSystem(
-                self._size, lam, diff_order, allow_lower, reverse_diags,
-                pentapy_solver=self.pentapy_solver
-            )
+        whittaker_system = PenalizedSystem(
+            self._size, lam, diff_order, allow_lower, reverse_diags,
+            pentapy_solver=self.pentapy_solver
+        )
 
-        return y, weight_array
+        return y, weight_array, whittaker_system
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
                           calc_pinv=False, copy_weights=False):
@@ -486,14 +402,10 @@ class _Algorithm:
         )
 
         if calc_vander:
-            if self.vandermonde is None or poly_order > self.poly_order:
-                mapped_x = np.polynomial.polyutils.mapdomain(
-                    self.x, self.x_domain, np.array([-1., 1.])
-                )
-                self.vandermonde = np.polynomial.polynomial.polyvander(mapped_x, poly_order)
-            elif poly_order < self.poly_order:
-                self.vandermonde = self.vandermonde[:, :poly_order + 1]
-        self.poly_order = poly_order
+            if self._polynomial is None:
+                self._polynomial = _PolyHelper(self.x, self.x_domain, poly_order)
+            else:
+                self._polynomial.recalc_vandermonde(self.x, self.x_domain, poly_order)
 
         if not calc_pinv:
             return y, weight_array
@@ -501,9 +413,11 @@ class _Algorithm:
             raise ValueError('if calc_pinv is True, then calc_vander must also be True')
 
         if weights is None:
-            pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            pseudo_inverse = self._polynomial.pseudo_inverse
         else:
-            pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(
+                np.sqrt(weight_array)[:, None] * self._polynomial.vandermonde
+            )
 
         return y, weight_array, pseudo_inverse
 
@@ -553,6 +467,9 @@ class _Algorithm:
             The y-values of the measured data, converted to a numpy array.
         weight_array : numpy.ndarray, shape (N,)
             The weight array for fitting the spline to the data.
+        pspline : PSpline
+            The PSpline object for solving the given penalized least squared system. Only
+            returned if `make_basis` is True.
 
         Warns
         -----
@@ -572,25 +489,27 @@ class _Algorithm:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if make_basis:
-            if diff_order > 4:
-                warnings.warn(
-                    ('differential orders greater than 4 can have numerical issues;'
-                     ' consider using a differential order of 2 or 3 instead'),
-                    ParameterWarning, stacklevel=2
-                )
+        if not make_basis:
+            return y, weight_array
 
-            if self.pspline is None or not self.pspline.same_basis(num_knots, spline_degree):
-                self.pspline = PSpline(
-                    self.x, num_knots, spline_degree, self._check_finite, lam, diff_order,
-                    allow_lower, reverse_diags
-                )
-            else:
-                self.pspline.reset_penalty_diagonals(
-                    lam, diff_order, allow_lower, reverse_diags
-                )
+        if diff_order > 4:
+            warnings.warn(
+                ('differential orders greater than 4 can have numerical issues;'
+                 ' consider using a differential order of 2 or 3 instead'),
+                ParameterWarning, stacklevel=2
+            )
 
-        return y, weight_array
+        if (
+            self._spline_basis is None
+            or not self._spline_basis.same_basis(num_knots, spline_degree)
+        ):
+            self._spline_basis = SplineBasis(self.x, num_knots, spline_degree)
+
+        pspline = PSpline(
+            self._spline_basis, lam, diff_order, allow_lower, reverse_diags
+        )
+
+        return y, weight_array, pspline
 
     def _setup_morphology(self, y, half_window=None, **window_kwargs):
         """
@@ -878,3 +797,86 @@ def _class_wrapper(klass):
         return inner
 
     return outer
+
+
+class _PolyHelper:
+    """
+    An object to help with solving polynomials.
+
+    Allows only recalculating the Vandermonde and pseudo-inverse matrices when necessary.
+
+    Attributes
+    ----------
+    poly_order : int
+        The last polynomial order used to calculate the Vadermonde matrix.
+    pseudo_inverse : numpy.ndarray or None
+        The pseudo-inverse of the current Vandermonde matrix.
+    vandermonde : numpy.ndarray
+        The Vandermonde matrix for solving polynomial equations.
+
+    """
+
+    def __init__(self, x, x_domain, poly_order):
+        """
+        Initializes the object and calculates the Vandermonde matrix.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        poly_order : int
+            The polynomial order.
+
+        """
+        poly_order = _check_scalar_variable(
+            poly_order, allow_zero=True, variable_name='polynomial order', dtype=int
+        )
+        self.poly_order = -1
+        self.vandermonde = None
+        self._pseudo_inverse = None
+        self.pinv_stale = True
+
+        self.recalc_vandermonde(x, x_domain, poly_order)
+
+    def recalc_vandermonde(self, x, x_domain, poly_order):
+        """
+        Recalculates the Vandermonde matrix for the polynomial only if necessary.
+
+        Also flags whether the pseudo-inverse needs to be recalculated.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        poly_order : int
+            The polynomial order.
+
+        """
+        if self.vandermonde is None or poly_order > self.poly_order:
+            mapped_x = np.polynomial.polyutils.mapdomain(
+                x, x_domain, np.array([-1., 1.])
+            )
+            self.vandermonde = np.polynomial.polynomial.polyvander(mapped_x, poly_order)
+            self.pinv_stale = True
+        elif poly_order < self.poly_order:
+            self.vandermonde = self.vandermonde[:, :poly_order + 1]
+            self.pinv_stale = True
+
+        self.poly_order = poly_order
+
+    @property
+    def pseudo_inverse(self):
+        """
+        The pseudo-inverse of the Vandermonde.
+
+        Only recalculates the pseudo-inverse if the Vandermonde has been updated.
+
+        """
+        if self.pinv_stale or self._pseudo_inverse is None:
+            self._pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            self.pinv_stale = False
+        return self._pseudo_inverse

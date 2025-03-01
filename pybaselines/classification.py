@@ -266,13 +266,13 @@ class _Classification(_Algorithm):
                 y, poly_order=poly_order, calc_vander=True, calc_pinv=True
             )
             old_coef = coef = pseudo_inverse @ rough_baseline
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             if max_iter > 1:
                 tol_history = np.empty(max_iter - 1)
                 for i in range(max_iter - 1):
                     rough_baseline[mask] = baseline[mask]
                     coef = pseudo_inverse @ rough_baseline
-                    baseline = self.vandermonde @ coef
+                    baseline = self._polynomial.vandermonde @ coef
                     calc_difference = relative_difference(old_coef, coef)
                     tol_history[i] = calc_difference
                     if calc_difference < tol:
@@ -669,8 +669,8 @@ class _Classification(_Algorithm):
         mask = wavelet_mask.copy()
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            coef = np.linalg.lstsq(self.vandermonde[mask], y[mask], None)[0]
-            baseline = self.vandermonde @ coef
+            coef = np.linalg.lstsq(self._polynomial.vandermonde[mask], y[mask], None)[0]
+            baseline = self._polynomial.vandermonde @ coef
             residual = y - baseline
             mask[residual > num_std * np.std(residual)] = False
 
@@ -679,8 +679,8 @@ class _Classification(_Algorithm):
             # maybe make it a param called symmetric, like for mixture_model, and only
             # do if not symmetric; also probably only need to do it the first iteration
             # since after that the masking above will not remove negative residuals
-            coef = np.linalg.lstsq(self.vandermonde[mask], y[mask], None)[0]
-            baseline = self.vandermonde @ coef
+            coef = np.linalg.lstsq(self._polynomial.vandermonde[mask], y[mask], None)[0]
+            baseline = self._polynomial.vandermonde @ coef
 
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
@@ -775,7 +775,9 @@ class _Classification(_Algorithm):
 
         """
         if weights_as_mask:
-            y, whittaker_weights = self._setup_whittaker(data, lam, diff_order, weights)
+            y, whittaker_weights, whittaker_system = self._setup_whittaker(
+                data, lam, diff_order, weights
+            )
             mask = whittaker_weights.astype(bool)
         else:
             y, weight_array = self._setup_classification(data, weights)
@@ -791,13 +793,13 @@ class _Classification(_Algorithm):
             mask = _refine_mask(_iter_threshold(power, num_std), min_length)
             np.logical_and(mask, weight_array, out=mask)
 
-            _, whittaker_weights = self._setup_whittaker(y, lam, diff_order, mask)
+            _, whittaker_weights, whittaker_system = self._setup_whittaker(y, lam, diff_order, mask)
             if self._sort_order is not None:
                 whittaker_weights = whittaker_weights[self._inverted_order]
 
         whittaker_weights = whittaker_weights.astype(float)
-        baseline = self.whittaker_system.solve(
-            self.whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
+        baseline = whittaker_system.solve(
+            whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
             overwrite_b=True, overwrite_ab=True
         )
         params = {'mask': mask, 'weights': whittaker_weights}
@@ -903,9 +905,9 @@ class _Classification(_Algorithm):
         mask[np.unique(total_vertices)] = True
         np.logical_and(mask, weight_array, out=mask)
         if lam is not None and lam != 0:
-            self._setup_whittaker(y, lam, diff_order, mask)
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(mask), mask * y,
+            _, _, whittaker_system = self._setup_whittaker(y, lam, diff_order, mask)
+            baseline = whittaker_system.solve(
+                whittaker_system.add_diagonal(mask), mask * y,
                 overwrite_b=True, overwrite_ab=True
             )
         else:

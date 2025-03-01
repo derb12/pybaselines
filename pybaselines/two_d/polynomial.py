@@ -100,11 +100,11 @@ class _Polynomial(_Algorithm2D):
         sqrt_w = np.sqrt(weight_array)
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         params = {'weights': weight_array}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params
@@ -195,19 +195,19 @@ class _Polynomial(_Algorithm2D):
             y0 = y
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         if mask_initial_peaks:
             # use baseline + deviation since without deviation, half of y should be above baseline
             weight_array[baseline + np.std(y - baseline) < y] = 0
             sqrt_w = np.sqrt(weight_array)
-            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             y = np.minimum(y0 if use_original else y, baseline)
             coef = pseudo_inverse @ (sqrt_w * y)
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -216,7 +216,7 @@ class _Polynomial(_Algorithm2D):
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params
@@ -316,18 +316,18 @@ class _Polynomial(_Algorithm2D):
             y0 = y
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         deviation = np.std(y - baseline)
         if mask_initial_peaks:
             weight_array[baseline + deviation < y] = 0
             sqrt_w = np.sqrt(weight_array)
-            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
             coef = pseudo_inverse @ (sqrt_w * y)
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             new_deviation = np.std(y - baseline)
             # use new_deviation as dividing term in relative difference
             calc_difference = relative_difference(new_deviation, deviation)
@@ -339,7 +339,7 @@ class _Polynomial(_Algorithm2D):
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params
@@ -465,12 +465,12 @@ class _Polynomial(_Algorithm2D):
         y = sqrt_w * y
 
         coef = pseudo_inverse @ y
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             coef = pseudo_inverse @ (y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -479,7 +479,7 @@ class _Polynomial(_Algorithm2D):
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params
@@ -574,14 +574,18 @@ class _Polynomial(_Algorithm2D):
         )
         # estimate first iteration using least squares
         sqrt_w = np.sqrt(weight_array)
-        coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-        baseline = self.vandermonde @ coef
+        coef = np.linalg.lstsq(
+            self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
+        )[0]
+        baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
-            coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-            baseline = self.vandermonde @ coef
+            coef = np.linalg.lstsq(
+                self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
+            )[0]
+            baseline = self._polynomial.vandermonde @ coef
             # relative_difference(baseline_old, baseline, 1) gives nearly same result and
             # the l2 norm is faster to calculate, so use that instead of l1 norm
             calc_difference = relative_difference(baseline_old, baseline)
@@ -592,7 +596,7 @@ class _Polynomial(_Algorithm2D):
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params

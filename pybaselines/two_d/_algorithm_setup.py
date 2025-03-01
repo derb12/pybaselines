@@ -6,7 +6,6 @@ Created on April 8, 2023
 
 """
 
-from contextlib import contextmanager
 from functools import partial, wraps
 import itertools
 import warnings
@@ -18,9 +17,9 @@ from .._validation import (
     _check_sized_array, _yxz_arrays
 )
 from ..utils import (
-    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, optimize_window, pad_edges2d
+    ParameterWarning, _determine_sorts, _sort_array2d, optimize_window, pad_edges2d
 )
-from ._spline_utils import PSpline2D
+from ._spline_utils import PSpline2D, SplineBasis2D
 from ._whittaker_utils import WhittakerSystem2D
 
 
@@ -33,20 +32,6 @@ class _Algorithm2D:
 
     Attributes
     ----------
-    poly_order : Sequence[int, int]
-        The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
-        that no polynomial fitting has been performed.
-    pspline : PSpline2D or None
-        The PSpline2D object for setting up and solving penalized spline algorithms. Is None
-        if no penalized spline setup has been performed (typically done in
-        :meth:`~._Algorithm2D._setup_spline`).
-    vandermonde : numpy.ndarray or None
-        The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`~._Algorithm2D._setup_polynomial`).
-    whittaker_system : PenalizedSystem2D or None
-        The PenalizedSystem2D object for setting up and solving Whittaker-smoothing-based
-        algorithms. Is None if no Whittaker setup has been performed (typically done in
-        :meth:`_setup_whittaker`).
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same size as the input `data.shape[-2]` and has min
@@ -132,10 +117,8 @@ class _Algorithm2D:
             self._sort_order = (x_sort_order[:, None], z_sort_order[None, :])
             self._inverted_order = (x_inverted_order[:, None], z_inverted_order[None, :])
 
-        self.whittaker_system = None
-        self.vandermonde = None
-        self.poly_order = -1
-        self.pspline = None
+        self._polynomial = None
+        self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
         self.pentapy_solver = 2
@@ -238,8 +221,8 @@ class _Algorithm2D:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_2d=True,
-                  reshape_baseline=False, reshape_keys=(), skip_sorting=False):
+    def _register(cls, func=None, *, sort_keys=(), ensure_2d=True, reshape_baseline=False,
+                  reshape_keys=(), skip_sorting=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -254,11 +237,6 @@ class _Algorithm2D:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        dtype : type or numpy.dtype, optional
-            The dtype to cast the output array. Default is None, which uses the typing of `array`.
-        order : {None, 'C', 'F'}, optional
-            The order for the output array. Default is None, which will use the default array
-            ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
         ensure_2d : bool, optional
             If True (default), will raise an error if the shape of `array` is not a two dimensional
             array with shape (M, N) or a three dimensional array with shape (M, N, 1), (M, 1, N),
@@ -284,7 +262,7 @@ class _Algorithm2D:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, dtype=dtype, order=order, ensure_2d=ensure_2d,
+                cls._register, sort_keys=sort_keys, ensure_2d=ensure_2d,
                 reshape_baseline=reshape_baseline, reshape_keys=reshape_keys,
                 skip_sorting=skip_sorting
             )
@@ -296,40 +274,31 @@ class _Algorithm2D:
                 # be None in 2D
                 raise TypeError('"data" cannot be None')
 
-            reset_x = self.x is not None
-            reset_z = self.z is not None
-            if reset_x or reset_z:
-                if reset_x and reset_z:
+            has_x = self.x is not None
+            has_z = self.z is not None
+            if has_x or has_z:
+                if has_x and has_z:
                     expected_shape = self._shape
                     axis = slice(-2, None)
-                elif reset_x:
+                elif has_x:
                     expected_shape = self._shape[0]
                     axis = -2
                 else:
                     expected_shape = self._shape[1]
                     axis = -1
                 y = _check_sized_array(
-                    data, expected_shape, check_finite=self._check_finite, dtype=dtype,
-                    order=order, ensure_1d=False, axis=axis, name='data', ensure_2d=ensure_2d,
-                    two_d=True
+                    data, expected_shape, check_finite=self._check_finite, ensure_1d=False,
+                    axis=axis, name='data', ensure_2d=ensure_2d, two_d=True
                 )
             else:
                 y, self.x, self.z = _yxz_arrays(
-                    data, self.x, self.z, check_finite=self._check_finite, dtype=dtype,
-                    order=order, ensure_2d=ensure_2d
+                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_2d
                 )
 
-            # update self.x and/or self.z just to ensure dtype and order are correct
-            if reset_x:
-                x_dtype = self.x.dtype
-                self.x = np.asarray(self.x, dtype=dtype, order=order)
-            else:
+            if not has_x:
                 self._shape = (y.shape[-2], self._shape[1])
                 self.x = np.linspace(-1, 1, self._shape[0])
-            if reset_z:
-                z_dtype = self.z.dtype
-                self.z = np.asarray(self.z, dtype=dtype, order=order)
-            else:
+            if not has_z:
                 self._shape = (self._shape[0], y.shape[-1])
                 self.z = np.linspace(-1, 1, self._shape[1])
 
@@ -341,10 +310,6 @@ class _Algorithm2D:
                 output_dtype = self._dtype
 
             baseline, params = func(self, y, *args, **kwargs)
-            if reset_x:
-                self.x = np.asarray(self.x, dtype=x_dtype)
-            if reset_z:
-                self.z = np.asarray(self.z, dtype=z_dtype)
 
             return self._return_results(
                 baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_2d=ensure_2d,
@@ -354,10 +319,9 @@ class _Algorithm2D:
 
         return inner
 
-    @contextmanager
     def _override_x(self, new_x, new_sort_order=None):
         """
-        Temporarily sets the x-values for the object to a different array.
+        Creates a new fitting object for the given x-values and z-values.
 
         Useful when fitting extensions of the x attribute.
 
@@ -368,52 +332,18 @@ class _Algorithm2D:
         new_sort_order : [type], optional
             The sort order for the new x values. Default is None, which will not sort.
 
-        Yields
-        ------
+        Returns
+        -------
         pybaselines._algorithm_setup._Algorithm
             The _Algorithm object with the new x attribute.
 
+        Raises
+        ------
+        NotImplementedError
+            Raised since this usage is not currently needed so no 2D implementation was made.
+
         """
         raise NotImplementedError
-
-        old_x = self.x
-        old_len = self._len
-        old_x_domain = self.x_domain
-        old_sort_order = self._sort_order
-        old_inverted_order = self._inverted_order
-        # also have to reset any sized attributes to force recalculation for new x
-        old_poly_order = self.poly_order
-        old_vandermonde = self.vandermonde
-        old_whittaker_system = self.whittaker_system
-        old_pspline = self.pspline
-
-        try:
-            self.x = _check_array(new_x, check_finite=self._check_finite)
-            self._len = len(self.x)
-            self.x_domain = np.polynomial.polyutils.getdomain(self.x)
-            self._sort_order = new_sort_order
-            if self._sort_order is not None:
-                self._inverted_order = _inverted_sort(self._sort_order)
-            else:
-                self._inverted_order = None
-
-            self.vandermonde = None
-            self.poly_order = -1
-            self.whittaker_system = None
-            self.pspline = None
-
-            yield self
-
-        finally:
-            self.x = old_x
-            self._len = old_len
-            self.x_domain = old_x_domain
-            self._sort_order = old_sort_order
-            self._inverted_order = old_inverted_order
-            self.vandermonde = old_vandermonde
-            self.poly_order = old_poly_order
-            self.whittaker_system = old_whittaker_system
-            self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
                          num_eigens=None):
@@ -450,6 +380,8 @@ class _Algorithm2D:
             The y-values of the measured data after flattening.
         weight_array : numpy.ndarray, shape (``M * N``)
             The weight array after flattening.
+        whittaker_system : WhittakerSystem2D
+            The WhittakerSystem2D for solving the given penalized least squared system.
 
         Raises
         ------
@@ -478,20 +410,17 @@ class _Algorithm2D:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if (
-            self.whittaker_system is not None
-            and self.whittaker_system.same_basis(diff_order, num_eigens)
-        ):
-            self.whittaker_system.update_penalty(lam)
-        else:
-            self.whittaker_system = WhittakerSystem2D(
-                self._shape, lam, diff_order, num_eigens
-            )
-        if not self.whittaker_system._using_svd:
+        # TODO can probably keep the basis for reuse if using SVD, like _setup_spline does, and
+        # retain the unmodified penalties for the rows and columns if possible to skip that
+        # calculation as well
+        whittaker_system = WhittakerSystem2D(
+            self._shape, lam, diff_order, num_eigens
+        )
+        if not whittaker_system._using_svd:
             y = y.ravel()
             weight_array = weight_array.ravel()
 
-        return y, weight_array
+        return y, weight_array, whittaker_system
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
                           calc_pinv=False, copy_weights=False, max_cross=None):
@@ -507,7 +436,7 @@ class _Algorithm2D:
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
         poly_order : int or Sequence[int, int], optional
-            The polynomial orders for the rows and columns. Default is 2.
+            The polynomial orders for the rows and columns, respectively. Default is 2.
         calc_vander : bool, optional
             If True, will calculate and the Vandermonde matrix. Default is False.
         calc_pinv : bool, optional
@@ -560,39 +489,16 @@ class _Algorithm2D:
         poly_orders = _check_scalar_variable(
             poly_order, allow_zero=True, variable_name='polynomial order', two_d=True, dtype=int
         )
-        if max_cross is not None:
-            max_cross = _check_scalar_variable(
-                max_cross, allow_zero=True, variable_name='max_cross', dtype=int
-            )
         if calc_vander:
-            if (
-                self.vandermonde is None or self._max_cross != max_cross
-                or np.any(self.poly_order != poly_order)
-            ):
-                mapped_x = np.polynomial.polyutils.mapdomain(
-                    self.x, self.x_domain, np.array([-1., 1.])
+            if self._polynomial is None:
+                self._polynomial = _PolyHelper2D(
+                    self.x, self.z, self.x_domain, self.z_domain, poly_orders, max_cross
                 )
-                mapped_z = np.polynomial.polyutils.mapdomain(
-                    self.z, self.z_domain, np.array([-1., 1.])
+            else:
+                self._polynomial.recalc_vandermonde(
+                    self.x, self.z, self.x_domain, self.z_domain, poly_orders, max_cross
                 )
-                # rearrange the vandermonde such that it matches the typical A c = b where b
-                # is the flattened version of y and c are the coefficients
-                self.vandermonde = np.polynomial.polynomial.polyvander2d(
-                    *np.meshgrid(mapped_x, mapped_z, indexing='ij'),
-                    [poly_orders[0], poly_orders[1]]
-                ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
 
-                if max_cross is not None:
-                    # lists out (z_0, x_0), (z_1, x_0), etc
-                    for idx, val in enumerate(
-                        itertools.product(range(poly_orders[0] + 1), range(poly_orders[1] + 1))
-                    ):
-                        # 0 designates pure z or x terms
-                        if 0 not in val and any(v > max_cross for v in val):
-                            self.vandermonde[:, idx] = 0
-
-        self.poly_order = poly_orders
-        self._max_cross = max_cross
         y = y.ravel()
         if not calc_pinv:
             return y, weight_array
@@ -600,9 +506,11 @@ class _Algorithm2D:
             raise ValueError('if calc_pinv is True, then calc_vander must also be True')
 
         if weights is None:
-            pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            pseudo_inverse = self._polynomial.pseudo_inverse
         else:
-            pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(
+                np.sqrt(weight_array)[:, None] * self._polynomial.vandermonde
+            )
 
         return y, weight_array, pseudo_inverse
 
@@ -652,6 +560,9 @@ class _Algorithm2D:
             The y-values of the measured data.
         weight_array : numpy.ndarray, shape (M, N)
             The weight array for fitting the spline to the data.
+        pspline : PSpline2D
+            The PSpline2D object for solving the given penalized least squared system. Only
+            returned if `make_basis` is True.
 
         Warns
         -----
@@ -673,22 +584,27 @@ class _Algorithm2D:
         diff_order = _check_scalar_variable(
             diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
         )
-        if make_basis:
-            if (diff_order > 4).any():
-                warnings.warn(
-                    ('differential orders greater than 4 can have numerical issues;'
-                     ' consider using a differential order of 2 or 3 instead'),
-                    ParameterWarning, stacklevel=2
-                )
+        if not make_basis:
+            return y, weight_array
 
-            if self.pspline is None or not self.pspline.same_basis(num_knots, spline_degree):
-                self.pspline = PSpline2D(
-                    self.x, self.z, num_knots, spline_degree, self._check_finite, lam, diff_order
-                )
-            else:
-                self.pspline.reset_penalty(lam, diff_order)
+        if (diff_order > 4).any():
+            warnings.warn(
+                ('differential orders greater than 4 can have numerical issues;'
+                    ' consider using a differential order of 2 or 3 instead'),
+                ParameterWarning, stacklevel=2
+            )
 
-        return y, weight_array
+        if (
+            self._spline_basis is None
+            or not self._spline_basis.same_basis(num_knots, spline_degree)
+        ):
+            self._spline_basis = SplineBasis2D(self.x, self.z, num_knots, spline_degree)
+
+        # TODO should probably also retain the unmodified penalties for the rows and
+        # columns if possible to skip that calculation as well
+        pspline = PSpline2D(self._spline_basis, lam, diff_order)
+
+        return y, weight_array, pspline
 
     def _setup_morphology(self, y, half_window=None, **window_kwargs):
         """
@@ -949,3 +865,126 @@ class _Algorithm2D:
 
         """
         return y
+
+
+class _PolyHelper2D:
+    """
+    An object to help with solving polynomials.
+
+    Allows only recalculating the Vandermonde and pseudo-inverse matrices when necessary.
+
+    Attributes
+    ----------
+    max_cross : int
+        The maximum degree for the cross terms.
+    poly_order : Container[int, int]
+        The last polynomial order used to calculate the Vadermonde matrix.
+    pseudo_inverse : numpy.ndarray or None
+        The pseudo-inverse of the current Vandermonde matrix.
+    vandermonde : numpy.ndarray
+        The Vandermonde matrix for solving polynomial equations.
+
+    """
+
+    def __init__(self, x, z, x_domain, z_domain, poly_orders, max_cross):
+        """
+        Initializes the object and calculates the Vandermonde matrix.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        z : numpy.ndarray
+            The z-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        z_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `z`.
+        poly_orders : Container[int, int]
+            The polynomial orders for the rows and columns, respectively.
+        max_cross: int
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
+
+        """
+        self.poly_order = -1
+        self.max_cross = None
+        self.vandermonde = None
+        self._pseudo_inverse = None
+        self.pinv_stale = True
+
+        self.recalc_vandermonde(x, z, x_domain, z_domain, poly_orders, max_cross)
+
+    def recalc_vandermonde(self, x, z, x_domain, z_domain, poly_orders, max_cross):
+        """
+        Recalculates the Vandermonde matrix for the polynomial only if necessary.
+
+        Also flags whether the pseudo-inverse needs to be recalculated.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        z : numpy.ndarray
+            The z-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        z_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `z`.
+        poly_orders : Container[int, int]
+            The polynomial orders for the rows and columns, respectively.
+        max_cross: int
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
+
+        """
+        if max_cross is not None:
+            max_cross = _check_scalar_variable(
+                max_cross, allow_zero=True, variable_name='max_cross', dtype=int
+            )
+
+        # TODO if self.max_cross is None and x- and z- poly_orders are
+        # less than self.poly_order, then can just using slicing to reuse
+        # the vandermonde like for 1D; would then just need to recalc pinv
+        if (
+            self.vandermonde is None or self.max_cross != max_cross
+            or np.any(self.poly_order != poly_orders)
+        ):
+            self.pinv_stale = True
+            mapped_x = np.polynomial.polyutils.mapdomain(
+                x, x_domain, np.array([-1., 1.])
+            )
+            mapped_z = np.polynomial.polyutils.mapdomain(
+                z, z_domain, np.array([-1., 1.])
+            )
+            # rearrange the vandermonde such that it matches the typical A c = b where b
+            # is the flattened version of y and c are the coefficients
+            self.vandermonde = np.polynomial.polynomial.polyvander2d(
+                *np.meshgrid(mapped_x, mapped_z, indexing='ij'),
+                [poly_orders[0], poly_orders[1]]
+            ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
+
+            if max_cross is not None:
+                # lists out (z_0, x_0), (z_1, x_0), etc
+                for idx, val in enumerate(
+                    itertools.product(range(poly_orders[0] + 1), range(poly_orders[1] + 1))
+                ):
+                    # 0 designates pure z or x terms
+                    if 0 not in val and any(v > max_cross for v in val):
+                        self.vandermonde[:, idx] = 0
+
+        self.poly_order = poly_orders
+        self.max_cross = max_cross
+
+    @property
+    def pseudo_inverse(self):
+        """
+        The pseudo-inverse of the Vandermonde.
+
+        Only recalculates the pseudo-inverse if the Vandermonde has been updated.
+
+        """
+        if self.pinv_stale or self._pseudo_inverse is None:
+            self._pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            self.pinv_stale = False
+        return self._pseudo_inverse

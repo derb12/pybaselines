@@ -301,6 +301,7 @@ class TestGolotvin(ClassificationTester):
 
     func_name = 'golotvin'
     required_kwargs = {'half_window': 15, 'num_std': 6}
+    required_repeated_kwargs = {'half_window': 15, 'num_std': 6}
 
 
 class TestDietrich(ClassificationTester):

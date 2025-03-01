@@ -134,9 +134,9 @@ class _Morphological(_Algorithm):
             # since it will be sorted within _setup_whittaker
             w = _sort_array(w, self._inverted_order)
 
-        _, weight_array = self._setup_whittaker(y, lam, diff_order, w)
-        baseline = self.whittaker_system.solve(
-            self.whittaker_system.add_diagonal(weight_array), weight_array * y,
+        _, weight_array, whittaker_system = self._setup_whittaker(y, lam, diff_order, w)
+        baseline = whittaker_system.solve(
+            whittaker_system.add_diagonal(weight_array), weight_array * y,
             overwrite_ab=True, overwrite_b=True
         )
 
@@ -659,7 +659,7 @@ class _Morphological(_Algorithm):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._register(sort_keys=('weights',), dtype=float, order='C')
+    @_Algorithm._register(sort_keys=('weights',))
     def mpspline(self, data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0,
                  num_knots=100, spline_degree=3, diff_order=2, weights=None,
                  pad_kwargs=None, **window_kwargs):
@@ -761,7 +761,7 @@ class _Morphological(_Algorithm):
         elif not 0 <= p <= 1:
             raise ValueError('p must be between 0 and 1')
 
-        y, weight_array = self._setup_spline(
+        y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam_smooth
         )
 
@@ -770,7 +770,7 @@ class _Morphological(_Algorithm):
         # overestimated baseline; could alternatively just fit a p-spline to
         # 0.5 * (grey_closing(y, 3) + grey_opening(y, 3)), which averages noisy data better;
         # could add it as a boolean parameter
-        spline_fit = self.pspline.solve_pspline(
+        spline_fit = pspline.solve_pspline(
             y, weights=(y == grey_closing(y, 3)).astype(float, copy=False)
         )
         if weights is None:
@@ -789,8 +789,8 @@ class _Morphological(_Algorithm):
             # TODO should this use np.isclose instead?
             weight_array = np.where(spline_fit == optimal_opening, 1 - p, p)
 
-        self.pspline.penalty = (_check_lam(lam) / lam_smooth) * self.pspline.penalty
-        baseline = self.pspline.solve_pspline(spline_fit, weight_array)
+        pspline.penalty = (_check_lam(lam) / lam_smooth) * pspline.penalty
+        baseline = pspline.solve_pspline(spline_fit, weight_array)
 
         return baseline, {'half_window': half_window, 'weights': weight_array}
 
@@ -883,7 +883,7 @@ class _Morphological(_Algorithm):
 
         """
         y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
-        self._setup_whittaker(y, lam=1, diff_order=diff_order)
+        _, _, whittaker_system = self._setup_whittaker(y, lam=1, diff_order=diff_order)
         beta = _check_lam(beta)
         gamma = _check_lam(gamma, allow_zero=True)
 
@@ -893,19 +893,19 @@ class _Morphological(_Algorithm):
 
         baseline_old = opening
         signal_old = y
-        main_diag_idx = self.whittaker_system.main_diagonal_index
+        main_diag_idx = whittaker_system.main_diagonal_index
         partial_rhs_2 = (2 * alpha) * opening
         tol_history = np.empty((max_iter + 1, 2))
         for i in range(max_iter + 1):
-            lhs_1 = gamma * self.whittaker_system.penalty
+            lhs_1 = gamma * whittaker_system.penalty
             lhs_1[main_diag_idx] += 1
-            lhs_2 = (2 * beta) * self.whittaker_system.penalty
+            lhs_2 = (2 * beta) * whittaker_system.penalty
             lhs_2[main_diag_idx] += 1 + 2 * alpha
 
-            signal = self.whittaker_system.solve(
+            signal = whittaker_system.solve(
                 lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True
             )
-            baseline = self.whittaker_system.solve(
+            baseline = whittaker_system.solve(
                 lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True
             )
 

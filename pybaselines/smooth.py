@@ -335,7 +335,8 @@ class _Smooth(_Algorithm):
             y, None, poly_order=3, calc_vander=True, calc_pinv=True
         )
         baseline, converged, half_window = _swima_loop(
-            y, self.vandermonde, pseudo_inverse, data_slice, max_half_window, min_half_window
+            y, self._polynomial.vandermonde, pseudo_inverse, data_slice, max_half_window,
+            min_half_window
         )
         converges = [converged]
         half_windows = [half_window]
@@ -345,7 +346,7 @@ class _Smooth(_Algorithm):
                 np.arange(len_y), np.max(residual), len_y / 2, len_y / 6
             )
             baseline_2, converged, half_window = _swima_loop(
-                residual + gaussian_bkg, self.vandermonde, pseudo_inverse, data_slice,
+                residual + gaussian_bkg, self._polynomial.vandermonde, pseudo_inverse, data_slice,
                 max_half_window, 3
             )
             baseline += baseline_2 - gaussian_bkg

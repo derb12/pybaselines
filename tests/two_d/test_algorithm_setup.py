@@ -41,9 +41,8 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
     x, z, y = data_fixture2d
 
     algorithm = _algorithm_setup._Algorithm2D(x, z)
-    assert algorithm.whittaker_system is None
 
-    _ = algorithm._setup_whittaker(y, lam=lam, diff_order=diff_order)
+    _, _, whittaker_system = algorithm._setup_whittaker(y, lam=lam, diff_order=diff_order)
 
     *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
         lam=lam, diff_order=diff_order
@@ -57,7 +56,7 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
     expected_penalty = P1 + P2
 
     assert_allclose(
-        algorithm.whittaker_system.penalty.toarray(),
+        whittaker_system.penalty.toarray(),
         expected_penalty.toarray(),
         rtol=1e-12, atol=1e-12
     )
@@ -83,7 +82,7 @@ def test_setup_whittaker_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
 
-    _, weight_array = algorithm._setup_whittaker(
+    _, weight_array, _ = algorithm._setup_whittaker(
         small_data2d, lam=1, diff_order=2, weights=weights
     )
 
@@ -205,11 +204,13 @@ def test_setup_polynomial_vandermonde(small_data2d, algorithm, vander_enum, incl
     desired_vander = np.polynomial.polynomial.polyvander2d(
         *np.meshgrid(mapped_x, mapped_z, indexing='ij'), (x_order, z_order)
     ).reshape((-1, (x_order + 1) * (z_order + 1)))
-    assert_allclose(desired_vander, algorithm.vandermonde, 1e-12)
+    assert_allclose(algorithm._polynomial.vandermonde, desired_vander, 1e-12)
 
     if include_pinv:
         desired_pinv = np.linalg.pinv(np.sqrt(weight_array)[:, np.newaxis] * desired_vander)
-        assert_allclose(desired_pinv, pinv_matrix, 1e-10)
+        assert_allclose(pinv_matrix, desired_pinv, 1e-10)
+        if weights is None:
+            assert_allclose(pinv_matrix, algorithm._polynomial.pseudo_inverse, 1e-10)
 
 
 def test_setup_polynomial_negative_polyorder_fails(small_data2d, algorithm):
@@ -241,38 +242,42 @@ def test_setup_polynomial_too_large_polyorder_fails(small_data2d, algorithm):
 
 def test_setup_polynomial_maxcross(small_data2d, algorithm):
     """Ensures the _max_cross attribute is updated after calling _setup_polynomial."""
-    algorithm._setup_polynomial(small_data2d, max_cross=[1])
-    assert algorithm._max_cross == 1
+    algorithm._setup_polynomial(small_data2d, max_cross=[1], calc_vander=True)
+    assert algorithm._polynomial.max_cross == 1
 
-    algorithm._setup_polynomial(small_data2d, max_cross=1)
-    assert algorithm._max_cross == 1
+    algorithm._setup_polynomial(small_data2d, max_cross=1, calc_vander=True)
+    assert algorithm._polynomial.max_cross == 1
 
     algorithm._setup_polynomial(small_data2d, max_cross=0)
-    assert algorithm._max_cross == 0
+    # should not update the _polynomial since Vandermonde is not calculated
+    assert algorithm._polynomial.max_cross == 1
 
-    algorithm._setup_polynomial(small_data2d, max_cross=None)
-    assert algorithm._max_cross is None
+    algorithm._setup_polynomial(small_data2d, max_cross=0, calc_vander=True)
+    assert algorithm._polynomial.max_cross == 0
+
+    algorithm._setup_polynomial(small_data2d, max_cross=None, calc_vander=True)
+    assert algorithm._polynomial.max_cross is None
 
 
 def test_setup_polynomial_too_large_maxcross_fails(small_data2d, algorithm):
     """Ensures an exception is raised if max_cross has more than one value."""
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2])
+        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2], calc_vander=True)
 
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2, 3])
+        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2, 3], calc_vander=True)
 
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=np.array([1, 2]))
+        algorithm._setup_polynomial(small_data2d, max_cross=np.array([1, 2]), calc_vander=True)
 
 
 def test_setup_polynomial_negative_maxcross_fails(small_data2d, algorithm):
     """Ensures an exception is raised if max_cross is negative."""
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=[-1])
+        algorithm._setup_polynomial(small_data2d, max_cross=[-1], calc_vander=True)
 
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=-2)
+        algorithm._setup_polynomial(small_data2d, max_cross=-2, calc_vander=True)
 
 
 def test_setup_smooth_shape(small_data2d, algorithm):
@@ -291,9 +296,9 @@ def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
     """Ensures the spline basis function is correctly created."""
     x, z, y = data_fixture2d
     fitter = _algorithm_setup._Algorithm2D(x, z)
-    assert fitter.pspline is None
+    assert fitter._spline_basis is None
 
-    _ = fitter._setup_spline(
+    fitter._setup_spline(
         y, weights=None, spline_degree=spline_degree, num_knots=num_knots
     )
 
@@ -309,11 +314,11 @@ def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
         spline_degree_x, spline_degree_z = spline_degree
 
     assert_array_equal(
-        fitter.pspline.basis_r.shape,
+        fitter._spline_basis.basis_r.shape,
         (len(x), num_knots_r + spline_degree_x - 1)
     )
     assert_array_equal(
-        fitter.pspline.basis_c.shape,
+        fitter._spline_basis.basis_c.shape,
         (len(z), num_knots_c + spline_degree_z - 1)
     )
 
@@ -327,7 +332,7 @@ def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree
     x, z, y = data_fixture2d
 
     algorithm = _algorithm_setup._Algorithm2D(x, z)
-    _ = algorithm._setup_spline(
+    _, _, pspline = algorithm._setup_spline(
         y, weights=None, spline_degree=spline_degree, num_knots=num_knots,
         diff_order=diff_order, lam=lam
     )
@@ -350,7 +355,7 @@ def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree
     expected_penalty = P1 + P2
 
     assert_allclose(
-        algorithm.pspline.penalty.toarray(),
+        pspline.penalty.toarray(),
         expected_penalty.toarray(),
         rtol=1e-12, atol=1e-12
     )
@@ -468,7 +473,7 @@ def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size).reshape(small_data2d.shape)
 
-    _, weight_array = algorithm._setup_spline(
+    _, weight_array, _ = algorithm._setup_spline(
         small_data2d, lam=1, diff_order=2, weights=weights
     )
 
@@ -562,10 +567,8 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         assert algorithm._inverted_order is None
 
     # ensure attributes are correctly initialized
-    assert algorithm.poly_order == -1
-    assert algorithm.pspline is None
-    assert algorithm.whittaker_system is None
-    assert algorithm.vandermonde is None
+    assert algorithm._polynomial is None
+    assert algorithm._spline_basis is None
 
 
 @pytest.mark.parametrize('assume_sorted', (True, False))
@@ -650,7 +653,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
     """
     x, z, y = get_data2d()
-    y_dtype = y.dtype
 
     class SubClass(_algorithm_setup._Algorithm2D):
         # 'a' values will be sorted and 'b' values will be kept the same
@@ -742,15 +744,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm2D._register(dtype=float)
-        def func5(self, data, *args, **kwargs):
-            """Ensures dtypes are correctly set by the decorator."""
-            assert self.x.dtype == float
-            assert self.z.dtype == float
-            assert data.dtype == float
-
-            return 1 * data, {}
-
     if change_order:
         x = x[::-1]
         z = z[::-1]
@@ -806,36 +799,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
     assert output4.dtype == expected_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params4[key], err_msg=f'{key} failed')
-
-    x_new_dtype = np.float32
-    z_new_dtype = np.int32
-    if list_input:
-        x = np.array(x, dtype=x_new_dtype).tolist()
-        z = np.array(z, dtype=z_new_dtype).tolist()
-    else:
-        x = x.astype(x_new_dtype)
-        z = z.astype(z_new_dtype)
-    x_dtype = np.ones(5, dtype=x_new_dtype).dtype
-    z_dtype = np.ones(5, dtype=z_new_dtype).dtype
-
-    # create a new object after changing the dtype to lower precision so that previous closeness
-    # checks do not fail
-    algorithm2 = SubClass(
-        x, z, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-    )
-    output5, params5 = algorithm2.func5(y)
-    # dtypes should not be changed outside of the function
-    if output_dtype is None:
-        assert output5.dtype == float
-    else:
-        assert output5.dtype == expected_dtype
-
-    if not list_input:
-        assert algorithm2.x.dtype == x_dtype
-        assert algorithm2.z.dtype == z_dtype
-        assert y.dtype == y_dtype
-        assert x.dtype == x_dtype
-        assert z.dtype == z_dtype
 
 
 def test_algorithm_register_no_data_fails():
@@ -922,13 +885,7 @@ def test_override_x(algorithm):
     new_len = 20
     new_x = np.arange(new_len)
     with pytest.raises(NotImplementedError):
-        with algorithm._override_x(new_x) as new_algorithm:
-            assert len(new_algorithm.x) == new_len
-            assert new_algorithm._shape[0] == new_len
-            assert new_algorithm.poly_order == -1
-            assert new_algorithm.vandermonde is None
-            assert new_algorithm.whittaker_system is None
-            assert new_algorithm.pspline is None
+        new_algorithm = algorithm._override_x(new_x)
 
 
 @pytest.mark.parametrize(

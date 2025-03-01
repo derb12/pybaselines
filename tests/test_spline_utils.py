@@ -198,9 +198,11 @@ def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower
 
     with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
         # use sparse calculation
+        spline_basis = _spline_utils.SplineBasis(
+            x, num_knots=num_knots, spline_degree=spline_degree
+        )
         pspline = _spline_utils.PSpline(
-            x, num_knots=num_knots, spline_degree=spline_degree, lam=1,
-            diff_order=diff_order, allow_lower=lower_only
+            spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
         )
         assert_allclose(
             pspline.solve_pspline(y, weights=weights, penalty=penalty),
@@ -212,9 +214,11 @@ def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower
 
     with mock.patch.object(_spline_utils, '_HAS_NUMBA', True):
         # should use the numba calculation
+        spline_basis = _spline_utils.SplineBasis(
+            x, num_knots=num_knots, spline_degree=spline_degree
+        )
         pspline = _spline_utils.PSpline(
-            x, num_knots=num_knots, spline_degree=spline_degree, lam=1,
-            diff_order=diff_order, allow_lower=lower_only
+            spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
         )
         assert_allclose(
             pspline.solve_pspline(y, weights=weights, penalty=penalty),
@@ -245,14 +249,14 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.lower == allow_lower
     assert penalized_system.diff_order == diff_order
     assert penalized_system.num_bands == diff_order + max(0, padding)
-    assert penalized_system.num_knots == num_knots
-    assert penalized_system.spline_degree == spline_degree
+    assert penalized_system.basis.num_knots == num_knots
+    assert penalized_system.basis.spline_degree == spline_degree
     assert penalized_system.coef is None  # None since the solve method has not been called
-    assert penalized_system.basis.shape == (data_size, num_knots + spline_degree - 1)
-    assert penalized_system._num_bases == num_knots + spline_degree - 1
-    assert penalized_system.knots.shape == (num_knots + 2 * spline_degree,)
-    assert isinstance(penalized_system.x, np.ndarray)
-    assert penalized_system._x_len == len(penalized_system.x)
+    assert penalized_system.basis.basis.shape == (data_size, num_knots + spline_degree - 1)
+    assert penalized_system.basis._num_bases == num_knots + spline_degree - 1
+    assert penalized_system.basis.knots.shape == (num_knots + 2 * spline_degree,)
+    assert isinstance(penalized_system.basis.x, np.ndarray)
+    assert penalized_system.basis._x_len == len(penalized_system.basis.x)
     assert not penalized_system.using_pentapy
     if allow_lower:
         assert penalized_system.main_diagonal_index == 0
@@ -260,14 +264,14 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
         assert penalized_system.main_diagonal_index == diff_order + max(0, padding)
 
     # check that PSpline.same_basis works as expected
-    assert penalized_system.same_basis(num_knots=num_knots, spline_degree=spline_degree)
+    assert penalized_system.basis.same_basis(num_knots=num_knots, spline_degree=spline_degree)
     for new_num_knots in (1, 5, 1000):
         if new_num_knots == num_knots:
             continue
         for new_spline_degree in range(4):
             if new_spline_degree == spline_degree:
                 continue
-            assert not penalized_system.same_basis(
+            assert not penalized_system.basis.same_basis(
                 num_knots=new_num_knots, spline_degree=new_spline_degree
             )
 
@@ -298,9 +302,12 @@ def test_pspline_setup(data_fixture, num_knots, spline_degree, diff_order,
     if reverse_diags:
         expected_penalty = expected_penalty[::-1]
 
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
     pspline = _spline_utils.PSpline(
-        x, num_knots=num_knots, spline_degree=spline_degree, check_finite=False,
-        lam=lam, diff_order=diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
+        spline_basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=reverse_diags
     )
 
     check_penalized_spline(
@@ -317,31 +324,32 @@ def test_pspline_setup(data_fixture, num_knots, spline_degree, diff_order,
     )
 
 
-def test_pspline_non_finite_fails():
+def test_spline_basis_non_finite_fails():
     """Ensure non-finite values raise an exception when check_finite is True."""
     x = np.linspace(-1, 1, 100)
     for value in (np.nan, np.inf, -np.inf):
         x[0] = value
         with pytest.raises(ValueError):
-            _spline_utils.PSpline(x, check_finite=True)
+            _spline_utils.SplineBasis(x, check_finite=True)
 
 
 def test_pspline_diff_order_zero_fails(data_fixture):
     """Ensures a difference order of 0 fails."""
     x, y = data_fixture
+    basis = _spline_utils.SplineBasis(x)
     with pytest.raises(ValueError):
-        _spline_utils.PSpline(x, diff_order=0)
+        _spline_utils.PSpline(basis, diff_order=0)
 
 
 @pytest.mark.parametrize('spline_degree', (-2, -1, 0, 1))
-def test_pspline_negative_spline_degree_fails(data_fixture, spline_degree):
+def test_spline_basis_negative_spline_degree_fails(data_fixture, spline_degree):
     """Ensures a spline degree less than 0 fails."""
     x, y = data_fixture
     if spline_degree >= 0:
-        _spline_utils.PSpline(x, spline_degree=spline_degree)
+        _spline_utils.SplineBasis(x, spline_degree=spline_degree)
     else:
         with pytest.raises(ValueError):
-            _spline_utils.PSpline(x, spline_degree=spline_degree)
+            _spline_utils.SplineBasis(x, spline_degree=spline_degree)
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3))
@@ -351,16 +359,15 @@ def test_pspline_negative_spline_degree_fails(data_fixture, spline_degree):
 def test_pspline_tck(data_fixture, num_knots, spline_degree, diff_order, lam):
     """Ensures the tck attribute can correctly recreate the solved spline."""
     x, y = data_fixture
-    pspline = _spline_utils.PSpline(
-        x, num_knots=num_knots, spline_degree=spline_degree, diff_order=diff_order, lam=lam
-    )
+    basis = _spline_utils.SplineBasis(x, num_knots=num_knots, spline_degree=spline_degree)
+    pspline = _spline_utils.PSpline(basis, diff_order=diff_order, lam=lam)
     fit_spline = pspline.solve_pspline(y, weights=np.ones_like(y))
 
     # ensure tck is the knots, coefficients, and spline degree
     assert len(pspline.tck) == 3
     knots, coeffs, degree = pspline.tck
 
-    assert_allclose(knots, pspline.knots, rtol=1e-12)
+    assert_allclose(knots, pspline.basis.knots, rtol=1e-12)
     assert_allclose(coeffs, pspline.coef, rtol=1e-12)
     assert degree == spline_degree
 
@@ -373,7 +380,8 @@ def test_pspline_tck(data_fixture, num_knots, spline_degree, diff_order, lam):
 def test_pspline_tck_none(data_fixture):
     """Ensures an exception is raised when tck attribute is accessed without first solving once."""
     x, y = data_fixture
-    pspline = _spline_utils.PSpline(x)
+    basis = _spline_utils.SplineBasis(x)
+    pspline = _spline_utils.PSpline(basis)
 
     assert pspline.coef is None
     with pytest.raises(ValueError):
@@ -383,7 +391,8 @@ def test_pspline_tck_none(data_fixture):
 def test_pspline_tck_readonly(data_fixture):
     """Ensures the tck attribute is read-only."""
     x, y = data_fixture
-    pspline = _spline_utils.PSpline(x)
+    basis = _spline_utils.SplineBasis(x)
+    pspline = _spline_utils.PSpline(basis)
     pspline.solve_pspline(y, np.ones_like(y))
     with pytest.raises(AttributeError):
         pspline.tck = (1, 2, 3)
@@ -422,13 +431,14 @@ def test_compare_to_whittaker(data_fixture, lam, diff_order):
     """
     x, y = data_fixture
 
-    pspline = _spline_utils.PSpline(
-        x, num_knots=len(x) + 1, spline_degree=0, lam=lam, diff_order=diff_order,
-        check_finite=False
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=len(x) + 1, spline_degree=0, check_finite=False
     )
 
+    pspline = _spline_utils.PSpline(spline_basis, lam=lam, diff_order=diff_order)
+
     # sanity check to ensure it was set up correctly
-    assert_array_equal(pspline.basis.shape, (len(x), len(x)))
+    assert_array_equal(pspline.basis.basis.shape, (len(x), len(x)))
 
     whittaker_system = _banded_utils.PenalizedSystem(len(y), lam=lam, diff_order=diff_order)
 
