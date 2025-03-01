@@ -410,19 +410,12 @@ class _Algorithm2D:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if False:#(
-            #TODO can probably keep the basis for reuse if using SVD, like _setup_spline does, and
-            # retain the unmodified penalties for the rows and columns if possible to skip that
-            # calculation as well
-
-            #self.whittaker_system is not None
-            #and self.whittaker_system.same_basis(diff_order, num_eigens)
-        #):
-            self.whittaker_system.update_penalty(lam)
-        else:
-            whittaker_system = WhittakerSystem2D(
-                self._shape, lam, diff_order, num_eigens
-            )
+        # TODO can probably keep the basis for reuse if using SVD, like _setup_spline does, and
+        # retain the unmodified penalties for the rows and columns if possible to skip that
+        # calculation as well
+        whittaker_system = WhittakerSystem2D(
+            self._shape, lam, diff_order, num_eigens
+        )
         if not whittaker_system._using_svd:
             y = y.ravel()
             weight_array = weight_array.ravel()
@@ -607,7 +600,7 @@ class _Algorithm2D:
         ):
             self._spline_basis = SplineBasis2D(self.x, self.z, num_knots, spline_degree)
 
-        #TODO should probably also retain the unmodified penalties for the rows and
+        # TODO should probably also retain the unmodified penalties for the rows and
         # columns if possible to skip that calculation as well
         pspline = PSpline2D(self._spline_basis, lam, diff_order)
 

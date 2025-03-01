@@ -165,7 +165,7 @@ def test_setup_whittaker_reset_penalized_system(small_data, algorithm, diff_orde
     weights = np.linspace(0.01, 1, small_data.shape[0])
     whittaker_system.add_diagonal(weights)
 
-    #TODO update these tests once the original diagonals are tracked by _Algorithm again
+    # TODO update these tests once the original diagonals are tracked by _Algorithm again
     # now reset with a new lam value
     _, _, whittaker_system_2 = algorithm._setup_whittaker(
         small_data, lam_2, diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
