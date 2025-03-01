@@ -1,7 +1,18 @@
 [build-system]
-# setuptools v64.0.0 was first version to allow creating editable installs with only pyproject.toml
-requires = ["setuptools>=64"]
-build-backend = "setuptools.build_meta"
+# hatchling v1.27 was first version to use default metadata version 2.4, allowing project.license
+# and project.license-files fields following PEP-639
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+  "/.*",
+  "/docs",
+  "/examples",
+  "/requirements",
+  "/tools",
+]
+
 
 [project]
 name = "pybaselines"
@@ -11,12 +22,15 @@ authors = [
 ]
 description = "A library of algorithms for the baseline correction of experimental data."
 readme = "README.rst"
-license = {file = "LICENSE.txt"}
+license = "BSD-3-Clause"
+license-files = [
+    "LICENSE.txt",
+    "LICENSES_bundled.txt"
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -75,15 +89,6 @@ release = [
 ]
 dev = ["pybaselines[full, docs, test, release]"]
 
-[tool.setuptools]
-# TODO license-files usage may change in the future once PEP 639 is accepted
-license-files = [
-    "LICENSE.txt",
-    "LICENSES_bundled.txt",
-]
-
-[tool.setuptools.packages.find]
-include = ["pybaselines", "pybaselines.*"]
 
 [tool.isort]
 skip_glob = ["docs/*", "*__init__.py"]
