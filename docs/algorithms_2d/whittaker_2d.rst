@@ -94,7 +94,7 @@ The beauty of this reparameterization when applied to baseline correction is two
    following the brilliant insights of `Eilers, Currie, and Durbán <https://doi.org/10.1016/j.csda.2004.07.008>`_,
    exactly as :ref:`explained for 2D penalized splines <generalized-linear-array-model-explanation>`.
 
-:ref:`An example <sphx_glr_examples_two_d_plot_whittaker_2d_dof.py>` examines how to determine
+:ref:`An example <sphx_glr_generated_examples_two_d_plot_whittaker_2d_dof.py>` examines how to determine
 the approximate number of eigenvalues required to represent different baselines.
 
 

@@ -295,4 +295,4 @@ experimental data has drastically different baselines within it. This is done by
 reducing the number of data points in regions where higher stiffness
 is required. There is no figure showing the fits for various baseline types for
 this method since it is more suited for hard-to-fit data; however, :ref:`an
-example <sphx_glr_examples_optimizers_plot_custom_bc_1_whittaker.py>` showcases its use.
+example <sphx_glr_generated_examples_optimizers_plot_custom_bc_1_whittaker.py>` showcases its use.

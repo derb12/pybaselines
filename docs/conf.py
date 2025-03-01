@@ -40,6 +40,7 @@ extensions = [
     'numpydoc',
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
+    'sphinx_copybutton',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosectionlabel',
     'matplotlib.sphinxext.plot_directive',
@@ -188,7 +189,7 @@ sphinx_gallery_conf = {
     # location of example files
     'examples_dirs': ['../examples'],
     # location of output folder
-    'gallery_dirs': ['examples'],
+    'gallery_dirs': ['generated/examples'],
     # must set to None or else autoapi errors
     'backreferences_dir': None,
     # remove button on front page for downloading all examples

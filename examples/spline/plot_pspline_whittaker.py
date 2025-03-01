@@ -33,7 +33,7 @@ from example_helpers import make_data, optimize_lam
 # %%
 # The baseline for this example is an exponentially decaying baseline, shown below.
 # Other baseline types could be examined, similar to the
-# :ref:`Whittaker lam vs data size example <sphx_glr_examples_whittaker_plot_lam_vs_data_size.py>`,
+# :ref:`Whittaker lam vs data size example <sphx_glr_generated_examples_whittaker_plot_lam_vs_data_size.py>`,
 # which should give similar results.
 plt.plot(make_data(1000, bkg_type='exponential')[0])
 
@@ -43,7 +43,7 @@ plt.plot(make_data(1000, bkg_type='exponential')[0])
 # of the log of the data size, N, and the log of the `lam` value will be reported.
 # The number of knots for the P-spline version is fixed at the default, 100 (the effect
 # of the number of knots versus optimal `lam` is shown in another
-# :ref:`example <sphx_glr_examples_spline_plot_lam_vs_num_knots.py>`).
+# :ref:`example <sphx_glr_generated_examples_spline_plot_lam_vs_num_knots.py>`).
 print('Function, intercept & slope of log(N) vs log(lam) fit')
 print('-' * 60)
 

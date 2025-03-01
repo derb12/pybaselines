@@ -48,8 +48,7 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
-# sphinx-gallery output
-docs/examples/
+
 # generated documentation files, inlcuding timings from sphinx-gallery
 docs/generated
 sg_execution_times.rst
