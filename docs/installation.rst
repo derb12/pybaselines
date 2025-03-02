@@ -81,7 +81,7 @@ ensure `git <https://git-scm.com>`_ is installed and then run:
 
 .. code-block:: console
 
-    pip install git+https://github.com/derb12/pybaselines.git#egg=pybaselines
+    pip install git+https://github.com/derb12/pybaselines.git
 
 Alternatively, to download the entire public repository and install pybaselines, run:
 

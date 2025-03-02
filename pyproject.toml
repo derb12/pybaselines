@@ -146,6 +146,7 @@ convention = "numpy"
     "B007",  # B007: Loop control variable `name` not used within loop body; want to be explicit in examples
     "D205",  # D205: 1 blank line required between summary line and description
     "D400",  # D400: first line should end with a period
+    "E501",  # E501: line too long; reference links can be very long so ignore the limit
 ]
 "tests/*" = [
     "F841",  # F841: Local variable 'name' is assigned to but never used; want to be explicit within tests

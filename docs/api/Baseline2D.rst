@@ -19,8 +19,8 @@ Polynomial Algorithms
    Baseline2D.penalized_poly
    Baseline2D.quant_reg
 
-Whittaker Algorithms
---------------------
+Whittaker Smoothing Algorithms
+------------------------------
 
 .. autosummary::
    :toctree: ../generated/api/

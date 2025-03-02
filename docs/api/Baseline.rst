@@ -21,8 +21,8 @@ Polynomial Algorithms
    Baseline.quant_reg
    Baseline.goldindec
 
-Whittaker Algorithms
---------------------
+Whittaker Smoothing Algorithms
+------------------------------
 
 .. autosummary::
    :toctree: ../generated/api/
@@ -78,6 +78,7 @@ Spline Algorithms
    Baseline.pspline_aspls
    Baseline.pspline_psalsa
    Baseline.pspline_derpsalsa
+   Baseline.pspline_mpls
    Baseline.pspline_brpls
    Baseline.pspline_lsrpls
 

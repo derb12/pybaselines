@@ -56,7 +56,7 @@ such as AsLS, airPLS, ModPoly, and SNIP, as well as many lesser known algorithms
 algorithms are adapted directly from literature, although there are a few that are unique
 to pybaselines, such as penalized spline versions of Whittaker-smoothing-based algorithms.
 The full list of implemented algorithms can be found in the
-`documentation <https://pybaselines.readthedocs.io/en/latest/introduction.html>`_.
+`documentation <https://pybaselines.readthedocs.io/en/latest/api/Baseline.html>`_.
 
 
 Installation
@@ -88,7 +88,7 @@ To install the current version of pybaselines from GitHub, run:
 
 .. code-block:: console
 
-    pip install git+https://github.com/derb12/pybaselines.git#egg=pybaselines
+    pip install git+https://github.com/derb12/pybaselines.git
 
 
 .. _GitHub repo: https://github.com/derb12/pybaselines

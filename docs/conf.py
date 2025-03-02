@@ -127,7 +127,7 @@ autosectionlabel_prefix_document = True
 autoapi_type = 'python'
 autoapi_dirs = ['../pybaselines']
 autoapi_template_dir = '_templates/autoapi'
-autoapi_root = 'api'
+autoapi_root = 'generated/api'
 autoapi_options = [
     'members',
     'inherited-members',
@@ -152,6 +152,7 @@ suppress_warnings = ['autosectionlabel']
 
 plot_include_source = False
 plot_html_show_formats = False
+plot_html_show_source_link = True
 
 plot_formats = ['png']
 
