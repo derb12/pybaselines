@@ -3,7 +3,7 @@
 Classification masks
 --------------------
 
-The baseline algorithms in the :mod:`~pybaselines.classification` module estimate the baseline
+:doc:`Classification algorithms <../../../algorithms/classification>` estimate the baseline
 by classifying each point as belonging to either the baseline or the peaks. When
 first using a function, the correct parameters may not be known. To make the effects
 of input parameters on the classification process more easily understood, all functions

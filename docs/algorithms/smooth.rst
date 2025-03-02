@@ -2,8 +2,11 @@
 Smoothing Baselines
 ===================
 
-The contents of :mod:`pybaselines.smooth` contain algorithms that use smoothing
-to eliminate peaks and leave only the baseline.
+Introduction
+------------
+
+As the name implies, smoothing algorithms use smoothing operations such as moving averages,
+moving medians, and Savitzky-Golay filtering to eliminate peaks and leave only the baseline.
 
 .. note::
    The window size used for smoothing-based algorithms is index-based, rather

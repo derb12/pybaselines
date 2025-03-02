@@ -2,15 +2,13 @@
 Morphological Baselines
 =======================
 
-The contents of :mod:`pybaselines.morphological` contain algorithms that
-use morphological operations for estimating the baseline.
-
 Introduction
 ------------
 
 `Morphological operations <https://en.wikipedia.org/wiki/Mathematical_morphology>`_
 include dilation, erosion, opening, and closing. Morphological operators use moving
 windows and compute the maximum, minimum, or a combination of the two within each window.
+The following algorithms use these operations to estimate the baseline.
 
 .. note::
    All morphological algorithms use a ``half_window`` parameter to define the size

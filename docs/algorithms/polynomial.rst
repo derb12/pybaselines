@@ -2,9 +2,6 @@
 Polynomial Baselines
 ====================
 
-The contents of :mod:`pybaselines.polynomial` contain algorithms for fitting
-polynomials to the baseline.
-
 Introduction
 ------------
 
@@ -51,7 +48,7 @@ a polynomial that spans the entirety of the original dataset.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines.polynomial import poly
+    from pybaselines import Baseline
 
     x = np.linspace(1, 1000, 500)
     signal = (
@@ -74,7 +71,7 @@ a polynomial that spans the entirety of the original dataset.
     y_masked = y[non_peaks]
 
     # fit only the masked x and y
-    _, params = poly(y_masked, x_masked, poly_order=3, return_coef=True)
+    _, params = Baseline(x_masked).poly(y_masked, poly_order=3, return_coef=True)
     # recreate the polynomial using numpy and the full x-data
     baseline = np.polynomial.Polynomial(params['coef'])(x)
 
@@ -107,7 +104,7 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
     weights = np.zeros(len(y))
     weights[non_peaks] = 1
     # directly create baseline by inputting weights
-    baseline = poly(y, x, poly_order=3, weights=weights)[0]
+    baseline = Baseline(x).poly(y, poly_order=3, weights=weights)[0]
 
     # Alternatively, just use numpy:
     # baseline = np.polynomial.Polynomial.fit(x, y, 3, w=weights)(x)

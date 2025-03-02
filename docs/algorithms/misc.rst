@@ -2,8 +2,11 @@
 Miscellaneous Baselines
 =======================
 
-The contents of :mod:`pybaselines.misc` contain miscellaneous baseline algorithms
-that do not fit in other categories.
+Introduction
+------------
+
+Miscellaneous algorithms are those that do not fit in existing categories
+within pybaselines.
 
 Algorithms
 ----------
@@ -26,7 +29,7 @@ with user interfaces and is not encouraged otherwise.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines.misc import interp_pts
+    from pybaselines import Baseline
 
     x = np.linspace(1, 1000, 500)
     signal = (
@@ -46,8 +49,9 @@ with user interfaces and is not encouraged otherwise.
         (540, 8.75), (750, 7.23), (1001, 6.25)
     )
 
-    linear_baseline = interp_pts(x, points)[0]
-    spline_baseline = interp_pts(x, points, interp_method='cubic')[0]
+    baseline_fitter = Baseline(x, check_finite=False)
+    linear_baseline = baseline_fitter.interp_pts(x, points)[0]
+    spline_baseline = baseline_fitter.interp_pts(x, points, interp_method='cubic')[0]
 
     fig, ax = plt.subplots(tight_layout={'pad': 0.2})
     data_handle = ax.plot(x, y)

@@ -2,8 +2,10 @@
 Optimizer Baselines
 ===================
 
-The contents of :mod:`pybaselines.optimizers` contain algorithms that build
-upon other baseline algorithms to improve their results.
+Introduction
+------------
+
+Optimizer algorithms build upon other baseline algorithms to improve their results.
 
 Algorithms
 ----------

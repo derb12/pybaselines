@@ -117,9 +117,13 @@ if __name__ == '__main__':
             times = []
             for j in range(repeats + 1):
                 t0 = time.perf_counter()
+                if func_name == 'pentapy':
+                    f = Baseline().asls
+                else:
+                    f = func
                 # force same number of iterations for all functions so that
                 # timings are comparable
-                baseline, params = func(y, lam=lam, tol=-1, max_iter=8)
+                baseline, params = f(y, lam=lam, tol=-1, max_iter=8)
                 t1 = time.perf_counter() - t0
                 if j > 0:  # ignore first function call for more accurate timings
                     times.append(t1)
