@@ -89,7 +89,7 @@ class _Misc(_Algorithm):
         data : array-like, optional
             The y-values. Not used by this function, but input is allowed for consistency
             with other functions.
-        baseline_points : array-like, shape (n, 2)
+        baseline_points : array-like, shape (L, 2)
             An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
             each point representing the baseline.
         interp_method : str, optional

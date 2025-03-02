@@ -194,7 +194,7 @@ def _sparse_to_banded(matrix, expected_length):
 
     Parameters
     ----------
-    matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
+    matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse, banded matrix.
     expected_length : int
         The expected total length of the data from the sparse matrix.
@@ -252,7 +252,7 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Returns
     -------
-    diff_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
+    diff_matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse difference matrix.
 
     Raises
@@ -547,7 +547,7 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
 
     Returns
     -------
-    penalty_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
+    penalty_matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse difference penalty matrix.
 
     Raises
@@ -692,7 +692,7 @@ class PenalizedSystem:
             layers. Negative `padding` is treated as equivalent to 0.
         pentapy_solver : int or str, optional
             The integer or string designating which solver to use if using pentapy. See
-            :func:`pentapy.core.solve` for available options, although `1` or `2` are the
+            :func:`pentapy.solve` for available options, although 1 or 2 are the
             most relevant options. Default is 2.
 
         """

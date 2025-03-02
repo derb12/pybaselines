@@ -1553,6 +1553,10 @@ class _Spline(_Algorithm):
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
 
+        See Also
+        --------
+        Baseline.lsrpls
+
         References
         ----------
         Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
@@ -2786,6 +2790,10 @@ def pspline_lsrpls(data, x_data=None, lam=1e3, num_knots=100, spline_degree=3, d
             each iteration. The length of the array is the number of iterations
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
+
+    See Also
+    --------
+    Baseline.lsrpls
 
     References
     ----------

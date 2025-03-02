@@ -157,7 +157,7 @@ def identity(size, format=None, **kwargs):
 
     Returns
     -------
-    scipy.sparse.spmatrix or scipy.sparse._sparray
+    scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse identity matrix.
 
     Notes
@@ -187,7 +187,7 @@ def diags(data, offsets=0, **kwargs):
 
     Returns
     -------
-    scipy.sparse.spmatrix or scipy.sparse._sparray
+    scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse identiy matrix.
 
     Notes

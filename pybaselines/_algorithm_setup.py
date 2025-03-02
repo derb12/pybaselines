@@ -343,9 +343,9 @@ class _Algorithm:
 
         Parameters
         ----------
-        new_x : numpy.ndarray
+        new_x : numpy.ndarray, shape (M,)
             The x values to temporarily use.
-        new_sort_order : [type], optional
+        new_sort_order : numpy.ndarray, shape (M,), optional
             The sort order for the new x values. Default is None, which will not sort.
 
         Returns

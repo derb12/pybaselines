@@ -418,7 +418,7 @@ class _Classification(_Algorithm):
             in the data. Default is None, which will use half of the value from
             :func:`.optimize_window`, which is not always a good value, but at least scales
             with the number of data points and gives a starting point for tuning the parameter.
-        threshold : float of Callable, optional
+        threshold : float or Callable, optional
             All points in the rolling standard deviation below `threshold` will be considered
             as baseline. Higher values will assign more points as baseline. Default is None,
             which will set the threshold as the 15th percentile of the rolling standard
@@ -1771,26 +1771,26 @@ def _cwt(data, wavelet, widths, dtype=None, **kwargs):
 
     Parameters
     ----------
-    data : (N,) ndarray
-        data on which to perform the transform.
-    wavelet : function
+    data : array-like, shape (N,)
+        Data on which to perform the transform.
+    wavelet : Callable
         Wavelet function, which should take 2 arguments.
         The first argument is the number of points that the returned vector
         will have (len(wavelet(length,width)) == length).
         The second is a width parameter, defining the size of the wavelet
         (e.g. standard deviation of a gaussian). See `ricker`, which
         satisfies these requirements.
-    widths : (M,) sequence
-        Widths to use for transform.
-    dtype : data-type, optional
+    widths : Sequence[scalar, ...]
+        Widths to use for transform with length `M`.
+    dtype : type or numpy.dtype, optional
         The desired data type of output. Defaults to ``float64`` if the
         output of `wavelet` is real and ``complex128`` if it is complex.
-    kwargs
+    **kwargs
         Keyword arguments passed to wavelet function.
 
     Returns
     -------
-    cwt: (M, N) ndarray
+    cwt: numpy.ndarray, shape (M, N)
         Will have shape of (len(widths), len(data)).
 
     Notes

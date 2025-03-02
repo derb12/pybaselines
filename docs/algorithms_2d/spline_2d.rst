@@ -37,7 +37,7 @@ penalty along the columns, :math:`W_{ij}` is the weighting, :math:`\Delta^{d_r}`
 operator of order :math:`d_r` along each row of :math:`\alpha`, :math:`\alpha_{i\bullet}`, and :math:`\Delta^{d_c}` is the
 finite-difference operator of order :math:`d_c` along each column of :math:`\alpha`, :math:`\alpha_{j\bullet}`.
 
-Let :math:`B = B_c \otimes B_r` denote the kronecker product of the basis matrices for the columns and rows,
+Let :math:`B = B_c \otimes B_r` denote the Kronecker product of the basis matrices for the columns and rows,
 which represents the overall two dimensional tensor product spline basis. The resulting linear equation for
 solving the above minimization is:
 

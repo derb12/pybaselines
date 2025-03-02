@@ -32,6 +32,11 @@ class _Algorithm2D:
 
     Attributes
     ----------
+    petapy_solver : int or str
+        Only used to pass to a new :class:`~.Baseline` object when using
+        :meth:`.Baseline2D.individual_axes`. The integer or string designating which solver
+        to use if using pentapy. See :func:`pentapy.solve` for available options, although
+        1 or 2 are the most relevant options. Default is 2.
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same size as the input `data.shape[-2]` and has min
@@ -435,7 +440,7 @@ class _Algorithm2D:
         ----------
         new_x : numpy.ndarray
             The x values to temporarily use.
-        new_sort_order : [type], optional
+        new_sort_order : numpy.ndarray, optional
             The sort order for the new x values. Default is None, which will not sort.
 
         Returns
@@ -792,7 +797,7 @@ class _Algorithm2D:
 
         Returns
         -------
-        numpy.ndarray, shape (``M + 2 * half_window[0]``, ``N + 2 * half_window[1]`)
+        numpy.ndarray, shape (``M + 2 * half_window[0]``, ``N + 2 * half_window[1]``)
             The padded array of data.
         output_hw : np.ndarray[int, int]
             The accepted half windows.

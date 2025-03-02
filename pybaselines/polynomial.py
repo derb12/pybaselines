@@ -600,8 +600,8 @@ class _Polynomial(_Algorithm):
         References
         ----------
         .. [16] Ruckstuhl, A.F., et al. Baseline subtraction using robust local
-            regression estimation. J. Quantitative Spectroscopy and Radiative
-            Transfer, 2001, 68, 179-193.
+                regression estimation. J. Quantitative Spectroscopy and Radiative
+                Transfer, 2001, 68, 179-193.
         .. [17] Cleveland, W. Robust locally weighted regression and smoothing
                 scatterplots. Journal of the American Statistical Association,
                 1979, 74(368), 829-836.
@@ -833,7 +833,7 @@ class _Polynomial(_Algorithm):
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
         cost_function : str, optional
-            The non-quadratic cost function to minimize. Unlike :func:`.penalized_poly`,
+            The non-quadratic cost function to minimize. Unlike :meth:`~.Baseline.penalized_poly`,
             this function only works with asymmetric cost functions, so the symmetry prefix
             ('a' or 'asymmetric') is optional (eg. 'indec' and 'a_indec' are the same). Default
             is 'asymmetric_indec'. Available methods, and their associated reference, are:
@@ -882,7 +882,7 @@ class _Polynomial(_Algorithm):
                 iterations for the threshold and the maximum number of iterations for all of
                 the fits of the various threshold values (related to `max_iter` and `tol`).
             * 'threshold' : float
-                The optimal threshold value. Could be used in :func:`.penalized_poly`
+                The optimal threshold value. Could be used in :meth:`~.Baseline.penalized_poly`
                 for fitting other similar data.
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
@@ -1658,10 +1658,10 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
         The y-values of the measured data, with N points.
     weights : numpy.ndarray, shape (N,)
         The array of weights.
-    coefs : numpy.ndarray, shape (N, poly_order + 1)
+    coefs : numpy.ndarray, shape (N, ``poly_order + 1``)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
-    vander : numpy.ndarray, shape (N, poly_order + 1)
+    vander : numpy.ndarray, shape (N, ``poly_order + 1``)
         The Vandermonde matrix for the `x` array.
     num_x : int
         The number of data points in `x`, also known as N.
@@ -1671,6 +1671,11 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
         is <= 0, F is equal to N, the total number of x-values.
     fits : numpy.ndarray, shape (F,)
         The array of indices indicating which x-values to fit.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
 
     Notes
     -----
@@ -1715,10 +1720,10 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
         The y-values of the measured data, with N points.
     weights : numpy.ndarray, shape (N,)
         The array of weights.
-    coefs : numpy.ndarray, shape (N, poly_order + 1)
+    coefs : numpy.ndarray, shape (N, ``poly_order + 1``)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
-    vander : numpy.ndarray, shape (N, poly_order + 1)
+    vander : numpy.ndarray, shape (N, ``poly_order + 1``)
         The Vandermonde matrix for the `x` array.
     total_points : int
         The number of points to include when fitting each x-value.
@@ -1733,8 +1738,10 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
 
     Returns
     -------
-    kernels : numpy.ndarray, shape (num_x, total_points)
+    kernels : numpy.ndarray, shape (N, total_points)
         The array containing the distance-weighted kernel for each x-value.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
 
     Notes
     -----
@@ -1778,10 +1785,10 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
         The y-values of the measured data, with N points.
     weights : numpy.ndarray, shape (N,)
         The array of weights.
-    coefs : numpy.ndarray, shape (N, poly_order + 1)
+    coefs : numpy.ndarray, shape (N, ``poly_order + 1``)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
-    vander : numpy.ndarray, shape (N, poly_order + 1)
+    vander : numpy.ndarray, shape (N, ``poly_order + 1``)
         The Vandermonde matrix for the `x` array.
     kernels : numpy.ndarray, shape (N, total_points)
         The array containing the distance-weighted kernel for each x-value. Each
@@ -1794,6 +1801,11 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
         The total number of values, N.
     fits : numpy.ndarray, shape (F,)
         The array of indices indicating which x-values to fit.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
 
     Notes
     -----
@@ -2177,7 +2189,7 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
         The weighting array. If None (default), then will be an array with
         size equal to N and all values set to 1.
     cost_function : str, optional
-        The non-quadratic cost function to minimize. Unlike :func:`.penalized_poly`,
+        The non-quadratic cost function to minimize. Unlike :meth:`~.Baseline.penalized_poly`,
         this function only works with asymmetric cost functions, so the symmetry prefix
         ('a' or 'asymmetric') is optional (eg. 'indec' and 'a_indec' are the same). Default
         is 'asymmetric_indec'. Available methods, and their associated reference, are:
@@ -2226,7 +2238,7 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
             iterations for the threshold and the maximum number of iterations for all of
             the fits of the various threshold values (related to `max_iter` and `tol`).
         * 'threshold' : float
-            The optimal threshold value. Could be used in :func:`.penalized_poly`
+            The optimal threshold value. Could be used in :meth:`~.Baseline.penalized_poly`
             for fitting other similar data.
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters

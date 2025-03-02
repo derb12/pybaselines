@@ -162,9 +162,15 @@ plot_formats = ['png']
 numpydoc_use_plots = True
 
 # creates cross references for types in docstrings
-numpydoc_xref_param_type = False
-
-# NOTE: have to set numpydoc_class_members_toctree to False to work well with autosummary;
+numpydoc_xref_param_type = True
+numpydoc_xref_ignore = {'optional', 'shape', 'K', 'L', 'M', 'N', 'P', 'Q', 'or', 'deprecated'}
+numpydoc_xref_aliases = {
+    'Sequence': ':term:`python:sequence`',
+    'Callable': ':term:`python:callable`',
+    'Iterable': ':term:`python:iterable`',
+    'ParameterWarning': ':class:`pybaselines.utils.ParameterWarning`',
+}
+# have to set numpydoc_class_members_toctree to False to work well with autosummary;
 # otherwise, duplicate objects are added to the toctree
 numpydoc_class_members_toctree = False
 
