@@ -93,6 +93,7 @@ Smoothing Algorithms
    Baseline.swima
    Baseline.ipsa
    Baseline.ria
+   Baseline.peak_filling
 
 Baseline/Peak Classification Algorithms
 ---------------------------------------

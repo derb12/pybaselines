@@ -707,7 +707,7 @@ class _Smooth(_Algorithm):
 
         if lam_smooth is not None and lam_smooth > 0:
             _, _, whittaker_system = self._setup_whittaker(data, lam_smooth, diff_order=2)
-            data = whittaker_system.solve(self.whittaker_system.add_diagonal(1.), data)
+            data = whittaker_system.solve(whittaker_system.add_diagonal(1.), data)
 
         # TODO should x[0], y[0] and x[-1], y[-1] be padded onto their truncated
         # versions to prevent edge effects? Similar to what was done for custom_bc?

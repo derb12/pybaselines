@@ -261,3 +261,8 @@ class TestPeakFilling(SmoothTester):
         """Ensures an exception is raised when `sections` is larger than the data length."""
         with pytest.raises(ValueError):
             self.class_func(self.y, sections=len(self.y) + 1)
+
+    @pytest.mark.parametrize('lam_smooth', (0, None, 1e1, -1))
+    def test_lam_inputs(self, lam_smooth):
+        """Ensures typical lam_smooth inputs work."""
+        self.class_func(self.y, lam_smooth=lam_smooth)
