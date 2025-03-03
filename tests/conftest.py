@@ -36,7 +36,7 @@ def _test_threading():
     overridden by setting the `PYBASELINES_TEST_THREADING` environmental variable: set it
     to 0 to never test or 1 to always test.
     """
-    if hasattr(sys, '_is_gil_enabled'): # sys._is_gil_enabled added in Python 3.13
+    if hasattr(sys, '_is_gil_enabled'):  # sys._is_gil_enabled added in Python 3.13
         gil_enabled = sys._is_gil_enabled()
     else:
         gil_enabled = True

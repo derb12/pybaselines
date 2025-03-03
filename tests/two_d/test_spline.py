@@ -12,10 +12,10 @@ import pytest
 
 from pybaselines.two_d import spline, whittaker
 
-from ..conftest import BaseTester2D, InputWeightsMixin, skipping_threading_tests
+from ..conftest import BaseTester2D, InputWeightsMixin
 
 
-def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
+def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5, tol=1e-2,
                               test_rtol=1e-6, test_atol=1e-12, uses_eigenvalues=True, **kwargs):
     """
     Compares the output of the penalized spline (P-spline) versions of Whittaker functions.
@@ -32,16 +32,16 @@ def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
         added_kwargs = {}
     whittaker_output = getattr(
         whittaker._Whittaker(pspline_class.x, pspline_class.z), whittaker_func
-    )(data, lam=lam, **kwargs, **added_kwargs)[0]
+    )(data, lam=lam, **kwargs, tol=tol, **added_kwargs)[0]
 
     num_knots = np.array(data.shape) + 1
     if hasattr(pspline_class, 'class_func'):
         spline_output = pspline_class.class_func(
-            data, lam=lam, num_knots=num_knots, spline_degree=0, **kwargs
+            data, lam=lam, num_knots=num_knots, spline_degree=0, tol=tol, **kwargs
         )[0]
     else:
         spline_output = pspline_class._call_func(
-            data, lam=lam, num_knots=num_knots, spline_degree=0, **kwargs
+            data, lam=lam, num_knots=num_knots, spline_degree=0, tol=tol, **kwargs
         )[0]
 
     assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
@@ -58,6 +58,15 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin):
     """Base testing class for iterative spline functions."""
 
     checked_keys = ('weights', 'tol_history')
+
+    @classmethod
+    def setup_class(cls):
+        """Increases default `tol` to reduce computation time."""
+        super().setup_class()
+        if 'tol' not in cls.repeated_kwargs:
+            cls.repeated_kwargs['tol'] = 1e-1
+        if 'tol' not in cls.kwargs:
+            cls.kwargs['tol'] = 1e-1
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -78,13 +87,14 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin):
         should not be a typical usage.
         """
         # TODO this should eventually be incorporated into InputWeightsMixin
-        first_baseline, params = self.class_func(self.y)
-        kwargs = {'weights': params['weights']}
+        first_baseline, params = self.class_func(self.y, **self.kwargs)
+        kwargs = {'weights': params['weights'], **self.kwargs}
+        kwargs['tol'] = np.inf
         if self.func_name in ('aspls', 'pspline_aspls'):
             kwargs['alpha'] = params['alpha']
         elif self.func_name in ('brpls', 'pspline_brpls'):
             kwargs['tol_2'] = np.inf
-        second_baseline, params_2 = self.class_func(self.y, tol=np.inf, **kwargs)
+        second_baseline, params_2 = self.class_func(self.y, **kwargs)
 
         if self.func_name in ('brpls', 'pspline_brpls'):
             assert params_2['tol_history'].shape == (2, 1)
@@ -92,11 +102,6 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin):
         else:
             assert len(params_2['tol_history']) == 1
         assert_allclose(second_baseline, first_baseline, rtol=1e-12)
-
-    @skipping_threading_tests
-    def test_threading(self):
-        """Tests thread safety using a higher tolerance to reduce overall computation time."""
-        super().test_threading(tol=1e-1)
 
 
 class TestMixtureModel(IterativeSplineTester):
@@ -138,7 +143,7 @@ class TestMixtureModel(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 2, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
 
 class TestIRSQR(IterativeSplineTester):
@@ -148,7 +153,7 @@ class TestIRSQR(IterativeSplineTester):
     required_repeated_kwargs = {'lam': 1e2}
 
     @pytest.mark.parametrize('quantile', (-1, 2))
-    def test_outside_p_fails(self, quantile):
+    def test_outside_quantile_fails(self, quantile):
         """Ensures quantile values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, quantile=quantile)
@@ -156,7 +161,7 @@ class TestIRSQR(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 2, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
     @pytest.mark.parametrize('has_x', (True, False))
     @pytest.mark.parametrize('has_z', (True, False))
@@ -180,7 +185,7 @@ class TestPsplineAsLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('p', (0.01, 0.1))
@@ -244,7 +249,7 @@ class TestPsplineAirPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
@@ -262,7 +267,7 @@ class TestPsplineArPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
@@ -280,7 +285,7 @@ class TestPsplineIArPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
@@ -304,7 +309,7 @@ class TestPsplinePsalsa(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('p', (0.01, 0.1))
@@ -326,18 +331,22 @@ class TestPsplineBrPLS(IterativeSplineTester):
     """Class for testing pspline_brpls baseline."""
 
     func_name = 'pspline_brpls'
+    # increase tol_2 to speed up tests
+    required_kwargs = {'tol_2': 1e-1}
     required_repeated_kwargs = {'lam': 1e1, 'tol_2': 1e-1}
 
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(self, 'brpls', self.y, lam=lam, diff_order=diff_order)
+        compare_pspline_whittaker(
+            self, 'brpls', self.y, lam=lam, diff_order=diff_order, tol_2=1e-2
+        )
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -360,7 +369,7 @@ class TestPsplineLSRPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        self.class_func(self.y, diff_order=diff_order)
+        self.class_func(self.y, diff_order=diff_order, **self.kwargs)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5, [1e1, 1e5]))
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
