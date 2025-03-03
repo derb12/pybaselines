@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines.two_d import spline, whittaker
 
-from ..conftest import BaseTester2D, InputWeightsMixin
+from ..conftest import BaseTester2D, InputWeightsMixin, skipping_threading_tests
 
 
 def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
@@ -93,6 +93,7 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin):
             assert len(params_2['tol_history']) == 1
         assert_allclose(second_baseline, first_baseline, rtol=1e-12)
 
+    @skipping_threading_tests
     def test_threading(self):
         """Tests thread safety using a higher tolerance to reduce overall computation time."""
         super().test_threading(tol=1e-1)

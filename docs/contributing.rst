@@ -82,6 +82,21 @@ locally, run the following command in the terminal while in the pybaselines dire
     pytest .
 
 
+By default, all tests except those that test threading will run. Threaded tests only run
+by default on free-threaded CPython builds, but they can also be enabled or disabled by
+setting the environmental variable ``PYBASELINES_TEST_THREADING`` to 1 or 0, respectively.
+
+The tests for the two dimensional algorithms are quite time consuming, so if the relevant
+tests are not concerened with two dimensional code, the 2D tests can be skipped with the following:
+
+.. code-block:: console
+
+    pytest . -k "not two_d"
+
+
+Alternatively, `pytest-xdist <https://pypi.org/project/pytest-xdist/>`_ can be installed to allow
+running tests in parallel to also reduce the total testing time.
+
 The testing steps below are just for reference and not necessary.
 
 If checking coverage (not necessary, but can be helpful to know), install

@@ -15,7 +15,7 @@ import pytest
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BasePolyTester, InputWeightsMixin
+from .conftest import BasePolyTester, InputWeightsMixin, skipping_threading_tests
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
     STATSMODELS_QUANTILES
@@ -378,14 +378,12 @@ class TestLoess(IterativePolynomialTester):
         with pytest.raises(ValueError):
             getattr(reverse_fitter, self.func_name)(self.y)
 
+    @skipping_threading_tests
     @pytest.mark.parametrize('conserve_memory', (True, False))
-    @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_threading(self, conserve_memory, use_threshold):
+    def test_threading(self, conserve_memory):
         """Tests the different possible computation routes under threading."""
         delta = 0.05 * (self.x.max() - self.x.min())  # use a larger delta to speed up method
-        super().test_threading(
-            conserve_memory=conserve_memory, use_threshold=use_threshold, delta=delta
-        )
+        super().test_threading(conserve_memory=conserve_memory, delta=delta)
 
 
 class TestQuantReg(IterativePolynomialTester):
