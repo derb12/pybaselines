@@ -398,6 +398,33 @@ def test_pspline_tck_readonly(data_fixture):
         pspline.tck = (1, 2, 3)
 
 
+def test_spline_basis_tk_readonly(data_fixture):
+    """Ensures the tk attribute is read-only."""
+    x, y = data_fixture
+    basis = _spline_utils.SplineBasis(x)
+    with pytest.raises(AttributeError):
+        basis.tk = (1, 2)
+
+
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('num_knots', (10, 100))
+def test_spline_basis_tk(data_fixture, num_knots, spline_degree):
+    """Ensures the tk attribute can correctly recreate the solved spline."""
+    x, y = data_fixture
+    basis = _spline_utils.SplineBasis(x, num_knots=num_knots, spline_degree=spline_degree)
+
+    # ensure tk is the knots and spline degree
+    assert len(basis.tk) == 2
+    knots, degree = basis.tk
+
+    assert_allclose(knots, basis.knots, rtol=1e-12)
+    assert degree == spline_degree
+
+    if hasattr(BSpline, 'design_matrix'):
+        scipy_basis = BSpline.design_matrix(x, *basis.tk)
+        assert_allclose(basis.basis.toarray(), scipy_basis.toarray(), rtol=1e-10, atol=1e-12)
+
+
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4))
 def test_basis_midpoints(spline_degree):
     """Tests the _basis_midpoints function."""

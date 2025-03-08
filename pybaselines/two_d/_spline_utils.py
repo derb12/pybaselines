@@ -164,6 +164,24 @@ class SplineBasis2D:
 
         return F
 
+    @property
+    def tk(self):
+        """
+        The knots and spline degree for the spline.
+
+        Notes
+        -----
+        To compare with :class:`scipy.interpolate.NdBSpline`, the setup would look like:
+
+            from scipy.interpolate import NdBspline
+            basis = SplineBasis2D(x, z, ...)
+            # same as zipping the meshgrid and rearranging, and then flattening to 2D
+            XZ = np.array(np.meshgrid(x, z)).T.reshape(-1, 2)
+            scipy_basis = NdBSpline.design_matrix(XZ, *pspline.tk)  # basis.basis == scipy_basis
+
+        """
+        return (self.knots_r, self.knots_c), self.spline_degree
+
 
 class PSpline2D(PenalizedSystem2D):
     """
@@ -325,7 +343,5 @@ class PSpline2D(PenalizedSystem2D):
         """
         if self.coef is None:
             raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
-        return (
-            (self.basis.knots_r, self.basis.knots_c), self.coef.reshape(self.basis._num_bases),
-            self.basis.spline_degree
-        )
+        knots, degree = self.basis.tk
+        return knots, self.coef.reshape(self.basis._num_bases), degree

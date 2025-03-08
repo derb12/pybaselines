@@ -9,6 +9,7 @@ Created on January 8, 2024
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy import interpolate
 from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import spsolve
 
@@ -247,15 +248,11 @@ def test_pspline_tck(data_fixture2d, num_knots, spline_degree, diff_order, lam):
 
     # Now recreate the spline with scipy's NdBSpline and ensure it is the same;
     # NdBSpline was introduced in scipy 1.12.0
-    import scipy
-    major, minor = [int(val) for val in scipy.__version__.split('.')[:2]]
-    if major > 1 or (major == 1 and minor >= 12):
-        from scipy.interpolate import NdBSpline
-
+    if hasattr(interpolate, 'NdBSpline'):
         # np.array(np.meshgrid(x, z)).T is the same as doing
         # np.array(np.meshgrid(x, z, indexing='ij')).transpose([1, 2, 0]), which
         # is just zipping the meshgrid of each x and z value
-        recreated_spline = NdBSpline(*pspline.tck)(np.array(np.meshgrid(x, z)).T)
+        recreated_spline = interpolate.NdBSpline(*pspline.tck)(np.array(np.meshgrid(x, z)).T)
 
         assert_allclose(recreated_spline, fit_spline, rtol=1e-10, atol=1e-12)
 
@@ -283,3 +280,48 @@ def test_pspline_tck_readonly(data_fixture2d):
     pspline.solve(y, np.ones_like(y))
     with pytest.raises(AttributeError):
         pspline.tck = (1, 2, 3)
+
+
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, [2, 3]))
+@pytest.mark.parametrize('num_knots', (10, 50, [20, 31]))
+def test_spline_basis(data_fixture2d, spline_degree, num_knots):
+    """Ensures spline basis setup is correct by comparing to SciPy."""
+    x, z, y = data_fixture2d
+    spline_basis = _spline_utils.SplineBasis2D(
+        x, z, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
+
+    # ensure tk is the knots and spline degree
+    assert len(spline_basis.tk) == 2
+    (knots_r, knots_c), (degree_x, degree_z) = spline_basis.tk
+
+    assert_allclose(knots_r, spline_basis.knots_r, rtol=1e-12, atol=1e-12)
+    assert_allclose(knots_c, spline_basis.knots_c, rtol=1e-12, atol=1e-12)
+    if isinstance(spline_degree, int):
+        assert degree_x == spline_degree
+        assert degree_z == spline_degree
+    else:
+        assert degree_x == spline_degree[0]
+        assert degree_z == spline_degree[1]
+
+    # Now compare with scipy's NdBSpline.design_matrix and ensure it is the same;
+    # NdBSpline was introduced in scipy 1.12.0 and NdBspline.design_matrix was
+    # introduced in scipy 1.13.0
+    if hasattr(interpolate, 'NdBSpline') and hasattr(interpolate.NdBSpline, 'design_matrix'):
+        # np.array(np.meshgrid(x, z)).T is the same as doing
+        # np.array(np.meshgrid(x, z, indexing='ij')).transpose([1, 2, 0]), which
+        # is just zipping the meshgrid of each x and z value; then reshape to
+        # flatten into 2D for what scipy expects
+        xz = np.array(np.meshgrid(x, z)).T.reshape(-1, 2)
+        scipy_basis = interpolate.NdBSpline.design_matrix(xz, *spline_basis.tk)
+
+        assert_allclose(spline_basis.basis.toarray(), scipy_basis.toarray(), rtol=1e-12, atol=1e-12)
+
+
+def test_spline_basis_tk_readonly(data_fixture2d):
+    """Ensures the tk attribute is read-only."""
+    x, z, y = data_fixture2d
+    spline_basis = _spline_utils.SplineBasis2D(x, z)
+
+    with pytest.raises(AttributeError):
+        spline_basis.tk = (1, 2)

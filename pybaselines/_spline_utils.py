@@ -575,6 +575,11 @@ class SplineBasis:
         """
         return num_knots == self.num_knots and spline_degree == self.spline_degree
 
+    @property
+    def tk(self):
+        """The knots and spline degree for the spline."""
+        return self.knots, self.spline_degree
+
 
 class PSpline(PenalizedSystem):
     """
@@ -684,7 +689,8 @@ class PSpline(PenalizedSystem):
         """
         if self.coef is None:
             raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
-        return self.basis.knots, self.coef, self.basis.spline_degree
+        knots, spline_degree = self.basis.tk
+        return knots, self.coef, spline_degree
 
     def reset_penalty_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=False):
         """
