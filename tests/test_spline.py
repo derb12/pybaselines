@@ -12,10 +12,9 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-import pybaselines
 from pybaselines import _banded_utils, _spline_utils, morphological, spline, whittaker
 
-from .conftest import BaseTester, InputWeightsMixin
+from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation
 
 
 def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
@@ -149,11 +148,9 @@ class TestMixtureModel(IterativeSplineTester):
         lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
+    @ensure_deprecation(1, 3)
     def test_num_bins_deprecation(self):
         """Ensures a DeprecationWarning is given when num_bins is input."""
-        version = [int(val) for val in pybaselines.__version__.lstrip('v').split('.')[:2]]
-        if version[0] > 1 or version[1] >= 3:
-            raise AssertionError('Need to address this deprecation')
         with pytest.warns(DeprecationWarning):
             self.class_func(self.y, num_bins=20)
 
@@ -604,19 +601,15 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin):
 
         assert_allclose(params['weights'], mpls_params['weights'], rtol=1e-9)
 
+    @ensure_deprecation(1, 4)
     def test_tol_deprecation(self):
         """Ensures a DeprecationWarning is given when tol is input."""
-        version = [int(val) for val in pybaselines.__version__.lstrip('v').split('.')[:2]]
-        if version[0] > 1 or version[1] >= 4:
-            raise AssertionError('Need to address this deprecation')
         with pytest.warns(DeprecationWarning):
             self.class_func(self.y, tol=1e-3)
 
+    @ensure_deprecation(1, 4)
     def test_max_iter_deprecation(self):
         """Ensures a DeprecationWarning is given when max_iter is input."""
-        version = [int(val) for val in pybaselines.__version__.lstrip('v').split('.')[:2]]
-        if version[0] > 1 or version[1] >= 4:
-            raise AssertionError('Need to address this deprecation')
         with pytest.warns(DeprecationWarning):
             self.class_func(self.y, max_iter=20)
 

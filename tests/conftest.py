@@ -16,6 +16,8 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
+import pybaselines
+
 
 try:
     import pentapy  # noqa
@@ -59,6 +61,47 @@ def _test_threading():
 
 
 skipping_threading_tests = _test_threading()
+
+
+def ensure_deprecation(deprecation_major, deprecation_minor):
+    """Decorator to ensure deprecations are performed as scheduled.
+
+    Parameters
+    ----------
+    deprecation_major : int
+        The major version of the deprecation.
+    deprecation_minor : int
+        The minor version of the deprecation.
+
+    Examples
+    --------
+    If the deprecation for a function was scheduled for version 1.2, usage would look like:
+
+        @ensure_deprecation(1, 2)
+        def func(...)
+
+    """
+    def wrapper(func):
+        version = [int(val) for val in pybaselines.__version__.lstrip('v').split('.')[:2]]
+        current_major, current_minor = version
+        if current_major > deprecation_major:
+            needs_addressed = True
+        elif current_major == deprecation_major and current_minor >= deprecation_minor:
+            needs_addressed = True
+        else:
+            needs_addressed = False
+
+        @wraps(func)
+        def inner(*args, **kwargs):
+            if needs_addressed:
+                raise AssertionError(
+                    ('Need to address this deprecation before releasing '
+                    f'version {deprecation_major}.{deprecation_minor}')
+                )
+            return func(*args, **kwargs)
+        return inner
+
+    return wrapper
 
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
