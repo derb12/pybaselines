@@ -569,6 +569,22 @@ class TestPsplineDerpsalsa(IterativeSplineTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, k=k)
 
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, mode='edge')
+        output_2, _ = self.class_func(self.y, pad_kwargs={'mode': 'edge'})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
+        # also ensure both pad_kwargs and **kwargs are passed to pad_edges; pspline_derpsalsa does
+        # the padding outside of setup_smooth, so have to do this to cover those cases
+        with pytest.raises(TypeError):
+            with pytest.warns(DeprecationWarning):
+                self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
+
 
 class TestPsplineMPLS(SplineTester, InputWeightsMixin):
     """Class for testing pspline_mpls baseline."""

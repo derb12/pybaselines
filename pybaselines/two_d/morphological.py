@@ -185,6 +185,7 @@ class _Morphological(_Algorithm2D):
             smooth_half_window = _check_half_window(smooth_half_window, allow_zero=True, two_d=True)
 
         rough_baseline = grey_opening(y, 2 * half_wind + 1)
+        # TODO should pad the baseline here like in 1D
         baseline = uniform_filter(
             rough_baseline, 2 * smooth_half_window + 1
         )

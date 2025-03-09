@@ -710,7 +710,8 @@ class _Whittaker(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',))
     def derpsalsa(self, data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3,
-                  weights=None, smooth_half_window=None, num_smooths=16, **pad_kwargs):
+                  weights=None, smooth_half_window=None, num_smooths=16, pad_kwargs=None,
+                  **kwargs):
         """
         Derivative Peak-Screening Asymmetric Least Squares Algorithm (derpsalsa).
 
@@ -748,9 +749,14 @@ class _Whittaker(_Algorithm):
         num_smooths : int, optional
             The number of times to smooth the data before computing the first
             and second derivatives. Default is 16.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from smoothing.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -791,7 +797,9 @@ class _Whittaker(_Algorithm):
             smooth_half_window = self._size // 200
         # could pad the data every iteration, but it is ~2-3 times slower and only affects
         # the edges, so it's not worth it
-        y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs)
+        self._deprecate_pad_kwargs(**kwargs)
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+        y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs, **kwargs)
         if smooth_half_window > 0:
             smooth_kernel = _mollifier_kernel(smooth_half_window)
             for _ in range(num_smooths):
@@ -1497,7 +1505,7 @@ def psalsa(data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
 
 @_whittaker_wrapper
 def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-              smooth_half_window=None, num_smooths=16, x_data=None, **pad_kwargs):
+              smooth_half_window=None, num_smooths=16, x_data=None, pad_kwargs=None, **kwargs):
     """
     Derivative Peak-Screening Asymmetric Least Squares Algorithm (derpsalsa).
 
@@ -1538,9 +1546,14 @@ def derpsalsa(data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from smoothing.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------

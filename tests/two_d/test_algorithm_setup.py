@@ -327,11 +327,32 @@ def test_setup_morphology_kwargs_warns(small_data2d, algorithm):
 def test_setup_smooth_shape(small_data2d, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4
-    y, hw = algorithm._setup_smooth(small_data2d, pad_length, mode='edge')
+    y, hw = algorithm._setup_smooth(small_data2d, pad_length, pad_kwargs={'mode': 'edge'})
     assert_array_equal(
         y.shape, (small_data2d.shape[0] + 2 * pad_length, small_data2d.shape[1] + 2 * pad_length)
     )
     assert_array_equal(hw, [pad_length, pad_length])
+
+
+@pytest.mark.parametrize('half_window', (-1, 0))
+def test_setup_smooth_bad_hw_fails(small_data2d, algorithm, half_window):
+    """Ensures half windows less than 1 raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_smooth(small_data2d, half_window=half_window)
+
+
+@ensure_deprecation(1, 4)
+def test_setup_smooth_kwargs_warns(small_data2d, algorithm):
+    """Ensures passing keyword arguments is deprecated."""
+    with pytest.warns(DeprecationWarning):
+        algorithm._setup_smooth(small_data2d, extrapolate_window=2)
+
+    # also ensure both pad_kwargs and **kwargs are passed to pad_edges
+    with pytest.raises(TypeError):
+        with pytest.warns(DeprecationWarning):
+            algorithm._setup_smooth(
+                small_data2d, pad_kwargs={'extrapolate_window': 2}, extrapolate_window=2
+            )
 
 
 @pytest.mark.parametrize('num_knots', (10, 30, (20, 30)))

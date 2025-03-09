@@ -14,7 +14,7 @@ import scipy
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning, gaussian, whittaker_smooth
 
-from .conftest import BaseTester, InputWeightsMixin
+from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation
 from .data import PYWAVELETS_HAAR
 
 
@@ -295,6 +295,24 @@ class ClassificationTester(BaseTester, InputWeightsMixin):
     checked_keys = ('mask',)
     weight_keys = ('mask',)
 
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, **self.kwargs, mode='edge')
+        output_2, _ = self.class_func(self.y, **self.kwargs, pad_kwargs={'mode': 'edge'})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
+        # also ensure both pad_kwargs and **kwargs are passed to pad_edges; some algorithms do
+        # the padding outside of setup_smooth, so have to do this to cover those cases
+        with pytest.raises(TypeError):
+            with pytest.warns(DeprecationWarning):
+                self.class_func(
+                    self.y, **self.kwargs, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate'
+                )
+
 
 class TestGolotvin(ClassificationTester):
     """Class for testing golotvin baseline."""
@@ -533,3 +551,29 @@ class TestRubberband(ClassificationTester):
         """
         data = rubberband_data(self.x)
         self.class_func(data)  # just ensure it runs without issue
+
+    @ensure_deprecation(1, 4)
+    @pytest.mark.parametrize('smooth_half_window', (0, 1))
+    def test_kwargs_deprecation(self, smooth_half_window):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(
+                self.y, smooth_half_window=smooth_half_window, mode='edge'
+            )
+        output_2, _ = self.class_func(
+            self.y, smooth_half_window=smooth_half_window, pad_kwargs={'mode': 'edge'}
+        )
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
+        # also ensure both pad_kwargs and **kwargs are passed to pad_edges; some algorithms do
+        # the padding outside of setup_smooth, so have to do this to cover those cases
+        # smooth_half_window has to be > 0 for error to occur
+        if smooth_half_window > 0:
+            with pytest.raises(TypeError):
+                with pytest.warns(DeprecationWarning):
+                    self.class_func(
+                        self.y, smooth_half_window=smooth_half_window,
+                        pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate'
+                )

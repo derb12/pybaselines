@@ -731,7 +731,7 @@ class _Algorithm2D:
 
         return y, output_half_window
 
-    def _setup_smooth(self, y, half_window=0, window_multiplier=1, **pad_kwargs):
+    def _setup_smooth(self, y, half_window=None, window_multiplier=1, pad_kwargs=None, **kwargs):
         """
         Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -743,15 +743,19 @@ class _Algorithm2D:
         half_window : int or Sequence[int, int], optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
-            effects. Default is 0, which provides no padding. If `half_window` is None,
-            then the ultimate half-window value will be the output of
+            effects. Default is is None, which sets the half window as the output of
             :func:`pybaselines.utils.optimize_window` multiplied by `window_multiplier`.
         window_multiplier : int, optional
             The value to multiply the output of :func:`.optimize_window` if half_window
             is None. Default is 1.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from smoothing.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges2d` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -766,7 +770,16 @@ class _Algorithm2D:
         else:
             output_hw = window_multiplier * optimize_window(y)
 
-        return pad_edges2d(y, output_hw, **pad_kwargs), output_hw
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+        if kwargs:
+            warnings.warn(
+                ('Passing additional keyword arguments for padding is '
+                    'deprecated and will be removed in version 1.4.0. Place all keyword '
+                    'arguments into the "pad_kwargs" dictionary instead'),
+                DeprecationWarning, stacklevel=2
+            )
+
+        return pad_edges2d(y, output_hw, **pad_kwargs, **kwargs), output_hw
 
     def _setup_classification(self, y, weights=None):
         """

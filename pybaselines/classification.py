@@ -67,7 +67,7 @@ class _Classification(_Algorithm):
 
     @_Algorithm._register(sort_keys=('mask',))
     def golotvin(self, data, half_window=None, num_std=2.0, sections=32, smooth_half_window=None,
-                 interp_half_window=5, weights=None, min_length=2, **pad_kwargs):
+                 interp_half_window=5, weights=None, min_length=2, pad_kwargs=None, **kwargs):
         """
         Golotvin's method for identifying baseline regions.
 
@@ -109,9 +109,14 @@ class _Classification(_Algorithm):
             to be a false positive and all points in the region are converted to peak points.
             A higher `min_length` ensures less points are falsely assigned as baseline points.
             Default is 2, which only removes lone baseline points.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from the moving average smoothing.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -130,7 +135,7 @@ class _Classification(_Algorithm):
         FT NMR Spectra. Journal of Magnetic Resonance. 2000, 146, 122-125.
 
         """
-        y, weight_array = self._setup_classification(data, weights)
+        y, weight_array = self._setup_classification(data, weights, **kwargs)
         if half_window is None:
             # optimize_window(y) / 2 gives an "okay" estimate that at least scales
             # with data size
@@ -150,8 +155,9 @@ class _Classification(_Algorithm):
         np.logical_and(mask, weight_array, out=mask)
 
         rough_baseline = _averaged_interp(self.x, y, mask, interp_half_window)
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
         baseline = uniform_filter1d(
-            pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
+            pad_edges(rough_baseline, smooth_half_window, **pad_kwargs, **kwargs),
             2 * smooth_half_window + 1
         )[smooth_half_window:self._size + smooth_half_window]
 
@@ -160,7 +166,7 @@ class _Classification(_Algorithm):
     @_Algorithm._register(sort_keys=('mask',))
     def dietrich(self, data, smooth_half_window=None, num_std=3.0, interp_half_window=5,
                  poly_order=5, max_iter=50, tol=1e-3, weights=None, return_coef=False,
-                 min_length=2, **pad_kwargs):
+                 min_length=2, pad_kwargs=None, **kwargs):
         """
         Dietrich's method for identifying baseline regions.
 
@@ -206,9 +212,14 @@ class _Classification(_Algorithm):
             to be a false positive and all points in the region are converted to peak points.
             A higher `min_length` ensures less points are falsely assigned as baseline points.
             Default is 2, which only removes lone baseline points.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from smoothing.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -247,11 +258,12 @@ class _Classification(_Algorithm):
         Two-Dimensional NMR Spectra. Journal of Magnetic Resonance. 1991, 91, 1-11.
 
         """
-        y, weight_array = self._setup_classification(data, weights)
+        y, weight_array = self._setup_classification(data, weights, **kwargs)
         if smooth_half_window is None:
             smooth_half_window = ceil(self._size / 256)
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
         smooth_y = uniform_filter1d(
-            pad_edges(y, smooth_half_window, **pad_kwargs),
+            pad_edges(y, smooth_half_window, **pad_kwargs, **kwargs),
             2 * smooth_half_window + 1
         )[smooth_half_window:self._size + smooth_half_window]
         power = np.gradient(smooth_y)**2
@@ -288,7 +300,7 @@ class _Classification(_Algorithm):
     @_Algorithm._register(sort_keys=('mask',))
     def std_distribution(self, data, half_window=None, interp_half_window=5,
                          fill_half_window=3, num_std=1.1, smooth_half_window=None,
-                         weights=None, **pad_kwargs):
+                         weights=None, pad_kwargs=None, **kwargs):
         """
         Identifies baseline segments by analyzing the rolling standard deviation distribution.
 
@@ -325,9 +337,14 @@ class _Classification(_Algorithm):
             to designate peak points. Only elements with 0 or False values will have
             an effect; all non-zero values are considered baseline points. If None
             (default), then will be an array with size equal to N and all values set to 1.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from the moving average smoothing.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -347,7 +364,7 @@ class _Classification(_Algorithm):
         Analytical Chemistry. 2013, 85, 1231-1239.
 
         """
-        y, weight_array = self._setup_classification(data, weights)
+        y, weight_array = self._setup_classification(data, weights, **kwargs)
         if half_window is None:
             # optimize_window(y) / 2 gives an "okay" estimate that at least scales
             # with data size
@@ -372,9 +389,9 @@ class _Classification(_Algorithm):
         )
 
         rough_baseline = _averaged_interp(self.x, y, mask, interp_half_window)
-
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
         baseline = uniform_filter1d(
-            pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
+            pad_edges(rough_baseline, smooth_half_window, **pad_kwargs, **kwargs),
             2 * smooth_half_window + 1
         )[smooth_half_window:self._size + smooth_half_window]
 
@@ -383,7 +400,7 @@ class _Classification(_Algorithm):
     @_Algorithm._register(sort_keys=('mask',))
     def fastchrom(self, data, half_window=None, threshold=None, min_fwhm=None,
                   interp_half_window=5, smooth_half_window=None, weights=None,
-                  max_iter=100, min_length=2, **pad_kwargs):
+                  max_iter=100, min_length=2, pad_kwargs=None, **kwargs):
         """
         Identifies baseline segments by thresholding the rolling standard deviation distribution.
 
@@ -433,9 +450,14 @@ class _Classification(_Algorithm):
             to be a false positive and all points in the region are converted to peak points.
             A higher `min_length` ensures less points are falsely assigned as baseline points.
             Default is 2, which only removes lone baseline points.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from the moving average smoothing.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -459,7 +481,7 @@ class _Classification(_Algorithm):
         and peak grouping in chromatographic data. Analyst. 2013, 138, 3502-3511.
 
         """
-        y, weight_array = self._setup_classification(data, weights)
+        y, weight_array = self._setup_classification(data, weights, **kwargs)
         if half_window is None:
             # optimize_window(y) / 2 gives an "okay" estimate that at least scales
             # with data size
@@ -513,8 +535,9 @@ class _Classification(_Algorithm):
 
         # reference did not discuss smoothing, but include to be consistent with
         # other classification functions
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
         baseline = uniform_filter1d(
-            pad_edges(rough_baseline, smooth_half_window, **pad_kwargs),
+            pad_edges(rough_baseline, smooth_half_window, **pad_kwargs, **kwargs),
             2 * smooth_half_window + 1
         )[smooth_half_window:self._size + smooth_half_window]
 
@@ -522,7 +545,7 @@ class _Classification(_Algorithm):
 
     @_Algorithm._register(sort_keys=('mask',))
     def cwt_br(self, data, poly_order=5, scales=None, num_std=1.0, min_length=2,
-               max_iter=50, tol=1e-3, symmetric=False, weights=None, **pad_kwargs):
+               max_iter=50, tol=1e-3, symmetric=False, weights=None, pad_kwargs=None, **kwargs):
         """
         Continuous wavelet transform baseline recognition (CWT-BR) algorithm.
 
@@ -558,10 +581,15 @@ class _Classification(_Algorithm):
             to designate peak points. Only elements with 0 or False values will have
             an effect; all non-zero values are considered baseline points. If None
             (default), then will be an array with size equal to N and all values set to 1.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
             the edges of the data to prevent edge effects from convolution for the
-            continuous wavelet transform.
+            continuous wavelet transform. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -596,7 +624,7 @@ class _Classification(_Algorithm):
         Spectroscopy, 2014, 68(2), 155-164.
 
         """
-        y, weight_array = self._setup_classification(data, weights)
+        y, weight_array = self._setup_classification(data, weights, **kwargs)
         self._setup_polynomial(y, weight_array, poly_order=poly_order, calc_vander=True)
         # scale y between -1 and 1 so that the residual fit is more numerically stable
         y_domain = np.polynomial.polyutils.getdomain(y)
@@ -613,7 +641,8 @@ class _Classification(_Algorithm):
         shannon_old = -np.inf
         shannon_current = -np.inf
         half_window = max_scale * 2  # TODO is x2 enough padding to prevent edge effects from cwt?
-        padded_y = pad_edges(y, half_window, **pad_kwargs)
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+        padded_y = pad_edges(y, half_window, **pad_kwargs, **kwargs)
         for scale in scales:
             wavelet_cwt = _cwt(padded_y, _ricker, [scale])[0, half_window:-half_window]
             abs_wavelet = np.abs(wavelet_cwt)
@@ -701,7 +730,7 @@ class _Classification(_Algorithm):
 
     @_Algorithm._register(sort_keys=('mask', 'weights'))
     def fabc(self, data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2,
-             weights=None, weights_as_mask=False, **pad_kwargs):
+             weights=None, weights_as_mask=False, pad_kwargs=None, **kwargs):
         """
         Fully automatic baseline correction (fabc).
 
@@ -742,10 +771,15 @@ class _Classification(_Algorithm):
             If True, signifies that the input `weights` is the mask to use for fitting,
             which skips the continuous wavelet calculation and just smooths the input data.
             Default is False.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
             the edges of the data to prevent edge effects from convolution for the
-            continuous wavelet transform.
+            continuous wavelet transform. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -774,6 +808,7 @@ class _Classification(_Algorithm):
         145-151.
 
         """
+        self._deprecate_pad_kwargs(**kwargs)
         if weights_as_mask:
             y, whittaker_weights, whittaker_system = self._setup_whittaker(
                 data, lam, diff_order, weights
@@ -787,7 +822,8 @@ class _Classification(_Algorithm):
                 scale = ceil(optimize_window(y) / 2)
             # TODO is 2*scale enough padding to prevent edge effects from cwt?
             half_window = scale * 2
-            wavelet_cwt = _cwt(pad_edges(y, half_window, **pad_kwargs), _haar, [scale])
+            pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+            wavelet_cwt = _cwt(pad_edges(y, half_window, **pad_kwargs, **kwargs), _haar, [scale])
             power = wavelet_cwt[0, half_window:-half_window]**2
 
             mask = _refine_mask(_iter_threshold(power, num_std), min_length)
@@ -808,7 +844,7 @@ class _Classification(_Algorithm):
 
     @_Algorithm._register(sort_keys=('mask',))
     def rubberband(self, data, segments=1, lam=None, diff_order=2, weights=None,
-                   smooth_half_window=None, **pad_kwargs):
+                   smooth_half_window=None, pad_kwargs=None, **kwargs):
         """
         Identifies baseline points by fitting a convex hull to the bottom of the data.
 
@@ -840,6 +876,14 @@ class _Classification(_Algorithm):
             The half window to use for smoothing the input data with a moving average
             before calculating the convex hull, which gives much better results for
             noisy data. Set to None (default) or 0 to not smooth the data.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -875,10 +919,14 @@ class _Classification(_Algorithm):
 
         y, weight_array = self._setup_classification(data, weights)
         if smooth_half_window is not None and smooth_half_window > 0:
-            y = self._setup_smooth(y, smooth_half_window, **pad_kwargs)[0]
+            pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+            y = self._setup_smooth(y, smooth_half_window, pad_kwargs=pad_kwargs, **kwargs)[0]
             y = uniform_filter1d(
                 y, 2 * smooth_half_window + 1
             )[smooth_half_window:-smooth_half_window]
+        else:
+            # still ensure deprecation of kwargs if no smoothing was done
+            self._deprecate_pad_kwargs(**kwargs)
 
         if scalar_sections:
             total_sections = np.linspace(0, self._size, sections + 1, dtype=np.intp)
@@ -1049,7 +1097,7 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
 @_classification_wrapper
 def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
              smooth_half_window=None, interp_half_window=5, weights=None, min_length=2,
-             **pad_kwargs):
+             pad_kwargs=None, **kwargs):
     """
     Golotvin's method for identifying baseline regions.
 
@@ -1094,9 +1142,14 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
         to be a false positive and all points in the region are converted to peak points.
         A higher `min_length` ensures less points are falsely assigned as baseline points.
         Default is 2, which only removes lone baseline points.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from the moving average smoothing.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1163,7 +1216,7 @@ def _iter_threshold(power, num_std=3.0):
 @_classification_wrapper
 def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
              interp_half_window=5, poly_order=5, max_iter=50, tol=1e-3, weights=None,
-             return_coef=False, min_length=2, **pad_kwargs):
+             return_coef=False, min_length=2, pad_kwargs=None, **kwargs):
     """
     Dietrich's method for identifying baseline regions.
 
@@ -1212,9 +1265,14 @@ def dietrich(data, x_data=None, smooth_half_window=None, num_std=3.0,
         to be a false positive and all points in the region are converted to peak points.
         A higher `min_length` ensures less points are falsely assigned as baseline points.
         Default is 2, which only removes lone baseline points.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from smoothing.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1362,7 +1420,7 @@ def _padded_rolling_std(data, half_window, ddof=0):
 @_classification_wrapper
 def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
                      fill_half_window=3, num_std=1.1, smooth_half_window=None,
-                     weights=None, **pad_kwargs):
+                     weights=None, pad_kwargs=None, **kwargs):
     """
     Identifies baseline segments by analyzing the rolling standard deviation distribution.
 
@@ -1402,9 +1460,14 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
         to designate peak points. Only elements with 0 or False values will have
         an effect; all non-zero values are considered baseline points. If None
         (default), then will be an array with size equal to N and all values set to 1.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from the moving average smoothing.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1429,7 +1492,7 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
 @_classification_wrapper
 def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None,
               interp_half_window=5, smooth_half_window=None, weights=None,
-              max_iter=100, min_length=2, **pad_kwargs):
+              max_iter=100, min_length=2, pad_kwargs=None, **kwargs):
     """
     Identifies baseline segments by thresholding the rolling standard deviation distribution.
 
@@ -1482,9 +1545,14 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
         to be a false positive and all points in the region are converted to peak points.
         A higher `min_length` ensures less points are falsely assigned as baseline points.
         Default is 2, which only removes lone baseline points.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from the moving average smoothing.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1512,7 +1580,7 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
 
 @_classification_wrapper
 def cwt_br(data, x_data=None, poly_order=5, scales=None, num_std=1.0, min_length=2,
-           max_iter=50, tol=1e-3, symmetric=False, weights=None, **pad_kwargs):
+           max_iter=50, tol=1e-3, symmetric=False, weights=None, pad_kwargs=None, **kwargs):
     """
     Continuous wavelet transform baseline recognition (CWT-BR) algorithm.
 
@@ -1551,10 +1619,15 @@ def cwt_br(data, x_data=None, poly_order=5, scales=None, num_std=1.0, min_length
         to designate peak points. Only elements with 0 or False values will have
         an effect; all non-zero values are considered baseline points. If None
         (default), then will be an array with size equal to N and all values set to 1.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data to prevent edge effects from convolution for the
-        continuous wavelet transform.
+        continuous wavelet transform. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1617,11 +1690,18 @@ def _haar(num_points, scale=2):
     Matches pywavelets's Haar implementation after applying patches from pywavelets
     issue #365 and pywavelets pull request #580.
 
+    Raises
+    ------
+    TypeError
+        Raised if `scale` is not an integer.
+
     References
     ----------
     https://wikipedia.org/wiki/Haar_wavelet
 
     """
+    if not isinstance(scale, int):
+        raise TypeError('scale must be an integer for the Haar wavelet')
     # to maintain symmetry, even scales should have even windows and odd
     # scales have odd windows
     odd_scale = scale % 2
@@ -1744,7 +1824,7 @@ def _cwt(data, wavelet, widths, dtype=None, **kwargs):
 
 @_classification_wrapper
 def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, weights=None,
-         weights_as_mask=False, x_data=None, **pad_kwargs):
+         weights_as_mask=False, x_data=None, pad_kwargs=None, **kwargs):
     """
     Fully automatic baseline correction (fabc).
 
@@ -1788,10 +1868,15 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data to prevent edge effects from convolution for the
-        continuous wavelet transform.
+        continuous wavelet transform. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1824,7 +1909,7 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
 
 @_classification_wrapper
 def rubberband(data, x_data=None, segments=1, lam=None, diff_order=2, weights=None,
-               smooth_half_window=None, **pad_kwargs):
+               smooth_half_window=None, pad_kwargs=None, **kwargs):
     """
     Identifies baseline points by fitting a convex hull to the bottom of the data.
 
@@ -1859,6 +1944,14 @@ def rubberband(data, x_data=None, segments=1, lam=None, diff_order=2, weights=No
         The half window to use for smoothing the input data with a moving average
         before calculating the convex hull, which gives much better results for
         noisy data. Set to None (default) or 0 to not smooth the data.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------

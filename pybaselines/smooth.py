@@ -26,7 +26,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def noise_median(self, data, half_window=None, smooth_half_window=None, sigma=None,
-                     **pad_kwargs):
+                     pad_kwargs=None, **kwargs):
         """
         The noise-median method for baseline identification.
 
@@ -48,9 +48,14 @@ class _Smooth(_Algorithm):
         sigma : float, optional
             The standard deviation of the smoothing Gaussian kernel. Default is None,
             which will use (2 * `smooth_half_window` + 1) / 6.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from convolution. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -65,7 +70,9 @@ class _Smooth(_Algorithm):
         artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
         """
-        y, half_window = self._setup_smooth(data, half_window, window_multiplier=2, **pad_kwargs)
+        y, half_window = self._setup_smooth(
+            data, half_window, window_multiplier=2, pad_kwargs=pad_kwargs, **kwargs
+        )
         window_size = 2 * half_window + 1
         median = median_filter(y, [window_size], mode='nearest')
         if smooth_half_window is None:
@@ -80,7 +87,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def snip(self, data, max_half_window=None, decreasing=False, smooth_half_window=None,
-             filter_order=2, **pad_kwargs):
+             filter_order=2, pad_kwargs=None, **kwargs):
         """
         Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
 
@@ -111,9 +118,14 @@ class _Smooth(_Algorithm):
             elements such as Compton edges, then a higher `filter_order` should be
             selected [29]_. Default is 2, which works well for approximating a linear
             baseline.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -185,7 +197,7 @@ class _Smooth(_Algorithm):
         else:
             range_args = (1, max_of_half_windows + 1, 1)
 
-        y = self._setup_smooth(data, max_of_half_windows, **pad_kwargs)[0]
+        y = self._setup_smooth(data, max_of_half_windows, pad_kwargs=pad_kwargs, **kwargs)[0]
         num_y = self._size + 2 * max_of_half_windows
         smooth = smooth_half_window is not None and smooth_half_window > 0
         if smooth:
@@ -255,7 +267,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def swima(self, data, min_half_window=3, max_half_window=None, smooth_half_window=None,
-              **pad_kwargs):
+              pad_kwargs=None, **kwargs):
         """
         Small-window moving average (SWiMA) baseline.
 
@@ -275,9 +287,14 @@ class _Smooth(_Algorithm):
             The half window to use for smoothing the input data with a moving average.
             Default is None, which will use N / 50. Use a value of 0 or less to not
             smooth the data. See Notes below for more details.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -323,7 +340,7 @@ class _Smooth(_Algorithm):
         if max_half_window is None:
             max_half_window = (self._size - 1) // 2
         min_half_window = _check_half_window(min_half_window, allow_zero=True)
-        y = self._setup_smooth(data, max_half_window, **pad_kwargs)[0]
+        y = self._setup_smooth(data, max_half_window, pad_kwargs=pad_kwargs, **kwargs)[0]
         len_y = self._size + 2 * max_half_window  # includes padding of max_half_window at each side
         data_slice = slice(max_half_window, -max_half_window)
         if smooth_half_window is None:
@@ -357,7 +374,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def ipsa(self, data, half_window=None, max_iter=500, tol=None, roi=None,
-             original_criteria=False, **pad_kwargs):
+             original_criteria=False, pad_kwargs=None, **kwargs):
         """
         Iterative Polynomial Smoothing Algorithm (IPSA).
 
@@ -386,9 +403,14 @@ class _Smooth(_Algorithm):
             correction. If False (default), then compares ``norm(old, new) / norm(old)``, where
             `old` is the previous iteration's baseline, and `new` is the current iteration's
             baseline.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -410,7 +432,8 @@ class _Smooth(_Algorithm):
 
         """
         y, output_half_window = self._setup_smooth(
-            data, half_window, pad_type='full', window_multiplier=4, **pad_kwargs
+            data, half_window, pad_type='full', window_multiplier=4, pad_kwargs=pad_kwargs,
+            **kwargs
         )
         window_size = 2 * output_half_window + 1
         y0 = y
@@ -449,7 +472,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def ria(self, data, half_window=None, max_iter=500, tol=1e-2, side='both',
-            width_scale=0.1, height_scale=1., sigma_scale=1 / 12, **pad_kwargs):
+            width_scale=0.1, height_scale=1., sigma_scale=1 / 12, pad_kwargs=None, **kwargs):
         """
         Range Independent Algorithm (RIA).
 
@@ -483,9 +506,14 @@ class _Smooth(_Algorithm):
             `sigma_scale` * `width_scale` * N. Default is 1/12, which will make
             the Gaussian span +- 6 sigma, making its total width about half of the
             added length.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
             the edges of the data when adding the extended left and/or right sections.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -517,7 +545,11 @@ class _Smooth(_Algorithm):
         side = side.lower()
         if side not in ('left', 'right', 'both'):
             raise ValueError('side must be "left", "right", or "both"')
-        y, half_window = self._setup_smooth(data, half_window, pad_type=None)
+        # note: only pass pad_kwargs to setup_smooth to validate pad_kwargs and kwargs; no
+        # padding is done
+        y, half_window = self._setup_smooth(
+            data, half_window, pad_type=None, pad_kwargs=pad_kwargs, **kwargs
+        )
         min_x, max_x = self.x_domain
         x_range = max_x - min_x
 
@@ -528,7 +560,8 @@ class _Smooth(_Algorithm):
 
         # TODO should make this a function that could be used by
         # optimizers.optimize_extended_range too
-        added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+        added_left, added_right = _get_edges(y, added_window, **pad_kwargs, **kwargs)
         added_gaussian = gaussian(
             np.linspace(-added_window / 2, added_window / 2, added_window),
             height_scale * abs(y.max()), 0, added_window * sigma_scale
@@ -712,7 +745,7 @@ _smooth_wrapper = _class_wrapper(_Smooth)
 
 @_smooth_wrapper
 def noise_median(data, half_window=None, smooth_half_window=None, sigma=None, x_data=None,
-                 **pad_kwargs):
+                 pad_kwargs=None, **kwargs):
     """
     The noise-median method for baseline identification.
 
@@ -737,9 +770,14 @@ def noise_median(data, half_window=None, smooth_half_window=None, sigma=None, x_
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from convolution. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -758,7 +796,7 @@ def noise_median(data, half_window=None, smooth_half_window=None, sigma=None, x_
 
 @_smooth_wrapper
 def snip(data, max_half_window=None, decreasing=False, smooth_half_window=None,
-         filter_order=2, x_data=None, **pad_kwargs):
+         filter_order=2, x_data=None, pad_kwargs=None, **kwargs):
     """
     Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
 
@@ -792,9 +830,14 @@ def snip(data, max_half_window=None, decreasing=False, smooth_half_window=None,
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -932,7 +975,7 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
 
 @_smooth_wrapper
 def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None,
-          x_data=None, **pad_kwargs):
+          x_data=None, pad_kwargs=None, **kwargs):
     """
     Small-window moving average (SWiMA) baseline.
 
@@ -955,9 +998,14 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1004,7 +1052,7 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
 
 @_smooth_wrapper
 def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
-         original_criteria=False, x_data=None, **pad_kwargs):
+         original_criteria=False, x_data=None, pad_kwargs=None, **kwargs):
     """
     Iterative Polynomial Smoothing Algorithm (IPSA).
 
@@ -1036,9 +1084,14 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1063,7 +1116,7 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
 
 @_smooth_wrapper
 def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both',
-        width_scale=0.1, height_scale=1., sigma_scale=1. / 12., **pad_kwargs):
+        width_scale=0.1, height_scale=1., sigma_scale=1. / 12., pad_kwargs=None, **kwargs):
     """
     Range Independent Algorithm (RIA).
 
@@ -1100,9 +1153,14 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
         `sigma_scale` * `width_scale` * N. Default is 1/12, which will make
         the Gaussian span +- 6 sigma, making its total width about half of the
         added length.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data when adding the extended left and/or right sections.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------

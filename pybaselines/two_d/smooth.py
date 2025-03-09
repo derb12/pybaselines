@@ -17,7 +17,7 @@ class _Smooth(_Algorithm2D):
 
     @_Algorithm2D._register
     def noise_median(self, data, half_window=None, smooth_half_window=None, sigma=None,
-                     **pad_kwargs):
+                     pad_kwargs=None, **kwargs):
         """
         The noise-median method for baseline identification.
 
@@ -40,9 +40,14 @@ class _Smooth(_Algorithm2D):
         sigma : float, optional
             The standard deviation of the smoothing Gaussian kernel. Default is None,
             which will use (2 * `smooth_half_window` + 1) / 6.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges2d` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges2d` for padding
+            the edges of the data to prevent edge effects from convolution. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -57,7 +62,9 @@ class _Smooth(_Algorithm2D):
         artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
         """
-        y, half_window = self._setup_smooth(data, half_window, window_multiplier=2, **pad_kwargs)
+        y, half_window = self._setup_smooth(
+            data, half_window, window_multiplier=2, pad_kwargs=pad_kwargs, **kwargs
+        )
         window_size = 2 * half_window + 1
         median = median_filter(y, window_size, mode='nearest')
         if smooth_half_window is None:

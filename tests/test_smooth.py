@@ -12,7 +12,7 @@ import pytest
 from pybaselines import smooth
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BaseTester, get_data
+from .conftest import BaseTester, ensure_deprecation, get_data
 
 
 class SmoothTester(BaseTester):
@@ -20,6 +20,25 @@ class SmoothTester(BaseTester):
 
     module = smooth
     algorithm_base = smooth._Smooth
+    uses_padding = True  # TODO remove after version 1.4 when kwargs are deprecated
+
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        if not self.uses_padding:
+            return
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, mode='edge')
+        output_2, _ = self.class_func(self.y, pad_kwargs={'mode': 'edge'})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
+        # also ensure both pad_kwargs and **kwargs are passed to pad_edges; some algorithms do
+        # the padding outside of setup_smooth, so have to do this to cover those cases
+        with pytest.raises(TypeError):
+            with pytest.warns(DeprecationWarning):
+                self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
 
 
 class TestNoiseMedian(SmoothTester):
@@ -211,6 +230,7 @@ class TestPeakFilling(SmoothTester):
 
     func_name = 'peak_filling'
     checked_keys = ('x_fit', 'baseline_fit')
+    uses_padding = False  # TODO after version 1.4 when passing kwargs is deprecated
 
     @pytest.mark.parametrize('half_window', (None, 15))
     def test_half_windows(self, half_window):

@@ -329,7 +329,9 @@ def test_setup_polynomial_too_large_polyorder_fails(small_data, algorithm):
 def test_setup_smooth_shape(small_data, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4
-    y, output_half_window = algorithm._setup_smooth(small_data, pad_length, mode='edge')
+    y, output_half_window = algorithm._setup_smooth(
+        small_data, pad_length, pad_kwargs={'mode': 'edge'}
+    )
     assert pad_length == output_half_window
     assert y.shape[0] == small_data.shape[0] + 2 * pad_length
 
@@ -353,11 +355,32 @@ def test_setup_smooth_padding(small_data, algorithm, input_half_window, pad_type
 
     y, output_half_window = algorithm._setup_smooth(
         small_data, input_half_window, pad_type=pad_type,
-        window_multiplier=window_multiplier, mode='edge'
+        window_multiplier=window_multiplier, pad_kwargs={'mode': 'edge'}
     )
 
     assert output_half_window == expected_half_window
     assert y.shape[0] == expected_shape
+
+
+@pytest.mark.parametrize('half_window', (-1, 0))
+def test_setup_smooth_bad_hw_fails(small_data, algorithm, half_window):
+    """Ensures half windows less than 1 raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_smooth(small_data, half_window=half_window)
+
+
+@ensure_deprecation(1, 4)
+def test_setup_smooth_kwargs_warns(small_data, algorithm):
+    """Ensures passing keyword arguments is deprecated."""
+    with pytest.warns(DeprecationWarning):
+        algorithm._setup_smooth(small_data, extrapolate_window=2)
+
+    # also ensure both pad_kwargs and **kwargs are passed to pad_edges
+    with pytest.raises(TypeError):
+        with pytest.warns(DeprecationWarning):
+            algorithm._setup_smooth(
+                small_data, pad_kwargs={'extrapolate_window': 2}, extrapolate_window=2
+            )
 
 
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))

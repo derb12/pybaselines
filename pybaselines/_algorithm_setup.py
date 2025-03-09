@@ -642,7 +642,8 @@ class _Algorithm:
 
         return y, output_half_window
 
-    def _setup_smooth(self, y, half_window=0, pad_type='half', window_multiplier=1, **pad_kwargs):
+    def _setup_smooth(self, y, half_window=None, pad_type='half', window_multiplier=1,
+                      pad_kwargs=None, **kwargs):
         """
         Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -654,8 +655,7 @@ class _Algorithm:
         half_window : int, optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
-            effects. Default is 0, which provides no padding. If `half_window` is None,
-            then the ultimate half-window value will be the output of
+            effects. Default is is None, which sets the half window as the output of
             :func:`pybaselines.utils.optimize_window` multiplied by `window_multiplier`.
         pad_type : {'half', 'full', None}
             If True (default), will pad the input `y` with `half_window` on each side
@@ -663,9 +663,14 @@ class _Algorithm:
         window_multiplier : int or float, optional
             The multiplier by which the output of :func:`pybaselines.utils.optimize_window`
             will be multiplied if `half_window` is None.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from smoothing.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -682,6 +687,7 @@ class _Algorithm:
         else:
             output_half_window = _check_half_window(half_window, allow_zero=False)
 
+        self._deprecate_pad_kwargs(**kwargs)
         if pad_type is None:
             output = y
         else:
@@ -689,11 +695,22 @@ class _Algorithm:
                 padding_window = output_half_window
             else:
                 padding_window = 2 * output_half_window + 1
-            output = pad_edges(y, padding_window, **pad_kwargs)
+            pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+            output = pad_edges(y, padding_window, **pad_kwargs, **kwargs)
 
         return output, output_half_window
 
-    def _setup_classification(self, y, weights=None):
+    def _deprecate_pad_kwargs(self, **kwargs):
+        """Ensures deprecation of passing kwargs for padding."""
+        if kwargs:
+            warnings.warn(
+                ('Passing additional keyword arguments for padding is '
+                    'deprecated and will be removed in version 1.4.0. Place all keyword '
+                    'arguments into the "pad_kwargs" dictionary instead'),
+                DeprecationWarning, stacklevel=2
+            )
+
+    def _setup_classification(self, y, weights=None, **kwargs):
         """
         Sets the starting parameters for doing classification algorithms.
 
@@ -705,6 +722,8 @@ class _Algorithm:
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
+        **kwargs
+            Any keyword arguments passed to the method. Will warn if any.
 
         Returns
         -------
@@ -714,6 +733,7 @@ class _Algorithm:
             The weight array for the data, with boolean dtype.
 
         """
+        self._deprecate_pad_kwargs(**kwargs)
         weight_array = _check_optional_array(
             self._size, weights, dtype=bool, check_finite=self._check_finite
         )
