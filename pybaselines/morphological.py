@@ -21,7 +21,7 @@ class _Morphological(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',))
     def mpls(self, data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_iter=None,
-             weights=None, **window_kwargs):
+             weights=None, window_kwargs=None, **kwargs):
         """
         The Morphological penalized least squares (MPLS) baseline algorithm.
 
@@ -58,24 +58,14 @@ class _Morphological(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the weights will be
             calculated following the procedure in [4]_.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -109,7 +99,7 @@ class _Morphological(_Algorithm):
                 DeprecationWarning, stacklevel=2
             )
 
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         if weights is not None:
             w = weights
         else:
@@ -144,7 +134,7 @@ class _Morphological(_Algorithm):
         return baseline, params
 
     @_Algorithm._register
-    def mor(self, data, half_window=None, **window_kwargs):
+    def mor(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         A Morphological based (Mor) baseline algorithm.
 
@@ -156,24 +146,14 @@ class _Morphological(_Algorithm):
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
             half-window size using :func:`.optimize_window` and `window_kwargs`.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -191,14 +171,14 @@ class _Morphological(_Algorithm):
         Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         opening = grey_opening(y, [2 * half_wind + 1])
         baseline = np.minimum(opening, _avg_opening(y, half_wind, opening))
 
         return baseline, {'half_window': half_wind}
 
     @_Algorithm._register
-    def imor(self, data, half_window=None, tol=1e-3, max_iter=200, **window_kwargs):
+    def imor(self, data, half_window=None, tol=1e-3, max_iter=200, window_kwargs=None, **kwargs):
         """
         An Improved Morphological based (IMor) baseline algorithm.
 
@@ -214,24 +194,14 @@ class _Morphological(_Algorithm):
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
             The maximum number of iterations. Default is 200.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -254,7 +224,7 @@ class _Morphological(_Algorithm):
         Morphological Operations. Applied Spectroscopy, 2018, 72(5), 731-739.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         baseline = y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
@@ -270,7 +240,7 @@ class _Morphological(_Algorithm):
 
     @_Algorithm._register
     def amormol(self, data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None,
-                **window_kwargs):
+                window_kwargs=None, **kwargs):
         """
         Iteratively averaging morphological and mollified (aMorMol) baseline.
 
@@ -289,24 +259,14 @@ class _Morphological(_Algorithm):
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from convolution.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -330,7 +290,7 @@ class _Morphological(_Algorithm):
         Mollifications. Applied Spectroscopy, 2019, 73(3), 284-293.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         window_size = 2 * half_wind + 1
         kernel = _mollifier_kernel(window_size)
         data_bounds = slice(window_size, -window_size)
@@ -361,7 +321,7 @@ class _Morphological(_Algorithm):
 
     @_Algorithm._register
     def mormol(self, data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=None,
-               pad_kwargs=None, **window_kwargs):
+               pad_kwargs=None, window_kwargs=None, **kwargs):
         """
         Iterative morphological and mollified (MorMol) baseline.
 
@@ -384,24 +344,14 @@ class _Morphological(_Algorithm):
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from convolution.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -424,7 +374,7 @@ class _Morphological(_Algorithm):
         correction for Raman spectra. J Raman Spectroscopy, 2017, 48(2), 336-342.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         window_size = 2 * half_wind + 1
         kernel = _mollifier_kernel(window_size)
         if smooth_half_window is None:
@@ -452,7 +402,7 @@ class _Morphological(_Algorithm):
 
     @_Algorithm._register
     def rolling_ball(self, data, half_window=None, smooth_half_window=None,
-                     pad_kwargs=None, **window_kwargs):
+                     pad_kwargs=None, window_kwargs=None, **kwargs):
         """
         The rolling ball baseline algorithm.
 
@@ -474,24 +424,14 @@ class _Morphological(_Algorithm):
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from the moving average.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -513,7 +453,7 @@ class _Morphological(_Algorithm):
         Calibration of Spectra. Applied Spectroscopy, 2010, 64(9), 1007-1016.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         if smooth_half_window is None:
             smooth_half_window = half_wind
 
@@ -528,7 +468,7 @@ class _Morphological(_Algorithm):
 
     @_Algorithm._register
     def mwmv(self, data, half_window=None, smooth_half_window=None,
-             pad_kwargs=None, **window_kwargs):
+             pad_kwargs=None, window_kwargs=None, **kwargs):
         """
         Moving window minimum value (MWMV) baseline.
 
@@ -547,24 +487,14 @@ class _Morphological(_Algorithm):
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from the moving average.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -587,7 +517,7 @@ class _Morphological(_Algorithm):
         99, 138-149.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         if smooth_half_window is None:
             smooth_half_window = half_wind
 
@@ -601,7 +531,7 @@ class _Morphological(_Algorithm):
         return baseline, {'half_window': half_wind}
 
     @_Algorithm._register
-    def tophat(self, data, half_window=None, **window_kwargs):
+    def tophat(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         Estimates the baseline using a top-hat transformation (morphological opening).
 
@@ -613,24 +543,14 @@ class _Morphological(_Algorithm):
             The half-window used for the morphological opening. If a value is input,
             then that value will be used. Default is None, which will optimize the
             half-window size using :func:`.optimize_window` and `window_kwargs`.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -654,7 +574,7 @@ class _Morphological(_Algorithm):
         Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         baseline = grey_opening(y, [2 * half_wind + 1])
 
         return baseline, {'half_window': half_wind}
@@ -662,7 +582,7 @@ class _Morphological(_Algorithm):
     @_Algorithm._register(sort_keys=('weights',))
     def mpspline(self, data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0,
                  num_knots=100, spline_degree=3, diff_order=2, weights=None,
-                 pad_kwargs=None, **window_kwargs):
+                 pad_kwargs=None, window_kwargs=None, **kwargs):
         """
         Morphology-based penalized spline baseline.
 
@@ -699,24 +619,14 @@ class _Morphological(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the weights will be
             calculated following the procedure in the reference.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -774,7 +684,9 @@ class _Morphological(_Algorithm):
             y, weights=(y == grey_closing(y, 3)).astype(float, copy=False)
         )
         if weights is None:
-            _, half_window = self._setup_morphology(spline_fit, half_window, **window_kwargs)
+            _, half_window = self._setup_morphology(
+                spline_fit, half_window, window_kwargs, **kwargs
+            )
             full_window = 2 * half_window + 1
 
             pad_kws = pad_kwargs if pad_kwargs is not None else {}
@@ -797,7 +709,7 @@ class _Morphological(_Algorithm):
     @_Algorithm._register(sort_keys=('signal',))
     def jbcd(self, data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1,
              gamma_mult=0.909, diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3,
-             robust_opening=True, **window_kwargs):
+             robust_opening=True, window_kwargs=None, **kwargs):
         """
         Joint Baseline Correction and Denoising (jbcd) Algorithm.
 
@@ -838,24 +750,14 @@ class _Morphological(_Algorithm):
             morphological erosion and dilation of the opening, similar to :meth:`~.Baseline.mor`. If
             False, the opening is just the morphological opening, as used in the reference.
             The robust opening typically represents the baseline better.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -882,7 +784,7 @@ class _Morphological(_Algorithm):
         Applied Spectroscopy, 2015, 69(9), 1013-1022.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         _, _, whittaker_system = self._setup_whittaker(y, lam=1, diff_order=diff_order)
         beta = _check_lam(beta)
         gamma = _check_lam(gamma, allow_zero=True)
@@ -960,7 +862,7 @@ def _avg_opening(y, half_window, opening=None):
 
 @_morphological_wrapper
 def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_iter=None,
-         weights=None, x_data=None, **window_kwargs):
+         weights=None, x_data=None, window_kwargs=None, **kwargs):
     """
     The Morphological penalized least squares (MPLS) baseline algorithm.
 
@@ -1000,24 +902,14 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_ite
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1045,7 +937,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_ite
 
 
 @_morphological_wrapper
-def mor(data, half_window=None, x_data=None, **window_kwargs):
+def mor(data, half_window=None, x_data=None, window_kwargs=None, **kwargs):
     """
     A Morphological based (Mor) baseline algorithm.
 
@@ -1060,24 +952,14 @@ def mor(data, half_window=None, x_data=None, **window_kwargs):
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1098,7 +980,7 @@ def mor(data, half_window=None, x_data=None, **window_kwargs):
 
 
 @_morphological_wrapper
-def imor(data, half_window=None, tol=1e-3, max_iter=200, x_data=None, **window_kwargs):
+def imor(data, half_window=None, tol=1e-3, max_iter=200, x_data=None, window_kwargs=None, **kwargs):
     """
     An Improved Morphological based (IMor) baseline algorithm.
 
@@ -1117,24 +999,14 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, x_data=None, **window_k
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1161,7 +1033,7 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, x_data=None, **window_k
 
 @_morphological_wrapper
 def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, x_data=None,
-            **window_kwargs):
+            window_kwargs=None, **kwargs):
     """
     Iteratively averaging morphological and mollified (aMorMol) baseline.
 
@@ -1183,24 +1055,14 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, x_d
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1228,7 +1090,7 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, x_d
 
 @_morphological_wrapper
 def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=None,
-           pad_kwargs=None, x_data=None, **window_kwargs):
+           pad_kwargs=None, x_data=None, window_kwargs=None, **kwargs):
     """
     Iterative morphological and mollified (MorMol) baseline.
 
@@ -1254,24 +1116,14 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1298,7 +1150,7 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
 
 @_morphological_wrapper
 def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
-                 x_data=None, **window_kwargs):
+                 x_data=None, window_kwargs=None, **kwargs):
     """
     The rolling ball baseline algorithm.
 
@@ -1323,24 +1175,14 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1366,7 +1208,7 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
 
 @_morphological_wrapper
 def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
-         x_data=None, **window_kwargs):
+         x_data=None, window_kwargs=None, **kwargs):
     """
     Moving window minimum value (MWMV) baseline.
 
@@ -1388,24 +1230,14 @@ def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1431,7 +1263,7 @@ def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
 
 
 @_morphological_wrapper
-def tophat(data, half_window=None, x_data=None, **window_kwargs):
+def tophat(data, half_window=None, x_data=None, window_kwargs=None, **kwargs):
     """
     Estimates the baseline using a top-hat transformation (morphological opening).
 
@@ -1446,24 +1278,14 @@ def tophat(data, half_window=None, x_data=None, **window_kwargs):
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1492,7 +1314,7 @@ def tophat(data, half_window=None, x_data=None, **window_kwargs):
 @_morphological_wrapper
 def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=100,
              spline_degree=3, diff_order=2, weights=None, pad_kwargs=None, x_data=None,
-             **window_kwargs):
+             window_kwargs=None, **kwargs):
     """
     Morphology-based penalized spline baseline.
 
@@ -1532,24 +1354,14 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
@@ -1594,7 +1406,7 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
 @_morphological_wrapper
 def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, gamma_mult=0.909,
          diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3, robust_opening=True, x_data=None,
-         **window_kwargs):
+         window_kwargs=None, **kwargs):
     """
     Joint Baseline Correction and Denoising (jbcd) Algorithm.
 
@@ -1638,24 +1450,14 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------

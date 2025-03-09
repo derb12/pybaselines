@@ -24,6 +24,16 @@ class MorphologicalTester(BaseTester):
     algorithm_base = morphological._Morphological
     checked_keys = ('half_window',)
 
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the window_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, min_half_window=2)
+        output_2, _ = self.class_func(self.y, window_kwargs={'min_half_window': 2})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
 
 class IterativeMorphologicalTester(MorphologicalTester):
     """Base testing class for iterative morphological functions."""

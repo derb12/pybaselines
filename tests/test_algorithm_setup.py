@@ -271,6 +271,49 @@ def test_setup_polynomial_negative_polyorder_fails(small_data, algorithm):
         algorithm._setup_polynomial(small_data, poly_order=-1)
 
 
+@pytest.mark.parametrize('half_window', (None, 2))
+def test_setup_morphology(data_fixture, algorithm, half_window):
+    """
+    Ensures setup_morphology works as expected.
+
+    Note that a half window of 2 was selected since it should not be the output
+    of optimize_window; setup_morphology should just pass the half window back
+    out if it was not None.
+    """
+    x, y = data_fixture
+    y_out, half_window_out = algorithm._setup_morphology(y, half_window)
+    if half_window is None:
+        half_window_expected = optimize_window(y)
+    else:
+        half_window_expected = half_window
+        # sanity check that the calculated half window does not match the test case one
+        assert half_window != optimize_window(y)
+
+    assert half_window_out == half_window_expected
+    assert y is y_out  # should not be modified by setup_morphology
+
+
+@pytest.mark.parametrize('half_window', (-1, 0))
+def test_setup_morphology_bad_hw_fails(small_data, algorithm, half_window):
+    """Ensures half windows less than 1 raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_morphology(small_data, half_window=half_window)
+
+
+@ensure_deprecation(1, 4)
+def test_setup_morphology_kwargs_warns(small_data, algorithm):
+    """Ensures passing keyword arguments is deprecated."""
+    with pytest.warns(DeprecationWarning):
+        algorithm._setup_morphology(small_data, min_half_window=2)
+
+    # also ensure both window_kwargs and **kwargs are passed to optimize_window
+    with pytest.raises(TypeError):
+        with pytest.warns(DeprecationWarning):
+            algorithm._setup_morphology(
+                small_data, window_kwargs={'min_half_window': 2}, min_half_window=2
+            )
+
+
 def test_setup_polynomial_too_large_polyorder_fails(small_data, algorithm):
     """Ensures an exception is raised if poly_order has more than one value."""
     with pytest.raises(ValueError):
@@ -490,6 +533,12 @@ def test_setup_spline_array_lam(small_data):
         _algorithm_setup._Algorithm(np.arange(len(small_data)))._setup_spline(
             small_data, lam=[1, 2]
         )
+
+
+def test_setup_misc(small_data, algorithm):
+    """Ensures setup_misc just passes the data back out without modification."""
+    out = algorithm._setup_misc(small_data)
+    assert out is small_data
 
 
 @pytest.mark.parametrize(
@@ -960,7 +1009,7 @@ def test_deprecated_pentapy_solver(algorithm):
     with pytest.warns(DeprecationWarning):
         algorithm.pentapy_solver = 2
     with pytest.warns(DeprecationWarning):
-        algorithm.pentapy_solver
+        solver = algorithm.pentapy_solver
 
 
 @pytest.mark.parametrize('banded_solver', (1, 2, 3, 4))

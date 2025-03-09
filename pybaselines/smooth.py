@@ -322,7 +322,7 @@ class _Smooth(_Algorithm):
         """
         if max_half_window is None:
             max_half_window = (self._size - 1) // 2
-        _check_half_window(min_half_window, allow_zero=True)
+        min_half_window = _check_half_window(min_half_window, allow_zero=True)
         y = self._setup_smooth(data, max_half_window, **pad_kwargs)[0]
         len_y = self._size + 2 * max_half_window  # includes padding of max_half_window at each side
         data_slice = slice(max_half_window, -max_half_window)

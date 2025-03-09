@@ -679,7 +679,7 @@ class _Algorithm2D:
 
         return y, weight_array, pspline
 
-    def _setup_morphology(self, y, half_window=None, **window_kwargs):
+    def _setup_morphology(self, y, half_window=None, window_kwargs=None, **kwargs):
         """
         Sets the starting parameters for morphology-based methods.
 
@@ -692,24 +692,12 @@ class _Algorithm2D:
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
             half-window size using pybaselines.morphological.optimize_window.
-        **window_kwargs
-            Keyword arguments to pass to :func:`.optimize_window`.
-            Possible items are:
-
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 3.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable half-window size. If None (default), will be
-                    set to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to
+            :func:`pybaselines.utils.optimize_window`.
+        **kwargs
+            Deprecated in version 1.2.0 and will be removed in version 1.4.0. Pass keyword
+            arguments for :func:`.optimize_window` using `window_kwargs`.
 
         Returns
         -------
@@ -730,7 +718,16 @@ class _Algorithm2D:
         if half_window is not None:
             output_half_window = _check_half_window(half_window, two_d=True)
         else:
-            output_half_window = optimize_window(y, **window_kwargs)
+            window_kwargs = window_kwargs if window_kwargs is not None else {}
+            if kwargs:
+                warnings.warn(
+                    ('Passing additional keyword arguments for optimizing the half_window is '
+                     'deprecated and will be removed in version 1.4.0. Place all keyword '
+                     'arguments into the "window_kwargs" dictionary instead'),
+                    DeprecationWarning, stacklevel=2
+                )
+
+            output_half_window = optimize_window(y, **window_kwargs, **kwargs)
 
         return y, output_half_window
 

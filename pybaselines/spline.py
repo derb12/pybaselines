@@ -1264,7 +1264,8 @@ class _Spline(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',))
     def pspline_mpls(self, data, half_window=None, lam=1e3, p=0.0, num_knots=100, spline_degree=3,
-                     diff_order=2, tol=None, max_iter=None, weights=None, **window_kwargs):
+                     diff_order=2, tol=None, max_iter=None, weights=None, window_kwargs=None,
+                     **kwargs):
         """
         A penalized spline version of the morphological penalized least squares (MPLS) algorithm.
 
@@ -1305,24 +1306,14 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the weights will be
             calculated following the procedure in [32]_.
-        **window_kwargs
-            Values for setting the half window used for the morphology operations.
-            Items include:
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            estimating the half window if `half_window` is None. Default is None.
+        **kwargs
 
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 1.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable window size. If None (default), will be set
-                    to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `window_kwargs`.
 
         Returns
         -------
@@ -1363,7 +1354,7 @@ class _Spline(_Algorithm):
                 DeprecationWarning, stacklevel=2
             )
 
-        y, half_wind = self._setup_morphology(data, half_window, **window_kwargs)
+        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         if weights is not None:
             w = weights
         else:
@@ -2585,7 +2576,7 @@ def pspline_derpsalsa(data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degre
 @_spline_wrapper
 def pspline_mpls(data, x_data=None, half_window=None, lam=1e3, p=0.0, num_knots=100,
                  spline_degree=3, diff_order=2, tol=None, max_iter=None, weights=None,
-                 **window_kwargs):
+                 window_kwargs=None, **kwargs):
     """
     A penalized spline version of the morphological penalized least squares (MPLS) algorithm.
 
@@ -2629,24 +2620,14 @@ def pspline_mpls(data, x_data=None, half_window=None, lam=1e3, p=0.0, num_knots=
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the weights will be
         calculated following the procedure in [1]_.
-    **window_kwargs
-        Values for setting the half window used for the morphology operations.
-        Items include:
+    window_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        estimating the half window if `half_window` is None. Default is None.
+    **kwargs
 
-            * 'increment': int
-                The step size for iterating half windows. Default is 1.
-            * 'max_hits': int
-                The number of consecutive half windows that must produce the same
-                morphological opening before accepting the half window as the
-                optimum value. Default is 1.
-            * 'window_tol': float
-                The tolerance value for considering two morphological openings as
-                equivalent. Default is 1e-6.
-            * 'max_half_window': int
-                The maximum allowable window size. If None (default), will be set
-                to (len(data) - 1) / 2.
-            * 'min_half_window': int
-                The minimum half-window size. If None (default), will be set to 1.
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `window_kwargs`.
 
     Returns
     -------
