@@ -77,7 +77,7 @@ def _use_sparse_arrays():
 
     Notes
     -----
-    Scipy introduced its sparse arrays in version 1.8, but the interface and helper
+    SciPy introduced its sparse arrays in version 1.8, but the interface and helper
     functions were not stable until version 1.12; a warning will be emitted in scipy
     1.13 when using the matrix interface, so want to use the sparse array interface
     as early as possible.

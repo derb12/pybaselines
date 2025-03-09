@@ -449,7 +449,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def ria(self, data, half_window=None, max_iter=500, tol=1e-2, side='both',
-            width_scale=0.1, height_scale=1., sigma_scale=1. / 12., **pad_kwargs):
+            width_scale=0.1, height_scale=1., sigma_scale=1 / 12, **pad_kwargs):
         """
         Range Independent Algorithm (RIA).
 
@@ -695,9 +695,7 @@ class _Smooth(_Algorithm):
         # logspace still works when max_iter=1; use ceil rather than using dtype=int
         # in logspace since the int casting will floor the result and cause several half
         # windows of 1
-        half_windows = np.ceil(
-            np.logspace(np.log10(half_win), 0, max_iter)
-        ).astype(int)
+        half_windows = np.ceil(np.logspace(np.log10(half_win), 0, max_iter)).astype(int)
         half_windows[0] = half_win  # rounding issues can shift initial half window +- 1
 
         for half_win in half_windows:

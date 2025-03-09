@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import Baseline, optimizers, polynomial, utils
 
-from .conftest import BaseTester, InputWeightsMixin
+from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation
 
 
 class OptimizerInputWeightsMixin(InputWeightsMixin):
@@ -148,7 +148,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing collab_pls baseline."""
 
     func_name = "optimize_extended_range"
-    checked_keys = ('optimal_parameter', 'min_rmse')
+    checked_keys = ('optimal_parameter', 'min_rmse', 'rmse')
     # will need to change checked_keys if default method is changed
     checked_method_keys = ('weights', 'tol_history')
     required_kwargs = {'pad_kwargs': {'extrapolate_window': 100}}
@@ -217,7 +217,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
 
         """
         with pytest.raises(ValueError):
-            self.class_func(self.y, method='asls', **{key: 1e4})
+            self.class_func(self.y, method='asls', **{key: 16})
 
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
     def test_aspls_alpha_ordering(self, side):
@@ -250,6 +250,68 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         """Ensures an exception is raised for passing kwargs meant for the fitting function."""
         with pytest.raises(TypeError):
             self.class_func(self.y, method='asls', lam=1e8)
+
+    @ensure_deprecation(1, 4)
+    def test_min_rmse_deprecation(self):
+        """Placeholder to ensure 'min_rmse' is removed from the output in version 1.4."""
+
+    def test_optimal_parameter(self):
+        """Ensures the output optimal parameter is the correct value.
+
+        For polynomial methods, `optimal_parameter` should be the polynomial degree; for
+        other methods, `optimal_parameter` should be the actual `lam` value, not log(lam)
+        as returned in versions earlier than 1.2.0.
+        """
+        min_value = 2
+        _, params = self.class_func(self.y, method='asls', min_value=min_value, max_value=8)
+        assert params['optimal_parameter'] >= 10**min_value
+
+        max_value = 6
+        _, params2 = self.class_func(self.y, method='modpoly', min_value=2, max_value=max_value)
+        assert params2['optimal_parameter'] <= max_value
+
+    @pytest.mark.parametrize('method', ('asls', 'modpoly'))
+    def test_min_max_ordering(self, method):
+        """Ensures variable ordering handles min and max values correctly."""
+        min_value = 2
+        max_value = 6
+        fit_1, params_1 = self.class_func(
+            self.y, method=method, min_value=min_value, max_value=max_value
+        )
+        # should simply do the fittings in the reversed order
+        fit_2, params_2 = self.class_func(
+            self.y, method=method, min_value=max_value, max_value=min_value
+        )
+
+        # fits and optimal parameter should be the same
+        assert_allclose(fit_2, fit_1, rtol=1e-12, atol=1e-12)
+        assert_allclose(
+            params_1['optimal_parameter'], params_2['optimal_parameter'], rtol=1e-12, atol=1e-12
+        )
+        # rmse should be reversed
+        assert_allclose(params_1['rmse'], params_2['rmse'][::-1], rtol=1e-8, atol=1e-12)
+
+    @pytest.mark.parametrize('method', ('asls', 'modpoly'))
+    def test_no_step(self, method):
+        """Ensures a fit is still done if step is zero or min and max values are equal."""
+        min_value = 2
+        # case 1: step == 0
+        fit_1, params_1 = self.class_func(
+            self.y, method=method, min_value=min_value, max_value=min_value + 5, step=0
+        )
+        # case 2: min and max value are equal
+        fit_2, params_2 = self.class_func(
+            self.y, method=method, min_value=min_value, max_value=min_value
+        )
+
+        # fits, optimal parameter, and rmse should all be the same
+        assert_allclose(fit_2, fit_1, rtol=1e-12, atol=1e-12)
+        assert_allclose(
+            params_1['optimal_parameter'], params_2['optimal_parameter'], rtol=1e-12, atol=1e-12
+        )
+        assert_allclose(params_1['rmse'], params_2['rmse'], rtol=1e-8, atol=1e-12)
+        assert len(params_1['rmse']) == 1
+        assert len(params_2['rmse']) == 1
 
 
 @pytest.mark.parametrize(

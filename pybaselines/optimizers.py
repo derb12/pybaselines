@@ -136,7 +136,7 @@ class _Optimizers(_Algorithm):
 
     @_Algorithm._register(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
-                                height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
+                                height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=8,
                                 step=1, pad_kwargs=None, method_kwargs=None):
         """
         Extends data and finds the best parameter value for the given baseline method.
@@ -170,18 +170,19 @@ class _Optimizers(_Algorithm):
             indicated method. If using a polynomial method, `min_value` must be an
             integer. If using a Whittaker-smoothing-based method, `min_value` should
             be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
-            designates a `lam` value of 10**2).
-            Default is 2.
+            designates a `lam` value of 10**2). Default is 2.
         max_value : int or float, optional
             The maximum value for the `lam` or `poly_order` value to use with the
             indicated method. If using a polynomial method, `max_value` must be an
             integer. If using a Whittaker-smoothing-based method, `max_value` should
             be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
-            designates a `lam` value of 10**3).
-            Default is 8.
+            designates a `lam` value of 10**3). Default is 8.
         step : int or float, optional
             The step size for iterating the parameter value from `min_value` to `max_value`.
-            If using a polynomial method, `step` must be an integer.
+            If using a polynomial method, `step` must be an integer. If using a
+            Whittaker-smoothing-based method, `step` should
+            be the exponent to raise to the power of 10 (eg. a `step` value of 1
+            designates a `lam` value of 10**1). Default is 1.
         pad_kwargs : dict, optional
             A dictionary of options to pass to :func:`.pad_edges` for padding
             the edges of the data when adding the extended left and/or right sections.
@@ -201,8 +202,15 @@ class _Optimizers(_Algorithm):
                 The `lam` or `poly_order` value that produced the lowest
                 root-mean-squared-error.
             * 'min_rmse': float
-                The minimum root-mean-squared-error obtained when using
-                the optimal parameter.
+
+                .. deprecated:: 1.2.0
+                    The 'min_rmse' key will be removed from the ``method_params``
+                    dictionary in pybaselines version 1.4.0 in favor of the new
+                    'rmse' key which returns all root-mean-squared-error values.
+
+            * 'rmse' : numpy.ndarray
+                The array of the calculated root-mean-squared-error for each
+                of the fits.
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
                 Items will depend on the selected method.
@@ -253,13 +261,19 @@ class _Optimizers(_Algorithm):
                 ))
             param_name = 'poly_order'
         else:
-            if any(val > 100 for val in (min_value, max_value, step)):
+            if any(val > 15 for val in (min_value, max_value, step)):
                 raise ValueError((
                     'min_value, max_value, and step should be the power of 10 to use '
                     '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
-                    'thus should not be greater than 100'
+                    'thus should not be greater than 15'
                 ))
             param_name = 'lam'
+        if step == 0 or min_value == max_value:
+            do_optimization = False
+        else:
+            do_optimization = True
+            if max_value < min_value and step > 0:
+                step = -step
 
         added_window = int(self._size * width_scale)
         for key in ('weights', 'alpha'):
@@ -306,10 +320,6 @@ class _Optimizers(_Algorithm):
             lower_bound += added_window
 
         added_len = 2 * added_window if side == 'both' else added_window
-        upper_idx = len(fit_data) - upper_bound
-        min_sum_squares = np.inf
-        best_val = None
-
         if self._sort_order is None:
             new_sort_order = None
         else:
@@ -330,12 +340,28 @@ class _Optimizers(_Algorithm):
 
         new_fitter = fit_object._override_x(fit_x_data, new_sort_order=new_sort_order)
         baseline_func = getattr(new_fitter, method)
-        # TODO maybe switch to linspace since arange is inconsistent when using floats
-        for var in np.arange(min_value, max_value + step, step):
-            if param_name == 'lam':
-                method_kws[param_name] = 10**var
+        if do_optimization:
+            if param_name == 'poly_order':
+                variables = np.arange(min_value, max_value + step, step)
             else:
-                method_kws[param_name] = var
+                # use linspace for floats since it ensures endpoints are included; use
+                # logspace to skip having to do 10.0**linspace(...)
+                variables = np.logspace(
+                    min_value, max_value, ceil((max_value - min_value) / step), base=10.0
+                )
+            # double check that variables has at least one item; otherwise skip the optimization
+            if variables.size == 0:
+                do_optimization = False
+        if not do_optimization:
+            variables = np.array([min_value])
+            if param_name == 'lam':
+                variables = 10.0**variables
+        upper_idx = len(fit_data) - upper_bound
+        min_sum_squares = np.inf
+        best_idx = 0
+        sum_squares_tot = np.zeros_like(variables)
+        for i, var in enumerate(variables):
+            method_kws[param_name] = var
             fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
             # TODO change the known baseline so that np.roll does not have to be
             # calculated each time, since it requires additional time
@@ -344,15 +370,17 @@ class _Optimizers(_Algorithm):
             )
             # just calculate the sum of squares to reduce time from using sqrt for rmse
             sum_squares = residual.dot(residual)
+            sum_squares_tot[i] = sum_squares
             if sum_squares < min_sum_squares:
                 baseline = fit_baseline[lower_bound:upper_idx]
                 method_params = fit_params
-                best_val = var
+                best_idx = i
                 min_sum_squares = sum_squares
 
+        sum_squares_tot = np.sqrt(sum_squares_tot / added_len)
         params = {
-            'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len),
-            'method_params': method_params
+            'optimal_parameter': variables[best_idx], 'min_rmse': sum_squares_tot[best_idx],
+            'rmse': sum_squares_tot, 'method_params': method_params
         }
         for key in ('weights', 'alpha'):
             if key in params['method_params']:
