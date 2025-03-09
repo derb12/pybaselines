@@ -121,7 +121,7 @@ class _Algorithm2D:
         self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
-        self.pentapy_solver = 2
+        self.banded_solver = 2
 
     @property
     def _shape(self):
@@ -156,6 +156,79 @@ class _Algorithm2D:
         else:
             self.__shape = tuple(value)
             self._size = np.prod(self._shape)
+
+    @property
+    def banded_solver(self):
+        """
+        Designates the solver to prefer using for solving 1D banded linear systems.
+
+        .. versionadded:: 1.2.0
+
+        Only used to pass to a new :class:`~.Baseline` object when using
+        :meth:`.Baseline2D.individual_axes`. An integer between 1 and 4 designating
+        the solver to prefer for solving banded linear systems in 1D. See
+        :attr:`~.Baseline.banded_solver` for more information.  Default is 2.
+
+        This typically does not need to be modified since all solvers have relatively
+        the same numerical stability and is mostly for internal testing.
+
+        """
+        return self._banded_solver
+
+    @banded_solver.setter
+    def banded_solver(self, solver):
+        """
+        Sets the solver for 1D banded systems.
+
+        Parameters
+        ----------
+        solver : {1, 2, 3, 4}
+            An integer designating the solver. Setting to 1 or 2 will use the ``PTRANS-I``
+            and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
+            ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
+            it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
+            else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
+            will only use the SciPy solvers following the same logic, and 4 will
+            force usage of :func:`scipy.linalg.solve_banded`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `solver` is not an integer between 1 and 4.
+
+        """
+        if isinstance(solver, bool) or solver not in {1, 2, 3, 4}:
+            # catch True since it can be interpreted as in {1, 2, 3, 4}; would likely
+            # not cause issues downsteam, but just eliminate that possibility
+            raise ValueError('banded_solver must be an integer with a value in (1, 2, 3, 4)')
+        # note that self._pentapy_solver is not set here since it is unused in 2D
+        self._banded_solver = solver
+
+    @property
+    def pentapy_solver(self):
+        """
+        The solver if using ``pentapy`` to solve banded equations.
+
+        .. deprecated:: 1.2
+            The `pentapy_solver` property is deprecated and will be removed in
+            version 1.4. Use the :attr:`~Baseline2D.banded_solver` instead.
+
+        """
+        warnings.warn(
+            ('The `pentapy_solver` attribute is deprecated and will be removed in '
+             'version 1.4; use the `banded_solver` attribute instead'),
+            DeprecationWarning, stacklevel=2
+        )
+        return self.banded_solver
+
+    @pentapy_solver.setter
+    def pentapy_solver(self, value):
+        warnings.warn(
+            ('Setting the `pentapy_solver` attribute is deprecated and will be removed in '
+             'version 1.4; set the `banded_solver` attribute instead'),
+            DeprecationWarning, stacklevel=2
+        )
+        self.banded_solver = value
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), ensure_2d=False,
                         reshape_baseline=False, reshape_keys=(), skip_sorting=False):

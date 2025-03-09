@@ -7,17 +7,22 @@ The Whittaker-smoothing-based algorithms in pybaselines make use of
 the banded structure of the linear system to reduce the computation time.
 
 This example shows the difference in computation times of the asymmetic least squares
-(:meth:`~.Baseline.asls`) algorithm when using the banded solver from Scipy (solveh_banded)
-and the banded solver from the optional dependency
+(:meth:`~.Baseline.asls`) algorithm when using the banded solver from SciPy,
+:func:`scipy.linalg.solve_banded`, and the banded solver from the optional dependency
 `pentapy <https://github.com/GeoStat-Framework/pentapy>`_. In addition, the time
 it takes when solving the system using sparse matrices rather than the banded matrices
 is compared, since direct adaptation from literature usually uses the sparse solution.
+All three of these solvers are based on LU decomposition. Since the asls algorithm results
+in a symmetric, positive-definite left-hand side of the normal equation, it can additionally
+be solved using Cholesky decomposition through the dedicated SciPy solver
+:func:`scipy.linalg.solveh_banded`.
 
-Compared to the time required to solve using sparse matrices, Scipy's banded solver
-is ~50-70% faster and pentapy's banded solver is ~70-90% faster, ultimately reducing
+Compared to the time required to solve using sparse matrices, SciPy's banded solvers
+are ~50-80% faster and pentapy's banded solver is ~70-90% faster, ultimately reducing
 the computation time by about an order of magnitude.
 
-Note that the performance of solving the sparse system can be improved by using
+Note that the performance of solving this particular sparse system can be improved by using
+the sparse Cholesky decomposition solver
 `CHOLMOD from SuiteSparse <https://github.com/DrTimothyAldenDavis/SuiteSparse>`_, which has
 Python bindings provided by `scikit-sparse <https://github.com/scikit-sparse/scikit-sparse>`_.
 
@@ -30,7 +35,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import _banded_utils, whittaker
+from pybaselines import Baseline
 from pybaselines.utils import difference_matrix, relative_difference
 
 # local import with setup code
@@ -46,7 +51,7 @@ def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weig
     Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
 
     """
-    y = np.asarray_chkfinite(data)
+    y = np.asarray(data)
     num_y = len(y)
     if weights is None:
         weight_array = np.ones(num_y)
@@ -62,8 +67,7 @@ def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weig
     for i in range(max_iter + 1):
         penalty_matrix.setdiag(weight_array + original_diag)
         baseline = spsolve(penalty_matrix, weight_array * y, 'NATURAL')
-        mask = y > baseline
-        new_weights = p * mask + (1 - p) * (~mask)
+        new_weights = np.where(y > baseline, p, 1 - p)
         calc_difference = relative_difference(weight_array, new_weights)
         tol_history[i] = calc_difference
         if calc_difference < tol:
@@ -75,28 +79,13 @@ def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weig
     return baseline, params
 
 
-def scipy_asls(*args, **kwargs):
-    """Temporarily turns off pentapy support to force scipy usage."""
-    if _banded_utils._HAS_PENTAPY:
-        _banded_utils._HAS_PENTAPY = False
-        reset_pentapy = True
-    else:
-        reset_pentapy = False
-
-    try:
-        output = whittaker.asls(*args, **kwargs)
-    finally:
-        if reset_pentapy:
-            _banded_utils._HAS_PENTAPY = True
-
-    return output
-
-
 if __name__ == '__main__':
 
-    if not _banded_utils._HAS_PENTAPY:
+    try:
+        import pentapy  # noqa
+    except ImportError:
         warnings.warn(
-            'pentapy is not installed so pentapy and scipy-banded timings will be identical',
+            'pentapy is not installed so pentapy and solveh_banded timings will be identical',
             stacklevel=2
         )
 
@@ -104,16 +93,27 @@ if __name__ == '__main__':
     lam_equation = lambda n: 10**(-6.35 + np.log10(n) * 4.17)
     repeats = 25
     functions = (
-        (whittaker.asls, 'pentapy'),
-        (scipy_asls, 'scipy-banded'),
-        (sparse_asls, 'scipy-sparse'),
+        'sparse',
+        'solve_banded',
+        'solveh_banded',
+        'pentapy',
     )
-
-    for i, (func, func_name) in enumerate(functions):
+    # solver_numbers corresponds to the settings for the `banded_solver` attribute of
+    # Baseline objects for each of the solvers; pentapy could be 1 or 2
+    solver_numbers = {'solve_banded': 4, 'solveh_banded': 3, 'pentapy': 2}
+    func_timings = {}
+    data_sizes = np.logspace(np.log10(500), np.log10(40000), 8, dtype=int)
+    for func_name in functions:
         timings = []
-        for num_x in np.logspace(np.log10(500), np.log10(40000), 8, dtype=int):
+        for num_x in data_sizes:
             y = make_data(num_x)[0]
             lam = lam_equation(num_x)
+            if func_name == 'sparse':
+                func = sparse_asls
+            else:
+                fitter = Baseline(check_finite=False)
+                fitter.banded_solver = solver_numbers[func_name]
+                func = fitter.asls
             times = []
             for j in range(repeats + 1):
                 t0 = time.perf_counter()
@@ -124,11 +124,34 @@ if __name__ == '__main__':
                 if j > 0:  # ignore first function call for more accurate timings
                     times.append(t1)
             # use median instead of mean so timing outliers have less effect
-            timings.append((num_x, np.median(times), np.std(times, ddof=1)))
-        plt.errorbar(*np.array(timings).T, label=func_name)
+            timings.append((np.median(times), np.std(times, ddof=1)))
+        total_timings = np.array(timings).T
+        plt.errorbar(data_sizes, *total_timings, label=func_name)
+        func_timings[func_name] = total_timings
 
     plt.loglog()
     plt.xlabel('Input Array Size')
-    plt.ylabel('Time (seconds)')
+    plt.ylabel('Median Time (seconds)')
     plt.legend()
+
+    # The relative time reduced by using pentapy can be compared for each of the other methods
+    plt.figure()
+    reference_key = 'pentapy'
+    reference_times = func_timings[reference_key]
+    for key, values in func_timings.items():
+        if key == reference_key:
+            continue
+        relative_speedup = 100 * (values[0] - reference_times[0]) / values[0]
+        # use propogation of errors to estimate relative speedup error
+        speedup_err = (
+            (100 / values[0])
+            * np.sqrt(reference_times[1]**2 + reference_times[0]**2 * values[1]**2 / values[0]**2)
+        )
+        plt.errorbar(data_sizes, relative_speedup, speedup_err, label=key)
+
+    plt.semilogx()
+    plt.xlabel('Input Array Size')
+    plt.ylabel('Relative Time Reduction (%)')
+    plt.legend()
+
     plt.show()

@@ -40,13 +40,6 @@ class Baseline(
 
     Attributes
     ----------
-    pentapy_solver : int or str
-        The integer or string designating which solver to use if using pentapy.
-        See :func:`pentapy.solve` for available options, although `1` or `2` are the
-        most relevant options. Default is 2.
-
-        .. versionadded:: 1.1.0
-
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same length as the input `data` and has min and max

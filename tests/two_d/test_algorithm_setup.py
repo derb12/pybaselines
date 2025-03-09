@@ -15,7 +15,7 @@ from pybaselines._compat import identity
 from pybaselines.two_d import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines.utils import ParameterWarning, difference_matrix
 
-from ..conftest import get_2dspline_inputs, get_data2d
+from ..conftest import ensure_deprecation, get_2dspline_inputs, get_data2d
 
 
 @pytest.fixture
@@ -1006,3 +1006,26 @@ def test_setup_optimizer_copy_kwargs(small_data2d, algorithm, copy_kwargs):
         assert input_kwargs['a'] == 1
     else:
         assert input_kwargs['a'] == 2
+
+
+@ensure_deprecation(1, 4)
+def test_deprecated_pentapy_solver(algorithm):
+    """Ensures setting and getting the pentapy_solver attribute is deprecated."""
+    with pytest.warns(DeprecationWarning):
+        algorithm.pentapy_solver = 2
+    with pytest.warns(DeprecationWarning):
+        algorithm.pentapy_solver
+
+
+@pytest.mark.parametrize('banded_solver', (1, 2, 3, 4))
+def test_banded_solver(algorithm, banded_solver):
+    """Ensures setting banded_solver works as intended."""
+    algorithm.banded_solver = banded_solver
+    assert algorithm.banded_solver == banded_solver
+
+
+@pytest.mark.parametrize('banded_solver', (0, -1, 5, '1', True, False))
+def test_wrong_banded_solver_fails(algorithm, banded_solver):
+    """Ensures only valid integers between 0 and 4 are allowed as banded_solver inputs."""
+    with pytest.raises(ValueError):
+        algorithm.banded_solver = banded_solver

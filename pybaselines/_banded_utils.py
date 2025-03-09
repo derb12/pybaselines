@@ -651,7 +651,7 @@ class PenalizedSystem:
     pentapy_solver : int or str
         The integer or string designating which solver to use if using pentapy. See
         :func:`pentapy.solve` for available options, although `1` or `2` are the
-        most relevant options. Default is 2.
+        most relevant options.
     reversed : bool
         If True, the penalty is reversed of the typical LAPACK banded format. Useful if
         multiplying the penalty with an array since the rows get shifted, or if using pentapy's

@@ -346,7 +346,7 @@ class _Optimizers(_Algorithm2D):
                 (self.x, self.z)[axis], check_finite=self._check_finite, assume_sorted=True,
                 output_dtype=self._dtype
             )
-            fitter.pentapy_solver = self.pentapy_solver
+            fitter.banded_solver = self.banded_solver
             baseline_func = fitter._get_method(method)
             params[f'params_{keys[axis]}'] = defaultdict(list)
             func = partial(

@@ -49,6 +49,7 @@ def get_public_methods(klass):
         if (
             not (method.startswith('_')
             or method.startswith('pentapy_solver')
+            or method.startswith('banded_solver')
             or method.startswith('get_method'))
         ):
             methods.append(method)

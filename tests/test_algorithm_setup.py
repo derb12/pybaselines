@@ -14,7 +14,7 @@ from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines._compat import dia_object
 from pybaselines.utils import ParameterWarning, optimize_window
 
-from .conftest import get_data
+from .conftest import ensure_deprecation, get_data
 
 
 @pytest.fixture
@@ -594,7 +594,8 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
     assert_array_equal(algorithm.x, expected_x)
     assert algorithm._check_finite == check_finite
     assert algorithm._dtype == output_dtype
-    assert algorithm.pentapy_solver == 2
+    assert algorithm.banded_solver == 2
+    assert algorithm._pentapy_solver == 2
 
     if input_x:
         assert algorithm._size == len(x)
@@ -902,29 +903,30 @@ def test_override_x_whittaker(algorithm):
     old_len = len(algorithm.x)
     diff_order = 2
     new_diff_order = 3
-    pentapy_solver = 1
+    banded_solver = 1
 
-    default_pentapy_solver = algorithm.pentapy_solver
+    default_banded_solver = algorithm.banded_solver
     # sanity check that the tested pentapy_solver is not the default
-    assert pentapy_solver != default_pentapy_solver
+    assert banded_solver != default_banded_solver
 
     _, _, whittaker_system = algorithm._setup_whittaker(np.arange(old_len), diff_order=diff_order)
     # whittaker_system's pentapy solver should be the default (2) since it is not coupled with
     # the algorithm object
-    algorithm.pentapy_solver = pentapy_solver
-    assert whittaker_system.pentapy_solver == default_pentapy_solver
+    algorithm.banded_solver = banded_solver
+    assert whittaker_system.pentapy_solver == default_banded_solver
     # sanity check
     assert whittaker_system.diff_order == diff_order
 
     new_len = 20
     new_x = np.arange(new_len)
     new_algorithm = algorithm._override_x(new_x)
-    assert new_algorithm.pentapy_solver == pentapy_solver
+    assert new_algorithm.banded_solver == banded_solver
+    assert new_algorithm._pentapy_solver == banded_solver
     _, _, new_whittaker_system = new_algorithm._setup_whittaker(
         np.arange(new_len), diff_order=new_diff_order
     )
     assert new_whittaker_system.diff_order == new_diff_order
-    assert new_whittaker_system.pentapy_solver == pentapy_solver
+    assert new_whittaker_system.pentapy_solver == banded_solver
 
 
 def test_override_x_spline(algorithm):
@@ -950,3 +952,32 @@ def test_override_x_spline(algorithm):
     assert algorithm._spline_basis.spline_degree == spline_degree
     assert old_basis.shape == algorithm._spline_basis.basis.shape
     assert_allclose(algorithm._spline_basis.basis.toarray(), old_basis, 1e-14, 1e-14)
+
+
+@ensure_deprecation(1, 4)
+def test_deprecated_pentapy_solver(algorithm):
+    """Ensures setting and getting the pentapy_solver attribute is deprecated."""
+    with pytest.warns(DeprecationWarning):
+        algorithm.pentapy_solver = 2
+    with pytest.warns(DeprecationWarning):
+        algorithm.pentapy_solver
+
+
+@pytest.mark.parametrize('banded_solver', (1, 2, 3, 4))
+def test_banded_solver(algorithm, banded_solver):
+    """Ensures setting banded_solver also sets the correct pentapy_solver."""
+    if banded_solver < 3:
+        expected_pentapy_solver = banded_solver
+    else:
+        expected_pentapy_solver = 1
+
+    algorithm.banded_solver = banded_solver
+    assert algorithm._pentapy_solver == expected_pentapy_solver
+    assert algorithm.banded_solver == banded_solver
+
+
+@pytest.mark.parametrize('banded_solver', (0, -1, 5, '1', True, False))
+def test_wrong_banded_solver_fails(algorithm, banded_solver):
+    """Ensures only valid integers between 0 and 4 are allowed as banded_solver inputs."""
+    with pytest.raises(ValueError):
+        algorithm.banded_solver = banded_solver

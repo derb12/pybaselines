@@ -6,8 +6,6 @@ Created on March 20, 2021
 
 """
 
-from unittest import mock
-
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
@@ -25,15 +23,29 @@ class WhittakerTester(BaseTester, InputWeightsMixin):
     algorithm_base = whittaker._Whittaker
     checked_keys = ('weights', 'tol_history')
 
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(_banded_utils, '_HAS_PENTAPY', False):
-            scipy_output = self.class_func(self.y)[0]
+    def test_scipy_solvers(self):
+        """Ensure the two SciPy solvers give similar results."""
+        self.algorithm.banded_solver = 3  # use solveh_banded if allowed
+        solveh_output = self.class_func(self.y)[0]
+        self.algorithm.banded_solver = 4  # force use solve_banded
+        solve_output = self.class_func(self.y)[0]
 
+        assert_allclose(solveh_output, solve_output, rtol=1e-6, atol=1e-8)
+
+    @has_pentapy
+    @pytest.mark.parametrize('pentapy_solver', (1, 2))
+    def test_pentapy_solver(self, pentapy_solver):
+        """Ensure pentapy solvers give similar result to SciPy's solvers."""
+        self.algorithm.banded_solver = pentapy_solver
         pentapy_output = self.class_func(self.y)[0]
 
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
+        self.algorithm.banded_solver = 3  # use solveh_banded if allowed
+        solveh_output = self.class_func(self.y)[0]
+        self.algorithm.banded_solver = 4  # force use solve_banded
+        solve_output = self.class_func(self.y)[0]
+
+        assert_allclose(pentapy_output, solveh_output, rtol=5e-5, atol=1e-8)
+        assert_allclose(pentapy_output, solve_output, rtol=5e-5, atol=1e-8)
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""

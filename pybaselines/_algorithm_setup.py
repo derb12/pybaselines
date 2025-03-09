@@ -39,13 +39,6 @@ class _Algorithm:
 
     Attributes
     ----------
-    petapy_solver : int or str
-        The integer or string designating which solver to use if using pentapy.
-        See :func:`pentapy.solve` for available options, although `1` or `2` are the
-        most relevant options. Default is 2.
-
-        .. versionadded:: 1.1.0
-
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same length as the input `data` and has min and max
@@ -97,11 +90,11 @@ class _Algorithm:
             if self._sort_order is not None:
                 self.x = self.x[self._sort_order]
 
+        self.banded_solver = 2
         self._polynomial = None
         self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
-        self.pentapy_solver = 2
 
     @property
     def _size(self):
@@ -129,6 +122,86 @@ class _Algorithm:
         else:
             self.__size = value
             self._shape = (value,)
+
+    @property
+    def banded_solver(self):
+        """
+        Designates the solver to prefer using for solving banded linear systems.
+
+        .. versionadded:: 1.2.0
+
+        An integer between 1 and 4 designating the solver to prefer for solving banded
+        linear systems. Setting to 1 or 2 will use the ``PTRANS-I``
+        and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
+        ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
+        it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
+        else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
+        will only use the SciPy solvers following the same logic, and 4 will
+        force usage of :func:`scipy.linalg.solve_banded`. Default is 2.
+
+        This typically does not need to be modified since all solvers have relatively
+        the same numerical stability and is mostly for internal testing.
+
+        """
+        return self._banded_solver
+
+    @banded_solver.setter
+    def banded_solver(self, solver):
+        """
+        Sets the solver for banded systems and the solver for the optional dependency pentapy.
+
+        Parameters
+        ----------
+        solver : {1, 2, 3, 4}
+            An integer designating the solver. Setting to 1 or 2 will use the ``PTRANS-I``
+            and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
+            ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
+            it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
+            else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
+            will only use the SciPy solvers following the same logic, and 4 will
+            force usage of :func:`scipy.linalg.solve_banded`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `solver` is not an integer between 1 and 4.
+
+        """
+        if isinstance(solver, bool) or solver not in {1, 2, 3, 4}:
+            # catch True since it can be interpreted as in {1, 2, 3, 4}; would likely
+            # not cause issues downsteam, but just eliminate that possibility
+            raise ValueError('banded_solver must be an integer with a value in (1, 2, 3, 4)')
+        self._banded_solver = solver
+        if solver < 3:
+            self._pentapy_solver = solver
+        else:
+            self._pentapy_solver = 1  # default value
+
+    @property
+    def pentapy_solver(self):
+        """
+        The solver if using ``pentapy`` to solve banded equations.
+
+        .. deprecated:: 1.2
+            The `pentapy_solver` property is deprecated and will be removed in
+            version 1.4. Use the :attr:`~.banded_solver` instead.
+
+        """
+        warnings.warn(
+            ('The `pentapy_solver` attribute is deprecated and will be removed in '
+             'version 1.4; use the `banded_solver` attribute instead'),
+            DeprecationWarning, stacklevel=2
+        )
+        return self._pentapy_solver
+
+    @pentapy_solver.setter
+    def pentapy_solver(self, value):
+        warnings.warn(
+            ('Setting the `pentapy_solver` attribute is deprecated and will be removed in '
+             'version 1.4, set the `banded_solver` attribute instead'),
+            DeprecationWarning, stacklevel=2
+        )
+        self.banded_solver = value
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), skip_sorting=False):
         """
@@ -265,10 +338,10 @@ class _Algorithm:
             x_data=new_x, check_finite=self._check_finite, assume_sorted=True,
             output_dtype=self._dtype
         )
+        new_object.banded_solver = self.banded_solver
         new_object._sort_order = new_sort_order
         if new_sort_order is not None:
             new_object._inverted_order = _inverted_sort(new_sort_order)
-        new_object.pentapy_solver = self.pentapy_solver
 
         return new_object
 
@@ -338,9 +411,12 @@ class _Algorithm:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
+        allow_lower = allow_lower and self.banded_solver < 4
+        allow_pentapy = self.banded_solver < 3
+
         whittaker_system = PenalizedSystem(
-            self._size, lam, diff_order, allow_lower, reverse_diags,
-            pentapy_solver=self.pentapy_solver
+            self._size, lam, diff_order, allow_lower, reverse_diags, allow_pentapy=allow_pentapy,
+            pentapy_solver=self._pentapy_solver
         )
 
         return y, weight_array, whittaker_system
@@ -505,6 +581,7 @@ class _Algorithm:
         ):
             self._spline_basis = SplineBasis(self.x, num_knots, spline_degree)
 
+        allow_lower = allow_lower and self.banded_solver < 4
         pspline = PSpline(
             self._spline_basis, lam, diff_order, allow_lower, reverse_diags
         )
