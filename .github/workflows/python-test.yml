@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         # Use strings since yaml considers 3.10 equal to 3.1
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13', '3.13t']
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.13t']
 
     steps:
     - uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
     - name: Install required dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install "numpy>=1.20" "scipy>=1.5" pytest
+        python -m pip install . pytest
 
     - name: Test with required dependencies
       run: pytest .
@@ -55,7 +55,7 @@ jobs:
       id: install-optional
       # uncomment below to allow skipping future versions
       if: matrix.python-version != '3.13t'
-      run: python -m pip install "pentapy>=1.1" "numba>=0.49"
+      run: python -m pip install .[full]
 
     - name: Test with optional dependencies
       if: steps.install-optional.outcome == 'success'
@@ -68,7 +68,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.8']
+        python-version: ['3.9']
 
     steps:
     - uses: actions/checkout@v4
@@ -79,15 +79,17 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install minimum dependencies
+      # set installed versions using "==major.minor.*"" to allow bug fixes on patch versions
+      # for minimum supported versions
       run: |
         python -m pip install --upgrade pip
-        python -m pip install "numpy==1.20" "scipy==1.5" pytest
+        python -m pip install "numpy==1.20.*" "scipy==1.6.*" pytest
 
     - name: Test with minimum required dependencies
       run: pytest .
 
     - name: Install minimum optional dependencies
-      run: python -m pip install "pentapy==1.1" "numba==0.49"
+      run: python -m pip install "pentapy==1.1.*" "numba==0.53.*"
 
     - name: Test with minimum optional dependencies
       run: pytest .
@@ -98,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11']
+        python-version: ['3.13']
 
     steps:
     - uses: actions/checkout@v4
