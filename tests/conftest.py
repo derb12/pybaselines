@@ -9,7 +9,6 @@ Created on March 20, 2021
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial, wraps
 import inspect
-import os
 import sys
 
 import numpy as np
@@ -29,38 +28,35 @@ else:
 has_pentapy = pytest.mark.skipif(not _HAS_PENTAPY, reason='pentapy is not installed')
 
 
-def _test_threading():
-    """
-    Decorator for skipping threaded tests.
-
-    By default, tests for threading will not run unless the CPython build has the
-    GIL disabled since otherwise the tests run too slowly. This behavior can be
-    overridden by setting the `PYBASELINES_TEST_THREADING` environmental variable: set it
-    to 0 to never test or 1 to always test.
-    """
+def pytest_addoption(parser):
+    """Adds additional pytest command line options."""
     if hasattr(sys, '_is_gil_enabled'):  # sys._is_gil_enabled added in Python 3.13
         gil_enabled = sys._is_gil_enabled()
     else:
         gil_enabled = True
 
     # potential combos:
-    # gil enabled but overriden with environmental var = 1 -> run
-    # gil enabled and env var is 0 or not set -> skip
-    # gil disabled and env var is 1 or not set -> run
-    # gil disabled but overriden with env var= 0 -> skip
+    # gil enabled but overriden with input = 1 -> run
+    # gil enabled and input is 0 or not set -> skip
+    # gil disabled and input is 1 or not set -> run
+    # gil disabled but overriden with input = 0 -> skip
     # set default variable so that default is to test if gil is disabled
-    env_variable = os.getenv('PYBASELINES_TEST_THREADING', not gil_enabled)
-    try:
-        skip_threading = not int(env_variable)
-    except ValueError:
-        skip_threading = True
-
-    message = 'threaded tests are slow for non free-threaded Python builds'
-
-    return pytest.mark.skipif(skip_threading, reason=message)
+    parser.addoption(
+        "--test_threading",
+        action="store",
+        default=int(not gil_enabled),
+        type=int,
+        help='Set to 0 to skip threaded tests for pybaselines or 1 to run.',
+    )
 
 
-skipping_threading_tests = _test_threading()
+def pytest_collection_modifyitems(config, items):
+    """Skips tests based on command line inputs."""
+    if not config.getvalue('--test_threading'):
+        skip_marker = pytest.mark.skip(reason='threaded tests are slow to run')
+        for item in items:
+            if 'threaded_test' in item.keywords:
+                item.add_marker(skip_marker)
 
 
 def ensure_deprecation(deprecation_major, deprecation_minor):
@@ -697,7 +693,7 @@ class BaseTester:
         """Reverses the input along the last dimension."""
         return np.asarray(array)[..., ::-1]
 
-    @skipping_threading_tests
+    @pytest.mark.threaded_test
     def test_threading(self, **kwargs):
         """
         Ensures the method produces the same output when using the same object within threading.
@@ -1030,7 +1026,7 @@ class BaseTester2D:
         """Reverses the input along the last two dimensions."""
         return np.asarray(array)[..., ::-1, ::-1]
 
-    @skipping_threading_tests
+    @pytest.mark.threaded_test
     def test_threading(self, **kwargs):
         """
         Ensures the method produces the same output when using the same object within threading.

@@ -71,7 +71,7 @@ full = [
     "numba>=0.49",  # first to allow usage with python 3.8
 ]
 test = [
-    "pytest",
+    "pytest>=6.0",  # first version to work with pyproject.toml
     "ruff",
 ]
 docs = [
@@ -88,6 +88,13 @@ release = [
     "twine",
 ]
 dev = ["pybaselines[full, docs, test, release]"]
+
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+    "threaded_test: mark a test as using threading and only run on free-threaded CPython by default",
+]
 
 
 [tool.isort]

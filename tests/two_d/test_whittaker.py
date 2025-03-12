@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines.two_d import whittaker
 
-from ..conftest import BaseTester2D, InputWeightsMixin, skipping_threading_tests
+from ..conftest import BaseTester2D, InputWeightsMixin
 
 
 class WhittakerTester(BaseTester2D, InputWeightsMixin):
@@ -79,7 +79,7 @@ class EigenvalueMixin:
         assert 'dof' in params
         assert params['dof'].shape == num_eigens
 
-    @skipping_threading_tests
+    @pytest.mark.threaded_test
     @pytest.mark.parametrize('num_eigens', (10, None))
     def test_threading(self, num_eigens):
         """Tests thread safety using SVD solver and analytical solution."""

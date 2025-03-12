@@ -15,7 +15,7 @@ import pytest
 
 from .conftest import (
     BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, dummy_wrapper, get_data,
-    get_data2d, skipping_threading_tests
+    get_data2d
 )
 
 
@@ -579,7 +579,7 @@ class TestBaseTesterFailures(BaseTester):
             with pytest.raises(AssertionError):
                 super().test_x_ordering()
 
-    @skipping_threading_tests
+    @pytest.mark.threaded_test
     def test_threading(self):
         """
         Ensures failure when output is different when using threading.
@@ -953,7 +953,7 @@ class TestBaseTester2DFailures(BaseTester2D):
             with pytest.raises(AssertionError):
                 super().test_xz_ordering()
 
-    @skipping_threading_tests
+    @pytest.mark.threaded_test
     def test_threading(self):
         """
         Ensures failure when output is different when using threading.

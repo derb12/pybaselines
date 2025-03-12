@@ -15,7 +15,7 @@ import pytest
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BasePolyTester, InputWeightsMixin, skipping_threading_tests
+from .conftest import BasePolyTester, InputWeightsMixin
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
     STATSMODELS_QUANTILES
@@ -373,7 +373,7 @@ class TestLoess(IterativePolynomialTester):
         """Ensures the input weights are sorted correctly."""
         super().test_input_weights(use_threshold=use_threshold)
 
-    @skipping_threading_tests
+    @pytest.mark.threaded_test
     @pytest.mark.parametrize('conserve_memory', (True, False))
     def test_threading(self, conserve_memory):
         """Tests the different possible computation routes under threading."""

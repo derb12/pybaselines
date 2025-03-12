@@ -84,7 +84,13 @@ locally, run the following command in the terminal while in the pybaselines dire
 
 By default, all tests except those that test threading will run. Threaded tests only run
 by default on free-threaded CPython builds, but they can also be enabled or disabled by
-setting the environmental variable ``PYBASELINES_TEST_THREADING`` to 1 or 0, respectively.
+setting the command line option ``--test_threading`` to 1 or 0, respectively. For example,
+to test threaded tests on a non free-threaded CPython version, run:
+
+.. code-block:: console
+
+    pytest . --test_threading=1
+
 
 The tests for the two dimensional algorithms are quite time consuming, so if the relevant
 tests are not concerened with two dimensional code, the 2D tests can be skipped with the following:
