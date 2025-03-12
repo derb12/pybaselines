@@ -80,7 +80,8 @@ class _Algorithm:
             self.x_domain = np.array([-1., 1.])
             self._size = None
         else:
-            self.x = _check_array(x_data, check_finite=check_finite)
+            # TODO allow int or float32 x-values later; have to address in individual methods
+            self.x = _check_array(x_data, dtype=float, check_finite=check_finite)
             self._size = len(self.x)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
             if assume_sorted and np.any(self.x[1:] < self.x[:-1]):
@@ -324,6 +325,9 @@ class _Algorithm:
                 output_dtype = y.dtype
             else:
                 output_dtype = self._dtype
+            # TODO allow int or float32 y-values later?; have to address in individual methods;
+            # often x and y need to have the same dtype too
+            y = np.asarray(y, dtype=float)
 
             baseline, params = func(self, y, *args, **kwargs)
 
