@@ -13,7 +13,7 @@ from scipy.sparse import kron
 
 from pybaselines._compat import identity
 from pybaselines.two_d import _algorithm_setup, optimizers, polynomial, whittaker
-from pybaselines.utils import ParameterWarning, difference_matrix, optimize_window
+from pybaselines.utils import ParameterWarning, SortingWarning, difference_matrix, optimize_window
 from pybaselines._validation import _check_scalar
 
 from ..conftest import ensure_deprecation, get_2dspline_inputs, get_data2d
@@ -571,18 +571,26 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         expected_x = x.copy()
         if change_order:
             x[sort_order] = x[sort_order][::-1]
-            if assume_sorted:
-                expected_x[sort_order] = expected_x[sort_order][::-1]
+            # sanity check that a true copy was made
+            assert (expected_x != x).any()
+
     if input_z:
         expected_z = z.copy()
         if change_order:
             z[sort_order] = z[sort_order][::-1]
-            if assume_sorted:
-                expected_z[sort_order] = expected_z[sort_order][::-1]
+            # sanity check that a true copy was made
+            assert (expected_z != z).any()
 
-    algorithm = _algorithm_setup._Algorithm2D(
-        x, z, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
-    )
+    if assume_sorted and change_order and (input_x or input_z):
+        with pytest.warns(SortingWarning):
+            algorithm = _algorithm_setup._Algorithm2D(
+                x, z, check_finite=check_finite, assume_sorted=assume_sorted,
+                output_dtype=output_dtype
+            )
+    else:
+        algorithm = _algorithm_setup._Algorithm2D(
+            x, z, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
+        )
     assert_array_equal(algorithm.x, expected_x)
     assert_array_equal(algorithm.z, expected_z)
     assert algorithm._check_finite == check_finite
@@ -600,7 +608,7 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
     else:
         assert algorithm._size == len(x) * len(z)
 
-    if not assume_sorted and change_order and (input_x or input_z):
+    if change_order and (input_x or input_z):
         if input_x and input_z:
             x_order = np.arange(len(x))
             z_order = np.arange(len(z))
@@ -634,6 +642,14 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
     # ensure attributes are correctly initialized
     assert algorithm._polynomial is None
     assert algorithm._spline_basis is None
+    if input_x:
+        assert not algorithm._validated_x
+    else:
+        assert algorithm._validated_x
+    if input_z:
+        assert not algorithm._validated_z
+    else:
+        assert algorithm._validated_z
 
 
 @pytest.mark.parametrize('assume_sorted', (True, False))
@@ -671,22 +687,28 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
     if reshape_baseline:
         baseline = baseline.reshape(baseline.shape[0], -1)
 
-    should_change_order = change_order and not assume_sorted
-    if should_change_order:
+    if change_order:
         expected_baseline = expected_baseline[..., ::-1, ::-1]
         expected_params['a'] = expected_params['a'][::-1, ::-1]
         expected_params['d'] = expected_params['d'][::-1, ::-1]
 
-    algorithm = _algorithm_setup._Algorithm2D(
-        x, z, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-    )
+    if assume_sorted and change_order:
+        with pytest.warns(SortingWarning):
+            algorithm = _algorithm_setup._Algorithm2D(
+                x, z, check_finite=False, assume_sorted=assume_sorted,
+                output_dtype=output_dtype
+            )
+    else:
+        algorithm = _algorithm_setup._Algorithm2D(
+            x, z, check_finite=False, assume_sorted=assume_sorted, output_dtype=output_dtype
+        )
     output, output_params = algorithm._return_results(
         baseline, params, dtype=output_dtype, sort_keys=('a', 'd'),
         reshape_baseline=reshape_baseline, reshape_keys=('c', 'd'),
         ensure_2d=not three_d
     )
 
-    if not should_change_order and (output_dtype is None or baseline.dtype == output_dtype):
+    if not change_order and (output_dtype is None or baseline.dtype == output_dtype):
         assert np.shares_memory(output, baseline)  # should be the same object
     else:
         assert baseline is not output
@@ -725,10 +747,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         def func(self, data, *args, **kwargs):
             """For checking sorting and reshaping output parameters."""
             expected_x, expected_z, expected_y = get_data2d()
-            if change_order and assume_sorted:
-                expected_y = expected_y[::-1, ::-1]
-                expected_x = expected_x[::-1]
-                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_y, 1e-14, 1e-14)
@@ -749,10 +767,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         def func2(self, data, *args, **kwargs):
             """For checking reshaping output baseline."""
             expected_x, expected_z, expected_y = get_data2d()
-            if change_order and assume_sorted:
-                expected_y = expected_y[::-1, ::-1]
-                expected_x = expected_x[::-1]
-                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_y, 1e-14, 1e-14)
@@ -767,10 +781,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         def func3(self, data, *args, **kwargs):
             """For checking empty decorator."""
             expected_x, expected_z, expected_y = get_data2d()
-            if change_order and assume_sorted:
-                expected_y = expected_y[::-1, ::-1]
-                expected_x = expected_x[::-1]
-                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_y, 1e-14, 1e-14)
@@ -787,11 +797,8 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         def func4(self, data, *args, **kwargs):
             """For checking skip_sorting key."""
             expected_x, expected_z, expected_y = get_data2d()
-            if change_order and (assume_sorted or skip_sorting):
+            if change_order and skip_sorting:
                 expected_y = expected_y[::-1, ::-1]
-            if change_order and assume_sorted:
-                expected_x = expected_x[::-1]
-                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_y, 1e-14, 1e-14)
@@ -808,6 +815,16 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
             }
 
             return 1 * data, params
+
+        @_algorithm_setup._Algorithm2D._register(require_unique_xz=False)
+        def func5(self, data, *args, **kwargs):
+            """For ensuring require_unique_xz works as intedended."""
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._register(require_unique_xz=True)
+        def func6(self, data, *args, **kwargs):
+            """For ensuring require_unique_xz works as intedended."""
+            return 1 * data, {}
 
     if change_order:
         x = x[::-1]
@@ -829,15 +846,21 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         z = z.tolist()
         y = y.tolist()
 
-    if change_order and not assume_sorted:
-        # if assume_sorted is False, the param order should be inverted to match
-        # the input y-order
+    if change_order:
         expected_params['a'] = expected_params['a'][::-1, ::-1]
         expected_params['d'] = expected_params['d'][::-1, ::-1]
 
-    algorithm = SubClass(
-        x, z, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-    )
+    if assume_sorted and change_order:
+        with pytest.warns(SortingWarning):
+            algorithm = SubClass(
+                x, z, check_finite=False, assume_sorted=assume_sorted,
+                output_dtype=output_dtype
+            )
+    else:
+        algorithm = SubClass(
+            x, z, check_finite=False, assume_sorted=assume_sorted, output_dtype=output_dtype
+        )
+
     output, output_params = algorithm.func(y)
 
     # baseline should always match y-order on the output; only sorted within the
@@ -864,6 +887,37 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
     assert output4.dtype == expected_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params4[key], err_msg=f'{key} failed')
+
+    assert not algorithm._validated_x  # has not had a need to validate x or z yet
+    assert not algorithm._validated_z
+    output = algorithm.func6(y)
+    assert algorithm._validated_x
+    assert algorithm._validated_z
+
+    x[5] = x[4]
+    new_algorithm = SubClass(x)
+    # ensure calling a method that does not require unique x does not validate or raise an error
+    out = new_algorithm.func5(y)
+    assert not new_algorithm._validated_x
+    assert new_algorithm._validated_z  # not given z
+    with pytest.raises(ValueError):
+        out = new_algorithm.func6(y)
+
+    z[5] = z[4]
+    new_algorithm = SubClass(z_data=z)
+    # ensure calling a method that does not require unique z does not validate or raise an error
+    out = new_algorithm.func5(y)
+    assert new_algorithm._validated_x  # not given x
+    assert not new_algorithm._validated_z
+    with pytest.raises(ValueError):
+        out = new_algorithm.func6(y)
+
+    new_algorithm = SubClass(x, z)
+    out = new_algorithm.func5(y)
+    assert not new_algorithm._validated_x
+    assert not new_algorithm._validated_z
+    with pytest.raises(ValueError):
+        out = new_algorithm.func6(y)
 
 
 def test_algorithm_register_no_data_fails():

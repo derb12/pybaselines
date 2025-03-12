@@ -39,6 +39,10 @@ class ParameterWarning(UserWarning):
     """
 
 
+class SortingWarning(UserWarning):
+    """Issued when `assume_sorted` is set to True and inputs are not in ascending order."""
+
+
 def relative_difference(old, new, norm_order=None):
     """
     Calculates the relative difference, ``(norm(new-old) / norm(old))``, of two values.

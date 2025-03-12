@@ -179,6 +179,22 @@ class DummyModule:
         """Gives different output depending on the x-value sorting."""
         return data[np.argsort(x_data)], {}
 
+    @staticmethod
+    def interp_x(data=None, x_data=None, z_data=None):
+        """Will divide by zero if x-values are not unique."""
+        diff_x = np.pad(np.diff(x_data), [1, 0], mode='constant', constant_values=1)
+        if z_data is not None:
+            diff_x, _ = np.meshgrid(diff_x, z_data, indexing='ij')
+
+        return data / diff_x, {}
+
+    @staticmethod
+    def non_unique_x_raises(data=None, x_data=None):
+        """Will raise an exception if x-values are not unique."""
+        if np.any(x_data[1:] <= x_data[:-1]):
+            raise ValueError('x is non-sorted or non-unique')
+        return 1 * data, {}
+
 
 class DummyAlgorithm:
     """A dummy object to serve as a fake Algorithm and Algorithm2D subclass."""
@@ -362,6 +378,19 @@ class DummyAlgorithm:
         """Gives different output depending on the x-value and z-value sorting."""
         return data[np.argsort(self.x)[:, None], np.argsort(self.z)[None, :]], {}
 
+    @dummy_wrapper
+    def interp_x(self, data=None):
+        """Will divide by zero if x-values are not unique."""
+        if hasattr(self, 'z'):
+            return DummyModule.interp_x(data=data, x_data=self.x, z_data=self.z)
+        else:
+            return DummyModule.interp_x(data=data, x_data=self.x)
+
+    @dummy_wrapper
+    def non_unique_x_raises(self, data=None):
+        """Will raise an exception if x-values are not unique."""
+        return DummyModule.non_unique_x_raises(data=data, x_data=self.x)
+
 
 class TestBaseTesterWorks(BaseTester):
     """Ensures a basic subclass of BaseTester works."""
@@ -425,18 +454,38 @@ class TestBaseTesterFailures(BaseTester):
     func_name = 'no_func'
 
     @contextmanager
-    def set_func(self, func_name, checked_keys=None):
-        """Temporarily sets a new function for the class."""
+    def set_func(self, func_name, checked_keys=None, attributes=None):
+        """Temporarily sets a new function for the class.
+
+        Parameters
+        ----------
+        func_name : str
+            The string of the function to use.
+        checked_keys : iterable, optional
+            An iterable of strings designating the keys to check in the output parameters
+            dictionary.
+        attributes : dict, optional
+            A dictionary of other attributes to temporarily set. Should be class attributes.
+
+        """
         original_name = self.func_name
         original_keys = self.param_keys
+        attributes = attributes if attributes is not None else {}
+        original_attributes = {}
+        for key in attributes.keys():
+            original_attributes[key] = getattr(self, key)
         try:
             self.__class__.func_name = func_name
             self.__class__.checked_keys = checked_keys
+            for key, value in attributes.items():
+                setattr(self.__class__, key, value)
             self.__class__.setup_class()
             yield self
         finally:
             self.__class__.func_name = original_name
             self.__class__.checked_keys = original_keys
+            for key, value in original_attributes.items():
+                setattr(self.__class__, key, value)
             self.__class__.setup_class()
 
     def test_ensure_wrapped(self):
@@ -551,6 +600,27 @@ class TestBaseTesterFailures(BaseTester):
                     stacklevel=2
                 )
 
+    def test_non_unique_x(self):
+        """Ensures failues of test_non_unique_x."""
+        with self.set_func('interp_x', attributes={'requires_unique_x': True}):
+            # very iffy hack here to catch pytest saying that this test failed, which is
+            # what should happen; just want to check logic flow of BaseTester.test_non_unique_x
+            with pytest.raises(BaseException, match='DID NOT RAISE'):
+                with pytest.warns(RuntimeWarning):
+                    # should allow dividing by 0 when requires_unique_x is True
+                    super().test_non_unique_x()
+
+        with self.set_func('interp_x', attributes={'requires_unique_x': False}):
+            with pytest.raises(FloatingPointError):
+                # dividing by 0 should fail due to numpy.errstate raising when
+                # requires_unique_x is False
+                super().test_non_unique_x()
+
+        # finally test with a function that mimics correct behavior of raising a ValueError
+        # when x-values are non-unique
+        with self.set_func('non_unique_x_raises', attributes={'requires_unique_x': True}):
+            super().test_non_unique_x()
+
 
 class TestBaseTesterNoFunc(BaseTester):
     """Ensures the BaseTester fails if not setup correctly."""
@@ -603,6 +673,11 @@ class TestBaseTesterNoFunc(BaseTester):
         """Ensures the method produces the same output when using within threading."""
         with pytest.raises(NotImplementedError):
             super().test_threading()
+
+    def test_non_unique_x(self):
+        """Ensures handling of unique x values."""
+        with pytest.raises(NotImplementedError):
+            super().test_non_unique_x()
 
 
 class TestBasePolyTesterWorks(BasePolyTester):
@@ -770,18 +845,38 @@ class TestBaseTester2DFailures(BaseTester2D):
     func_name = 'no_func'
 
     @contextmanager
-    def set_func(self, func_name, checked_keys=None):
-        """Temporarily sets a new function for the class."""
+    def set_func(self, func_name, checked_keys=None, attributes=None):
+        """Temporarily sets a new function for the class.
+
+        Parameters
+        ----------
+        func_name : str
+            The string of the function to use.
+        checked_keys : iterable, optional
+            An iterable of strings designating the keys to check in the output parameters
+            dictionary.
+        attributes : dict, optional
+            A dictionary of other attributes to temporarily set. Should be class attributes.
+
+        """
         original_name = self.func_name
         original_keys = self.param_keys
+        attributes = attributes if attributes is not None else {}
+        original_attributes = {}
+        for key in attributes.keys():
+            original_attributes[key] = getattr(self, key)
         try:
             self.__class__.func_name = func_name
             self.__class__.checked_keys = checked_keys
+            for key, value in attributes.items():
+                setattr(self.__class__, key, value)
             self.__class__.setup_class()
             yield self
         finally:
             self.__class__.func_name = original_name
             self.__class__.checked_keys = original_keys
+            for key, value in original_attributes.items():
+                setattr(self.__class__, key, value)
             self.__class__.setup_class()
 
     def test_ensure_wrapped(self):
@@ -879,6 +974,27 @@ class TestBaseTester2DFailures(BaseTester2D):
                     stacklevel=2
                 )
 
+    def test_non_unique_xz(self):
+        """Ensures failues of test_non_unique_xz."""
+        with self.set_func('interp_x', attributes={'requires_unique_xz': True}):
+            # very iffy hack here to catch pytest saying that this test failed, which is
+            # what should happen; just want to check logic flow of BaseTester2D.test_non_unique_xz
+            with pytest.raises(BaseException, match='DID NOT RAISE'):
+                with pytest.warns(RuntimeWarning):
+                    # should allow dividing by 0 when requires_unique_xz is True
+                    super().test_non_unique_xz((True, True))
+
+        with self.set_func('interp_x', attributes={'requires_unique_xz': False}):
+            with pytest.raises(FloatingPointError):
+                # dividing by 0 should fail due to numpy.errstate raising when
+                # requires_unique_x is False
+                super().test_non_unique_xz((True, True))
+
+        # finally test with a function that mimics correct behavior of raising a ValueError
+        # when x-values are non-unique
+        with self.set_func('non_unique_x_raises', attributes={'requires_unique_xz': True}):
+            super().test_non_unique_xz((True, True))
+
 
 class TestBaseTester2DNoFunc(BaseTester2D):
     """Ensures the BaseTester2D fails if not setup correctly."""
@@ -922,3 +1038,8 @@ class TestBaseTester2DNoFunc(BaseTester2D):
         """Ensures the method produces the same output when using within threading."""
         with pytest.raises(NotImplementedError):
             super().test_threading()
+
+    def test_non_unique_xz(self):
+        """Ensures handling of unique x and z values."""
+        with pytest.raises(NotImplementedError):
+            super().test_non_unique_xz((True, True))

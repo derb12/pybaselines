@@ -31,9 +31,9 @@ class Baseline(
         Setting to False will skip the check. Note that errors may occur if
         `check_finite` is False and the input data contains non-finite values.
     assume_sorted : bool, optional
-        If False (default), will sort the input `x_data` values. Otherwise, the
-        input is assumed to be sorted. Note that some functions may raise an error
-        if `x_data` is not sorted.
+        If False (default), will sort the input `x_data` values. Otherwise, the input
+        is assumed to be sorted, although it will still be checked to be in ascending order.
+        Note that some methods will raise an error if `x_data` values are not unique.
     output_dtype : type or numpy.dtype, optional
         The dtype to cast the output array. Default is None, which uses the typing
         of the input data.
@@ -50,13 +50,13 @@ class Baseline(
 
     """
 
-    def _get_method(self, method):
+    def _get_method(self, baseline_method):
         """
         A helper function to allow accessing methods by their string.
 
         Parameters
         ----------
-        method : str
+        baseline_method : str
             The name of the desired method as a string. Capitalization is ignored. For
             example, both 'asls' and 'AsLS' would return :meth:`~.Baseline.asls`.
 
@@ -71,10 +71,10 @@ class Baseline(
             Raised if the input method does not exist.
 
         """
-        method_string = method.lower()
+        method_string = baseline_method.lower()
         if hasattr(self, method_string):
             output = getattr(self, method_string)
         else:
-            raise AttributeError(f'unknown method "{method}"')
+            raise AttributeError(f'unknown method "{baseline_method}"')
 
         return output

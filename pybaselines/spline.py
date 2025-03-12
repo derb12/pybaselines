@@ -287,7 +287,7 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register
+    @_Algorithm._register(require_unique_x=True)
     def corner_cutting(self, data, max_iter=100):
         """
         Iteratively removes corner points and creates a Bezier spline from the remaining points.

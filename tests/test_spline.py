@@ -182,6 +182,7 @@ class TestCornerCutting(SplineTester):
     """
 
     func_name = 'corner_cutting'
+    requires_unique_x = True
 
     def test_no_x(self):
         """Ensures that function output is similar when no x is input."""

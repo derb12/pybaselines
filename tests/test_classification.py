@@ -294,6 +294,7 @@ class ClassificationTester(BaseTester, InputWeightsMixin):
     algorithm_base = classification._Classification
     checked_keys = ('mask',)
     weight_keys = ('mask',)
+    requires_unique_x = True
 
     @ensure_deprecation(1, 4)
     def test_kwargs_deprecation(self):
@@ -377,6 +378,7 @@ class TestCwtBR(ClassificationTester):
 
     func_name = 'cwt_br'
     checked_keys = ('mask', 'tol_history', 'best_scale')
+    requires_unique_x = False
 
     @pytest.mark.parametrize('scales', (None, np.arange(3, 20)))
     def test_output(self, scales):
@@ -390,6 +392,7 @@ class TestFabc(ClassificationTester):
     func_name = 'fabc'
     checked_keys = ('mask', 'weights')
     weight_keys = ('mask', 'weights')
+    requires_unique_x = False
 
     @pytest.mark.parametrize('weights_as_mask', (True, False))
     def test_input_weights(self, weights_as_mask):
@@ -497,12 +500,6 @@ class TestRubberband(ClassificationTester):
         segments = [15, 17]
         with pytest.raises(ValueError):
             self.class_func(self.y, segments=segments)
-
-    def test_non_sorted_x_fails(self):
-        """Ensures that non-monotonically increasing x-values fails."""
-        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=True)
-        with pytest.raises(ValueError):
-            getattr(reverse_fitter, self.func_name)(self.y)
 
     @pytest.mark.parametrize('lam', [0, None])
     def test_zero_lam_interp(self, lam):

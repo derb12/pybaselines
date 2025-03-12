@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines._compat import dia_object
-from pybaselines.utils import ParameterWarning, optimize_window
+from pybaselines.utils import ParameterWarning, SortingWarning, optimize_window
 
 from .conftest import ensure_deprecation, get_data
 
@@ -654,15 +654,23 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
         expected_x = x.copy()
         if change_order:
             x[sort_order] = x[sort_order][::-1]
-            if assume_sorted:
-                expected_x[sort_order] = expected_x[sort_order][::-1]
+            # sanity check that a true copy was made
+            assert (expected_x != x).any()
     else:
         x = None
         expected_x = None
 
-    algorithm = _algorithm_setup._Algorithm(
-        x, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
-    )
+    if assume_sorted and change_order and input_x:
+        with pytest.warns(SortingWarning):
+            algorithm = _algorithm_setup._Algorithm(
+                x, check_finite=check_finite, assume_sorted=assume_sorted,
+                output_dtype=output_dtype
+            )
+    else:
+        algorithm = _algorithm_setup._Algorithm(
+            x, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
+        )
+
     assert_array_equal(algorithm.x, expected_x)
     assert algorithm._check_finite == check_finite
     assert algorithm._dtype == output_dtype
@@ -678,7 +686,7 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
         assert isinstance(algorithm._shape, tuple)
         assert algorithm._shape == (None,)
 
-    if not assume_sorted and change_order and input_x:
+    if change_order and input_x:
         order = np.arange(len(x))
         order[sort_order] = order[sort_order][::-1]
         assert_array_equal(algorithm._sort_order, order)
@@ -690,6 +698,10 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
     # ensure attributes are correctly initialized
     assert algorithm._polynomial is None
     assert algorithm._spline_basis is None
+    if input_x:
+        assert not algorithm._validated_x
+    else:
+        assert algorithm._validated_x
 
 
 @pytest.mark.parametrize('assume_sorted', (True, False))
@@ -715,19 +727,24 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
     }
     expected_params['b'][sort_indices] = expected_params['b'][sort_indices]
     expected_baseline = baseline.copy()
-    should_change_order = change_order and not assume_sorted
-    if should_change_order:
+    if change_order:
         expected_baseline[sort_indices] = expected_baseline[sort_indices][::-1]
         expected_params['a'][sort_indices] = expected_params['a'][sort_indices][::-1]
 
-    algorithm = _algorithm_setup._Algorithm(
-        x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-    )
+    if change_order and assume_sorted:
+        with pytest.warns(SortingWarning):
+            algorithm = _algorithm_setup._Algorithm(
+                x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
+            )
+    else:
+        algorithm = _algorithm_setup._Algorithm(
+            x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
+        )
     output, output_params = algorithm._return_results(
         baseline, params, dtype=output_dtype, sort_keys=('a',)
     )
 
-    if not should_change_order and (output_dtype is None or baseline.dtype == output_dtype):
+    if not change_order and (output_dtype is None or baseline.dtype == output_dtype):
         assert np.shares_memory(output, baseline)  # should be the same object
     else:
         assert baseline is not output
@@ -768,8 +785,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         def func(self, data, *args, **kwargs):
             """For checking sorting of output parameters."""
             expected_x = np.arange(20)
-            if change_order and assume_sorted:
-                expected_x[sort_indices] = expected_x[sort_indices][::-1]
             expected_input = 5 * expected_x
 
             assert isinstance(data, np.ndarray)
@@ -788,9 +803,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
             """For checking skip_sorting."""
             expected_x = np.arange(20)
             expected_input = 5 * expected_x
-            if change_order and assume_sorted:
-                expected_x[sort_indices] = expected_x[sort_indices][::-1]
-            if change_order and (assume_sorted or skip_sorting):
+            if change_order and skip_sorting:
                 expected_input[sort_indices] = expected_input[sort_indices][::-1]
 
             assert_allclose(data, expected_input, 1e-14, 1e-14)
@@ -801,6 +814,16 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
                 'b': np.arange(len(x))
             }
             return 1 * data, params
+
+        @_algorithm_setup._Algorithm._register(require_unique_x=False)
+        def func3(self, data, *args, **kwargs):
+            """For ensuring require_unique_x works as intedended."""
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm._register(require_unique_x=True)
+        def func4(self, data, *args, **kwargs):
+            """For ensuring require_unique_x works as intedended."""
+            return 1 * data, {}
 
     if change_order:
         x[sort_indices] = x[sort_indices][::-1]
@@ -818,14 +841,18 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         'a': np.arange(len(x)),
         'b': np.arange(len(x))
     }
-    if change_order and not assume_sorted:
-        # if assume_sorted is False, the param order should be inverted to match
-        # the input y-order
+    if change_order:
         expected_params['a'][sort_indices] = expected_params['a'][sort_indices][::-1]
 
-    algorithm = SubClass(
-        x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-    )
+    if change_order and assume_sorted:
+        with pytest.warns(SortingWarning):
+            algorithm = SubClass(
+                x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
+            )
+    else:
+        algorithm = SubClass(
+            x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
+        )
     output, output_params = algorithm.func(y)
 
     # baseline should always match y-order on the output; only sorted within the
@@ -844,6 +871,19 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     assert isinstance(output2, np.ndarray)
     for key, value in expected_params.items():
         assert_array_equal(value, output_params2[key])
+
+    assert not algorithm._validated_x  # has not had a need to validate x yet
+    output = algorithm.func4(y)
+    assert algorithm._validated_x
+
+    new_x = np.arange(20)
+    new_x[0] = new_x[1]
+    new_algorithm = SubClass(new_x)
+    # ensure calling a method that does not require unique x does not validate or raise an error
+    out = new_algorithm.func3(y)
+    assert not new_algorithm._validated_x
+    with pytest.raises(ValueError):
+        out = new_algorithm.func4(y)
 
 
 def test_class_wrapper():

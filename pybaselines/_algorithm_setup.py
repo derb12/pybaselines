@@ -26,7 +26,8 @@ from ._validation import (
     _check_sized_array, _yx_arrays
 )
 from .utils import (
-    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array, optimize_window, pad_edges
+    ParameterWarning, SortingWarning, _determine_sorts, _inverted_sort, _sort_array,
+    optimize_window, pad_edges
 )
 
 
@@ -65,15 +66,16 @@ class _Algorithm:
             Setting to False will skip the check. Note that errors may occur if
             `check_finite` is False and the input data contains non-finite values.
         assume_sorted : bool, optional
-            If False (default), will sort the input `x_data` values. Otherwise, the
-            input is assumed to be sorted. Note that some functions may raise an error
-            if `x_data` is not sorted.
+            If False (default), will sort the input `x_data` values. Otherwise, the input
+            is assumed to be sorted, although it will still be checked to be in ascending order.
+            Note that some methods will raise an error if `x_data` values are not unique.
         output_dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing
             of the input data.
 
         """
-        if x_data is None:
+        no_x = x_data is None
+        if no_x:
             self.x = None
             self.x_domain = np.array([-1., 1.])
             self._size = None
@@ -81,8 +83,14 @@ class _Algorithm:
             self.x = _check_array(x_data, check_finite=check_finite)
             self._size = len(self.x)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
+            if assume_sorted and np.any(self.x[1:] < self.x[:-1]):
+                warnings.warn(
+                    ('x-values must be strictly increasing for many methods, so setting '
+                     'assume_sorted to True'), SortingWarning, stacklevel=2
+                )
+                assume_sorted = False
 
-        if x_data is None or assume_sorted:
+        if no_x or assume_sorted:
             self._sort_order = None
             self._inverted_order = None
         else:
@@ -95,6 +103,7 @@ class _Algorithm:
         self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
+        self._validated_x = no_x
 
     @property
     def _size(self):
@@ -245,7 +254,8 @@ class _Algorithm:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), ensure_1d=True, skip_sorting=False):
+    def _register(cls, func=None, *, sort_keys=(), ensure_1d=True, skip_sorting=False,
+                  require_unique_x=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -277,7 +287,8 @@ class _Algorithm:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, ensure_1d=ensure_1d, skip_sorting=skip_sorting
+                cls._register, sort_keys=sort_keys, ensure_1d=ensure_1d, skip_sorting=skip_sorting,
+                require_unique_x=require_unique_x
             )
 
         @wraps(func)
@@ -291,6 +302,11 @@ class _Algorithm:
                 )
                 self._size = y.shape[-1]
             else:
+                if require_unique_x and not self._validated_x:
+                    if np.any(self.x[1:] == self.x[:-1]):
+                        raise ValueError('x-values must be unique for the selected method')
+                    else:
+                        self._validated_x = True
                 if data is not None:
                     input_y = True
                     y = _check_sized_array(
@@ -789,6 +805,7 @@ class _Algorithm:
                         x, check_finite=self._check_finite, assume_sorted=assume_sorted,
                         output_dtype=self._dtype
                     )
+                    class_object.banded_solver = self.banded_solver
                     func = getattr(class_object, function_string)
                 break
         else:  # in case no break

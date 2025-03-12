@@ -17,7 +17,7 @@ from .._validation import (
     _check_sized_array, _yxz_arrays
 )
 from ..utils import (
-    ParameterWarning, _determine_sorts, _sort_array2d, optimize_window, pad_edges2d
+    ParameterWarning, SortingWarning, _determine_sorts, _sort_array2d, optimize_window, pad_edges2d
 )
 from ._spline_utils import PSpline2D, SplineBasis2D
 from ._whittaker_utils import WhittakerSystem2D
@@ -70,8 +70,9 @@ class _Algorithm2D:
             `check_finite` is False and the input data contains non-finite values.
         assume_sorted : bool, optional
             If False (default), will sort the input `x_data` and `z_data` values. Otherwise,
-            the input is assumed to be sorted. Note that some functions may raise an error
-            if `x_data` and `z_data` are not sorted.
+            the input is assumed to be sorted, although they will still be checked to be in
+            ascending order. Note that some methods will raise an error if `x_data` or `z_data`
+            values are not unique.
         output_dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing
             of the input data.
@@ -80,11 +81,20 @@ class _Algorithm2D:
         x_sort_order = None
         z_sort_order = None
         self._shape = None
-        if x_data is None:
+        no_x = x_data is None
+        no_z = z_data is None
+        if no_x:
             self.x = None
             self.x_domain = np.array([-1., 1.])
         else:
             self.x = _check_array(x_data, check_finite=check_finite)
+            if assume_sorted and np.any(self.x[1:] < self.x[:-1]):
+                warnings.warn(
+                    ('x-values must be strictly increasing for many methods, so setting '
+                     'assume_sorted to True'), SortingWarning, stacklevel=2
+                )
+                assume_sorted = False
+
             self._shape = (len(self.x), None)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
             if not assume_sorted:
@@ -92,11 +102,17 @@ class _Algorithm2D:
                 if x_sort_order is not None:
                     self.x = self.x[x_sort_order]
 
-        if z_data is None:
+        if no_z:
             self.z = None
             self.z_domain = np.array([-1., 1.])
         else:
             self.z = _check_array(z_data, check_finite=check_finite)
+            if assume_sorted and np.any(self.z[1:] < self.z[:-1]):
+                warnings.warn(
+                    ('z-values must be strictly increasing for many methods, so setting '
+                     'assume_sorted to True'), SortingWarning, stacklevel=2
+                )
+                assume_sorted = False
             self._shape = (self._shape[0], len(self.z))
             self.z_domain = np.polynomial.polyutils.getdomain(self.z)
             if not assume_sorted:
@@ -122,6 +138,8 @@ class _Algorithm2D:
         self._check_finite = check_finite
         self._dtype = output_dtype
         self.banded_solver = 2
+        self._validated_x = no_x
+        self._validated_z = no_z
 
     @property
     def _shape(self):
@@ -295,7 +313,7 @@ class _Algorithm2D:
 
     @classmethod
     def _register(cls, func=None, *, sort_keys=(), ensure_2d=True, reshape_baseline=False,
-                  reshape_keys=(), skip_sorting=False):
+                  reshape_keys=(), skip_sorting=False, require_unique_xz=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -337,7 +355,7 @@ class _Algorithm2D:
             return partial(
                 cls._register, sort_keys=sort_keys, ensure_2d=ensure_2d,
                 reshape_baseline=reshape_baseline, reshape_keys=reshape_keys,
-                skip_sorting=skip_sorting
+                skip_sorting=skip_sorting, require_unique_xz=require_unique_xz
             )
 
         @wraps(func)
@@ -371,9 +389,19 @@ class _Algorithm2D:
             if not has_x:
                 self._shape = (y.shape[-2], self._shape[1])
                 self.x = np.linspace(-1, 1, self._shape[0])
+            elif require_unique_xz and not self._validated_x:
+                if np.any(self.x[1:] == self.x[:-1]):
+                    raise ValueError('x-values must be unique for the selected method')
+                else:
+                    self._validated_x = True
             if not has_z:
                 self._shape = (self._shape[0], y.shape[-1])
                 self.z = np.linspace(-1, 1, self._shape[1])
+            elif require_unique_xz and not self._validated_z:
+                if np.any(self.z[1:] == self.z[:-1]):
+                    raise ValueError('z-values must be unique for the selected method')
+                else:
+                    self._validated_z = True
 
             if not skip_sorting:
                 y = _sort_array2d(y, sort_order=self._sort_order)
@@ -871,6 +899,7 @@ class _Algorithm2D:
                         x, z, check_finite=self._check_finite, assume_sorted=assume_sorted,
                         output_dtype=self._dtype
                     )
+                    class_object.banded_solver = self.banded_solver
                     func = getattr(class_object, function_string)
                 break
         else:  # in case no break

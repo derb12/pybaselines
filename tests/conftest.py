@@ -170,7 +170,7 @@ def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_
     return height * gaussian(x, 1, center_x, sigma_x) * gaussian(z, 1, center_z, sigma_z)
 
 
-def get_data(include_noise=True, num_points=1000):
+def get_data(include_noise=True, num_points=1000, two_d=False):
     """Creates x- and y-data for testing.
 
     Parameters
@@ -179,6 +179,9 @@ def get_data(include_noise=True, num_points=1000):
         If True (default), will include noise with the y-data.
     num_points : int, optional
         The number of data points to use. Default is 1000.
+    two_d : bool, optional
+        If True, will stack the output `y_data` for algorithms that require 2D data.
+        Otherwise, `y_data` will be one dimensional.
 
     Returns
     -------
@@ -199,10 +202,13 @@ def get_data(include_noise=True, num_points=1000):
     if include_noise:
         y_data += np.random.default_rng(0).normal(0, 0.5, x_data.size)
 
+    if two_d:
+        y_data = np.vstack((y_data, y_data))
+
     return x_data, y_data
 
 
-def get_data2d(include_noise=True, num_points=(30, 41)):
+def get_data2d(include_noise=True, num_points=(30, 41), three_d=False):
     """Creates x-, z-, and y-data for testing.
 
     Parameters
@@ -213,6 +219,9 @@ def get_data2d(include_noise=True, num_points=(30, 41)):
         The number of data points to use for x, and z, respectively. Default
         is (30, 41), which uses different numbers so that any issues caused
         by not having a square matrix will be seen.
+    three_d : bool, optional
+        If True, will stack the output `y_data` for algorithms that require 3D data.
+        Otherwise, `y_data` will be two dimensional.
 
     Returns
     -------
@@ -236,6 +245,9 @@ def get_data2d(include_noise=True, num_points=(30, 41)):
     )
     if include_noise:
         y_data += np.random.default_rng(0).normal(0, 0.5, y_data.shape)
+
+    if three_d:
+        y_data = np.array((y_data, y_data))
 
     return x_data, z_data, y_data
 
@@ -311,7 +323,7 @@ def no_noise_data_fixture2d():
     return get_data2d(include_noise=False, num_points=(20, 31))
 
 
-def changing_dataset(data_size=1000, dataset_size=100):
+def changing_dataset(data_size=1000, dataset_size=100, two_d=False):
     """
     Creates a dataset containing data with different baselines.
 
@@ -342,11 +354,13 @@ def changing_dataset(data_size=1000, dataset_size=100):
     ).reshape(dataset_size, -1)
 
     dataset = signal + noise + baselines
+    if two_d:
+        dataset = np.array([np.vstack((data, data)) for data in dataset])
 
     return x, dataset
 
 
-def changing_dataset2d(data_size=(40, 33), dataset_size=20):
+def changing_dataset2d(data_size=(40, 33), dataset_size=20, three_d=False):
     """
     Creates a dataset containing data with different baselines.
 
@@ -385,6 +399,9 @@ def changing_dataset2d(data_size=(40, 33), dataset_size=20):
     ).reshape(dataset_size, *data_size)
 
     dataset = signal + noise + baselines
+
+    if three_d:
+        dataset = np.array([np.array((data, data)) for data in dataset])
 
     return x, z, dataset
 
@@ -468,13 +485,12 @@ class BaseTester:
     required_kwargs = None
     required_repeated_kwargs = None
     two_d = False
+    requires_unique_x = False
 
     @classmethod
     def setup_class(cls):
         """Sets up the class for testing."""
-        cls.x, cls.y = get_data()
-        if cls.two_d:
-            cls.y = np.vstack((cls.y, cls.y))
+        cls.x, cls.y = get_data(two_d=cls.two_d)
         func = getattr(cls.module, cls.func_name)
         cls.func = lambda self, *args, **kws: func(*args, **kws)
         cls.algorithm = cls.algorithm_base(cls.x, check_finite=False, assume_sorted=True)
@@ -511,11 +527,8 @@ class BaseTester:
     @pytest.mark.parametrize('use_class', (True, False))
     def test_unchanged_data(self, use_class, **kwargs):
         """Ensures that input data is unchanged by the function."""
-        x, y = get_data()
-        x2, y2 = get_data()
-        if self.two_d:
-            y = np.vstack((y, y))
-            y2 = np.vstack((y2, y2))
+        x, y = get_data(two_d=self.two_d)
+        x2, y2 = get_data(two_d=self.two_d)
         x.setflags(write=False)
         y.setflags(write=False)
 
@@ -546,9 +559,7 @@ class BaseTester:
         The functional api is tested by reinitializing the fitting object each call since that
         is what internally is done when using the functional interface.
         """
-        x, dataset = changing_dataset(dataset_size=10)
-        if self.two_d:
-            dataset = np.array([np.vstack((data, data)) for data in dataset])
+        x, dataset = changing_dataset(dataset_size=10, two_d=self.two_d)
 
         class_method = getattr(
             self.algorithm_base(x, check_finite=False, assume_sorted=True), self.func_name
@@ -701,9 +712,7 @@ class BaseTester:
             Additional keyword arguments to pass to the function.
 
         """
-        x, dataset = changing_dataset()
-        if self.two_d:
-            dataset = np.array([np.vstack((data, data)) for data in dataset])
+        x, dataset = changing_dataset(two_d=self.two_d)
 
         fitter = self.algorithm_base(x, check_finite=False, assume_sorted=True)
         fitter_func = getattr(fitter, self.func_name)
@@ -735,6 +744,27 @@ class BaseTester:
             for i, param_dict in enumerate(serial_params):
                 # TODO should later compare parameter values as well
                 check_param_keys(param_dict.keys(), threaded_params[i].keys())
+
+    def test_non_unique_x(self):
+        """
+        Ensures that methods that require unique x values raise an exception.
+
+        Those that do not require unique x-values should not raise errors and return
+        finite values.
+
+        """
+        x, y = get_data(num_points=1000, two_d=self.two_d)
+        x[7:320] = x[6]
+        x[700:900] = x[699]
+        fitter = self.algorithm_base(x, check_finite=False, assume_sorted=True)
+        if self.requires_unique_x:
+            with pytest.raises(ValueError):
+                output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
+        else:
+            # ensure division by 0 raises an exception
+            with np.errstate(divide='raise', invalid='raise'):
+                output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
+            assert np.isfinite(output).all()
 
 
 class BasePolyTester(BaseTester):
@@ -827,13 +857,12 @@ class BaseTester2D:
     required_kwargs = None
     required_repeated_kwargs = None
     three_d = False
+    requires_unique_xz = False
 
     @classmethod
     def setup_class(cls):
         """Sets up the class for testing."""
-        cls.x, cls.z, cls.y = get_data2d()
-        if cls.three_d:
-            cls.y = np.array((cls.y, cls.y))
+        cls.x, cls.z, cls.y = get_data2d(three_d=cls.three_d)
         cls.algorithm = cls.algorithm_base(cls.x, cls.z, check_finite=False, assume_sorted=True)
         cls.class_func = getattr(cls.algorithm, cls.func_name)
         # kwargs are for fitting the data generated by get_data
@@ -868,12 +897,8 @@ class BaseTester2D:
     @pytest.mark.parametrize('new_instance', (True, False))
     def test_unchanged_data(self, new_instance, **kwargs):
         """Ensures that input data is unchanged by the function."""
-        x, z, y = get_data2d()
-        x2, z2, y2 = get_data2d()
-        if self.three_d:
-            y = np.array((y, y))
-            y2 = np.array((y2, y2))
-
+        x, z, y = get_data2d(three_d=self.three_d)
+        x2, z2, y2 = get_data2d(three_d=self.three_d)
         y.setflags(write=False)
         try:
             if new_instance:
@@ -1024,9 +1049,7 @@ class BaseTester2D:
         # dataset_size=50 catches the slowest performers of a family of algorithms (eg. those
         # that use Whittaker smoothing), which allows fixing the underlying problem without
         # causing the entire test suite to take a very long time to run
-        x, z, dataset = changing_dataset2d((40, 33), dataset_size=50)
-        if self.three_d:
-            dataset = np.array([np.array((data, data)) for data in dataset])
+        x, z, dataset = changing_dataset2d((40, 33), dataset_size=50, three_d=self.three_d)
 
         fitter = self.algorithm_base(x, z, check_finite=False, assume_sorted=True)
         fitter_func = getattr(fitter, self.func_name)
@@ -1058,6 +1081,33 @@ class BaseTester2D:
             for i, param_dict in enumerate(serial_params):
                 # TODO should later compare parameter values as well
                 check_param_keys(param_dict.keys(), threaded_params[i].keys())
+
+    @pytest.mark.parametrize('non_unique_xz', ((True, False), (False, True), (True, True)))
+    def test_non_unique_xz(self, non_unique_xz):
+        """
+        Ensures that methods that require unique x and z values raise an exception.
+
+        Those that do not require unique values should not raise errors and return
+        finite values.
+
+        """
+        x, z, y = get_data2d(num_points=(30, 41), three_d=self.three_d)
+        non_unique_x, non_unique_z = non_unique_xz
+        if non_unique_x:
+            x[3:14] = x[2]
+            x[20:28] = x[19]
+        if non_unique_z:
+            z[4:23] = z[3]
+            z[30:35] = z[29]
+        fitter = self.algorithm_base(x, z, check_finite=False, assume_sorted=True)
+        if self.requires_unique_xz:
+            with pytest.raises(ValueError):
+                output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
+        else:
+            # ensure division by 0 raises an exception
+            with np.errstate(divide='raise', invalid='raise'):
+                output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
+            assert np.isfinite(output).all()
 
 
 class BasePolyTester2D(BaseTester2D):

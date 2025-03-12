@@ -484,7 +484,7 @@ class _Polynomial(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights', 'coef'))
+    @_Algorithm._register(sort_keys=('weights', 'coef'), require_unique_x=True)
     def loess(self, data, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
               tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False,
               num_std=1, use_original=False, weights=None, return_coef=False,
@@ -618,9 +618,6 @@ class _Polynomial(_Algorithm):
         .. [22] https://www.netlib.org/go (lowess.f is the file).
 
         """
-        if np.any(self.x[1:] < self.x[:-1]):
-            raise ValueError('x must be strictly increasing')
-
         if total_points is None:
             total_points = ceil(fraction * self._size)
         if total_points < poly_order + 1:
