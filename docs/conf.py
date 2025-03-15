@@ -55,10 +55,7 @@ nitpicky = True  # ensure all reference links point to valid targets
 templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
-# You can specify multiple suffix as a list of string:
-#
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = {'.rst': 'restructuredtext'}
 
 # The root toctree document.
 root_doc = 'index'
@@ -97,7 +94,12 @@ gettext_uuid = True
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = [
+    '_build',
+    'Thumbs.db',
+    '.DS_Store',
+    'examples/*'  # ignore the rst files in examples so sphinx doesn't emit a warning
+]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -145,7 +147,7 @@ autoapi_add_toctree_entry = True  # need to manually add to toctree if False
 autoapi_generate_api_docs = True  # will not generate new docs when False
 autoapi_own_page_level = 'method'  # gives each method its own page; requires sphinx-autoapi>=3.1.0
 
-# ignore an import warning from sphinx-autoapi due to double import of utils
+# ignore warning for repeated section labels -> due to changelog
 suppress_warnings = ['autosectionlabel']
 
 # -- Settings for matplotlib plot_directive extension ----------------------------
@@ -182,19 +184,19 @@ numpydoc_show_inherited_class_members = False
 
 # specifies the order of the example galleries
 gallery_section_order = [
-    '../examples/general',
-    '../examples/whittaker',
-    '../examples/morphological',
-    '../examples/spline',
-    '../examples/classification',
-    '../examples/misc',
-    '../examples/optimizers',
-    '../examples/two_d',
+    'examples/general',
+    'examples/whittaker',
+    'examples/morphological',
+    'examples/spline',
+    'examples/classification',
+    'examples/misc',
+    'examples/optimizers',
+    'examples/two_d',
 ]
 
 sphinx_gallery_conf = {
     # location of example files
-    'examples_dirs': ['../examples'],
+    'examples_dirs': ['examples'],
     # location of output folder
     'gallery_dirs': ['generated/examples'],
     # must set to None or else autoapi errors
