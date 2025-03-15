@@ -654,9 +654,9 @@ class _Smooth(_Algorithm):
             A dictionary with the following items:
 
             * 'x_fit': numpy.ndarray, shape (P,)
-                The truncated x-values used for fitting the baseline.
+                The truncated x-values used for fitting and interpolating the baseline.
             * 'baseline_fit': numpy.ndarray, shape (P,)
-                The truncated y-values used for fitting the baseline.
+                The truncated baseline values used to interpolate the final baseline.
 
         Raises
         ------
@@ -714,6 +714,10 @@ class _Smooth(_Algorithm):
         for i, (left_idx, right_idx) in enumerate(zip(indices[:-1], indices[1:])):
             y_truncated[i] = data[left_idx:right_idx].min()
             x_truncated[i] = self.x[left_idx:right_idx].mean()
+        # include first and last values to prevent edge effects
+        # TODO only need to do if sections is defined such that they are not included
+        x_truncated = np.pad(x_truncated, 1, 'constant', constant_values=([self.x[0], self.x[-1]]))
+        y_truncated = np.pad(y_truncated, 1, 'constant', constant_values=([data[0], data[-1]],))
 
         _, half_win = self._setup_smooth(
             y_truncated, half_window, pad_type=None, window_multiplier=3 if max_iter < 3 else 2
