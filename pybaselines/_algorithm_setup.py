@@ -277,6 +277,9 @@ class _Algorithm:
         skip_sorting : bool, optional
             If True, will skip sorting the inputs and outputs, which is useful for algorithms that
             use other algorithms so that sorting is already internally done. Default is False.
+        require_unique_x : bool, optional
+            If True, will check ``self.x`` to ensure all values are unique and will raise an error
+            if non-unique values are present. Default is False, which skips the check.
 
         Returns
         -------

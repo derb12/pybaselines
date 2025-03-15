@@ -344,6 +344,10 @@ class _Algorithm2D:
         skip_sorting : bool, optional
             If True, will skip sorting the output baseline. The keys in `sort_keys` will
             still be sorted. Default is False.
+        require_unique_xz : bool, optional
+            If True, will check ``self.x`` and ``self.z`` to ensure all values are unique and will
+            raise an error if non-unique values are present. Default is False, which skips the
+            check.
 
         Returns
         -------
