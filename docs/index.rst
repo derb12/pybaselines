@@ -8,7 +8,7 @@ pybaselines Documentation
 
 pybaselines is a library of algorithms for the baseline correction of experimental data.
 
-* For Python 3.8+
+* For Python 3.9 or later
 * Open Source: BSD 3-Clause License
 * Source Code: https://github.com/derb12/pybaselines
 * Documentation: https://pybaselines.readthedocs.io.

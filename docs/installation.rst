@@ -8,10 +8,10 @@ Installation
 Dependencies
 ~~~~~~~~~~~~
 
-pybaselines requires `Python <https://python.org>`_ version 3.8 or later and the following libraries:
+pybaselines requires `Python <https://python.org>`_ version 3.9 or later and the following libraries:
 
 * `NumPy <https://numpy.org>`_ (>= 1.20)
-* `SciPy <https://scipy.org>`_ (>= 1.5)
+* `SciPy <https://scipy.org>`_ (>= 1.6)
 
 
 All of the required libraries should be automatically installed when
@@ -22,7 +22,7 @@ Optional Dependencies
 
 pybaselines has the following optional dependencies:
 
-* `Numba <https://github.com/numba/numba>`_ (>= 0.49):
+* `Numba <https://github.com/numba/numba>`_ (>= 0.53):
   speeds up calculations used by the following functions:
 
     * :meth:`~.Baseline.loess`

@@ -6,9 +6,9 @@ version: 2
 
 # Set the version of Python and other tools you might need
 build:
-  os: ubuntu-22.04
+  os: ubuntu-24.04
   tools:
-    python: "3.11"
+    python: "3.12"
 
 # Path to sphinx's configuration file
 sphinx:
@@ -17,9 +17,9 @@ sphinx:
 # Build pdf and htmlzip files in addition to the html documentation
 formats:
   - pdf
-  - htmlzip
 
 # Additional requirements for the documentation
 python:
   install:
     - requirements: requirements/requirements-documentation.txt
+    - method: pip
