@@ -62,13 +62,13 @@ class _Algorithm2D:
         Parameters
         ----------
         x_data : array-like, shape (M,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 during the first function call with length equal to the
-            input data length.
+            The x-values of the measured data (independant variable for the rows). Default is
+            None, which will create an array from -1 to 1 during the first function call with
+            length equal to the input data length.
         z_data : array-like, shape (N,), optional
-            The z-values of the measured data. Default is None, which will create an
-            array from -1 to 1 during the first function call with length equal to the
-            input data length.
+            The z-values of the measured data (independant variable for the columns). Default is
+            None, which will create an array from -1 to 1 during the first function call with
+            length equal to the input data length.
         check_finite : bool, optional
             If True (default), will raise an error if any values in input data are not finite.
             Setting to False will skip the check. Note that errors may occur if
