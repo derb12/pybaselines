@@ -22,4 +22,3 @@ formats:
 python:
   install:
     - requirements: requirements/requirements-documentation.txt
-    - method: pip
