@@ -8,7 +8,7 @@ will output two items: a numpy array of the calculated baseline and a
 dictionary of potentially useful parameters.
 
 The main interface for all baseline correction algorithms in pybaselines is through
-the :class:`.Baseline` object for one dimensional data and :class:`.Baseline2D` for
+the :class:`~.Baseline` object for one dimensional data and :class:`~.Baseline2D` for
 two dimensional data.
 
 A simple example is shown below.

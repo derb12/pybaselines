@@ -34,7 +34,7 @@ def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asa
 
     Returns
     -------
-    output : numpy.ndarray or numpy.number
+    output : numpy.ndarray or scalar
         The array of values or the single array scalar, depending on the input parameters.
     is_scalar : bool
         True if the input was a scalar value or had a length of 1; otherwise, is False.
@@ -80,7 +80,7 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', two_d=F
 
     Parameters
     ----------
-    value : numpy.Number or array-like
+    value : scalar or array-like
         The value to check.
     allow_zero : bool, optional
         If False (default), only allows `value` > 0. If True, allows `value` >= 0.
@@ -94,7 +94,7 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', two_d=F
 
     Returns
     -------
-    output : numpy.Number or numpy.ndarray[numpy.Number, numpy.Number]
+    output : scalar or numpy.ndarray[scalar, scalar]
         The verified scalar value(s).
 
     Raises
@@ -394,7 +394,7 @@ def _check_lam(lam, allow_zero=False, two_d=False, dtype=float):
 
     Returns
     -------
-    numpy.Number or numpy.ndarray[numpy.Number, numpy.Number]
+    scalar or numpy.ndarray[scalar, scalar]
         The verified `lam` value(s).
 
     Raises
@@ -519,7 +519,7 @@ def _get_row_col_values(value, **asarray_kwargs):
 
     Parameters
     ----------
-    value : numpy.number or Sequence[numpy.number, ...]
+    value : scalar or Sequence[scalar, ...]
         The value(s) corresponding to the first row, last row, first column, and last
         column.
 

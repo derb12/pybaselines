@@ -2,10 +2,6 @@
 Whittaker Baselines
 ===================
 
-The contents of :mod:`pybaselines.whittaker` contain Whittaker-smoothing-based
-algorithms for fitting the baseline. Note that Whittaker smoothing is often
-also referred to as Whittaker-Henderson smoothing.
-
 Introduction
 ------------
 
@@ -16,8 +12,9 @@ techniques that also take advantage of weighted least squares (like :meth:`~.Bas
 and penalized least squares (like :meth:`~.Baseline.penalized_poly`).
 
 A great introduction to Whittaker smoothing is Paul Eilers's
-`A Perfect Smoother paper <https://doi.org/10.1021/ac034173t>`_. The general idea behind Whittaker
-smoothing algorithms is to make the baseline match the measured
+`A Perfect Smoother paper <https://doi.org/10.1021/ac034173t>`_ (note that Whittaker
+smoothing is often also called Whittaker-Henderson smoothing). The general idea behind
+Whittaker smoothing algorithms is to make the baseline match the measured
 data as well as it can while also penalizing the roughness of the baseline. The
 resulting general function that is minimized to determine the baseline is then
 
@@ -680,6 +677,12 @@ where:
 iteration, :math:`\sigma^-` is the root mean square of the negative values
 in the residual vector :math:`\mathbf r`, and :math:`\mu^+` is the mean of the positive values
 within :math:`\mathbf r`.
+
+.. note::
+   This method can fail to fit data containing positively-skewed noise. A potential fix
+   is to apply a log-transform to the data before calling the method to make the noise
+   more normal-like, but this is not guaranteed to work in all cases.
+
 
 .. plot::
    :align: center

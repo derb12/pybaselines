@@ -66,7 +66,7 @@ The general eigendecomposition of the penalty matrix gives
     D_{d}^{\top} D_{d} = U \Sigma U^{\top}
 
 where :math:`U` is the matrix of eigenvectors and :math:`\Sigma` is a diagonal matrix
-with the eigenvalues along the diagonal. Letting :math:`B = U_c \otimes U_r` denote the kronecker
+with the eigenvalues along the diagonal. Letting :math:`B = U_c \otimes U_r` denote the Kronecker
 product of the eigenvector matrices of the penalty for the columns and rows, and :math:`g` and
 :math:`h` denote the number of eigenvectors along the rows and columns, respectively, the linear equation
 can be rewritten as:
@@ -85,7 +85,7 @@ The beauty of this reparameterization when applied to baseline correction is two
 
 1) The number of eigenvalues required to approximate the analytical solution depends on
    the required smoothness, ie. some constant approximated by :math:`\lambda / (\text{number of data points})`
-   that does not appreciably change with data size. Baselines require much less smoothness than
+   that does not appreciably change with data size. Baselines require much less curvature than
    smoothing, so the number of eigenvalues is relatively low (from testing, ~5-10 for low order
    polynomial baselines and ~15-25 for sinusoidal baselines).
 2) Since experimental data is measured on gridded data (ie. :math:`Y_{ij} = f(x_i, z_j)`), the
@@ -94,7 +94,7 @@ The beauty of this reparameterization when applied to baseline correction is two
    following the brilliant insights of `Eilers, Currie, and Durbán <https://doi.org/10.1016/j.csda.2004.07.008>`_,
    exactly as :ref:`explained for 2D penalized splines <generalized-linear-array-model-explanation>`.
 
-:ref:`An example <sphx_glr_examples_two_d_plot_whittaker_2d_dof.py>` examines how to determine
+:ref:`An example <sphx_glr_generated_examples_two_d_plot_whittaker_2d_dof.py>` examines how to determine
 the approximate number of eigenvalues required to represent different baselines.
 
 

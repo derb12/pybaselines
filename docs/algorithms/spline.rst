@@ -2,9 +2,6 @@
 Spline Baselines
 ================
 
-The contents of :mod:`pybaselines.spline` contain algorithms for fitting
-splines to the baseline.
-
 Introduction
 ------------
 

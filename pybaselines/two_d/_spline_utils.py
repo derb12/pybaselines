@@ -22,11 +22,11 @@ class SplineBasis2D:
 
     Attributes
     ----------
-    basis_r : scipy.sparse.csr.csr_matrix, shape (N, P)
+    basis_r : scipy.sparse.csr_matrix, shape (N, P)
         The spline basis for the rows. Has a shape of (`N,` `P`), where `N` is the number of
         points in `x`, and `P` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[0] + spline_degree[0] - 1``).
-    basis_c : scipy.sparse.csr.csr_matrix, shape (M, Q)
+    basis_c : scipy.sparse.csr_matrix, shape (M, Q)
         The spline basis for the columns. Has a shape of (`M,` `Q`), where `M` is the number of
         points in `z`, and `Q` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[1] + spline_degree[1] - 1``).

@@ -9,7 +9,7 @@ However, these values are deceptive since the `lam` value required for a particu
 Whittaker-smoothing-based algorithm is dependent on the number of data points. Thus,
 this can cause issues when adapting an algorithm to a new set of data since the published
 optimal `lam` value is not universal. This example shows an analysis of this dependence
-for all available functions in the :mod:`pybaselines.whittaker` module.
+for all available :ref:`Whittaker smoothing methods <api/Baseline:Whittaker Smoothing Algorithms>`.
 
 Note that the exact optimal `lam` values reported in this example are not of significant
 use since they depend on many other factors such as the baseline curvature, noise, peaks,
@@ -62,7 +62,8 @@ show_plots = False  # for debugging
 num_points = np.logspace(np.log10(500), np.log10(20000), 6, dtype=int)
 symbols = cycle(['o', 's', 'd'])
 for i, func_name in enumerate((
-    'asls', 'iasls', 'airpls', 'arpls', 'iarpls', 'drpls', 'aspls', 'psalsa', 'derpsalsa'
+    'asls', 'iasls', 'airpls', 'arpls', 'iarpls', 'drpls', 'aspls', 'psalsa', 'derpsalsa',
+    'brpls', 'lsrpls'
 )):
     legend = [[], []]
     _, ax = plt.subplots(num=func_name)

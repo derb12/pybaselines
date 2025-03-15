@@ -184,7 +184,7 @@ def _mollifier_kernel(window_size):
 
     Returns
     -------
-    numpy.ndarray, shape (2 * window_size + 1,)
+    numpy.ndarray, shape (``2 * window_size + 1``,)
         The area normalized kernel.
 
     References
@@ -717,7 +717,7 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Returns
     -------
-    diff_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
+    diff_matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse difference matrix.
 
     Raises

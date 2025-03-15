@@ -136,9 +136,20 @@ please ensure the documentation builds locally by running the following command 
 and ensure that no warnings or errors are raised during building. The built documentation can
 then be viewed in the ``pybaselines/docs/_build/html`` folder.
 
-If adding a new baseline algorithm, please add a short summary of the algorithm to the
-appropriate module in the
-`algorithms section <https://pybaselines.readthedocs.io/en/latest/algorithms/index.html>`_,
-and, if possible, add a plot showing how the algorithm fits different baselines using
-matplotlib's ``plot`` directive. Look at the rst sources for any of the files in the
-``pybaselines/docs/algorithms`` folder for examples.
+
+Adding New Algorithms
+^^^^^^^^^^^^^^^^^^^^^
+
+If adding a new baseline algorithm to pybaselines:
+
+*   Add tests for the method. pybaselines supplies testing classes within the
+    ``pybaselines/tests/conftest.py`` file that should be subclassed to ensure all basic
+    requirements for a new algorithm are met. Additional tests should also be added as needed.
+    See existing tests for examples.
+*   Add a short summary of the algorithm to the appropriate place in the
+    `algorithms section <https://pybaselines.readthedocs.io/en/latest/algorithms/index.html>`_,
+    and, if possible, add a plot showing how the algorithm fits different baselines using
+    matplotlib's ``plot`` directive. Look at the rst sources for any of the files in the
+    ``pybaselines/docs/algorithms`` folder for examples.
+*   Add the algorithm to the `API section <https://pybaselines.readthedocs.io/en/latest/api/index.html>`_
+    of the documentation.

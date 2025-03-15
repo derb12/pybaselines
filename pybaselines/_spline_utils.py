@@ -209,7 +209,7 @@ def _make_design_matrix(x, knots, spline_degree):
 
     Returns
     -------
-    scipy.sparse.csr.csr_matrix, shape (N, K - `spline_degree` - 1)
+    scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
         The sparse matrix containing all the spline basis functions.
 
     """
@@ -233,7 +233,7 @@ def _slow_design_matrix(x, knots, spline_degree):
 
     Returns
     -------
-    scipy.sparse.csr.csr_matrix, shape (N, K - `spline_degree` - 1)
+    scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
         The sparse matrix containing all the spline basis functions.
 
     """
@@ -355,7 +355,7 @@ def _spline_basis(x, knots, spline_degree=3):
 
     Returns
     -------
-    scipy.sparse.csr.csr_matrix, shape (N, K - `spline_degree` - 1)
+    scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
         The matrix of basis functions for the spline.
 
     Notes
@@ -500,7 +500,7 @@ class SplineBasis:
 
     Attributes
     ----------
-    basis : scipy.sparse.csr.csr_matrix, shape (N, M)
+    basis : scipy.sparse.csr_matrix, shape (N, M)
         The spline basis. Has a shape of (`N,` `M`), where `N` is the number of points
         in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots + spline_degree - 1``).

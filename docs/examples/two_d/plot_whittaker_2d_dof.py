@@ -41,6 +41,8 @@ def plot_contour_with_projection(X, Z, data, title=''):
     ax_2 = fig.add_subplot(1, 2, 2)
     ax_2.contourf(X, Z, data, cmap='coolwarm')
 
+    return fig, ax_1, ax_2
+
 
 x = np.linspace(-20, 20, 100)
 z = np.linspace(-20, 30, 100)
@@ -126,14 +128,17 @@ plot_contour_with_projection(
 # However, the number of eigenvalues being used is more than is actually required to represent
 # the two baselines, which means that the calculation time can be further reduced. Plot the
 # effective degrees of freedom to see which contribute most to the calculation.
-plot_contour_with_projection(
+_, ax_1, ax_2 = plot_contour_with_projection(
     *np.meshgrid(np.arange(num_eigens[0]), np.arange(num_eigens[1]), indexing='ij'),
     params_3['dof'], title='Effective Degrees of Freedom for Polynomial Baseline'
 )
-plot_contour_with_projection(
+_, ax_3, ax_4 = plot_contour_with_projection(
     *np.meshgrid(np.arange(num_eigens[0]), np.arange(num_eigens[1]), indexing='ij'),
     params_4['dof'], title='Effective Degrees of Freedom for Sinusoidal Baseline'
 )
+for axis in (ax_1, ax_2, ax_3, ax_4):
+    axis.set_xlabel('Row Eigenvalues')
+    axis.set_ylabel('Column Eigenvalues')
 
 # %%
 # A very rough rule of thumb for determining the number of eigenvalues required is to

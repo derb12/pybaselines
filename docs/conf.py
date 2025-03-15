@@ -32,33 +32,34 @@ sys.path.insert(0, os.path.abspath('..'))
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
-    #'sphinx.ext.autodoc',
-    #'sphinx.ext.autosummary',  # use autoapi instead of autodoc and autosummary
-    'autoapi.extension',
+    'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
+    #'autoapi.extension', # use autodoc and autosummary instead of autoapi
     'sphinx.ext.intersphinx',
     #'sphinx.ext.napoleon',  # use numpydoc instead
     'numpydoc',
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
+    'sphinx_copybutton',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosectionlabel',
     'matplotlib.sphinxext.plot_directive',
-    'sphinx_gallery.gen_gallery'
+    'sphinx_gallery.gen_gallery',
+    'viewcode_inherit_methods',  # custom extension to allow viewcode with inherited methods
 ]
 
-#autosummary_generate = True # enables autosummary extension
+autosummary_generate = True # enables autosummary extension
+
+nitpicky = True  # ensure all reference links point to valid targets
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
-# You can specify multiple suffix as a list of string:
-#
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = {'.rst': 'restructuredtext'}
 
-# The master toctree document.
-master_doc = 'index'
+# The root toctree document.
+root_doc = 'index'
 
 # General information about the project.
 project = 'pybaselines'
@@ -94,7 +95,12 @@ gettext_uuid = True
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = [
+    '_build',
+    'Thumbs.db',
+    '.DS_Store',
+    'examples/*'  # ignore the rst files in examples so sphinx doesn't emit a warning
+]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -124,7 +130,7 @@ autosectionlabel_prefix_document = True
 autoapi_type = 'python'
 autoapi_dirs = ['../pybaselines']
 autoapi_template_dir = '_templates/autoapi'
-autoapi_root = 'api'
+autoapi_root = 'generated/api'
 autoapi_options = [
     'members',
     'inherited-members',
@@ -140,13 +146,16 @@ autoapi_python_class_content = 'class'  # include class docstring from class and
 autoapi_keep_files = False  # keep the files after generation
 autoapi_add_toctree_entry = True  # need to manually add to toctree if False
 autoapi_generate_api_docs = True  # will not generate new docs when False
+autoapi_own_page_level = 'method'  # gives each method its own page; requires sphinx-autoapi>=3.1.0
 
-# ignore an import warning from sphinx-autoapi due to double import of utils
-suppress_warnings = ['autoapi.python_import_resolution', 'autosectionlabel']
+# ignore warning for repeated section labels -> due to changelog
+suppress_warnings = ['autosectionlabel']
 
 # -- Settings for matplotlib plot_directive extension ----------------------------
 
 plot_include_source = False
+plot_html_show_formats = False
+plot_html_show_source_link = True
 
 plot_formats = ['png']
 
@@ -156,38 +165,49 @@ plot_formats = ['png']
 numpydoc_use_plots = True
 
 # creates cross references for types in docstrings
-numpydoc_xref_param_type = False
+numpydoc_xref_param_type = True
+numpydoc_xref_ignore = {'optional', 'shape', 'K', 'L', 'M', 'N', 'P', 'Q', 'or', 'deprecated'}
+numpydoc_xref_aliases = {
+    'Sequence': ':term:`python:sequence`',
+    'Callable': ':term:`python:callable`',
+    'Iterable': ':term:`python:iterable`',
+    'ParameterWarning': ':class:`pybaselines.utils.ParameterWarning`',
+}
+# have to set numpydoc_class_members_toctree to False to work well with autosummary;
+# otherwise, duplicate objects are added to the toctree
+numpydoc_class_members_toctree = False
+
+# Set to False since autosummary is used to generate the class method docs
+numpydoc_show_class_members = False
+numpydoc_show_inherited_class_members = False
 
 # -- Settings for sphinx-gallery extension ----------------------------
 
-from sphinx_gallery.sorting import ExplicitOrder, FileNameSortKey
-
-
 # specifies the order of the example galleries
 gallery_section_order = [
-    '../examples/general',
-    '../examples/whittaker',
-    '../examples/morphological',
-    '../examples/spline',
-    '../examples/classification',
-    '../examples/misc',
-    '../examples/optimizers',
-    '../examples/two_d',
+    'examples/general',
+    'examples/whittaker',
+    'examples/morphological',
+    'examples/spline',
+    'examples/classification',
+    'examples/misc',
+    'examples/optimizers',
+    'examples/two_d',
 ]
 
 sphinx_gallery_conf = {
     # location of example files
-    'examples_dirs': ['../examples'],
+    'examples_dirs': ['examples'],
     # location of output folder
-    'gallery_dirs': ['examples'],
+    'gallery_dirs': ['generated/examples'],
     # must set to None or else autoapi errors
     'backreferences_dir': None,
     # remove button on front page for downloading all examples
     'download_all_examples': False,
     # order sections explicitly
-    'subsection_order': ExplicitOrder(gallery_section_order),
+    'subsection_order': gallery_section_order,
     # order subsection examples by filename
-    'within_subsection_order': FileNameSortKey,
+    'within_subsection_order': "FileNameSortKey",
     # removes configuration comments from rst output
     'remove_config_comments': True,
     # disables trying to link variables to intersphinx
@@ -217,7 +237,7 @@ else:
 # documentation.
 #
 html_theme_options = {
-    'navigation_depth': 8,
+    'navigation_depth': 4,
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -257,7 +277,7 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass
 # [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'pybaselines.tex',
+    (root_doc, 'pybaselines.tex',
      'pybaselines Documentation',
      'Donald Erb', 'manual'),
 ]
@@ -287,7 +307,7 @@ latex_domain_indices = True
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'pybaselines',
+    (root_doc, 'pybaselines',
      'pybaselines Documentation',
      [author], 1)
 ]
@@ -299,7 +319,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'pybaselines',
+    (root_doc, 'pybaselines',
      'pybaselines Documentation',
      author,
      'pybaselines',

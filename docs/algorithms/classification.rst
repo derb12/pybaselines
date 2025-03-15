@@ -2,16 +2,13 @@
 Classification Baselines
 ========================
 
-The contents of :mod:`pybaselines.classification` contain algorithms that rely on
-classifying peak and/or baseline segments.
-
 Introduction
 ------------
 
-Classification methods are similar to
+Classification methods rely on classifying peak and/or baseline segments, similar to
 :ref:`selective masking <selective-masking-explanation>` as explained in the polynomial
-section, but use sophisticated techniques to determine the baseline points rather than
-relying on manual selection.
+section, but make use of sophisticated techniques to determine the baseline
+points rather than relying on manual selection.
 
 All classification functions allow inputting weights to override the baseline classification,
 which can be helpful, for example, to ensure a small peak is not classified as baseline without
@@ -24,7 +21,8 @@ method. The plot below shows such an example.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines.classification import std_distribution
+    from pybaselines import Baseline
+
 
     x = np.linspace(1, 1000, 500)
     signal = (
@@ -43,8 +41,11 @@ method. The plot below shows such an example.
     # not classified as part of the baseline
     weights[(x > 100) & (x < 250)] = 0
 
-    unweighted_baseline = std_distribution(y, x, half_window=10, num_std=1.3)[0]
-    weighted_baseline = std_distribution(y, x, half_window=10, num_std=1.3, weights=weights)[0]
+    baseline_fitter = Baseline(x, check_finite=False)
+    unweighted_baseline = baseline_fitter.std_distribution(y, half_window=10, num_std=1.3)[0]
+    weighted_baseline = baseline_fitter.std_distribution(
+        y, half_window=10, num_std=1.3, weights=weights
+    )[0]
 
     fig, ax = plt.subplots(tight_layout={'pad': 0.2})
     data_handle = ax.plot(y)

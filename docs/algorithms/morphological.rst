@@ -2,15 +2,59 @@
 Morphological Baselines
 =======================
 
-The contents of :mod:`pybaselines.morphological` contain algorithms that
-use morphological operations for estimating the baseline.
-
 Introduction
 ------------
 
 `Morphological operations <https://en.wikipedia.org/wiki/Mathematical_morphology>`_
-include dilation, erosion, opening, and closing. Morphological operators use moving
-windows and compute the maximum, minimum, or a combination of the two within each window.
+include dilation, erosion, opening, and closing, and they use moving windows to compute the
+maximum, minimum, or a combination of the two within each window, as shown in the figures
+below. The algorithms in this section use these operations to estimate the baseline.
+
+.. plot::
+   :align: center
+   :context: reset
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from pybaselines.utils import gaussian
+    from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening
+
+    x = np.linspace(1, 1000, 500)
+    signal = (
+        gaussian(x, 6, 180, 5)
+        + gaussian(x, 8, 350, 10)
+        + gaussian(x, 15, 400, 8)
+        + gaussian(x, 13, 600, 12)
+        + gaussian(x, 9, 800, 10)
+    )
+    real_baseline = 5 + gaussian(x, 5, 500, 300)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+    y = signal + real_baseline + noise
+    window = 25
+
+    operators = (
+        (grey_dilation, 'dilation'),
+        (grey_erosion, 'erosion'),
+        (grey_closing, 'closing'),
+        (grey_opening, 'opening'),
+    )
+
+    _, (ax, ax2) = plt.subplots(nrows=2, tight_layout={'pad': 0.1})
+    ax.plot(y)
+    ax.plot(grey_dilation(y, window), label='dilation: max(window)')
+    ax.plot(grey_erosion(y, window), label='erosion: min(window)')
+    ax2.plot(y)
+    ax2.plot(grey_closing(y, window), label='closing: erosion(dilation(y))')
+    ax2.plot(grey_opening(y, window), label='opening: dilation(erosion(y))')
+    ax.set_yticks([])
+    ax.set_xticks([])
+    ax.legend()
+    ax2.set_yticks([])
+    ax2.set_xticks([])
+    ax2.legend()
+
+    plt.show()
+
 
 .. note::
    All morphological algorithms use a ``half_window`` parameter to define the size
