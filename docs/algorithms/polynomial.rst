@@ -350,6 +350,14 @@ and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterati
    If using a ``num_std`` of 0, imodpoly may still produce different results than modpoly
    due to their different exit criteria.
 
+.. note::
+   Interesting historical note: an iterative masking-based polynomial method was proposed
+   by `Liu J., et al. in 1987 <https://doi.org/10.1366/0003702874449110>`_ that based
+   the mask each iteration on whether data points were one standard error above the
+   calculated baseline (essentially a masked version of imodpoly 20 years before imodpoly
+   was developed). However, it is much less stable than thresholding-based techniques like
+   imodpoly since if the exit criteria is not properly set, few data points can remain for
+   the polynomial fitting and cause severe misfitting of the baseline.
 
 .. plot::
    :align: center

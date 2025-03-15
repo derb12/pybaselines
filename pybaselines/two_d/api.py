@@ -48,11 +48,6 @@ class Baseline2D(
 
     Attributes
     ----------
-    petapy_solver : int or str
-        Only used to pass to a new :class:`~.Baseline` object when using
-        :meth:`.Baseline2D.individual_axes`. The integer or string designating which solver
-        to use if using pentapy. See :func:`pentapy.solve` for available options, although
-        1 or 2 are the most relevant options. Default is 2.
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same size as the input `data.shape[-2]` and has min

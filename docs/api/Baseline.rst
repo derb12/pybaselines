@@ -4,6 +4,7 @@
 .. currentmodule:: pybaselines
 
 .. autoclass:: Baseline
+   :members: banded_solver, pentapy_solver
 
 
 Polynomial Algorithms

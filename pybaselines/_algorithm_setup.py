@@ -194,7 +194,7 @@ class _Algorithm:
 
         .. deprecated:: 1.2
             The `pentapy_solver` property is deprecated and will be removed in
-            version 1.4. Use the :attr:`~.banded_solver` instead.
+            version 1.4. Use :attr:`~.banded_solver` instead.
 
         """
         warnings.warn(

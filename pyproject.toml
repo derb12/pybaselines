@@ -178,8 +178,3 @@ replace = "version = '{new_version}'"
 filename = "CITATION.cff"
 search = "version: {current_version}"
 replace = "version: {new_version}"
-
-[[tool.bumpversion.files]]
-filename = "docs/citing.rst"
-search = "version = {{{current_version}}}"
-replace = "version = {{{new_version}}}"

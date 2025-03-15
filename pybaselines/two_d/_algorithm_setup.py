@@ -236,7 +236,7 @@ class _Algorithm2D:
 
         .. deprecated:: 1.2
             The `pentapy_solver` property is deprecated and will be removed in
-            version 1.4. Use the :attr:`~Baseline2D.banded_solver` instead.
+            version 1.4. Use :attr:`~Baseline2D.banded_solver` instead.
 
         """
         warnings.warn(

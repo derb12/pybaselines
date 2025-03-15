@@ -5,7 +5,7 @@ Smoothing Baselines
 Introduction
 ------------
 
-As the name implies, smoothing algorithms use smoothing operations such as moving averages,
+Smoothing algorithms use moving-window based smoothing operations such as moving averages,
 moving medians, and Savitzky-Golay filtering to eliminate peaks and leave only the baseline.
 
 .. note::

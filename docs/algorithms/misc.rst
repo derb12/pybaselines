@@ -19,7 +19,7 @@ or splines of different orders. The function is mainly intended for usage
 with user interfaces and is not encouraged otherwise.
 
 .. note::
-   Unlike most other algorithms in pybaselines, interp_pts requires inputting
+   Unlike most other algorithms in pybaselines, `interp_pts` only requires inputting
    the x-values of the data rather than the y-values.
 
 

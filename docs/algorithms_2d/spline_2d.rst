@@ -57,14 +57,14 @@ the :ref:`1D case <difference-matrix-explanation>`. Further, :math:`\otimes` den
 product, and :math:`I_g` and :math:`I_h` are the identity matrices of length :math:`g` and
 :math:`h`, respectively. After solving, the array :math:`v` can then be reshaped into the matrix :math:`V`.
 
+.. _generalized-linear-array-model-explanation:
+
 Since experimental data is measured on gridded data (ie. :math:`Y_{ij} = f(x_i, z_j)`), the above equation
 can be optimized following `[1] <https://doi.org/10.1016/j.csda.2004.07.008>`_ and expressed as a
 `generalized linear array model <https://en.wikipedia.org/wiki/Generalized_linear_array_model>`_
 which allows directly using the matrices of the measured data, :math:`Y`, and the weights,
-:math:`W`, rather than flattening them, which significantly reduces the required
+:math:`W`, rather than flattening them, and significantly reduces the required
 memory and computation time.
-
-.. _generalized-linear-array-model-explanation:
 
 Let :math:`F` be the
 `face-splitting product operator <https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product>`_
