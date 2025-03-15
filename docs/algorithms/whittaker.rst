@@ -678,6 +678,12 @@ iteration, :math:`\sigma^-` is the root mean square of the negative values
 in the residual vector :math:`\mathbf r`, and :math:`\mu^+` is the mean of the positive values
 within :math:`\mathbf r`.
 
+.. note::
+   This method can fail to fit data containing positively-skewed noise. A potential fix
+   is to apply a log-transform to the data before calling the method to make the noise
+   more normal-like, but this is not guaranteed to work in all cases.
+
+
 .. plot::
    :align: center
    :context: close-figs
