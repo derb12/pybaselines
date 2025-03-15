@@ -44,7 +44,8 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.autosectionlabel',
     'matplotlib.sphinxext.plot_directive',
-    'sphinx_gallery.gen_gallery'
+    'sphinx_gallery.gen_gallery',
+    'viewcode_inherit_methods',  # custom extension to allow viewcode with inherited methods
 ]
 
 autosummary_generate = True # enables autosummary extension
