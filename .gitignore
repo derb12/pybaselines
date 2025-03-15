@@ -49,7 +49,7 @@ coverage.xml
 docs/_build/
 
 
-# generated documentation files, inlcuding timings from sphinx-gallery
+# generated documentation files, including timings from sphinx-gallery
 docs/generated
 sg_execution_times.rst
 
