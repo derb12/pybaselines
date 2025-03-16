@@ -20,9 +20,9 @@ resulting general function that is minimized to determine the baseline is then
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
-where :math:`y_i` is the measured data, :math:`z_i` is the estimated baseline,
+where :math:`y_i` is the measured data, :math:`v_i` is the estimated baseline,
 :math:`\lambda` is the penalty scale factor, :math:`w_i` is the weighting, and
 :math:`\Delta^d` is the finite-difference operator of order d.
 
@@ -30,7 +30,7 @@ The resulting linear equation for solving the above minimization is:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 .. _difference-matrix-explanation:
 
@@ -61,7 +61,7 @@ Most Whittaker-smoothing-based techniques recommend using the second order diffe
 although some techniques use both the first and second order difference matrices.
 
 The baseline is iteratively calculated using the linear system above by solving for
-the baseline, :math:`z`, updating the weights, solving for the baseline using the new
+the baseline, :math:`v`, updating the weights, solving for the baseline using the new
 weights, and repeating until some exit criteria.
 The difference between Whittaker-smoothing-based algorithms is the selection of weights
 and/or the function that is minimized.
@@ -87,21 +87,21 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
 Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 Weighting:
 
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 
@@ -238,15 +238,15 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N (w_i (y_i - z_i))^2
-    + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
-    + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - z_i))^2
+    \sum\limits_{i}^N (w_i (y_i - v_i))^2
+    + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
+    + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - v_i))^2
 
 Linear system:
 
 .. math::
 
-    (W^{\top} W + \lambda_1 D_1^{\top} D_1 + \lambda D_d^{\top} D_d) z
+    (W^{\top} W + \lambda_1 D_1^{\top} D_1 + \lambda D_d^{\top} D_d) v
     = (W^{\top} W + \lambda_1 D_1^{\top} D_1) y
 
 Weighting:
@@ -254,8 +254,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 
@@ -292,25 +292,25 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
 Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 Weighting:
 
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        0 & y_i \ge z_i \\
-        \exp{\left(\frac{\text{abs}(y_i - z_i) t}{|\mathbf{r}^-|}\right)} & y_i < z_i
+        0 & y_i \ge v_i \\
+        \exp{\left(\frac{\text{abs}(y_i - v_i) t}{|\mathbf{r}^-|}\right)} & y_i < v_i
     \end{array}\right.
 
 where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the l1-norm of the negative
-values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z_i < 0} |y_i - z_i|`.
+values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - v_i < 0} |y_i - v_i|`.
 Note that the absolute value within the weighting was mistakenly omitted in the original
 publication, as `specified by the author <https://github.com/zmzhang/airPLS/issues/8>`_.
 
@@ -335,13 +335,13 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
 Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 Weighting:
 
@@ -354,7 +354,7 @@ Weighting:
             {\sigma^-}
         \right)}}
 
-where :math:`r_i = y_i - z_i` and :math:`\mu^-` and :math:`\sigma^-` are the mean and standard
+where :math:`r_i = y_i - v_i` and :math:`\mu^-` and :math:`\sigma^-` are the mean and standard
 deviation, respectively, of the negative values in the residual vector :math:`\mathbf r`.
 
 .. plot::
@@ -380,9 +380,9 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2
-    + \lambda \sum\limits_{i}^{N - d}(1 - \eta w_i) (\Delta^d z_i)^2
-    + \sum\limits_{i}^{N - 1} (\Delta^1 (z_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
+    + \lambda \sum\limits_{i}^{N - d}(1 - \eta w_i) (\Delta^d v_i)^2
+    + \sum\limits_{i}^{N - 1} (\Delta^1 (v_i))^2
 
 where :math:`\eta` is a value between 0 and 1 that controls the
 effective value of :math:`\lambda`.
@@ -391,7 +391,7 @@ Linear system:
 
 .. math::
 
-    (W + D_1^{\top} D_1 + \lambda (I - \eta W) D_d^{\top} D_d) z = W y
+    (W + D_1^{\top} D_1 + \lambda (I - \eta W) D_d^{\top} D_d) v = W y
 
 where :math:`I` is the identity matrix.
 
@@ -406,7 +406,7 @@ Weighting:
             {1 + \text{abs}[\exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
     \right)
 
-where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
 :math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
 respectively, of the negative values in the residual vector :math:`\mathbf r`.
 
@@ -436,13 +436,13 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
 Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 Weighting:
 
@@ -455,7 +455,7 @@ Weighting:
             {\sqrt{1 + [\exp(t)(r_i - 2 \sigma^-)/\sigma^-]^2}}
     \right)
 
-where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
 :math:`\sigma^-` is the standard deviation of the negative values in
 the residual vector :math:`\mathbf r`.
 
@@ -480,8 +480,8 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2
-    + \lambda \sum\limits_{i}^{N - d} \alpha_i (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
+    + \lambda \sum\limits_{i}^{N - d} \alpha_i (\Delta^d v_i)^2
 
 where
 
@@ -495,7 +495,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda \alpha D_d^{\top} D_d) z = W y
+    (W + \lambda \alpha D_d^{\top} D_d) v = W y
 
 Weighting:
 
@@ -508,7 +508,7 @@ Weighting:
             {\sigma^-}
         \right)}}
 
-where :math:`r_i = y_i - z_i`, :math:`\sigma^-` is the standard deviation
+where :math:`r_i = y_i - v_i`, :math:`\sigma^-` is the standard deviation
 of the negative values in the residual vector :math:`\mathbf r`, and :math:`k`
 is the asymmetric coefficient (Note that the default value of :math:`k` is 0.5 in
 pybaselines rather than 2 in the published version of the asPLS. pybaselines
@@ -536,21 +536,21 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
 Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 Weighting:
 
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p \cdot \exp{\left(\frac{-(y_i - z_i)}{k}\right)} & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p \cdot \exp{\left(\frac{-(y_i - v_i)}{k}\right)} & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 where :math:`k` is a factor that controls the exponential decay of the weights for baseline
@@ -583,13 +583,13 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
 Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 Weighting:
 
@@ -602,8 +602,8 @@ where:
 .. math::
 
     w_{0i} = \left\{\begin{array}{cr}
-        p \cdot \exp{\left(\frac{-[(y_i - z_i)/k]^2}{2}\right)} & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p \cdot \exp{\left(\frac{-[(y_i - v_i)/k]^2}{2}\right)} & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 .. math::
@@ -645,13 +645,13 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
 Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 Weighting:
 
@@ -673,7 +673,7 @@ where:
         \left[\frac{r_i}{\sqrt{2}\sigma^-} - \frac{\sigma^-}{\sqrt{2}\mu^+}\right]^2
     \right)}
 
-:math:`r_i = y_i - z_i`, :math:`\beta` is 1 minus the mean of the weights of the previous
+:math:`r_i = y_i - v_i`, :math:`\beta` is 1 minus the mean of the weights of the previous
 iteration, :math:`\sigma^-` is the root mean square of the negative values
 in the residual vector :math:`\mathbf r`, and :math:`\mu^+` is the mean of the positive values
 within :math:`\mathbf r`.
@@ -706,13 +706,13 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - z_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d z_i)^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2 + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
 
 Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) z = W y
+    (W + \lambda D_d^{\top} D_d) v = W y
 
 Weighting:
 
@@ -725,7 +725,7 @@ Weighting:
             {1 + \text{abs}[10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
     \right)
 
-where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
 :math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
 respectively, of the negative values in the residual vector :math:`\mathbf r`.
 

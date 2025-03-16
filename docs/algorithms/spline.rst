@@ -11,7 +11,7 @@ predominantly used in pybaselines. B-splines can be expressed as:
 
 .. math::
 
-    z(x) = \sum\limits_{i}^N \sum\limits_{j}^M {B_j(x_i) c_j}
+    v(x) = \sum\limits_{i}^N \sum\limits_{j}^M {B_j(x_i) c_j}
 
 where :math:`N` is the number of points in :math:`x`, :math:`M` is the number of spline
 basis functions, :math:`B_j(x_i)` is the j-th basis function evaluated at :math:`x_i`,
@@ -270,8 +270,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 .. plot::
@@ -320,8 +320,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 
@@ -371,12 +371,12 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        0 & y_i \ge z_i \\
-        \exp{\left(\frac{\text{abs}(y_i - z_i) t}{|\mathbf{r}^-|}\right)} & y_i < z_i
+        0 & y_i \ge v_i \\
+        \exp{\left(\frac{\text{abs}(y_i - v_i) t}{|\mathbf{r}^-|}\right)} & y_i < v_i
     \end{array}\right.
 
 where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the l1-norm of the negative
-values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z_i < 0} |y_i - z_i|`.
+values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - v_i < 0} |y_i - v_i|`.
 Note that the absolute value within the weighting was mistakenly omitted in the original
 publication, as `specified by the author <https://github.com/zmzhang/airPLS/issues/8>`_.
 
@@ -426,7 +426,7 @@ Weighting:
             {\sigma^-}
         \right)}}
 
-where :math:`r_i = y_i - z_i` and :math:`\mu^-` and
+where :math:`r_i = y_i - v_i` and :math:`\mu^-` and
 :math:`\sigma^-` are the mean and standard deviation, respectively, of the negative
 values in the residual vector :math:`\mathbf r`.
 
@@ -478,7 +478,7 @@ Weighting:
             {1 + \text{abs}[\exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
     \right)
 
-where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
 :math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
 respectively, of the negative values in the residual vector :math:`\mathbf r`.
 
@@ -526,7 +526,7 @@ Weighting:
             {\sqrt{1 + [\exp(t)(r_i - 2 \sigma^-)/\sigma^-]^2}}
     \right)
 
-where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
 :math:`\sigma^-` is the standard deviation of the negative values in
 the residual vector :math:`\mathbf r`.
 
@@ -586,7 +586,7 @@ Weighting:
             {\sigma^-}
         \right)}}
 
-where :math:`r_i = y_i - z_i`, :math:`\sigma^-` is the standard deviation
+where :math:`r_i = y_i - v_i`, :math:`\sigma^-` is the standard deviation
 of the negative values in the residual vector :math:`\mathbf r`, and :math:`k`
 is the asymmetric coefficient (Note that the default value of :math:`k` is 0.5 in
 pybaselines rather than 2 in the published version of the asPLS. pybaselines
@@ -633,8 +633,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p \cdot \exp{\left(\frac{-(y_i - z_i)}{k}\right)} & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p \cdot \exp{\left(\frac{-(y_i - v_i)}{k}\right)} & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 where :math:`k` is a factor that controls the exponential decay of the weights for baseline
@@ -686,8 +686,8 @@ where:
 .. math::
 
     w_{0i} = \left\{\begin{array}{cr}
-        p \cdot \exp{\left(\frac{-[(y_i - z_i)/k]^2}{2}\right)} & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p \cdot \exp{\left(\frac{-[(y_i - v_i)/k]^2}{2}\right)} & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 .. math::
@@ -742,8 +742,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 .. plot::
@@ -802,7 +802,7 @@ where:
         \left[\frac{r_i}{\sqrt{2}\sigma^-} - \frac{\sigma^-}{\sqrt{2}\mu^+}\right]^2
     \right)}
 
-:math:`r_i = y_i - z_i`, :math:`\beta` is 1 minus the mean of the weights of the previous
+:math:`r_i = y_i - v_i`, :math:`\beta` is 1 minus the mean of the weights of the previous
 iteration, :math:`\sigma^-` is the root mean square of the negative values
 in the residual vector :math:`\mathbf r`, and :math:`\mu^+` is the mean of the positive values
 within :math:`\mathbf r`.
@@ -848,7 +848,7 @@ Weighting:
             {1 + \text{abs}[10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
     \right)
 
-where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
 :math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
 respectively, of the negative values in the residual vector :math:`\mathbf r`.
 

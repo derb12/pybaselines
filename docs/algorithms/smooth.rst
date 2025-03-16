@@ -269,7 +269,8 @@ their starting areas.
 peak_filling (4S Peak Filling Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.peak_filling` smooths and truncates the input. Each value is then
+:meth:`~.Baseline.peak_filling` performs four "S" steps: smooth, subsample, suppress,
+and stretch. In detail, the method smooths and truncates the input. Each value is then
 replaced in-place by the minimum of the value or the average of the moving window, with
 the half-window size decreasing exponentially from the input `half_window` to 1. The result
 is then interpolated back into the original data size.

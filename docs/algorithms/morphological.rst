@@ -400,30 +400,30 @@ Minimized function:
 
 .. math::
 
-    \frac{1}{2} \sum\limits_{i = 1}^N (s_i + b_i - y_i)^2
-    + \alpha \sum\limits_{i = 1}^N (b_i - Op_i)^2
-    + \beta \sum\limits_{i = 1}^{N - d} (\Delta^d b_i)^2
+    \frac{1}{2} \sum\limits_{i = 1}^N (s_i + v_i - y_i)^2
+    + \alpha \sum\limits_{i = 1}^N (v_i - Op_i)^2
+    + \beta \sum\limits_{i = 1}^{N - d} (\Delta^d v_i)^2
     + \gamma \sum\limits_{i = 1}^{N - d} (\Delta^d s_i)^2
 
-where :math:`y_i` is the measured data, :math:`b_i` is the estimated baseline,
+where :math:`y_i` is the measured data, :math:`v_i` is the estimated baseline,
 :math:`s_i` is the estimated signal, :math:`\Delta^d` is the forward-difference
 operator of order d, :math:`Op_i` is the morphological opening of the measured data,
 and :math:`\alpha`, :math:`\beta`, and :math:`\gamma` are regularization parameters.
 
 Linear systems:
 
-The initial signal, :math:`s^0`, and baseline, :math:`b^0`, are set equal to :math:`y`,
+The initial signal, :math:`s^0`, and baseline, :math:`v^0`, are set equal to :math:`y`,
 and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`n`, :math:`s^n`
-and :math:`b^n`, are solved for sequentially using the following two
+and :math:`v^n`, are solved for sequentially using the following two
 linear equations:
 
 .. math::
 
-    (I + 2 \gamma D_d^{\top} D_d) s^n = y - b^{n-1}
+    (I + 2 \gamma D_d^{\top} D_d) s^n = y - v^{n-1}
 
 .. math::
 
-    (I + 2 \alpha I + 2 \beta D_d^{\top} D_d) b^n = y - s^n + 2 \alpha Op
+    (I + 2 \alpha I + 2 \beta D_d^{\top} D_d) v^n = y - s^n + 2 \alpha Op
 
 where :math:`I` is the identity matrix and :math:`D_d` is the matrix version
 of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.
