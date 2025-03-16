@@ -230,7 +230,7 @@ class TestPeakFilling(SmoothTester):
 
     func_name = 'peak_filling'
     checked_keys = ('x_fit', 'baseline_fit')
-    uses_padding = False  # TODO after version 1.4 when passing kwargs is deprecated
+    uses_padding = False  # TODO remove after version 1.4 when passing kwargs is deprecated
 
     @pytest.mark.parametrize('half_window', (None, 15))
     def test_half_windows(self, half_window):
@@ -251,7 +251,7 @@ class TestPeakFilling(SmoothTester):
         with pytest.warns(ParameterWarning):
             self.class_func(self.y, half_window=half_window, sections=sections)
 
-    @pytest.mark.parametrize('sections', (0, -5))
+    @pytest.mark.parametrize('sections', (0, -5, [-1, 50]))
     def test_non_positive_sections_fails(self, sections):
         """Ensures an exception is raised when `sections` is non-positive."""
         with pytest.raises(ValueError):
@@ -261,6 +261,9 @@ class TestPeakFilling(SmoothTester):
         """Ensures an exception is raised when `sections` is larger than the data length."""
         with pytest.raises(ValueError):
             self.class_func(self.y, sections=len(self.y) + 1)
+
+        with pytest.raises(ValueError):
+            self.class_func(self.y, sections=[5, len(self.y)])
 
     @pytest.mark.parametrize('lam_smooth', (0, None, 1e1, -1))
     def test_lam_inputs(self, lam_smooth):

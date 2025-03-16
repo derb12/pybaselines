@@ -633,11 +633,14 @@ class _Smooth(_Algorithm):
             size will range from [-half_window, ..., half_window] with size
             ``2 * half_window + 1``. Default is None, which will use two or three times the
             output from func:`.optimize_window`, which is an okay starting value.
-        sections : int, optional
-            The number of sections to divide the input data into for subsampling. The
-            minimum of each section will be used to represent the input data for determining
-            the baseline. Higher `sections` values are needed for baselines with higher
-            curvature. Default is None, which will use ``N // 10``.
+        sections : int or Sequence[int, ...], optional
+            If the input is an integer, it sets the number of equally sized
+            segments the data will be split into. If the input is a sequence, each integer
+            in the sequence will be the index that splits two segments, which allows
+            constructing unequally sized segments. The minimum of each section will be used
+            to represent the input data for determining the baseline. Higher `sections` values
+            are needed for baselines with higher curvature. Default is None, which will use
+            ``N // 10``.
         max_iter : int, optional
             The number of iterations to perform smoothing. Each iteration, the size of the
             window used for the moving average will shrink logarithmically, starting at
@@ -661,7 +664,8 @@ class _Smooth(_Algorithm):
         Raises
         ------
         TypeError
-            Raised if `sections` is not an integer.
+            Raised if `sections` is an integer not between 1 and ``N``, or if `sections`
+            is a sequence with any value not between 0 and ``N - 1``.
 
         Notes
         -----
@@ -709,15 +713,19 @@ class _Smooth(_Algorithm):
             _, _, whittaker_system = self._setup_whittaker(data, lam_smooth, diff_order=2)
             data = whittaker_system.solve(whittaker_system.add_diagonal(1.), data)
 
-        # TODO should x[0], y[0] and x[-1], y[-1] be padded onto their truncated
-        # versions to prevent edge effects? Similar to what was done for custom_bc?
         for i, (left_idx, right_idx) in enumerate(zip(indices[:-1], indices[1:])):
             y_truncated[i] = data[left_idx:right_idx].min()
             x_truncated[i] = self.x[left_idx:right_idx].mean()
-        # include first and last values to prevent edge effects
-        # TODO only need to do if sections is defined such that they are not included
-        x_truncated = np.pad(x_truncated, 1, 'constant', constant_values=([self.x[0], self.x[-1]]))
-        y_truncated = np.pad(y_truncated, 1, 'constant', constant_values=([data[0], data[-1]],))
+        # include first and last values to prevent edge effects if they are not already included
+        left_pad = 1 if x_truncated[0] != self.x[0] else 0
+        right_pad = 1 if x_truncated[-1] != self.x[-1] else 0
+        x_truncated = np.pad(
+            x_truncated, [left_pad, right_pad], 'constant',
+            constant_values=([self.x[0], self.x[-1]])
+        )
+        y_truncated = np.pad(
+            y_truncated, [left_pad, right_pad], 'constant', constant_values=([data[0], data[-1]],)
+        )
 
         _, half_win = self._setup_smooth(
             y_truncated, half_window, pad_type=None, window_multiplier=3 if max_iter < 3 else 2

@@ -852,11 +852,11 @@ class _Classification(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        segments : int or array-like[int], optional
+        segments : int or Sequence[int, ...], optional
             Used to fit multiple convex hulls to the data to negate the effects of
             concave data. If the input is an integer, it sets the number of equally sized
-            segments the data will be split into. If the input is an array-like, each integer
-            in the array will be the index that splits two segments, which allows
+            segments the data will be split into. If the input is a sequence, each integer
+            in the sequence will be the index that splits two segments, which allows
             constructing unequally sized segments. Default is 1, which fits a single convex
             hull to the data.
         lam : float or None, optional
