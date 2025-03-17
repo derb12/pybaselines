@@ -6,15 +6,17 @@ Created on July 3, 2021
 
 """
 
+import pickle
+
 import numpy as np
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import (
     api, classification, misc, morphological, optimizers, polynomial, smooth, spline, whittaker
 )
 
-from .conftest import get_data
+from .conftest import get_data, check_param_keys
 
 
 _ALL_CLASSES = (
@@ -49,6 +51,7 @@ def get_public_methods(klass):
         if (
             not (method.startswith('_')
             or method.startswith('pentapy_solver')
+            or method.startswith('banded_solver')
             or method.startswith('get_method'))
         ):
             methods.append(method)
@@ -60,6 +63,52 @@ _ALL_CLASSES_AND_METHODS = []
 for klass in _ALL_CLASSES:
     for method in get_public_methods(klass):
         _ALL_CLASSES_AND_METHODS.append((method, klass))
+
+
+def pickle_and_check(fitter, banded_solver, polynomial, spline_basis, validated_x):
+    """Pickles the Baseline object and ensures the loaded object matches its initial state."""
+    try:
+        bytestream = pickle.dumps(fitter)
+        loaded_fitter = pickle.loads(bytestream)
+    except Exception as e:
+        raise AssertionError('pickle failed to save and reload the object') from e
+
+    # ensure attributes are maintained
+    assert loaded_fitter.banded_solver == banded_solver
+    assert loaded_fitter._validated_x is validated_x
+
+    if polynomial is None:
+        assert loaded_fitter._polynomial is None
+    else:
+        assert_array_equal(loaded_fitter._polynomial.poly_order, polynomial.poly_order)
+        if polynomial.vandermonde is not None:
+            assert_allclose(
+                loaded_fitter._polynomial.vandermonde, polynomial.vandermonde, rtol=1e-12,
+                atol=1e-12
+            )
+        if polynomial._pseudo_inverse is not None:
+            assert_allclose(
+                loaded_fitter._polynomial.pseudo_inverse, polynomial.pseudo_inverse, rtol=1e-12,
+                atol=1e-12
+            )
+    if spline_basis is None:
+        assert loaded_fitter._spline_basis is None
+    else:
+        assert_allclose(
+            loaded_fitter._spline_basis.x, fitter.x, rtol=1e-12,
+            atol=1e-12
+        )
+        assert_array_equal(
+            loaded_fitter._spline_basis.spline_degree, spline_basis.spline_degree
+        )
+        assert_array_equal(loaded_fitter._spline_basis.num_knots, spline_basis.num_knots)
+        assert_allclose(
+            loaded_fitter._spline_basis.knots, spline_basis.knots, rtol=1e-12, atol=1e-12
+        )
+        assert_allclose(
+            loaded_fitter._spline_basis.basis.toarray(), spline_basis.basis.toarray(),
+            rtol=1e-12, atol=1e-12
+        )
 
 
 class TestBaseline:
@@ -112,14 +161,7 @@ class TestBaseline:
         )(fit_data, **kwargs)
 
         assert_allclose(api_baseline, class_baseline, rtol=1e-12, atol=1e-12)
-        assert len(api_params.keys()) == len(class_params.keys())
-        for key, value in api_params.items():
-            assert key in class_params
-            class_value = class_params[key]
-            if isinstance(value, (int, float, np.ndarray, list, tuple)):
-                assert_allclose(value, class_value, rtol=1e-12, atol=1e-12)
-            else:
-                assert value == class_value
+        check_param_keys(api_params.keys(), class_params.keys())
 
     def test_method_availability(self):
         """Ensures all public algorithms are available through the Baseline class."""
@@ -139,18 +181,28 @@ class TestBaseline:
         # no additional methods should be available
         assert len(total_methods) == 0
 
-    def test_pentapy_solver(self):
-        """Ensures the pentapy_solver attribute works correctly."""
-        fitter = self.algorithm_base(self.x, check_finite=False, assume_sorted=True)
-        assert fitter._pentapy_solver == fitter.pentapy_solver
-        # ensure whittaker_system is originally None before changing pentapy solver
-        assert fitter.whittaker_system is None
+    def test_method_and_function_availability(self):
+        """Ensures all Baseline methods are also available as functions."""
+        total_methods = get_public_methods(api.Baseline)
 
-        fitter._setup_whittaker(self.y, lam=1)
-        assert fitter.whittaker_system.pentapy_solver == fitter.pentapy_solver
+        total_functions = []
+        for module in (
+            classification,
+            misc,
+            morphological,
+            optimizers,
+            polynomial,
+            smooth,
+            spline,
+            whittaker
+        ):
+            total_functions.extend(get_public_methods(module))
+        total_functions = set(total_functions)
 
-        fitter.pentapy_solver = 3
-        assert fitter.whittaker_system.pentapy_solver == fitter.pentapy_solver
+        # note that total_functions also includes all imported functions from other
+        # libraries, so just check that each method from Baseline is in total_functions
+        for method in total_methods:
+            assert method in total_functions
 
     def test_get_method(self):
         """Ensures the get_method helper function works as intended."""
@@ -165,3 +217,51 @@ class TestBaseline:
         """Ensures the get_method helper function fails when an incorrect name is given."""
         with pytest.raises(AttributeError):
             self.algorithm._get_method('aaaaaaaaaaaaa')
+
+    @pytest.mark.parametrize('input_x', (True, False))
+    def test_ensure_pickleable(self, input_x):
+        """Ensures that Baseline objects are able to be pickled for all baseline types.
+
+        In order to be used with multiprocessing, objects must be able to be serialized with
+        pickle; ensure this works for all algorithm setups.
+
+        """
+        x_data = self.x if input_x else None
+        fitter = self.algorithm_base(x_data)
+        x_validated = not input_x
+
+        pickle_and_check(fitter, 2, None, None, x_validated)
+        # call a polynomial method that does not require unique x to set polynomial attribute
+        fitter.modpoly(self.y)
+        pickle_and_check(fitter, 2, fitter._polynomial, None, x_validated)
+
+        # call a polynomial method that requires unique x
+        fitter.loess(self.y)
+        pickle_and_check(fitter, 2, fitter._polynomial, None, True)
+
+        # change banded solver
+        fitter.banded_solver = 1
+        pickle_and_check(fitter, 1, fitter._polynomial, None, True)
+
+        # call a spline method to set the spline basis attribute
+        fitter.mixture_model(self.y)
+        pickle_and_check(fitter, 1, fitter._polynomial, fitter._spline_basis, True)
+
+        # call other types of methods that don't change internal states
+        fitter.arpls(self.y)
+        pickle_and_check(fitter, 1, fitter._polynomial, fitter._spline_basis, True)
+
+        fitter.mor(self.y)
+        pickle_and_check(fitter, 1, fitter._polynomial, fitter._spline_basis, True)
+
+        fitter.snip(self.y)
+        pickle_and_check(fitter, 1, fitter._polynomial, fitter._spline_basis, True)
+
+        fitter.std_distribution(self.y)
+        pickle_and_check(fitter, 1, fitter._polynomial, fitter._spline_basis, True)
+
+        fitter.beads(self.y)
+        pickle_and_check(fitter, 1, fitter._polynomial, fitter._spline_basis, True)
+
+        fitter.optimize_extended_range(self.y, method='asls')
+        pickle_and_check(fitter, 1, fitter._polynomial, fitter._spline_basis, True)

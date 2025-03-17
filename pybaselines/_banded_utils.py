@@ -188,6 +188,54 @@ def _add_diagonals(array_1, array_2, lower_only=True):
     return summed_diagonals
 
 
+def _sparse_to_banded(matrix, expected_length):
+    """
+    Converts sparse matrices to LAPACK banded format.
+
+    Parameters
+    ----------
+    matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
+        The sparse, banded matrix.
+    expected_length : int
+        The expected total length of the data from the sparse matrix.
+
+    Returns
+    -------
+    ab : numpy.ndarray, shape (M, `expected_length`)
+        The data from the input sparse matrix in LAPACK banded format.
+    tuple(int, int)
+        The number of lower and upper bands within the banded matrix.
+
+    Notes
+    -----
+    When zeros occupy the lower right corner of sparse matrices, SciPy's sparse matrices can
+    remove the columns of zeros from the data attribute, so this function is necessary to
+    ensure the complete retrieval of data from the sparse matrices.
+
+    """
+    diag_matrix = matrix.todia()
+    lower = min(0, diag_matrix.offsets.min())
+    upper = max(0, diag_matrix.offsets.max())
+
+    data_size = diag_matrix.data.shape[1]
+    if (
+        data_size == expected_length
+        and np.array_equal(np.sort(diag_matrix.offsets), np.arange(lower, upper + 1))
+    ):
+        # offsets are typically negative to positive, but can get flipped during conversion
+        # between sparse formats; LAPACK's banded format matches SciPy's diagonal data format
+        # when offsets are from positve to negative
+        if upper == diag_matrix.offsets[0]:
+            ab = diag_matrix.data
+        else:
+            ab = diag_matrix.data[::-1]
+    else:
+        ab = np.zeros((abs(lower) + upper + 1, expected_length), dtype=diag_matrix.dtype)
+        ab[upper - diag_matrix.offsets, :data_size] = diag_matrix.data
+
+    return ab, (abs(lower), upper)
+
+
 def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
     Creates an n-order finite-difference matrix.
@@ -204,7 +252,7 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Returns
     -------
-    diff_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
+    diff_matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse difference matrix.
 
     Raises
@@ -469,9 +517,7 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
         diagonals = np.ones((1, data_size))
     elif data_size < 2 * diff_order + 1 or diff_order > 3:
         diff_matrix = difference_matrix(data_size, diff_order, 'csc')
-        # scipy's diag_matrix stores the diagonals in opposite order of
-        # the typical LAPACK banded structure
-        diagonals = (diff_matrix.T @ diff_matrix).todia().data[::-1]
+        diagonals = _sparse_to_banded(diff_matrix.T @ diff_matrix, data_size)[0]
         if lower_only:
             diagonals = diagonals[diff_order:]
     else:
@@ -501,7 +547,7 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
 
     Returns
     -------
-    penalty_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
+    penalty_matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse difference penalty matrix.
 
     Raises
@@ -605,7 +651,7 @@ class PenalizedSystem:
     pentapy_solver : int or str
         The integer or string designating which solver to use if using pentapy. See
         :func:`pentapy.solve` for available options, although `1` or `2` are the
-        most relevant options. Default is 2.
+        most relevant options.
     reversed : bool
         If True, the penalty is reversed of the typical LAPACK banded format. Useful if
         multiplying the penalty with an array since the rows get shifted, or if using pentapy's
@@ -646,11 +692,11 @@ class PenalizedSystem:
             layers. Negative `padding` is treated as equivalent to 0.
         pentapy_solver : int or str, optional
             The integer or string designating which solver to use if using pentapy. See
-            :func:`pentapy.core.solve` for available options, although `1` or `2` are the
+            :func:`pentapy.solve` for available options, although 1 or 2 are the
             most relevant options. Default is 2.
 
         """
-        self._len = data_size
+        self._num_bases = data_size
         self.original_diagonals = None
         self.pentapy_solver = pentapy_solver
 
@@ -746,7 +792,7 @@ class PenalizedSystem:
             needs_reversed = False
 
         if self.original_diagonals is None or self.diff_order != diff_order:
-            diagonal_data = diff_penalty_diagonals(self._len, diff_order, lower_only)
+            diagonal_data = diff_penalty_diagonals(self._num_bases, diff_order, lower_only)
             if needs_reversed:
                 diagonal_data = diagonal_data[::-1]
             self.original_diagonals = diagonal_data

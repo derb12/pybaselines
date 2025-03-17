@@ -6,7 +6,6 @@ Created on April 8, 2023
 
 """
 
-from contextlib import contextmanager
 from functools import partial, wraps
 import itertools
 import warnings
@@ -18,9 +17,9 @@ from .._validation import (
     _check_sized_array, _yxz_arrays
 )
 from ..utils import (
-    ParameterWarning, _determine_sorts, _inverted_sort, _sort_array2d, optimize_window, pad_edges2d
+    ParameterWarning, SortingWarning, _determine_sorts, _sort_array2d, optimize_window, pad_edges2d
 )
-from ._spline_utils import PSpline2D
+from ._spline_utils import PSpline2D, SplineBasis2D
 from ._whittaker_utils import WhittakerSystem2D
 
 
@@ -33,20 +32,11 @@ class _Algorithm2D:
 
     Attributes
     ----------
-    poly_order : Sequence[int, int]
-        The last polynomial order used for a polynomial algorithm. Initially is -1, denoting
-        that no polynomial fitting has been performed.
-    pspline : PSpline2D or None
-        The PSpline2D object for setting up and solving penalized spline algorithms. Is None
-        if no penalized spline setup has been performed (typically done in
-        :meth:`~_Algorithm2D._setup_spline`).
-    vandermonde : numpy.ndarray or None
-        The Vandermonde matrix for solving polynomial equations. Is None if no polynomial
-        setup has been performed (typically done in :meth:`~_Algorithm2D._setup_polynomial`).
-    whittaker_system : PenalizedSystem2D or None
-        The PenalizedSystem2D object for setting up and solving Whittaker-smoothing-based
-        algorithms. Is None if no Whittaker setup has been performed (typically done in
-        :meth:`_setup_whittaker`).
+    petapy_solver : int or str
+        Only used to pass to a new :class:`~.Baseline` object when using
+        :meth:`.Baseline2D.individual_axes`. The integer or string designating which solver
+        to use if using pentapy. See :func:`pentapy.solve` for available options, although
+        1 or 2 are the most relevant options. Default is 2.
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same size as the input `data.shape[-2]` and has min
@@ -72,47 +62,65 @@ class _Algorithm2D:
         Parameters
         ----------
         x_data : array-like, shape (M,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 during the first function call with length equal to the
-            input data length.
+            The x-values of the measured data (independant variable for the rows). Default is
+            None, which will create an array from -1 to 1 during the first function call with
+            length equal to the input data length.
         z_data : array-like, shape (N,), optional
-            The z-values of the measured data. Default is None, which will create an
-            array from -1 to 1 during the first function call with length equal to the
-            input data length.
+            The z-values of the measured data (independant variable for the columns). Default is
+            None, which will create an array from -1 to 1 during the first function call with
+            length equal to the input data length.
         check_finite : bool, optional
             If True (default), will raise an error if any values in input data are not finite.
             Setting to False will skip the check. Note that errors may occur if
             `check_finite` is False and the input data contains non-finite values.
         assume_sorted : bool, optional
             If False (default), will sort the input `x_data` and `z_data` values. Otherwise,
-            the input is assumed to be sorted. Note that some functions may raise an error
-            if `x_data` and `z_data` are not sorted.
+            the input is assumed to be sorted, although they will still be checked to be in
+            ascending order. Note that some methods will raise an error if `x_data` or `z_data`
+            values are not unique.
         output_dtype : type or numpy.dtype, optional
             The dtype to cast the output array. Default is None, which uses the typing
             of the input data.
 
         """
-        self._len = [None, None]
         x_sort_order = None
         z_sort_order = None
-        if x_data is None:
+        self._shape = None
+        no_x = x_data is None
+        no_z = z_data is None
+        if no_x:
             self.x = None
             self.x_domain = np.array([-1., 1.])
         else:
-            self.x = _check_array(x_data, check_finite=check_finite)
-            self._len[0] = len(self.x)
+            # TODO allow int or float32 x-values later; have to address in individual methods
+            self.x = _check_array(x_data, dtype=float, check_finite=check_finite)
+            if assume_sorted and np.any(self.x[1:] < self.x[:-1]):
+                warnings.warn(
+                    ('x-values must be strictly increasing for many methods, so setting '
+                     'assume_sorted to True'), SortingWarning, stacklevel=2
+                )
+                assume_sorted = False
+
+            self._shape = (len(self.x), None)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
             if not assume_sorted:
                 x_sort_order, x_inverted_order = _determine_sorts(self.x)
                 if x_sort_order is not None:
                     self.x = self.x[x_sort_order]
 
-        if z_data is None:
+        if no_z:
             self.z = None
             self.z_domain = np.array([-1., 1.])
         else:
-            self.z = _check_array(z_data, check_finite=check_finite)
-            self._len[1] = len(self.z)
+            # TODO allow int or float32 z-values later; have to address in individual methods
+            self.z = _check_array(z_data, dtype=float, check_finite=check_finite)
+            if assume_sorted and np.any(self.z[1:] < self.z[:-1]):
+                warnings.warn(
+                    ('z-values must be strictly increasing for many methods, so setting '
+                     'assume_sorted to True'), SortingWarning, stacklevel=2
+                )
+                assume_sorted = False
+            self._shape = (self._shape[0], len(self.z))
             self.z_domain = np.polynomial.polyutils.getdomain(self.z)
             if not assume_sorted:
                 z_sort_order, z_inverted_order = _determine_sorts(self.z)
@@ -132,13 +140,120 @@ class _Algorithm2D:
             self._sort_order = (x_sort_order[:, None], z_sort_order[None, :])
             self._inverted_order = (x_inverted_order[:, None], z_inverted_order[None, :])
 
-        self.whittaker_system = None
-        self.vandermonde = None
-        self.poly_order = -1
-        self.pspline = None
+        self._polynomial = None
+        self._spline_basis = None
         self._check_finite = check_finite
         self._dtype = output_dtype
-        self.pentapy_solver = 2
+        self.banded_solver = 2
+        self._validated_x = no_x
+        self._validated_z = no_z
+
+    @property
+    def _shape(self):
+        """The shape of the _Algorithm2D object."""
+        return self.__shape
+
+    @_shape.setter
+    def _shape(self, value):
+        """Sets the shape and size of the _Algorithm2D object.
+
+        Parameters
+        ----------
+        value : Sequence(int, int) or None
+            The shape of the dataset.
+
+        Notes
+        -----
+        Follows NumPy naming conventions where _Algorithm2D._size is the total number of items,
+        and _Algorithm2D._shape is the number of items in each dimension.
+
+        """
+        if value is None:
+            self._size = None
+            self.__shape = (None, None)
+        elif None in value:
+            if value[0] is None:
+                self.__shape = (self.__shape[0], value[1])
+                self._size = None
+            else:
+                self.__shape = (value[0], self.__shape[1])
+                self._size = None
+        else:
+            self.__shape = tuple(value)
+            self._size = np.prod(self._shape)
+
+    @property
+    def banded_solver(self):
+        """
+        Designates the solver to prefer using for solving 1D banded linear systems.
+
+        .. versionadded:: 1.2.0
+
+        Only used to pass to a new :class:`~.Baseline` object when using
+        :meth:`.Baseline2D.individual_axes`. An integer between 1 and 4 designating
+        the solver to prefer for solving banded linear systems in 1D. See
+        :attr:`~.Baseline.banded_solver` for more information.  Default is 2.
+
+        This typically does not need to be modified since all solvers have relatively
+        the same numerical stability and is mostly for internal testing.
+
+        """
+        return self._banded_solver
+
+    @banded_solver.setter
+    def banded_solver(self, solver):
+        """
+        Sets the solver for 1D banded systems.
+
+        Parameters
+        ----------
+        solver : {1, 2, 3, 4}
+            An integer designating the solver. Setting to 1 or 2 will use the ``PTRANS-I``
+            and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
+            ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
+            it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
+            else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
+            will only use the SciPy solvers following the same logic, and 4 will
+            force usage of :func:`scipy.linalg.solve_banded`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `solver` is not an integer between 1 and 4.
+
+        """
+        if isinstance(solver, bool) or solver not in {1, 2, 3, 4}:
+            # catch True since it can be interpreted as in {1, 2, 3, 4}; would likely
+            # not cause issues downsteam, but just eliminate that possibility
+            raise ValueError('banded_solver must be an integer with a value in (1, 2, 3, 4)')
+        # note that self._pentapy_solver is not set here since it is unused in 2D
+        self._banded_solver = solver
+
+    @property
+    def pentapy_solver(self):
+        """
+        The solver if using ``pentapy`` to solve banded equations.
+
+        .. deprecated:: 1.2
+            The `pentapy_solver` property is deprecated and will be removed in
+            version 1.4. Use :attr:`~Baseline2D.banded_solver` instead.
+
+        """
+        warnings.warn(
+            ('The `pentapy_solver` attribute is deprecated and will be removed in '
+             'version 1.4; use the `banded_solver` attribute instead'),
+            DeprecationWarning, stacklevel=2
+        )
+        return self.banded_solver
+
+    @pentapy_solver.setter
+    def pentapy_solver(self, value):
+        warnings.warn(
+            ('Setting the `pentapy_solver` attribute is deprecated and will be removed in '
+             'version 1.4; set the `banded_solver` attribute instead'),
+            DeprecationWarning, stacklevel=2
+        )
+        self.banded_solver = value
 
     def _return_results(self, baseline, params, dtype, sort_keys=(), ensure_2d=False,
                         reshape_baseline=False, reshape_keys=(), skip_sorting=False):
@@ -183,13 +298,13 @@ class _Algorithm2D:
         """
         if reshape_baseline:
             if ensure_2d:
-                baseline = baseline.reshape(self._len)
+                baseline = baseline.reshape(self._shape)
             else:
-                baseline = baseline.reshape(-1, *self._len)
+                baseline = baseline.reshape(-1, *self._shape)
         for key in reshape_keys:
             if key in params:
                 # TODO can any params be non-2d that need reshaped?
-                params[key] = params[key].reshape(self._len)
+                params[key] = params[key].reshape(self._shape)
 
         if self._sort_order is not None:
             for key in sort_keys:
@@ -199,13 +314,13 @@ class _Algorithm2D:
 
             if not skip_sorting:
                 baseline = _sort_array2d(baseline, sort_order=self._inverted_order)
-        baseline = baseline.astype(dtype, copy=False)
+        baseline = np.asarray(baseline, dtype=dtype)
 
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), dtype=None, order=None, ensure_2d=True,
-                  reshape_baseline=False, reshape_keys=(), skip_sorting=False):
+    def _register(cls, func=None, *, sort_keys=(), ensure_2d=True, reshape_baseline=False,
+                  reshape_keys=(), skip_sorting=False, require_unique_xz=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -220,11 +335,6 @@ class _Algorithm2D:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        dtype : type or numpy.dtype, optional
-            The dtype to cast the output array. Default is None, which uses the typing of `array`.
-        order : {None, 'C', 'F'}, optional
-            The order for the output array. Default is None, which will use the default array
-            ordering. Other valid options are 'C' for C ordering or 'F' for Fortran ordering.
         ensure_2d : bool, optional
             If True (default), will raise an error if the shape of `array` is not a two dimensional
             array with shape (M, N) or a three dimensional array with shape (M, N, 1), (M, 1, N),
@@ -239,6 +349,10 @@ class _Algorithm2D:
         skip_sorting : bool, optional
             If True, will skip sorting the output baseline. The keys in `sort_keys` will
             still be sorted. Default is False.
+        require_unique_xz : bool, optional
+            If True, will check ``self.x`` and ``self.z`` to ensure all values are unique and will
+            raise an error if non-unique values are present. Default is False, which skips the
+            check.
 
         Returns
         -------
@@ -250,9 +364,9 @@ class _Algorithm2D:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, dtype=dtype, order=order, ensure_2d=ensure_2d,
+                cls._register, sort_keys=sort_keys, ensure_2d=ensure_2d,
                 reshape_baseline=reshape_baseline, reshape_keys=reshape_keys,
-                skip_sorting=skip_sorting
+                skip_sorting=skip_sorting, require_unique_xz=require_unique_xz
             )
 
         @wraps(func)
@@ -262,46 +376,43 @@ class _Algorithm2D:
                 # be None in 2D
                 raise TypeError('"data" cannot be None')
 
-            reset_x = self.x is not None
-            reset_z = self.z is not None
-            if reset_x or reset_z:
-                if reset_x and reset_z:
-                    expected_shape = self._len
+            has_x = self.x is not None
+            has_z = self.z is not None
+            if has_x or has_z:
+                if has_x and has_z:
+                    expected_shape = self._shape
                     axis = slice(-2, None)
-                elif reset_x:
-                    expected_shape = self._len[0]
+                elif has_x:
+                    expected_shape = self._shape[0]
                     axis = -2
                 else:
-                    expected_shape = self._len[1]
+                    expected_shape = self._shape[1]
                     axis = -1
                 y = _check_sized_array(
-                    data, expected_shape, check_finite=self._check_finite, dtype=dtype,
-                    order=order, ensure_1d=False, axis=axis, name='data', ensure_2d=ensure_2d,
-                    two_d=True
+                    data, expected_shape, check_finite=self._check_finite, ensure_1d=False,
+                    axis=axis, name='data', ensure_2d=ensure_2d, two_d=True
                 )
             else:
                 y, self.x, self.z = _yxz_arrays(
-                    data, self.x, self.z, check_finite=self._check_finite, dtype=dtype,
-                    order=order, ensure_2d=ensure_2d
+                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_2d
                 )
 
-            # update self.x and/or self.z just to ensure dtype and order are correct
-            if reset_x:
-                x_dtype = self.x.dtype
-                self.x = _check_array(
-                    self.x, dtype=dtype, order=order, check_finite=False, ensure_1d=False
-                )
-            else:
-                self._len[0] = y.shape[-2]
-                self.x = np.linspace(-1, 1, self._len[0])
-            if reset_z:
-                z_dtype = self.z.dtype
-                self.z = _check_array(
-                    self.z, dtype=dtype, order=order, check_finite=False, ensure_1d=False
-                )
-            else:
-                self._len[1] = y.shape[-1]
-                self.z = np.linspace(-1, 1, self._len[1])
+            if not has_x:
+                self._shape = (y.shape[-2], self._shape[1])
+                self.x = np.linspace(-1, 1, self._shape[0])
+            elif require_unique_xz and not self._validated_x:
+                if np.any(self.x[1:] == self.x[:-1]):
+                    raise ValueError('x-values must be unique for the selected method')
+                else:
+                    self._validated_x = True
+            if not has_z:
+                self._shape = (self._shape[0], y.shape[-1])
+                self.z = np.linspace(-1, 1, self._shape[1])
+            elif require_unique_xz and not self._validated_z:
+                if np.any(self.z[1:] == self.z[:-1]):
+                    raise ValueError('z-values must be unique for the selected method')
+                else:
+                    self._validated_z = True
 
             if not skip_sorting:
                 y = _sort_array2d(y, sort_order=self._sort_order)
@@ -309,12 +420,11 @@ class _Algorithm2D:
                 output_dtype = y.dtype
             else:
                 output_dtype = self._dtype
+            # TODO allow int or float32 y-values later?; have to address in individual methods;
+            # often x and y need to have the same dtype too
+            y = np.asarray(y, dtype=float)
 
             baseline, params = func(self, y, *args, **kwargs)
-            if reset_x:
-                self.x = np.array(self.x, dtype=x_dtype, copy=False)
-            if reset_z:
-                self.z = np.array(self.z, dtype=z_dtype, copy=False)
 
             return self._return_results(
                 baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_2d=ensure_2d,
@@ -324,10 +434,9 @@ class _Algorithm2D:
 
         return inner
 
-    @contextmanager
     def _override_x(self, new_x, new_sort_order=None):
         """
-        Temporarily sets the x-values for the object to a different array.
+        Creates a new fitting object for the given x-values and z-values.
 
         Useful when fitting extensions of the x attribute.
 
@@ -335,55 +444,21 @@ class _Algorithm2D:
         ----------
         new_x : numpy.ndarray
             The x values to temporarily use.
-        new_sort_order : [type], optional
+        new_sort_order : numpy.ndarray, optional
             The sort order for the new x values. Default is None, which will not sort.
 
-        Yields
-        ------
+        Returns
+        -------
         pybaselines._algorithm_setup._Algorithm
             The _Algorithm object with the new x attribute.
 
+        Raises
+        ------
+        NotImplementedError
+            Raised since this usage is not currently needed so no 2D implementation was made.
+
         """
         raise NotImplementedError
-
-        old_x = self.x
-        old_len = self._len
-        old_x_domain = self.x_domain
-        old_sort_order = self._sort_order
-        old_inverted_order = self._inverted_order
-        # also have to reset any sized attributes to force recalculation for new x
-        old_poly_order = self.poly_order
-        old_vandermonde = self.vandermonde
-        old_whittaker_system = self.whittaker_system
-        old_pspline = self.pspline
-
-        try:
-            self.x = _check_array(new_x, check_finite=self._check_finite)
-            self._len = len(self.x)
-            self.x_domain = np.polynomial.polyutils.getdomain(self.x)
-            self._sort_order = new_sort_order
-            if self._sort_order is not None:
-                self._inverted_order = _inverted_sort(self._sort_order)
-            else:
-                self._inverted_order = None
-
-            self.vandermonde = None
-            self.poly_order = -1
-            self.whittaker_system = None
-            self.pspline = None
-
-            yield self
-
-        finally:
-            self.x = old_x
-            self._len = old_len
-            self.x_domain = old_x_domain
-            self._sort_order = old_sort_order
-            self._inverted_order = old_inverted_order
-            self.vandermonde = old_vandermonde
-            self.poly_order = old_poly_order
-            self.whittaker_system = old_whittaker_system
-            self.pspline = old_pspline
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
                          num_eigens=None):
@@ -394,7 +469,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M ,N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         lam : float or Sequence[float, float], optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
@@ -420,6 +495,8 @@ class _Algorithm2D:
             The y-values of the measured data after flattening.
         weight_array : numpy.ndarray, shape (``M * N``)
             The weight array after flattening.
+        whittaker_system : WhittakerSystem2D
+            The WhittakerSystem2D for solving the given penalized least squared system.
 
         Raises
         ------
@@ -442,26 +519,23 @@ class _Algorithm2D:
                 ParameterWarning, stacklevel=2
             )
         weight_array = _check_optional_array(
-            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
+            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
 
-        if (
-            self.whittaker_system is not None
-            and self.whittaker_system.same_basis(diff_order, num_eigens)
-        ):
-            self.whittaker_system.update_penalty(lam)
-        else:
-            self.whittaker_system = WhittakerSystem2D(
-                self._len, lam, diff_order, num_eigens
-            )
-        if not self.whittaker_system._using_svd:
+        # TODO can probably keep the basis for reuse if using SVD, like _setup_spline does, and
+        # retain the unmodified penalties for the rows and columns if possible to skip that
+        # calculation as well
+        whittaker_system = WhittakerSystem2D(
+            self._shape, lam, diff_order, num_eigens
+        )
+        if not whittaker_system._using_svd:
             y = y.ravel()
             weight_array = weight_array.ravel()
 
-        return y, weight_array
+        return y, weight_array, whittaker_system
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
                           calc_pinv=False, copy_weights=False, max_cross=None):
@@ -472,12 +546,12 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
         poly_order : int or Sequence[int, int], optional
-            The polynomial orders for the rows and columns. Default is 2.
+            The polynomial orders for the rows and columns, respectively. Default is 2.
         calc_vander : bool, optional
             If True, will calculate and the Vandermonde matrix. Default is False.
         calc_pinv : bool, optional
@@ -521,7 +595,7 @@ class _Algorithm2D:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
+            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
@@ -530,39 +604,16 @@ class _Algorithm2D:
         poly_orders = _check_scalar_variable(
             poly_order, allow_zero=True, variable_name='polynomial order', two_d=True, dtype=int
         )
-        if max_cross is not None:
-            max_cross = _check_scalar_variable(
-                max_cross, allow_zero=True, variable_name='max_cross', dtype=int
-            )
         if calc_vander:
-            if (
-                self.vandermonde is None or self._max_cross != max_cross
-                or np.any(self.poly_order != poly_order)
-            ):
-                mapped_x = np.polynomial.polyutils.mapdomain(
-                    self.x, self.x_domain, np.array([-1., 1.])
+            if self._polynomial is None:
+                self._polynomial = _PolyHelper2D(
+                    self.x, self.z, self.x_domain, self.z_domain, poly_orders, max_cross
                 )
-                mapped_z = np.polynomial.polyutils.mapdomain(
-                    self.z, self.z_domain, np.array([-1., 1.])
+            else:
+                self._polynomial.recalc_vandermonde(
+                    self.x, self.z, self.x_domain, self.z_domain, poly_orders, max_cross
                 )
-                # rearrange the vandermonde such that it matches the typical A c = b where b
-                # is the flattened version of y and c are the coefficients
-                self.vandermonde = np.polynomial.polynomial.polyvander2d(
-                    *np.meshgrid(mapped_x, mapped_z, indexing='ij'),
-                    [poly_orders[0], poly_orders[1]]
-                ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
 
-                if max_cross is not None:
-                    # lists out (z_0, x_0), (z_1, x_0), etc
-                    for idx, val in enumerate(
-                        itertools.product(range(poly_orders[0] + 1), range(poly_orders[1] + 1))
-                    ):
-                        # 0 designates pure z or x terms
-                        if 0 not in val and any(v > max_cross for v in val):
-                            self.vandermonde[:, idx] = 0
-
-        self.poly_order = poly_orders
-        self._max_cross = max_cross
         y = y.ravel()
         if not calc_pinv:
             return y, weight_array
@@ -570,9 +621,11 @@ class _Algorithm2D:
             raise ValueError('if calc_pinv is True, then calc_vander must also be True')
 
         if weights is None:
-            pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            pseudo_inverse = self._polynomial.pseudo_inverse
         else:
-            pseudo_inverse = np.linalg.pinv(np.sqrt(weight_array)[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(
+                np.sqrt(weight_array)[:, None] * self._polynomial.vandermonde
+            )
 
         return y, weight_array, pseudo_inverse
 
@@ -586,7 +639,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
@@ -622,6 +675,9 @@ class _Algorithm2D:
             The y-values of the measured data.
         weight_array : numpy.ndarray, shape (M, N)
             The weight array for fitting the spline to the data.
+        pspline : PSpline2D
+            The PSpline2D object for solving the given penalized least squared system. Only
+            returned if `make_basis` is True.
 
         Warns
         -----
@@ -635,7 +691,7 @@ class _Algorithm2D:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, copy_input=copy_weights, check_finite=self._check_finite,
+            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
@@ -643,24 +699,29 @@ class _Algorithm2D:
         diff_order = _check_scalar_variable(
             diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
         )
-        if make_basis:
-            if (diff_order > 4).any():
-                warnings.warn(
-                    ('differential orders greater than 4 can have numerical issues;'
-                     ' consider using a differential order of 2 or 3 instead'),
-                    ParameterWarning, stacklevel=2
-                )
+        if not make_basis:
+            return y, weight_array
 
-            if self.pspline is None or not self.pspline.same_basis(num_knots, spline_degree):
-                self.pspline = PSpline2D(
-                    self.x, self.z, num_knots, spline_degree, self._check_finite, lam, diff_order
-                )
-            else:
-                self.pspline.reset_penalty(lam, diff_order)
+        if (diff_order > 4).any():
+            warnings.warn(
+                ('differential orders greater than 4 can have numerical issues;'
+                    ' consider using a differential order of 2 or 3 instead'),
+                ParameterWarning, stacklevel=2
+            )
 
-        return y, weight_array
+        if (
+            self._spline_basis is None
+            or not self._spline_basis.same_basis(num_knots, spline_degree)
+        ):
+            self._spline_basis = SplineBasis2D(self.x, self.z, num_knots, spline_degree)
 
-    def _setup_morphology(self, y, half_window=None, **window_kwargs):
+        # TODO should probably also retain the unmodified penalties for the rows and
+        # columns if possible to skip that calculation as well
+        pspline = PSpline2D(self._spline_basis, lam, diff_order)
+
+        return y, weight_array, pspline
+
+    def _setup_morphology(self, y, half_window=None, window_kwargs=None, **kwargs):
         """
         Sets the starting parameters for morphology-based methods.
 
@@ -668,29 +729,17 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         half_window : int or Sequence[int, int], optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
             half-window size using pybaselines.morphological.optimize_window.
-        **window_kwargs
-            Keyword arguments to pass to :func:`.optimize_window`.
-            Possible items are:
-
-                * 'increment': int
-                    The step size for iterating half windows. Default is 1.
-                * 'max_hits': int
-                    The number of consecutive half windows that must produce the same
-                    morphological opening before accepting the half window as the
-                    optimum value. Default is 3.
-                * 'window_tol': float
-                    The tolerance value for considering two morphological openings as
-                    equivalent. Default is 1e-6.
-                * 'max_half_window': int
-                    The maximum allowable half-window size. If None (default), will be
-                    set to (len(data) - 1) / 2.
-                * 'min_half_window': int
-                    The minimum half-window size. If None (default), will be set to 1.
+        window_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to
+            :func:`pybaselines.utils.optimize_window`.
+        **kwargs
+            Deprecated in version 1.2.0 and will be removed in version 1.4.0. Pass keyword
+            arguments for :func:`.optimize_window` using `window_kwargs`.
 
         Returns
         -------
@@ -711,11 +760,20 @@ class _Algorithm2D:
         if half_window is not None:
             output_half_window = _check_half_window(half_window, two_d=True)
         else:
-            output_half_window = optimize_window(y, **window_kwargs)
+            window_kwargs = window_kwargs if window_kwargs is not None else {}
+            if kwargs:
+                warnings.warn(
+                    ('Passing additional keyword arguments for optimizing the half_window is '
+                     'deprecated and will be removed in version 1.4.0. Place all keyword '
+                     'arguments into the "window_kwargs" dictionary instead'),
+                    DeprecationWarning, stacklevel=2
+                )
+
+            output_half_window = optimize_window(y, **window_kwargs, **kwargs)
 
         return y, output_half_window
 
-    def _setup_smooth(self, y, half_window=0, allow_zero=True, hw_multiplier=2, **pad_kwargs):
+    def _setup_smooth(self, y, half_window=None, window_multiplier=1, pad_kwargs=None, **kwargs):
         """
         Sets the starting parameters for doing smoothing-based algorithms.
 
@@ -723,35 +781,47 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         half_window : int or Sequence[int, int], optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
-            effects. Default is 0, which provides no padding.
-        allow_zero : bool, optional
-            If True (default), allows `half_window` to be 0; otherwise, `half_window`
-            must be at least 1.
-        hw_multiplier : int, optional
+            effects. Default is is None, which sets the half window as the output of
+            :func:`pybaselines.utils.optimize_window` multiplied by `window_multiplier`.
+        window_multiplier : int, optional
             The value to multiply the output of :func:`.optimize_window` if half_window
-            is None.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from smoothing.
+            is None. Default is 1.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges2d` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
-        numpy.ndarray, shape (``M + 2 * half_window[0]``, ``N + 2 * half_window[1]`)
+        numpy.ndarray, shape (``M + 2 * half_window[0]``, ``N + 2 * half_window[1]``)
             The padded array of data.
         output_hw : np.ndarray[int, int]
             The accepted half windows.
 
         """
         if half_window is not None:
-            output_hw = _check_half_window(half_window, allow_zero, two_d=True)
+            output_hw = _check_half_window(half_window, allow_zero=False, two_d=True)
         else:
-            output_hw = hw_multiplier * optimize_window(y)
+            output_hw = window_multiplier * optimize_window(y)
 
-        return pad_edges2d(y, output_hw, **pad_kwargs), output_hw
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+        if kwargs:
+            warnings.warn(
+                ('Passing additional keyword arguments for padding is '
+                    'deprecated and will be removed in version 1.4.0. Place all keyword '
+                    'arguments into the "pad_kwargs" dictionary instead'),
+                DeprecationWarning, stacklevel=2
+            )
+
+        return pad_edges2d(y, output_hw, **pad_kwargs, **kwargs), output_hw
 
     def _setup_classification(self, y, weights=None):
         """
@@ -761,7 +831,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
@@ -775,7 +845,7 @@ class _Algorithm2D:
 
         """
         weight_array = _check_optional_array(
-            self._len, weights, check_finite=self._check_finite, dtype=bool,
+            self._shape, weights, check_finite=self._check_finite, dtype=bool,
             ensure_1d=False, axis=slice(None)
         )
         if self._sort_order is not None and weights is not None:
@@ -843,6 +913,7 @@ class _Algorithm2D:
                         x, z, check_finite=self._check_finite, assume_sorted=assume_sorted,
                         output_dtype=self._dtype
                     )
+                    class_object.banded_solver = self.banded_solver
                     func = getattr(class_object, function_string)
                 break
         else:  # in case no break
@@ -862,7 +933,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
         modules : Sequence[module, ...]
@@ -887,11 +958,6 @@ class _Algorithm2D:
         class_object : pybaselines._algorithm_setup._Algorithm
             The `_Algorithm` object which will be used for fitting.
 
-        Warns
-        -----
-        DeprecationWarning
-            Passed if `kwargs` is not empty.
-
         """
         baseline_func, func_module, class_object = self._get_function(method, modules)
         if method_kwargs is None:
@@ -911,7 +977,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~_Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._register`.
 
         Returns
         -------
@@ -925,3 +991,126 @@ class _Algorithm2D:
 
         """
         return y
+
+
+class _PolyHelper2D:
+    """
+    An object to help with solving polynomials.
+
+    Allows only recalculating the Vandermonde and pseudo-inverse matrices when necessary.
+
+    Attributes
+    ----------
+    max_cross : int
+        The maximum degree for the cross terms.
+    poly_order : Container[int, int]
+        The last polynomial order used to calculate the Vadermonde matrix.
+    pseudo_inverse : numpy.ndarray or None
+        The pseudo-inverse of the current Vandermonde matrix.
+    vandermonde : numpy.ndarray
+        The Vandermonde matrix for solving polynomial equations.
+
+    """
+
+    def __init__(self, x, z, x_domain, z_domain, poly_orders, max_cross):
+        """
+        Initializes the object and calculates the Vandermonde matrix.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        z : numpy.ndarray
+            The z-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        z_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `z`.
+        poly_orders : Container[int, int]
+            The polynomial orders for the rows and columns, respectively.
+        max_cross: int
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
+
+        """
+        self.poly_order = -1
+        self.max_cross = None
+        self.vandermonde = None
+        self._pseudo_inverse = None
+        self.pinv_stale = True
+
+        self.recalc_vandermonde(x, z, x_domain, z_domain, poly_orders, max_cross)
+
+    def recalc_vandermonde(self, x, z, x_domain, z_domain, poly_orders, max_cross):
+        """
+        Recalculates the Vandermonde matrix for the polynomial only if necessary.
+
+        Also flags whether the pseudo-inverse needs to be recalculated.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The x-values for the polynomial.
+        z : numpy.ndarray
+            The z-values for the polynomial.
+        x_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `x`.
+        z_domain : numpy.ndarray, shape (2,)
+            The minimum and maximum values of `z`.
+        poly_orders : Container[int, int]
+            The polynomial orders for the rows and columns, respectively.
+        max_cross: int
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
+
+        """
+        if max_cross is not None:
+            max_cross = _check_scalar_variable(
+                max_cross, allow_zero=True, variable_name='max_cross', dtype=int
+            )
+
+        # TODO if self.max_cross is None and x- and z- poly_orders are
+        # less than self.poly_order, then can just using slicing to reuse
+        # the vandermonde like for 1D; would then just need to recalc pinv
+        if (
+            self.vandermonde is None or self.max_cross != max_cross
+            or np.any(self.poly_order != poly_orders)
+        ):
+            self.pinv_stale = True
+            mapped_x = np.polynomial.polyutils.mapdomain(
+                x, x_domain, np.array([-1., 1.])
+            )
+            mapped_z = np.polynomial.polyutils.mapdomain(
+                z, z_domain, np.array([-1., 1.])
+            )
+            # rearrange the vandermonde such that it matches the typical A c = b where b
+            # is the flattened version of y and c are the coefficients
+            self.vandermonde = np.polynomial.polynomial.polyvander2d(
+                *np.meshgrid(mapped_x, mapped_z, indexing='ij'),
+                [poly_orders[0], poly_orders[1]]
+            ).reshape((-1, (poly_orders[0] + 1) * (poly_orders[1] + 1)))
+
+            if max_cross is not None:
+                # lists out (z_0, x_0), (z_1, x_0), etc
+                for idx, val in enumerate(
+                    itertools.product(range(poly_orders[0] + 1), range(poly_orders[1] + 1))
+                ):
+                    # 0 designates pure z or x terms
+                    if 0 not in val and any(v > max_cross for v in val):
+                        self.vandermonde[:, idx] = 0
+
+        self.poly_order = poly_orders
+        self.max_cross = max_cross
+
+    @property
+    def pseudo_inverse(self):
+        """
+        The pseudo-inverse of the Vandermonde.
+
+        Only recalculates the pseudo-inverse if the Vandermonde has been updated.
+
+        """
+        if self.pinv_stale or self._pseudo_inverse is None:
+            self._pseudo_inverse = np.linalg.pinv(self.vandermonde)
+            self.pinv_stale = False
+        return self._pseudo_inverse

@@ -44,10 +44,10 @@ def optimize_lam(data, known_baseline, func, previous_min=None, **kwargs):
     else:
         min_lam = previous_min - 0.5
     # coarse optimization
-    lams = np.arange(min_lam, 13.5, 0.5)
+    lams = np.arange(min_lam, 12.5, 0.5)
     best_lam = _minimize(data, known_baseline, func, lams, **kwargs)
     # fine optimization
-    lams = np.arange(best_lam - 0.5, best_lam + 0.7, 0.2)
+    lams = np.arange(best_lam - 0.5, min(best_lam + 0.7, 12.7), 0.2)
     best_lam = _minimize(data, known_baseline, func, lams, **kwargs)
 
     return best_lam

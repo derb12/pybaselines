@@ -2,9 +2,6 @@
 Polynomial Baselines
 ====================
 
-The contents of :mod:`pybaselines.polynomial` contain algorithms for fitting
-polynomials to the baseline.
-
 Introduction
 ------------
 
@@ -51,7 +48,7 @@ a polynomial that spans the entirety of the original dataset.
     import numpy as np
     import matplotlib.pyplot as plt
     from pybaselines.utils import gaussian
-    from pybaselines.polynomial import poly
+    from pybaselines import Baseline
 
     x = np.linspace(1, 1000, 500)
     signal = (
@@ -74,7 +71,7 @@ a polynomial that spans the entirety of the original dataset.
     y_masked = y[non_peaks]
 
     # fit only the masked x and y
-    _, params = poly(y_masked, x_masked, poly_order=3, return_coef=True)
+    _, params = Baseline(x_masked).poly(y_masked, poly_order=3, return_coef=True)
     # recreate the polynomial using numpy and the full x-data
     baseline = np.polynomial.Polynomial(params['coef'])(x)
 
@@ -107,7 +104,7 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
     weights = np.zeros(len(y))
     weights[non_peaks] = 1
     # directly create baseline by inputting weights
-    baseline = poly(y, x, poly_order=3, weights=weights)[0]
+    baseline = Baseline(x).poly(y, poly_order=3, weights=weights)[0]
 
     # Alternatively, just use numpy:
     # baseline = np.polynomial.Polynomial.fit(x, y, 3, w=weights)(x)
@@ -346,13 +343,21 @@ imodpoly (Improved Modified Polynomial)
 :meth:`~.Baseline.imodpoly` is an attempt to improve the modpoly algorithm for noisy data,
 by including the standard deviation of the residual (data - baseline) when performing
 the thresholding. The number of standard deviations included in the thresholding can
-be adjusted by setting ``num_std``. `imodpoly` is also sometimes called "IModPolyFit" in literature,
+be adjusted by setting ``num_std``. `imodpoly` is also sometimes called "IModPolyFit" or "Vancouver Raman Algorithm" in literature,
 and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterative Polynomial Fit".
 
 .. note::
    If using a ``num_std`` of 0, imodpoly may still produce different results than modpoly
    due to their different exit criteria.
 
+.. note::
+   Interesting historical note: an iterative masking-based polynomial method was proposed
+   by `Liu J., et al. in 1987 <https://doi.org/10.1366/0003702874449110>`_ that based
+   the mask each iteration on whether data points were one standard error above the
+   calculated baseline (essentially a masked version of imodpoly 20 years before imodpoly
+   was developed). However, it is much less stable than thresholding-based techniques like
+   imodpoly since if the exit criteria is not properly set, few data points can remain for
+   the polynomial fitting and cause severe misfitting of the baseline.
 
 .. plot::
    :align: center

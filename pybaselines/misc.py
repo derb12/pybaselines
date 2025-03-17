@@ -89,7 +89,7 @@ class _Misc(_Algorithm):
         data : array-like, optional
             The y-values. Not used by this function, but input is allowed for consistency
             with other functions.
-        baseline_points : array-like, shape (n, 2)
+        baseline_points : array-like, shape (L, 2)
             An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
             each point representing the baseline.
         interp_method : str, optional
@@ -195,7 +195,7 @@ class _Misc(_Algorithm):
             The half-window to use for smoothing the derivatives of the data with a moving
             average and full window size of `2 * smooth_half_window + 1`. Smoothing can
             improve the convergence of the calculation, and make the calculation less sensitive
-            to small changes in `lam_1` and `lam_2`, as noted in the pybeads package [3]_.
+            to small changes in `lam_1` and `lam_2`, as noted in the `pybeads` package [3]_.
             Default is None, which will not perform any smoothing.
 
         Returns
@@ -741,7 +741,6 @@ def _beads_loss(x, use_v2=True, eps_1=1e-6):
     ----------
     Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
     (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
-
 
     """
     if use_v2:

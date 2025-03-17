@@ -9,6 +9,8 @@ Created on March 3, 2021
 
 """
 
+from collections import defaultdict
+import itertools
 from math import ceil
 
 import numpy as np
@@ -58,11 +60,11 @@ class _Optimizers(_Algorithm):
             * 'average_alpha': numpy.ndarray, shape (N,)
                 Only returned if `method` is 'aspls' or 'pspline_aspls'. The
                 `alpha` array used to fit all of the baselines for the
-                :meth:`~Baseline.aspls` or :meth:`~Baseline.pspline_aspls` methods.
-
-            Additional items depend on the output of the selected method. Every
-            other key will have a list of values, with each item corresponding to a
-            fit.
+                :meth:`~.Baseline.aspls` or :meth:`~.Baseline.pspline_aspls` methods.
+            * 'method_params': dict[str, list]
+                A dictionary containing the output parameters for each individual fit.
+                Keys will depend on the selected method and will have a list of values,
+                with each item corresponding to a fit.
 
         Notes
         -----
@@ -113,9 +115,12 @@ class _Optimizers(_Algorithm):
         # step 2: use the dataset weights from step 1 (stored in method_kws['weights'])
         # to fit each individual data entry; set tol to infinity so that only one
         # iteration is done and new weights are not calculated
-        method_kws['tol'] = np.inf
+        if method not in ('mpls', 'pspline_mpls', 'fabc'):
+            method_kws['tol'] = np.inf
+        if method in ('brpls', 'pspline_brpls'):
+            method_kws['tol_2'] = np.inf
         baselines = np.empty(data_shape)
-        params = {'average_weights': method_kws['weights']}
+        params = {'average_weights': method_kws['weights'], 'method_params': defaultdict(list)}
         if calc_alpha:
             params['average_alpha'] = method_kws['alpha']
         if method == 'fabc':
@@ -125,16 +130,13 @@ class _Optimizers(_Algorithm):
         for i, entry in enumerate(dataset):
             baselines[i], param = baseline_func(entry, **method_kws)
             for key, value in param.items():
-                if key in params:
-                    params[key].append(value)
-                else:
-                    params[key] = [value]
+                params['method_params'][key].append(value)
 
         return baselines, params
 
     @_Algorithm._register(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
-                                height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
+                                height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=8,
                                 step=1, pad_kwargs=None, method_kwargs=None):
         """
         Extends data and finds the best parameter value for the given baseline method.
@@ -168,18 +170,19 @@ class _Optimizers(_Algorithm):
             indicated method. If using a polynomial method, `min_value` must be an
             integer. If using a Whittaker-smoothing-based method, `min_value` should
             be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
-            designates a `lam` value of 10**2).
-            Default is 2.
+            designates a `lam` value of 10**2). Default is 2.
         max_value : int or float, optional
             The maximum value for the `lam` or `poly_order` value to use with the
             indicated method. If using a polynomial method, `max_value` must be an
             integer. If using a Whittaker-smoothing-based method, `max_value` should
             be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
-            designates a `lam` value of 10**3).
-            Default is 8.
+            designates a `lam` value of 10**3). Default is 8.
         step : int or float, optional
             The step size for iterating the parameter value from `min_value` to `max_value`.
-            If using a polynomial method, `step` must be an integer.
+            If using a polynomial method, `step` must be an integer. If using a
+            Whittaker-smoothing-based method, `step` should
+            be the exponent to raise to the power of 10 (eg. a `step` value of 1
+            designates a `lam` value of 10**1). Default is 1.
         pad_kwargs : dict, optional
             A dictionary of options to pass to :func:`.pad_edges` for padding
             the edges of the data when adding the extended left and/or right sections.
@@ -199,10 +202,18 @@ class _Optimizers(_Algorithm):
                 The `lam` or `poly_order` value that produced the lowest
                 root-mean-squared-error.
             * 'min_rmse': float
-                The minimum root-mean-squared-error obtained when using
-                the optimal parameter.
 
-            Additional items depend on the output of the selected method.
+                .. deprecated:: 1.2.0
+                    The 'min_rmse' key will be removed from the ``method_params``
+                    dictionary in pybaselines version 1.4.0 in favor of the new
+                    'rmse' key which returns all root-mean-squared-error values.
+
+            * 'rmse' : numpy.ndarray
+                The array of the calculated root-mean-squared-error for each
+                of the fits.
+            * 'method_params': dict
+                A dictionary containing the output parameters for the optimal fit.
+                Items will depend on the selected method.
 
         Raises
         ------
@@ -217,18 +228,18 @@ class _Optimizers(_Algorithm):
 
         Notes
         -----
-        Based on the extended range penalized least squares (erPLS) method from [5]_.
-        The method proposed by [5]_ was for optimizing lambda only for the aspls
+        Based on the extended range penalized least squares (erPLS) method from [1]_.
+        The method proposed by [1]_ was for optimizing lambda only for the aspls
         method by extending only the right side of the spectrum. The method was
-        modified by allowing extending either side following [6]_, and for optimizing
+        modified by allowing extending either side following [2]_, and for optimizing
         lambda or the polynomial degree for all of the affected algorithms in
         pybaselines.
 
         References
         ----------
-        .. [5] Zhang, F., et al. An Automatic Baseline Correction Method Based on
+        .. [1] Zhang, F., et al. An Automatic Baseline Correction Method Based on
             the Penalized Least Squares Method. Sensors, 2020, 20(7), 2015.
-        .. [6] Krishna, H., et al. Range-independent background subtraction algorithm
+        .. [2] Krishna, H., et al. Range-independent background subtraction algorithm
             for recovery of Raman spectra of biological tissue. Journal of Raman
             Spectroscopy. 2012, 43(12), 1884-1894.
 
@@ -237,7 +248,7 @@ class _Optimizers(_Algorithm):
         if side not in ('left', 'right', 'both'):
             raise ValueError('side must be "left", "right", or "both"')
 
-        y, baseline_func, func_module, method_kws, fit_object = self._setup_optimizer(
+        y, _, func_module, method_kws, fit_object = self._setup_optimizer(
             data, method, (whittaker, polynomial, morphological, spline, classification),
             method_kwargs, True
         )
@@ -250,15 +261,21 @@ class _Optimizers(_Algorithm):
                 ))
             param_name = 'poly_order'
         else:
-            if any(val > 100 for val in (min_value, max_value, step)):
+            if any(val > 15 for val in (min_value, max_value, step)):
                 raise ValueError((
                     'min_value, max_value, and step should be the power of 10 to use '
                     '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
-                    'thus should not be greater than 100'
+                    'thus should not be greater than 15'
                 ))
             param_name = 'lam'
+        if step == 0 or min_value == max_value:
+            do_optimization = False
+        else:
+            do_optimization = True
+            if max_value < min_value and step > 0:
+                step = -step
 
-        added_window = int(self._len * width_scale)
+        added_window = int(self._size * width_scale)
         for key in ('weights', 'alpha'):
             if key in method_kws:
                 method_kws[key] = np.pad(
@@ -303,16 +320,12 @@ class _Optimizers(_Algorithm):
             lower_bound += added_window
 
         added_len = 2 * added_window if side == 'both' else added_window
-        upper_idx = len(fit_data) - upper_bound
-        min_sum_squares = np.inf
-        best_val = None
-
         if self._sort_order is None:
             new_sort_order = None
         else:
             if side == 'right':
                 new_sort_order = np.concatenate((
-                    self._sort_order, np.arange(self._len, self._len + added_len, dtype=np.intp)
+                    self._sort_order, np.arange(self._size, self._size + added_len, dtype=np.intp)
                 ), dtype=np.intp)
             elif side == 'left':
                 new_sort_order = np.concatenate((
@@ -322,36 +335,56 @@ class _Optimizers(_Algorithm):
                 new_sort_order = np.concatenate((
                     np.arange(added_window, dtype=np.intp),
                     self._sort_order + added_window,
-                    np.arange(self._len + added_window, self._len + added_len, dtype=np.intp)
+                    np.arange(self._size + added_window, self._size + added_len, dtype=np.intp)
                 ), dtype=np.intp)
 
-        # TODO maybe switch to linspace since arange is inconsistent when using floats
-        with fit_object._override_x(fit_x_data, new_sort_order=new_sort_order):
-            for var in np.arange(min_value, max_value + step, step):
-                if param_name == 'lam':
-                    method_kws[param_name] = 10**var
-                else:
-                    method_kws[param_name] = var
-                fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
-                # TODO change the known baseline so that np.roll does not have to be
-                # calculated each time, since it requires additional time
-                residual = (
-                    known_background - np.roll(fit_baseline, upper_bound)[:added_len]
+        new_fitter = fit_object._override_x(fit_x_data, new_sort_order=new_sort_order)
+        baseline_func = getattr(new_fitter, method)
+        if do_optimization:
+            if param_name == 'poly_order':
+                variables = np.arange(min_value, max_value + step, step)
+            else:
+                # use linspace for floats since it ensures endpoints are included; use
+                # logspace to skip having to do 10.0**linspace(...)
+                variables = np.logspace(
+                    min_value, max_value, ceil((max_value - min_value) / step), base=10.0
                 )
-                # just calculate the sum of squares to reduce time from using sqrt for rmse
-                sum_squares = residual.dot(residual)
-                if sum_squares < min_sum_squares:
-                    baseline = fit_baseline[lower_bound:upper_idx]
-                    params = fit_params
-                    best_val = var
-                    min_sum_squares = sum_squares
+            # double check that variables has at least one item; otherwise skip the optimization
+            if variables.size == 0:
+                do_optimization = False
+        if not do_optimization:
+            variables = np.array([min_value])
+            if param_name == 'lam':
+                variables = 10.0**variables
+        upper_idx = len(fit_data) - upper_bound
+        min_sum_squares = np.inf
+        best_idx = 0
+        sum_squares_tot = np.zeros_like(variables)
+        for i, var in enumerate(variables):
+            method_kws[param_name] = var
+            fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
+            # TODO change the known baseline so that np.roll does not have to be
+            # calculated each time, since it requires additional time
+            residual = (
+                known_background - np.roll(fit_baseline, upper_bound)[:added_len]
+            )
+            # just calculate the sum of squares to reduce time from using sqrt for rmse
+            sum_squares = residual.dot(residual)
+            sum_squares_tot[i] = sum_squares
+            if sum_squares < min_sum_squares:
+                baseline = fit_baseline[lower_bound:upper_idx]
+                method_params = fit_params
+                best_idx = i
+                min_sum_squares = sum_squares
 
-        params.update(
-            {'optimal_parameter': best_val, 'min_rmse': np.sqrt(min_sum_squares / added_len)}
-        )
+        sum_squares_tot = np.sqrt(sum_squares_tot / added_len)
+        params = {
+            'optimal_parameter': variables[best_idx], 'min_rmse': sum_squares_tot[best_idx],
+            'rmse': sum_squares_tot, 'method_params': method_params
+        }
         for key in ('weights', 'alpha'):
-            if key in params:
-                params[key] = params[key][
+            if key in params['method_params']:
+                params['method_params'][key] = params['method_params'][key][
                     0 if side == 'right' else added_window:
                     None if side == 'left' else -added_window
                 ]
@@ -376,7 +409,7 @@ class _Optimizers(_Algorithm):
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
-            and then select the appropriate polynomial orders according to [7]_.
+            and then select the appropriate polynomial orders according to [1]_.
         method : {'modpoly', 'imodpoly'}, optional
             The method to use for fitting each polynomial. Default is 'modpoly'.
         weights : array-like, shape (N,), optional
@@ -399,7 +432,7 @@ class _Optimizers(_Algorithm):
             Default is 2.
         method_kwargs : dict, optional
             Additional keyword arguments to pass to
-            :meth:`~Baseline.modpoly` or :meth:`~Baseline.imodpoly`. These include
+            :meth:`~.Baseline.modpoly` or :meth:`~.Baseline.imodpoly`. These include
             `tol`, `max_iter`, `use_original`, `mask_initial_peaks`, and `num_std`.
 
         Returns
@@ -415,10 +448,14 @@ class _Optimizers(_Algorithm):
                 The weight array used for the endpoint-constrained fits.
             * 'poly_order': numpy.ndarray, shape (2,)
                 An array of the two polynomial orders used for the fitting.
+            * 'method_params': dict[str, list]
+                A dictionary containing the output parameters for each individual fit.
+                Keys will depend on the selected method and will have a list of values,
+                with each item corresponding to a fit.
 
         References
         ----------
-        .. [7] Cao, A., et al. A robust method for automated background subtraction
+        .. [1] Cao, A., et al. A robust method for automated background subtraction
             of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
             1199-1205.
 
@@ -427,7 +464,7 @@ class _Optimizers(_Algorithm):
             data, method, [polynomial], method_kwargs, False
         )
         sort_weights = weights is not None
-        weight_array = _check_optional_array(self._len, weights, check_finite=self._check_finite)
+        weight_array = _check_optional_array(self._size, weights, check_finite=self._check_finite)
         if poly_order is None:
             poly_orders = _determine_polyorders(
                 y, estimation_poly_order, weight_array, baseline_func, **method_kws
@@ -450,9 +487,9 @@ class _Optimizers(_Algorithm):
             weight_array = _sort_array(weight_array, self._sort_order)
 
         constrained_weights = weight_array.copy()
-        constrained_weights[:ceil(self._len * constrained_fractions[0])] = weightings[0]
+        constrained_weights[:ceil(self._size * constrained_fractions[0])] = weightings[0]
         constrained_weights[
-            self._len - ceil(self._len * constrained_fractions[1]):
+            self._size - ceil(self._size * constrained_fractions[1]):
         ] = weightings[1]
 
         # and now change back to original ordering
@@ -460,29 +497,21 @@ class _Optimizers(_Algorithm):
             weight_array = _sort_array(weight_array, self._inverted_order)
             constrained_weights = _sort_array(constrained_weights, self._inverted_order)
 
-        # TODO should make parameters available; a list with an item for each fit like collab_pls
-        # TODO could maybe just use itertools.permutations, but would want to know the order in
-        # which the parameters are used
-        baselines = np.empty((4, self._len))
-        baselines[0] = baseline_func(
-            data=y, poly_order=poly_orders[0], weights=weight_array, **method_kws
-        )[0]
-        baselines[1] = baseline_func(
-            data=y, poly_order=poly_orders[0], weights=constrained_weights, **method_kws
-        )[0]
-        baselines[2] = baseline_func(
-            data=y, poly_order=poly_orders[1], weights=weight_array, **method_kws
-        )[0]
-        baselines[3] = baseline_func(
-            data=y, poly_order=poly_orders[1], weights=constrained_weights, **method_kws
-        )[0]
-
-        # TODO should the coefficients also be made available? Would need to get them from
-        # each of the fits
         params = {
             'weights': weight_array, 'constrained_weights': constrained_weights,
-            'poly_order': poly_orders
+            'poly_order': poly_orders, 'method_params': defaultdict(list)
         }
+        # order of inputs is (poly_orders[0], weight_array), (poly_orders[0], constrained_weights),
+        # (poly_orders[1], weight_array), (poly_orders[1], constrained_weights)
+        baselines = np.empty((4, self._size))
+        for i, (p_order, weight) in enumerate(
+            itertools.product(poly_orders, (weight_array, constrained_weights))
+        ):
+            baselines[i], method_params = baseline_func(
+                data=y, poly_order=p_order, weights=weight, **method_kws
+            )
+            for key, value in method_params.items():
+                params['method_params'][key].append(value)
 
         return np.maximum.reduce(baselines), params
 
@@ -529,12 +558,16 @@ class _Optimizers(_Algorithm):
             The baseline calculated with the optimum parameter.
         params : dict
             A dictionary with the following items:
-                * 'x_fit': numpy.ndarray, shape (P,)
-                    The truncated x-values used for fitting the baseline.
-                * 'y_fit': numpy.ndarray, shape (P,)
-                    The truncated y-values used for fitting the baseline.
 
-            Additional items depend on the output of the selected method.
+            * 'x_fit': numpy.ndarray, shape (P,)
+                The truncated x-values used for fitting the baseline.
+            * 'y_fit': numpy.ndarray, shape (P,)
+                The truncated y-values used for fitting the baseline.
+            * 'baseline_fit': numpy.ndarray, shape (P,)
+                The truncated baseline before interpolating from `P` points to `N` points.
+            * 'method_params': dict
+                A dictionary containing the output parameters for the fit using the selected
+                method.
 
         Raises
         ------
@@ -547,18 +580,18 @@ class _Optimizers(_Algorithm):
         Notes
         -----
         Uses Whittaker smoothing to smooth the transitions between regions rather than LOESS
-        as used in [31]_.
+        as used in [1]_.
 
         Uses binning rather than direct truncation of the regions in order to get better
         results for noisy data.
 
         References
         ----------
-        .. [31] Liland, K., et al. Customized baseline correction. Chemometrics and
+        .. [1] Liland, K., et al. Customized baseline correction. Chemometrics and
                 Intelligent Laboratory Systems, 2011, 109(1), 51-56.
 
         """
-        y, baseline_func, _, method_kws, fitting_object = self._setup_optimizer(
+        y, _, _, method_kws, fitting_object = self._setup_optimizer(
             data, method,
             (classification, misc, morphological, polynomial, smooth, spline, whittaker),
             method_kwargs, True
@@ -574,7 +607,7 @@ class _Optimizers(_Algorithm):
 
         x_sections = []
         y_sections = []
-        x_mask = np.ones(self._len, dtype=bool)
+        x_mask = np.ones(self._shape, dtype=bool)
         last_stop = -1
         include_first = True
         include_last = True
@@ -582,14 +615,14 @@ class _Optimizers(_Algorithm):
             if start is None:
                 start = 0
             if stop is None:
-                stop = self._len
+                stop = self._size
             if start < last_stop:
                 raise ValueError('Sections cannot overlap')
             else:
                 last_stop = stop
             if start < 0 or stop < 0:
                 raise ValueError('values in regions must be positive')
-            elif stop > self._len:
+            elif stop > self._size:
                 raise ValueError('values in regions must be less than len(data)')
 
             sections = (stop - start) // step
@@ -599,7 +632,7 @@ class _Optimizers(_Algorithm):
             for left_idx, right_idx in zip(indices[:-1], indices[1:]):
                 if left_idx == 0 and right_idx == 1:
                     include_first = False
-                elif right_idx == self._len and left_idx == self._len - 1:
+                elif right_idx == self._size and left_idx == self._size - 1:
                     include_last = False
                 y_sections.append(np.mean(y[left_idx:right_idx]))
                 x_sections.append(np.mean(self.x[left_idx:right_idx]))
@@ -619,15 +652,18 @@ class _Optimizers(_Algorithm):
 
         # param sorting will be wrong, but most params that need sorting will have
         # no meaning since they correspond to a truncated dataset
-        with fitting_object._override_x(x_fit):
-            baseline_fit, params = baseline_func(y_fit, **method_kws)
+        params = {'x_fit': x_fit, 'y_fit': y_fit}
+        new_fitter = fitting_object._override_x(x_fit)
+        baseline_fit, params['method_params'] = getattr(new_fitter, method.lower())(
+            y_fit, **method_kws
+        )
 
         baseline = np.interp(self.x, x_fit, baseline_fit)
-        params.update({'x_fit': x_fit, 'y_fit': y_fit})
+        params['baseline_fit'] = baseline_fit
         if lam is not None and lam != 0:
-            self._setup_whittaker(y, lam=lam, diff_order=diff_order)
-            baseline = self.whittaker_system.solve(
-                self.whittaker_system.add_diagonal(1.), baseline,
+            _, _, whittaker_system = self._setup_whittaker(y, lam=lam, diff_order=diff_order)
+            baseline = whittaker_system.solve(
+                whittaker_system.add_diagonal(1.), baseline,
                 overwrite_ab=True, overwrite_b=True
             )
 
@@ -675,11 +711,11 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
         * 'average_alpha': numpy.ndarray, shape (N,)
             Only returned if `method` is 'aspls' or 'pspline_aspls'. The
             `alpha` array used to fit all of the baselines for the
-            :meth:`~Baseline.aspls` or :meth:`~Baseline.pspline_aspls` methods.
-
-        Additional items depend on the output of the selected method. Every
-        other key will have a list of values, with each item corresponding to a
-        fit.
+            :meth:`~.Baseline.aspls` or :meth:`~.Baseline.pspline_aspls` methods.
+        * 'method_params': dict[str, list]
+            A dictionary containing the output parameters for each individual fit.
+            Keys will depend on the selected method and will have a list of values,
+            with each item corresponding to a fit.
 
     Notes
     -----
@@ -767,8 +803,9 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
         * 'min_rmse': float
             The minimum root-mean-squared-error obtained when using
             the optimal parameter.
-
-        Additional items depend on the output of the selected method.
+        * 'method_params': dict
+            A dictionary containing the output parameters for the optimal fit.
+            Items will depend on the selected method.
 
     Raises
     ------
@@ -895,8 +932,8 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
         to select the appropriate polynomial orders if `poly_order` is None.
         Default is 2.
     method_kwargs : dict, optional
-        Additional keyword arguments to pass to :meth:`~Baseline.modpoly` or
-        :meth:`~Baseline.imodpoly`. These include `tol`, `max_iter`, `use_original`,
+        Additional keyword arguments to pass to :meth:`~.Baseline.modpoly` or
+        :meth:`~.Baseline.imodpoly`. These include `tol`, `max_iter`, `use_original`,
         `mask_initial_peaks`, and `num_std`.
 
     Returns
@@ -912,6 +949,10 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
             The weight array used for the endpoint-constrained fits.
         * 'poly_order': numpy.ndarray, shape (2,)
             An array of the two polynomial orders used for the fitting.
+        * 'method_params': dict[str, list]
+            A dictionary containing the output parameters for each individual fit.
+            Keys will depend on the selected method and will have a list of values,
+            with each item corresponding to a fit.
 
     References
     ----------
@@ -965,12 +1006,16 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
         The baseline calculated with the optimum parameter.
     params : dict
         A dictionary with the following items:
-            * 'x_fit': numpy.ndarray, shape (P,)
-                The truncated x-values used for fitting the baseline.
-            * 'y_fit': numpy.ndarray, shape (P,)
-                The truncated y-values used for fitting the baseline.
 
-        Additional items depend on the output of the selected method.
+        * 'x_fit': numpy.ndarray, shape (P,)
+            The truncated x-values used for fitting the baseline.
+        * 'y_fit': numpy.ndarray, shape (P,)
+            The truncated y-values used for fitting the baseline.
+        * 'baseline_fit': numpy.ndarray, shape (P,)
+            The truncated baseline before interpolating from `P` points to `N` points.
+        * 'method_params': dict
+            A dictionary containing the output parameters for the fit using the selected
+            method.
 
     Raises
     ------

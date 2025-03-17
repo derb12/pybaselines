@@ -12,9 +12,9 @@ import pytest
 import scipy
 
 from pybaselines import classification
-from pybaselines.utils import ParameterWarning, whittaker_smooth
+from pybaselines.utils import ParameterWarning, gaussian, whittaker_smooth
 
-from .conftest import BaseTester, InputWeightsMixin
+from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation
 from .data import PYWAVELETS_HAAR
 
 
@@ -63,8 +63,7 @@ def test_rolling_std(y_scale, half_window, ddof):
 
     """
     x = np.arange(100)
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    y = y_scale * np.sin(x) + np.random.RandomState(0).normal(0, 0.2, x.size)
+    y = y_scale * np.sin(x) + np.random.default_rng(0).normal(0, 0.2, x.size)
     # only compare within [half_window:-half_window] since the calculation
     # can have slightly different values at the edges
     compare_slice = slice(half_window, -half_window)
@@ -90,8 +89,7 @@ def test_padded_rolling_std(y_scale, half_window, ddof):
 
     """
     x = np.arange(100)
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    y = y_scale * np.sin(x) + np.random.RandomState(0).normal(0, 0.2, x.size)
+    y = y_scale * np.sin(x) + np.random.default_rng(0).normal(0, 0.2, x.size)
     # only compare within [half_window:-half_window] since the calculation
     # can have slightly different values at the edges
     compare_slice = slice(half_window, -half_window)
@@ -196,6 +194,16 @@ def test_averaged_interp_warns():
     assert_allclose(output, expected_output)
 
 
+def test_averaged_interp_negative_interp_half_window():
+    """Ensure exception is raised when input interp_half_window is negative."""
+    x = np.arange(5)
+    y = 1 * x
+    mask = np.ones_like(y, dtype=bool)
+    mask[1] = False  # so no warning is emitted about all points belonging to baseline
+    with pytest.raises(ValueError):
+        classification._averaged_interp(x, y, mask, interp_half_window=-1)
+
+
 @pytest.mark.parametrize('window_size', [20, 21])
 @pytest.mark.parametrize('scale', [2, 3, 4, 5, 6, 7, 8, 9, 10])
 def test_haar(scale, window_size):
@@ -286,6 +294,25 @@ class ClassificationTester(BaseTester, InputWeightsMixin):
     algorithm_base = classification._Classification
     checked_keys = ('mask',)
     weight_keys = ('mask',)
+    requires_unique_x = True
+
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, **self.kwargs, mode='edge')
+        output_2, _ = self.class_func(self.y, **self.kwargs, pad_kwargs={'mode': 'edge'})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
+        # also ensure both pad_kwargs and **kwargs are passed to pad_edges; some algorithms do
+        # the padding outside of setup_smooth, so have to do this to cover those cases
+        with pytest.raises(TypeError):
+            with pytest.warns(DeprecationWarning):
+                self.class_func(
+                    self.y, **self.kwargs, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate'
+                )
 
 
 class TestGolotvin(ClassificationTester):
@@ -293,6 +320,7 @@ class TestGolotvin(ClassificationTester):
 
     func_name = 'golotvin'
     required_kwargs = {'half_window': 15, 'num_std': 6}
+    required_repeated_kwargs = {'half_window': 15, 'num_std': 6}
 
 
 class TestDietrich(ClassificationTester):
@@ -350,6 +378,7 @@ class TestCwtBR(ClassificationTester):
 
     func_name = 'cwt_br'
     checked_keys = ('mask', 'tol_history', 'best_scale')
+    requires_unique_x = False
 
     @pytest.mark.parametrize('scales', (None, np.arange(3, 20)))
     def test_output(self, scales):
@@ -363,11 +392,48 @@ class TestFabc(ClassificationTester):
     func_name = 'fabc'
     checked_keys = ('mask', 'weights')
     weight_keys = ('mask', 'weights')
+    requires_unique_x = False
 
     @pytest.mark.parametrize('weights_as_mask', (True, False))
     def test_input_weights(self, weights_as_mask):
         """Tests input weights as both a mask and as weights."""
         super().test_input_weights(weights_as_mask=weights_as_mask)
+
+
+def rubberband_data(x_data):
+    """
+    Creates y-data for testing indexing for the rubberband baseline.
+
+    Parameters
+    ----------
+    x_data : numpy.ndarray
+        The x-values; should be the same x-values used as the default testing values.
+        (ie. np.linspace(1, 100, 1000))
+
+    Returns
+    -------
+    x_data : numpy.ndarray
+        The x-values.
+    y_data : numpy.ndarray
+        The y-values.
+
+    Notes
+    -----
+    Produces a baseline such that the convex hull produces a sitution where the
+    minimum and maximum index occur on the same value, mirroring issue 29.
+
+    """
+    signal = (
+        500  # constant baseline
+        + np.exp(-(x_data - 500) / 60)  # severe exponential baseline
+        + gaussian(x_data, 100, 25)
+        + gaussian(x_data, 200, 50)
+        + gaussian(x_data, 100, 75)
+    )
+    noise = np.random.default_rng(0).normal(0, 0.5, x_data.size)
+    y_data = signal + noise
+
+    return y_data
 
 
 class TestRubberband(ClassificationTester):
@@ -435,12 +501,6 @@ class TestRubberband(ClassificationTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, segments=segments)
 
-    def test_non_sorted_x_fails(self):
-        """Ensures that non-monotonically increasing x-values fails."""
-        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=True)
-        with pytest.raises(ValueError):
-            getattr(reverse_fitter, self.func_name)(self.y)
-
     @pytest.mark.parametrize('lam', [0, None])
     def test_zero_lam_interp(self, lam):
         """Ensures that a None or zero-valued lam gives a linear interpolation."""
@@ -477,3 +537,40 @@ class TestRubberband(ClassificationTester):
         super().test_unchanged_data(
             use_class, lam=lam, smooth_half_window=smooth_half_window
         )
+
+    def test_indexing(self):
+        """
+        Ensures indexing is handled correctly by the rubberband baseline.
+
+        Addresses issue 29 where the indexing had failed due to the min and max index
+        values occuring on the same value.
+
+        """
+        data = rubberband_data(self.x)
+        self.class_func(data)  # just ensure it runs without issue
+
+    @ensure_deprecation(1, 4)
+    @pytest.mark.parametrize('smooth_half_window', (0, 1))
+    def test_kwargs_deprecation(self, smooth_half_window):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(
+                self.y, smooth_half_window=smooth_half_window, mode='edge'
+            )
+        output_2, _ = self.class_func(
+            self.y, smooth_half_window=smooth_half_window, pad_kwargs={'mode': 'edge'}
+        )
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
+        # also ensure both pad_kwargs and **kwargs are passed to pad_edges; some algorithms do
+        # the padding outside of setup_smooth, so have to do this to cover those cases
+        # smooth_half_window has to be > 0 for error to occur
+        if smooth_half_window > 0:
+            with pytest.raises(TypeError):
+                with pytest.warns(DeprecationWarning):
+                    self.class_func(
+                        self.y, smooth_half_window=smooth_half_window,
+                        pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate'
+                )

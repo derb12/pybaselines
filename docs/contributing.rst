@@ -82,6 +82,27 @@ locally, run the following command in the terminal while in the pybaselines dire
     pytest .
 
 
+By default, all tests except those that test threading will run. Threaded tests only run
+by default on free-threaded CPython builds, but they can also be enabled or disabled by
+setting the command line option ``--test_threading`` to 1 or 0, respectively. For example,
+to test threaded tests on a non free-threaded CPython version, run:
+
+.. code-block:: console
+
+    pytest . --test_threading=1
+
+
+The tests for the two dimensional algorithms are quite time consuming, so if the relevant
+tests are not concerened with two dimensional code, the 2D tests can be skipped with the following:
+
+.. code-block:: console
+
+    pytest . -k "not two_d"
+
+
+Alternatively, `pytest-xdist <https://pypi.org/project/pytest-xdist/>`_ can be installed to allow
+running tests in parallel to also reduce the total testing time.
+
 The testing steps below are just for reference and not necessary.
 
 If checking coverage (not necessary, but can be helpful to know), install
@@ -115,9 +136,20 @@ please ensure the documentation builds locally by running the following command 
 and ensure that no warnings or errors are raised during building. The built documentation can
 then be viewed in the ``pybaselines/docs/_build/html`` folder.
 
-If adding a new baseline algorithm, please add a short summary of the algorithm to the
-appropriate module in the
-`algorithms section <https://pybaselines.readthedocs.io/en/latest/algorithms/index.html>`_,
-and, if possible, add a plot showing how the algorithm fits different baselines using
-matplotlib's ``plot`` directive. Look at the rst sources for any of the files in the
-``pybaselines/docs/algorithms`` folder for examples.
+
+Adding New Algorithms
+^^^^^^^^^^^^^^^^^^^^^
+
+If adding a new baseline algorithm to pybaselines:
+
+*   Add tests for the method. pybaselines supplies testing classes within the
+    ``pybaselines/tests/conftest.py`` file that should be subclassed to ensure all basic
+    requirements for a new algorithm are met. Additional tests should also be added as needed.
+    See existing tests for examples.
+*   Add a short summary of the algorithm to the appropriate place in the
+    `algorithms section <https://pybaselines.readthedocs.io/en/latest/algorithms/index.html>`_,
+    and, if possible, add a plot showing how the algorithm fits different baselines using
+    matplotlib's ``plot`` directive. Look at the rst sources for any of the files in the
+    ``pybaselines/docs/algorithms`` folder for examples.
+*   Add the algorithm to the `API section <https://pybaselines.readthedocs.io/en/latest/api/index.html>`_
+    of the documentation.

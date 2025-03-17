@@ -25,12 +25,12 @@ def _face_splitting(basis):
 
     Parameters
     ----------
-    basis : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse._sparray
+    basis : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
         The two dimensional dense or sparse matrix, with shape (`M`, `N`).
 
     Returns
     -------
-    scipy.sparse.spmatrix or scipy.sparse._sparray
+    scipy.sparse.spmatrix or scipy.sparse.sparray
         The face-splitting product of the input basis matrix with itself, with
         shape (`M`, `N**2`).
 
@@ -56,7 +56,7 @@ class PenalizedSystem2D:
         The difference order of the penalty.
     main_diagonal : numpy.ndarray
         The values along the main diagonal of the penalty matrix.
-    penalty : scipy.sparse.base.spmatrix
+    penalty : scipy.sparse.spmatrix or scipy.sparse.sparray
         The current penalty. Originally is `original_diagonals` after multiplying by `lam`
         and applying padding, but can also be changed by calling
         :meth:`~PenalizedSystem2D.add_penalty`. Reset by calling
@@ -84,7 +84,7 @@ class PenalizedSystem2D:
         ----------
         data_size : Sequence[int, int]
             The number of data points for the system.
-        lam : float or Sequence[int, int], optional
+        lam : float or Sequence[float, float], optional
             The penalty factor applied to the difference matrix for the rows and columns,
             respectively. If a single value is given, both will use the same value. Larger
             values produce smoother results. Must be greater than 0. Default is 1.
@@ -161,7 +161,10 @@ class PenalizedSystem2D:
 
     def solve(self, y, weights, penalty=None, rhs_extra=None):
         """
-        Solves the equation ``A @ x = b``.
+        Solves the penalized linear equation.
+
+        Solves ``(P + W) @ x = w * y``, where `P` is the penalty, `w` are the weights,
+        and `W` is a diagonal matrix with `w` on the diagonal.
 
         Parameters
         ----------
@@ -208,7 +211,7 @@ class PenalizedSystem2D:
 
         Returns
         -------
-        scipy.sparse.base.spmatrix
+        scipy.sparse.spmatrix
             The penalty matrix with the main diagonal updated.
 
         """
@@ -226,11 +229,11 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
     Attributes
     ----------
-    basis_r : scipy.sparse.csr.csr_matrix, shape (N, P)
+    basis_r : scipy.sparse.csr_matrix, shape (N, P)
         The spline basis for the rows. Has a shape of (`N,` `P`), where `N` is the number of
         points in `x`, and `P` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[0] + spline_degree[0] - 1``).
-    basis_c : scipy.sparse.csr.csr_matrix, shape (M, Q)
+    basis_c : scipy.sparse.csr_matrix, shape (M, Q)
         The spline basis for the columns. Has a shape of (`M,` `Q`), where `M` is the number of
         points in `z`, and `Q` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[1] + spline_degree[1] - 1``).

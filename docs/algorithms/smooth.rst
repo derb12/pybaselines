@@ -2,8 +2,11 @@
 Smoothing Baselines
 ===================
 
-The contents of :mod:`pybaselines.smooth` contain algorithms that use smoothing
-to eliminate peaks and leave only the baseline.
+Introduction
+------------
+
+Smoothing algorithms use moving-window based smoothing operations such as moving averages,
+moving medians, and Savitzky-Golay filtering to eliminate peaks and leave only the baseline.
 
 .. note::
    The window size used for smoothing-based algorithms is index-based, rather
@@ -259,5 +262,36 @@ their starting areas.
             half_window = 30
         baseline, params = baseline_fitter.ria(
             y, half_window=half_window, width_scale=width_scale, extrapolate_window=20
+        )
+        ax.plot(baseline, 'g--')
+
+
+peak_filling (4S Peak Filling Algorithm)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline.peak_filling` performs four "S" steps: smooth, subsample, suppress,
+and stretch. In detail, the method smooths and truncates the input. Each value is then
+replaced in-place by the minimum of the value or the average of the moving window, with
+the half-window size decreasing exponentially from the input `half_window` to 1. The result
+is then interpolated back into the original data size.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        if i == 1:
+            max_iter = 5
+            half_window = 6
+        elif i == 3:
+            max_iter = 3
+            half_window = 3
+        else:
+            max_iter = 3
+            half_window = 10
+        baseline, params = baseline_fitter.peak_filling(
+            y, half_window=half_window, max_iter=max_iter, lam_smooth=1e0
         )
         ax.plot(baseline, 'g--')

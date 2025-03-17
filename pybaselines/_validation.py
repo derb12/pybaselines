@@ -27,14 +27,14 @@ def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asa
         If True and `data` is a scalar, then will output an array with a length of
         `desired_length`. Default is False, which leaves scalar values unchanged.
     coerce_0d : bool, optional
-        If True (default) and `data` is an array-like, `output` will be a scalar. If
-        False, `output` will also be an array with shape (1,).
+        If True (default) and `data` is an array-like with a single item, `output`
+        will be a scalar. If False, `output` will also be an array with shape (1,).
     **asarray_kwargs : dict
         Additional keyword arguments to pass to :func:`numpy.asarray`.
 
     Returns
     -------
-    output : numpy.ndarray or numpy.number
+    output : numpy.ndarray or scalar
         The array of values or the single array scalar, depending on the input parameters.
     is_scalar : bool
         True if the input was a scalar value or had a length of 1; otherwise, is False.
@@ -47,11 +47,11 @@ def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asa
     """
     output = np.asarray(data, **asarray_kwargs)
     ndim = output.ndim
-    if not ndim:
+    if ndim == 0:
         is_scalar = True
     else:
         if ndim > 1:  # coerce to 1d shape
-            output = output.reshape(-1)
+            output = output.ravel()
         len_output = len(output)
         if len_output == 1 and coerce_0d:
             is_scalar = True
@@ -61,6 +61,8 @@ def _check_scalar(data, desired_length, fill_scalar=False, coerce_0d=True, **asa
 
     if is_scalar:
         if fill_scalar:
+            if desired_length is None:
+                raise ValueError('desired length must not be None if fill_scalar is True')
             output = np.full(desired_length, output)
         else:
             # index with an empty tuple to get the single scalar while maintaining the numpy dtype
@@ -78,7 +80,7 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', two_d=F
 
     Parameters
     ----------
-    value : numpy.Number or array-like
+    value : scalar or array-like
         The value to check.
     allow_zero : bool, optional
         If False (default), only allows `value` > 0. If True, allows `value` >= 0.
@@ -92,7 +94,7 @@ def _check_scalar_variable(value, allow_zero=False, variable_name='lam', two_d=F
 
     Returns
     -------
-    output : numpy.Number or numpy.ndarray[numpy.Number, numpy.Number]
+    output : scalar or numpy.ndarray[scalar, scalar]
         The verified scalar value(s).
 
     Raises
@@ -158,6 +160,8 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
     ValueError
         Raised if `ensure_1d` is True and `array` does not have a shape of (N,) or
         (N, 1) or (1, N).
+    TypeError
+        Raised if `array` is a scalar value.
 
     Notes
     -----
@@ -165,23 +169,26 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
     (N,) for better compatibility for all functions. Likewise, `ensure_2d` will flatten to
     (M, N).
 
+    Does not increase dimensionality of the input, so a scalar will not be made 1D or a 1D
+    array will not be made 2D. Instead, an error is raised.
+
     """
     if check_finite:
         array_func = np.asarray_chkfinite
     else:
         array_func = np.asarray
     output = array_func(array, dtype=dtype, order=order)
+    dimensions = output.ndim
+    if dimensions < 1:
+        raise TypeError('input cannot be a scalar')
+
     if ensure_1d:
-        output = np.array(output, copy=False, ndmin=1)
-        dimensions = output.ndim
         if dimensions == 2 and 1 in output.shape:
-            output = output.reshape(-1)
+            output = output.ravel()
         elif dimensions != 1:
             raise ValueError('must be a one dimensional array')
     elif two_d:
-        output = np.array(output, copy=False, ndmin=2)
-        dimensions = output.ndim
-        if dimensions == 2 and 1 in output.shape:
+        if dimensions < 2 or (dimensions == 2 and 1 in output.shape):
             raise ValueError(
                 'input data must be a two dimensional array with more than just one row or column'
             )
@@ -189,7 +196,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
             if dimensions == 3 and 1 in output.shape:
                 output_shape = np.array(output.shape)
                 flat_dims = ~np.equal(output_shape, 1)
-                output = output.reshape(output_shape[flat_dims]).shape
+                output = output.reshape(output_shape[flat_dims])
             elif dimensions != 2:
                 raise ValueError('must be a two dimensional array')
     elif ensure_2d and not two_d:
@@ -387,7 +394,7 @@ def _check_lam(lam, allow_zero=False, two_d=False, dtype=float):
 
     Returns
     -------
-    numpy.Number or numpy.ndarray[numpy.Number, numpy.Number]
+    scalar or numpy.ndarray[scalar, scalar]
         The verified `lam` value(s).
 
     Raises
@@ -512,7 +519,7 @@ def _get_row_col_values(value, **asarray_kwargs):
 
     Parameters
     ----------
-    value : numpy.number or Sequence[numpy.number, ...]
+    value : scalar or Sequence[scalar, ...]
         The value(s) corresponding to the first row, last row, first column, and last
         column.
 

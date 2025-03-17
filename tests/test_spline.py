@@ -12,9 +12,9 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import _banded_utils, morphological, spline, utils, whittaker
+from pybaselines import _banded_utils, _spline_utils, morphological, spline, whittaker
 
-from .conftest import BaseTester, InputWeightsMixin
+from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation
 
 
 def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5,
@@ -50,6 +50,21 @@ class SplineTester(BaseTester):
     module = spline
     algorithm_base = spline._Spline
 
+    def test_numba_implementation(self):
+        """
+        Ensures the output is consistent between the two separate pspline solvers.
+
+        Some testing subclasses do not use pspline solvers, but this is the easiest way
+        to cover all affect algorithms.
+
+        """
+        with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
+            normal_output = self.class_func(self.y)[0]
+        with mock.patch.object(_spline_utils, '_HAS_NUMBA', True):
+            numba_output = self.class_func(self.y)[0]
+
+        assert_allclose(numba_output, normal_output, rtol=1e-9)
+
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin):
     """Base testing class for iterative spline functions."""
@@ -62,6 +77,33 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin):
         _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
+
+    def test_recreation(self):
+        """
+        Ensures inputting weights can recreate the same baseline.
+
+        Optimizers such as `collab_pls` require this functionality, so ensure
+        it works.
+
+        Note that if `max_iter` is set such that the function does not converge,
+        then this will fail; that behavior is fine since exiting before convergence
+        should not be a typical usage.
+        """
+        # TODO this should eventually be incorporated into InputWeightsMixin
+        first_baseline, params = self.class_func(self.y)
+        kwargs = {'weights': params['weights']}
+        if self.func_name in ('aspls', 'pspline_aspls'):
+            kwargs['alpha'] = params['alpha']
+        elif self.func_name in ('brpls', 'pspline_brpls'):
+            kwargs['tol_2'] = np.inf
+        second_baseline, params_2 = self.class_func(self.y, tol=np.inf, **kwargs)
+
+        if self.func_name in ('brpls', 'pspline_brpls'):
+            assert params_2['tol_history'].shape == (2, 1)
+            assert params_2['tol_history'].size == 2
+        else:
+            assert len(params_2['tol_history']) == 1
+        assert_allclose(second_baseline, first_baseline, rtol=1e-12)
 
 
 class TestMixtureModel(IterativeSplineTester):
@@ -106,6 +148,12 @@ class TestMixtureModel(IterativeSplineTester):
         lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
+    @ensure_deprecation(1, 3)
+    def test_num_bins_deprecation(self):
+        """Ensures a DeprecationWarning is given when num_bins is input."""
+        with pytest.warns(DeprecationWarning):
+            self.class_func(self.y, num_bins=20)
+
 
 class TestIRSQR(IterativeSplineTester):
     """Class for testing irsqr baseline."""
@@ -134,6 +182,7 @@ class TestCornerCutting(SplineTester):
     """
 
     func_name = 'corner_cutting'
+    requires_unique_x = True
 
     def test_no_x(self):
         """Ensures that function output is similar when no x is input."""
@@ -219,8 +268,8 @@ class TestPsplineAirPLS(IterativeSplineTester):
         lam = {1: 1e3, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
+    # ignore the ParameterWarning that can occur from the fit not being good at high iterations
+    @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
         Ensures that the function gracefully exits when errors occur.
@@ -232,15 +281,17 @@ class TestPsplineAirPLS(IterativeSplineTester):
 
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
 
         """
         x, y = no_noise_data_fixture
-        with pytest.warns(utils.ParameterWarning):
-            baseline = self.class_func(y, tol=-1, max_iter=7000)[0]
-        assert np.isfinite(baseline.dot(baseline))
+        with np.errstate(over='raise'):
+            baseline, params = self.class_func(y, tol=-1, max_iter=7000)
+
+        assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
@@ -260,7 +311,9 @@ class TestPsplineArPLS(IterativeSplineTester):
         lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    @pytest.mark.skip(reason='overflow will be addressed next version')
+    # ignore the ParameterWarning that can occur from the fit not being good at high iterations
+    # only relevant for earlier SciPy versions, so maybe due to change within scipy.special.expit
+    @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_avoid_overflow_warning(self, no_noise_data_fixture):
         """
         Ensures no warning is emitted for exponential overflow.
@@ -275,9 +328,13 @@ class TestPsplineArPLS(IterativeSplineTester):
         """
         x, y = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
-        assert np.isfinite(baseline.dot(baseline))
+        assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
@@ -297,32 +354,26 @@ class TestPsplineDrPLS(IterativeSplineTester):
         lam = {2: 1e6, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures that the function gracefully exits when non-finite weights are created.
+        Ensures that the function does not create non-finite weights.
 
-        When there are no negative residuals or exp(iterations) / std is very high, both
-        of which occur when a low tol value is used with a high max_iter value, the
-        weighting function would produce non-finite values. The returned baseline should
-        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+        drpls should not experience overflow since there is a cap on the iteration used
+        within the exponential, so no warnings or errors should be emitted even when using
+        a very high max_iter and low tol.
 
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
-        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
-        for finite-ness.
 
         """
         x, y = no_noise_data_fixture
-        with pytest.warns(utils.ParameterWarning):
-            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
+        baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
-        assert np.isfinite(baseline.dot(baseline))
-        # ensure last tolerence calculation was non-finite as a double-check that
+        assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
         # this test is actually doing what it should be doing
-        assert not np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('eta', (0.2, 0.8))
@@ -335,7 +386,7 @@ class TestPsplineDrPLS(IterativeSplineTester):
         get the weight at the coefficients' x-values.
         """
         compare_pspline_whittaker(
-            self, whittaker.drpls, self.y, lam=lam, eta=eta, diff_order=diff_order, test_rtol=2e-3
+            self, whittaker.drpls, self.y, lam=lam, eta=eta, diff_order=diff_order, test_rtol=5e-3
         )
 
     @pytest.mark.parametrize('eta', (-1, 2))
@@ -361,16 +412,13 @@ class TestPsplineIArPLS(IterativeSplineTester):
         lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    # ignore the RuntimeWarning that occurs from using +/- inf or nan
-    @pytest.mark.filterwarnings('ignore::RuntimeWarning')
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
-        Ensures that the function gracefully exits when non-finite weights are created.
+        Ensures that the function does not create non-finite weights.
 
-        When there are no negative residuals or exp(iterations) / std is very high, both
-        of which occur when a low tol value is used with a high max_iter value, the
-        weighting function would produce non-finite values. The returned baseline should
-        be the last iteration that was successful, and thus should not contain nan or +/- inf.
+        iarpls should not experience overflow since there is a cap on the iteration used
+        within the exponential, so no warnings or errors should be emitted even when using
+        a very high max_iter and low tol.
 
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
@@ -380,13 +428,14 @@ class TestPsplineIArPLS(IterativeSplineTester):
 
         """
         x, y = no_noise_data_fixture
-        with pytest.warns(utils.ParameterWarning):
+        with np.errstate(over='raise'):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
-        assert np.isfinite(baseline.dot(baseline))
-        # ensure last tolerence calculation was non-finite as a double-check that
+        assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
         # this test is actually doing what it should be doing
-        assert not np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
@@ -449,6 +498,12 @@ class TestPsplineAsPLS(IterativeSplineTester):
             self, whittaker.aspls, self.y, lam=lam, diff_order=diff_order, test_rtol=rtol
         )
 
+    @pytest.mark.parametrize('asymmetric_coef', (0, -1))
+    def test_outside_asymmetric_coef_fails(self, asymmetric_coef):
+        """Ensures asymmetric_coef values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, asymmetric_coef=asymmetric_coef)
+
 
 class TestPsplinePsalsa(IterativeSplineTester):
     """Class for testing pspline_psalsa baseline."""
@@ -476,6 +531,12 @@ class TestPsplinePsalsa(IterativeSplineTester):
             self, whittaker.psalsa, self.y, lam=lam, p=p, diff_order=diff_order
         )
 
+    @pytest.mark.parametrize('k', (0, -1))
+    def test_outside_k_fails(self, k):
+        """Ensures k values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, k=k)
+
 
 class TestPsplineDerpsalsa(IterativeSplineTester):
     """Class for testing pspline_derpsalsa baseline."""
@@ -502,6 +563,28 @@ class TestPsplineDerpsalsa(IterativeSplineTester):
         compare_pspline_whittaker(
             self, whittaker.derpsalsa, self.y, lam=lam, p=p, diff_order=diff_order
         )
+
+    @pytest.mark.parametrize('k', (0, -1))
+    def test_outside_k_fails(self, k):
+        """Ensures k values not greater than 0 raise an exception."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, k=k)
+
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, mode='edge')
+        output_2, _ = self.class_func(self.y, pad_kwargs={'mode': 'edge'})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
+        # also ensure both pad_kwargs and **kwargs are passed to pad_edges; pspline_derpsalsa does
+        # the padding outside of setup_smooth, so have to do this to cover those cases
+        with pytest.raises(TypeError):
+            with pytest.warns(DeprecationWarning):
+                self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
 
 
 class TestPsplineMPLS(SplineTester, InputWeightsMixin):
@@ -534,3 +617,87 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin):
         _, mpls_params = morphological.mpls(self.y, half_window=half_window)
 
         assert_allclose(params['weights'], mpls_params['weights'], rtol=1e-9)
+
+    @ensure_deprecation(1, 4)
+    def test_tol_deprecation(self):
+        """Ensures a DeprecationWarning is given when tol is input."""
+        with pytest.warns(DeprecationWarning):
+            self.class_func(self.y, tol=1e-3)
+
+    @ensure_deprecation(1, 4)
+    def test_max_iter_deprecation(self):
+        """Ensures a DeprecationWarning is given when max_iter is input."""
+        with pytest.warns(DeprecationWarning):
+            self.class_func(self.y, max_iter=20)
+
+
+class TestPsplineBrPLS(IterativeSplineTester):
+    """Class for testing pspline_brpls baseline."""
+
+    func_name = 'pspline_brpls'
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    @pytest.mark.parametrize('diff_order', (1, 2, 3))
+    def test_whittaker_comparison(self, lam, diff_order):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.brpls, self.y, lam=lam, diff_order=diff_order)
+
+    def test_tol_history(self):
+        """Ensures the 'tol_history' item in the parameter output is correct."""
+        max_iter = 5
+        max_iter_2 = 2
+        _, params = self.class_func(
+            self.y, max_iter=max_iter, max_iter_2=max_iter_2, tol=-1, tol_2=-1
+        )
+
+        assert params['tol_history'].size == (max_iter_2 + 2) * (max_iter + 1)
+        assert params['tol_history'].shape == (max_iter_2 + 2, max_iter + 1)
+
+
+class TestPsplineLSRPLS(IterativeSplineTester):
+    """Class for testing pspline_lsrpls baseline."""
+
+    func_name = 'pspline_lsrpls'
+
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
+
+    def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
+        """
+        Ensures that the function does not create non-finite weights.
+
+        lsrpls should not experience overflow since there is a cap on the iteration used
+        within the exponential, so no warnings or errors should be emitted even when using
+        a very high max_iter and low tol.
+
+        Use data without noise since the lack of noise makes it easier to induce failure.
+        Set tol to -1 so that it is never reached, and set max_iter to a high value.
+        Uses np.isfinite on the dot product of the baseline since the dot product is fast,
+        would propogate the nan or inf, and will create only a single value to check
+        for finite-ness.
+
+        """
+        x, y = no_noise_data_fixture
+        with np.errstate(over='raise'):
+            baseline, params = self.class_func(y, tol=-1, max_iter=1000)
+
+        assert np.isfinite(baseline).all()
+        # ensure last tolerence calculation was finite as a double-check that
+        # this test is actually doing what it should be doing
+        assert np.isfinite(params['tol_history'][-1])
+        assert np.isfinite(params['weights']).all()
+
+    @pytest.mark.parametrize('lam', (1e1, 1e5))
+    @pytest.mark.parametrize('diff_order', (1, 2, 3))
+    def test_whittaker_comparison(self, lam, diff_order):
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        compare_pspline_whittaker(self, whittaker.lsrpls, self.y, lam=lam, diff_order=diff_order)

@@ -30,7 +30,7 @@ from example_helpers import make_data, optimize_lam
 # %%
 # The baseline for this example is an exponentially decaying baseline, shown below.
 # Other baseline types could be examined, similar to the
-# :ref:`Whittaker lam vs data size example <sphx_glr_examples_whittaker_plot_lam_vs_data_size.py>`,
+# :ref:`Whittaker lam vs data size example <sphx_glr_generated_examples_whittaker_plot_lam_vs_data_size.py>`,
 # which should give similar results.
 plt.plot(make_data(1000, bkg_type='exponential')[0])
 
@@ -90,7 +90,7 @@ ax.set_ylabel('Optimal lam Value')
 # for fixed numbers of points. The plots below show that the slopes of the best-fit
 # lines are much greater than the slopes from the `lam` versus `N` plots. The `lam`
 # versus number of knots plots closely resemble the `lam` versus `N` plots from the
-# :ref:`Whittaker lam vs data size example <sphx_glr_examples_whittaker_plot_lam_vs_data_size.py>`,
+# :ref:`Whittaker lam vs data size example <sphx_glr_generated_examples_whittaker_plot_lam_vs_data_size.py>`,
 # which makes sense since the number of data points for Whittaker smoothing is more
 # analogous to the number of knots for penalized splines when considering their minimized
 # linear equations.

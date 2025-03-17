@@ -100,11 +100,11 @@ class _Polynomial(_Algorithm2D):
         sqrt_w = np.sqrt(weight_array)
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         params = {'weights': weight_array}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params
@@ -136,11 +136,11 @@ class _Polynomial(_Algorithm2D):
             shape equal to (M, N) and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [33]_ when choosing minimum values. If True,
-            will compare the baseline with the original y-values given by `data` [34]_.
+            the y-values of that iteration [1]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [2]_.
         mask_initial_peaks : bool, optional
             If True, will mask any data where the initial baseline fit + the standard
-            deviation of the residual is less than measured data [35]_. Default is False.
+            deviation of the residual is less than measured data [3]_. Default is False.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the x and z values and return them in the params dictionary.
@@ -171,17 +171,17 @@ class _Polynomial(_Algorithm2D):
 
         Notes
         -----
-        Algorithm originally developed in [34]_ and then slightly modified in [33]_.
+        Algorithm originally developed in [2]_ and then slightly modified in [1]_.
 
         References
         ----------
-        .. [33] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-        .. [34] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
-        .. [35] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+        .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
             Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
             2007, 61(11), 1225-1232.
 
@@ -195,19 +195,19 @@ class _Polynomial(_Algorithm2D):
             y0 = y
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         if mask_initial_peaks:
             # use baseline + deviation since without deviation, half of y should be above baseline
             weight_array[baseline + np.std(y - baseline) < y] = 0
             sqrt_w = np.sqrt(weight_array)
-            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             y = np.minimum(y0 if use_original else y, baseline)
             coef = pseudo_inverse @ (sqrt_w * y)
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -216,7 +216,7 @@ class _Polynomial(_Algorithm2D):
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params
@@ -246,11 +246,11 @@ class _Polynomial(_Algorithm2D):
             shape equal to (M, N) and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [36]_ when choosing minimum values. If True,
-            will compare the baseline with the original y-values given by `data` [37]_.
+            the y-values of that iteration [1]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [2]_.
         mask_initial_peaks : bool, optional
             If True (default), will mask any data where the initial baseline fit +
-            the standard deviation of the residual is less than measured data [38]_.
+            the standard deviation of the residual is less than measured data [3]_.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the x and z values and return them in the params dictionary.
@@ -289,17 +289,17 @@ class _Polynomial(_Algorithm2D):
 
         Notes
         -----
-        Algorithm originally developed in [38]_.
+        Algorithm originally developed in [3]_.
 
         References
         ----------
-        .. [36] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-        .. [37] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
-        .. [38] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+        .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
             Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
             2007, 61(11), 1225-1232.
 
@@ -316,18 +316,18 @@ class _Polynomial(_Algorithm2D):
             y0 = y
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         deviation = np.std(y - baseline)
         if mask_initial_peaks:
             weight_array[baseline + deviation < y] = 0
             sqrt_w = np.sqrt(weight_array)
-            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
             coef = pseudo_inverse @ (sqrt_w * y)
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             new_deviation = np.std(y - baseline)
             # use new_deviation as dividing term in relative difference
             calc_difference = relative_difference(new_deviation, deviation)
@@ -339,7 +339,7 @@ class _Polynomial(_Algorithm2D):
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params
@@ -379,12 +379,12 @@ class _Polynomial(_Algorithm2D):
             'symmetric' for symmetric loss. Default is 'asymmetric_truncated_quadratic'.
             Available methods, and their associated reference, are:
 
-                * 'asymmetric_truncated_quadratic'[39]_
-                * 'symmetric_truncated_quadratic'[39]_
-                * 'asymmetric_huber'[39]_
-                * 'symmetric_huber'[39]_
-                * 'asymmetric_indec'[40]_
-                * 'symmetric_indec'[40]_
+                * 'asymmetric_truncated_quadratic'[1]_
+                * 'symmetric_truncated_quadratic'[1]_
+                * 'asymmetric_huber'[1]_
+                * 'symmetric_huber'[1]_
+                * 'asymmetric_indec'[2]_
+                * 'symmetric_indec'[2]_
 
         threshold : float, optional
             The threshold value for the loss method, where the function goes from
@@ -436,10 +436,10 @@ class _Polynomial(_Algorithm2D):
 
         References
         ----------
-        .. [39] Mazet, V., et al. Background removal from spectra by designing and
+        .. [1] Mazet, V., et al. Background removal from spectra by designing and
             minimising a non-quadratic cost function. Chemometrics and Intelligent
             Laboratory Systems, 2005, 76(2), 121-133.
-        .. [40] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+        .. [2] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
             Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
         """
@@ -465,12 +465,12 @@ class _Polynomial(_Algorithm2D):
         y = sqrt_w * y
 
         coef = pseudo_inverse @ y
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             coef = pseudo_inverse @ (y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -479,7 +479,7 @@ class _Polynomial(_Algorithm2D):
         params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params
@@ -550,17 +550,17 @@ class _Polynomial(_Algorithm2D):
 
         Notes
         -----
-        Application of quantile regression for baseline fitting ss described in [41]_.
+        Application of quantile regression for baseline fitting ss described in [1]_.
 
         Performs quantile regression using iteratively reweighted least squares (IRLS)
-        as described in [42]_.
+        as described in [2]_.
 
         References
         ----------
-        .. [41] Komsta, Ł. Comparison of Several Methods of Chromatographic
+        .. [1] Komsta, Ł. Comparison of Several Methods of Chromatographic
                 Baseline Removal with a New Approach Based on Quantile Regression.
                 Chromatographia, 2011, 73, 721-731.
-        .. [42] Schnabel, S., et al. Simultaneous estimation of quantile curves using
+        .. [2] Schnabel, S., et al. Simultaneous estimation of quantile curves using
                 quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
 
         """
@@ -574,14 +574,18 @@ class _Polynomial(_Algorithm2D):
         )
         # estimate first iteration using least squares
         sqrt_w = np.sqrt(weight_array)
-        coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-        baseline = self.vandermonde @ coef
+        coef = np.linalg.lstsq(
+            self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
+        )[0]
+        baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
-            coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-            baseline = self.vandermonde @ coef
+            coef = np.linalg.lstsq(
+                self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
+            )[0]
+            baseline = self._polynomial.vandermonde @ coef
             # relative_difference(baseline_old, baseline, 1) gives nearly same result and
             # the l2 norm is faster to calculate, so use that instead of l1 norm
             calc_difference = relative_difference(baseline_old, baseline)
@@ -592,7 +596,7 @@ class _Polynomial(_Algorithm2D):
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
         if return_coef:
             params['coef'] = _convert_coef2d(
-                coef, self.poly_order[0], self.poly_order[1], self.x_domain, self.z_domain
+                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
             )
 
         return baseline, params

@@ -6,8 +6,10 @@ Created on July 3, 2021
 
 """
 
+import pickle
+
 import numpy as np
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines.two_d import api, morphological, optimizers, polynomial, smooth, spline, whittaker
@@ -45,6 +47,7 @@ def get_public_methods(klass):
         if (
             not (method.startswith('_')
             or method.startswith('pentapy_solver')
+            or method.startswith('banded_solver')
             or method.startswith('get_method'))
         ):
             methods.append(method)
@@ -56,6 +59,60 @@ _ALL_CLASSES_AND_METHODS = []
 for klass in _ALL_CLASSES:
     for method in get_public_methods(klass):
         _ALL_CLASSES_AND_METHODS.append((method, klass))
+
+
+def pickle_and_check(fitter, banded_solver, polynomial, spline_basis, validated_x, validated_z):
+    """Pickles the Baseline2D object and ensures the loaded object matches its initial state."""
+    try:
+        bytestream = pickle.dumps(fitter)
+        loaded_fitter = pickle.loads(bytestream)
+    except Exception as e:
+        raise AssertionError('pickle failed to save and reload the object') from e
+
+    # ensure attributes are maintained
+    assert loaded_fitter.banded_solver == banded_solver
+    assert loaded_fitter._validated_x is validated_x
+    assert loaded_fitter._validated_z is validated_z
+
+    if polynomial is None:
+        assert loaded_fitter._polynomial is None
+    else:
+        assert_array_equal(loaded_fitter._polynomial.poly_order, polynomial.poly_order)
+        if polynomial.vandermonde is not None:
+            assert_allclose(
+                loaded_fitter._polynomial.vandermonde, polynomial.vandermonde, rtol=1e-12,
+                atol=1e-12
+            )
+        if polynomial._pseudo_inverse is not None:
+            assert_allclose(
+                loaded_fitter._polynomial.pseudo_inverse, polynomial.pseudo_inverse, rtol=1e-12,
+                atol=1e-12
+            )
+    if spline_basis is None:
+        assert loaded_fitter._spline_basis is None
+    else:
+        assert_allclose(
+            loaded_fitter._spline_basis.x, fitter.x, rtol=1e-12,
+            atol=1e-12
+        )
+        assert_allclose(
+            loaded_fitter._spline_basis.z, fitter.z, rtol=1e-12,
+            atol=1e-12
+        )
+        assert_array_equal(
+            loaded_fitter._spline_basis.spline_degree, spline_basis.spline_degree
+        )
+        assert_array_equal(loaded_fitter._spline_basis.num_knots, spline_basis.num_knots)
+        assert_allclose(
+            loaded_fitter._spline_basis.knots_r, spline_basis.knots_r, rtol=1e-12, atol=1e-12
+        )
+        assert_allclose(
+            loaded_fitter._spline_basis.knots_c, spline_basis.knots_c, rtol=1e-12, atol=1e-12
+        )
+        assert_allclose(
+            loaded_fitter._spline_basis.basis.toarray(), spline_basis.basis.toarray(),
+            rtol=1e-12, atol=1e-12
+        )
 
 
 class TestBaseline2D:
@@ -154,3 +211,55 @@ class TestBaseline2D:
         """Ensures the get_method helper function fails when an incorrect name is given."""
         with pytest.raises(AttributeError):
             self.algorithm._get_method('aaaaaaaaaaaaa')
+
+    @pytest.mark.parametrize('input_x', (True, False))
+    @pytest.mark.parametrize('input_z', (True, False))
+    def test_ensure_pickleable(self, input_x, input_z):
+        """Ensures that Baseline2D objects are able to be pickled for all baseline types.
+
+        In order to be used with multiprocessing, objects must be able to be serialized with
+        pickle; ensure this works for all algorithm setups.
+
+        """
+        x_data = self.x if input_x else None
+        z_data = self.z if input_z else None
+        fitter = self.algorithm_base(x_data, z_data)
+        # no current 2D methods require unique x or z so these won't change state
+        x_validated = not input_x
+        z_validated = not input_z
+
+        pickle_and_check(fitter, 2, None, None, x_validated, z_validated)
+        # call a polynomial method that does not require unique x to set polynomial attribute
+        fitter.modpoly(self.y)
+        pickle_and_check(fitter, 2, fitter._polynomial, None, x_validated, z_validated)
+
+        # change banded solver
+        fitter.banded_solver = 1
+        pickle_and_check(fitter, 1, fitter._polynomial, None, x_validated, z_validated)
+
+        # call a spline method to set the spline basis attribute
+        fitter.mixture_model(self.y)
+        pickle_and_check(
+            fitter, 1, fitter._polynomial, fitter._spline_basis, x_validated, z_validated
+        )
+
+        # call other types of methods that don't change internal states
+        fitter.arpls(self.y)
+        pickle_and_check(
+            fitter, 1, fitter._polynomial, fitter._spline_basis, x_validated, z_validated
+        )
+
+        fitter.mor(self.y)
+        pickle_and_check(
+            fitter, 1, fitter._polynomial, fitter._spline_basis, x_validated, z_validated
+        )
+
+        fitter.noise_median(self.y)
+        pickle_and_check(
+            fitter, 1, fitter._polynomial, fitter._spline_basis, x_validated, z_validated
+        )
+
+        fitter.individual_axes(self.y, method='asls')
+        pickle_and_check(
+            fitter, 1, fitter._polynomial, fitter._spline_basis, x_validated, z_validated
+        )

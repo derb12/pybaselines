@@ -32,7 +32,7 @@ pybaselines
 
 pybaselines is a library of algorithms for the baseline correction of experimental data.
 
-* For Python 3.8+
+* For Python 3.9 or later
 * Open Source: BSD 3-Clause License
 * Source Code: https://github.com/derb12/pybaselines
 * Documentation: https://pybaselines.readthedocs.io.
@@ -47,8 +47,8 @@ Introduction
 
 pybaselines is a Python library that provides many different algorithms for
 performing baseline correction on data from experimental techniques such as
-Raman, FTIR, NMR, XRD, XRF, PIXE, etc. The aim of the project is to provide a
-semi-unified API to allow quickly testing and comparing multiple baseline
+Raman, FTIR, NMR, XRD, XRF, PIXE, MALDI-TOF, LIBS, etc. The aim of the project is
+to provide a semi-unified API to allow quickly testing and comparing multiple baseline
 correction algorithms to find the best one for a set of data.
 
 pybaselines has 50+ baseline correction algorithms. These include popular algorithms,
@@ -56,7 +56,7 @@ such as AsLS, airPLS, ModPoly, and SNIP, as well as many lesser known algorithms
 algorithms are adapted directly from literature, although there are a few that are unique
 to pybaselines, such as penalized spline versions of Whittaker-smoothing-based algorithms.
 The full list of implemented algorithms can be found in the
-`documentation <https://pybaselines.readthedocs.io/en/latest/introduction.html>`_.
+`documentation <https://pybaselines.readthedocs.io/en/latest/api/Baseline.html>`_.
 
 
 Installation
@@ -88,7 +88,7 @@ To install the current version of pybaselines from GitHub, run:
 
 .. code-block:: console
 
-    pip install git+https://github.com/derb12/pybaselines.git#egg=pybaselines
+    pip install git+https://github.com/derb12/pybaselines.git
 
 
 .. _GitHub repo: https://github.com/derb12/pybaselines
@@ -97,7 +97,7 @@ To install the current version of pybaselines from GitHub, run:
 Dependencies
 ~~~~~~~~~~~~
 
-pybaselines requires `Python <https://python.org>`_ version 3.8 or later
+pybaselines requires `Python <https://python.org>`_ version 3.9 or later
 and the following libraries:
 
 * `NumPy <https://numpy.org>`_
@@ -208,7 +208,7 @@ Refer to the changelog_ for information on pybaselines's changes.
 License
 -------
 
-pybaselines is open source and freely available under the BSD 3-clause license.
+pybaselines is open source and freely available under the BSD-3-Clause license.
 For more information, refer to the license_.
 
 .. _license: https://github.com/derb12/pybaselines/tree/main/LICENSE.txt

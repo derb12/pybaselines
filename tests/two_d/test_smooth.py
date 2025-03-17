@@ -6,11 +6,12 @@ Created on January 14, 2024
 
 """
 
+from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines.two_d import smooth
 
-from ..conftest import BaseTester2D
+from ..conftest import ensure_deprecation, BaseTester2D
 
 
 class SmoothTester(BaseTester2D):
@@ -18,6 +19,16 @@ class SmoothTester(BaseTester2D):
 
     module = smooth
     algorithm_base = smooth._Smooth
+
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, mode='edge')
+        output_2, _ = self.class_func(self.y, pad_kwargs={'mode': 'edge'})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
 
 
 class TestNoiseMedian(SmoothTester):

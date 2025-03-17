@@ -13,9 +13,10 @@ from scipy.ndimage import median_filter, uniform_filter1d
 from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import trapezoid
+from ._compat import jit, trapezoid
+from ._validation import _check_half_window, _check_scalar
 from .utils import (
-    ParameterWarning, _check_scalar, _get_edges, gaussian, gaussian_kernel, optimize_window,
+    ParameterWarning, _get_edges, gaussian, gaussian_kernel, optimize_window,
     pad_edges, padded_convolve, relative_difference
 )
 
@@ -25,7 +26,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def noise_median(self, data, half_window=None, smooth_half_window=None, sigma=None,
-                     **pad_kwargs):
+                     pad_kwargs=None, **kwargs):
         """
         The noise-median method for baseline identification.
 
@@ -47,9 +48,14 @@ class _Smooth(_Algorithm):
         sigma : float, optional
             The standard deviation of the smoothing Gaussian kernel. Default is None,
             which will use (2 * `smooth_half_window` + 1) / 6.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from convolution. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -64,17 +70,15 @@ class _Smooth(_Algorithm):
         artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
 
         """
-        if half_window is None:
-            half_window = 2 * optimize_window(data)
-        window_size = 2 * half_window + 1
-        median = median_filter(
-            self._setup_smooth(data, half_window, **pad_kwargs),
-            [window_size], mode='nearest'
+        y, half_window = self._setup_smooth(
+            data, half_window, window_multiplier=2, pad_kwargs=pad_kwargs, **kwargs
         )
+        window_size = 2 * half_window + 1
+        median = median_filter(y, [window_size], mode='nearest')
         if smooth_half_window is None:
             smooth_window = window_size
         else:
-            smooth_window = 2 * smooth_half_window + 1
+            smooth_window = 2 * _check_half_window(smooth_half_window, allow_zero=True) + 1
         if sigma is None:
             # the gaussian kernel will includes +- 3 sigma
             sigma = smooth_window / 6
@@ -83,7 +87,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def snip(self, data, max_half_window=None, decreasing=False, smooth_half_window=None,
-             filter_order=2, **pad_kwargs):
+             filter_order=2, pad_kwargs=None, **kwargs):
         """
         Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
 
@@ -97,26 +101,31 @@ class _Smooth(_Algorithm):
             width of a feature or peak. `max_half_window` can also be a sequence of
             two integers for asymmetric peaks, with the first item corresponding to
             the `max_half_window` of the peak's left edge, and the second item
-            for the peak's right edge [29]_. Default is None, which will use the output
+            for the peak's right edge [3]_. Default is None, which will use the output
             from :func:`.optimize_window`, which is an okay starting value.
         decreasing : bool, optional
             If False (default), will iterate through window sizes from 1 to
             `max_half_window`. If True, will reverse the order and iterate from
-            `max_half_window` to 1, which gives a smoother baseline according to [29]_
-            and [30]_.
+            `max_half_window` to 1, which gives a smoother baseline according to [3]_
+            and [4]_.
         smooth_half_window : int, optional
             The half window to use for smoothing the data. If `smooth_half_window`
             is greater than 0, will perform a moving average smooth on the data for
-            each window, which gives better results for noisy data [29]_. Default is
+            each window, which gives better results for noisy data [3]_. Default is
             None, which will not perform any smoothing.
         filter_order : {2, 4, 6, 8}, optional
             If the measured data has a more complicated baseline consisting of other
             elements such as Compton edges, then a higher `filter_order` should be
-            selected [29]_. Default is 2, which works well for approximating a linear
+            selected [3]_. Default is 2, which works well for approximating a linear
             baseline.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -137,12 +146,12 @@ class _Smooth(_Algorithm):
 
         Notes
         -----
-        Algorithm initially developed by [27]_, and this specific version of the
-        algorithm is adapted from [28]_, [29]_, and [30]_.
+        Algorithm initially developed by [1]_, and this specific version of the
+        algorithm is adapted from [2]_, [3]_, and [4]_.
 
         If data covers several orders of magnitude, better results can be obtained
         by first transforming the data using log-log-square transform before
-        using SNIP [28]_::
+        using SNIP [2]_::
 
             transformed_data =  np.log(np.log(np.sqrt(data + 1) + 1) + 1)
 
@@ -152,20 +161,20 @@ class _Smooth(_Algorithm):
 
         References
         ----------
-        .. [27] Ryan, C.G., et al. SNIP, A Statistics-Sensitive Background Treatment
+        .. [1] Ryan, C.G., et al. SNIP, A Statistics-Sensitive Background Treatment
             For The Quantitative Analysis Of Pixe Spectra In Geoscience Applications.
             Nuclear Instruments and Methods in Physics Research B, 1988, 934, 396-402.
-        .. [28] Morháč, M., et al. Background elimination methods for multidimensional
+        .. [2] Morháč, M., et al. Background elimination methods for multidimensional
             coincidence γ-ray spectra. Nuclear Instruments and Methods in Physics
             Research A, 1997, 401, 113-132.
-        .. [29] Morháč, M., et al. Peak Clipping Algorithms for Background Estimation in
+        .. [3] Morháč, M., et al. Peak Clipping Algorithms for Background Estimation in
             Spectroscopic Data. Applied Spectroscopy, 2008, 62(1), 91-106.
-        .. [30] Morháč, M. An algorithm for determination of peak regions and baseline
+        .. [4] Morháč, M. An algorithm for determination of peak regions and baseline
             elimination in spectroscopic data. Nuclear Instruments and Methods in
             Physics Research A, 2009, 60, 478-487.
 
         """
-        # TODO potentially add adaptive window sizes from [30]_, or at least allow inputting
+        # TODO potentially add adaptive window sizes from [4]_, or at least allow inputting
         # an array of max_half_windows; would need to have a separate function for array
         # windows since it would no longer be able to be vectorized
         if filter_order not in {2, 4, 6, 8}:
@@ -173,14 +182,14 @@ class _Smooth(_Algorithm):
 
         if max_half_window is None:
             max_half_window = optimize_window(data)
-        half_windows = _check_scalar(max_half_window, 2, True, dtype=int)[0]
+        half_windows = _check_half_window(max_half_window, two_d=True)
         for i, half_window in enumerate(half_windows):
-            if half_window > (self._len - 1) // 2:
+            if half_window > (self._size - 1) // 2:
                 warnings.warn(
                     'max_half_window values greater than (len(data) - 1) / 2 have no effect.',
                     ParameterWarning, stacklevel=2
                 )
-                half_windows[i] = (self._len - 1) // 2
+                half_windows[i] = (self._size - 1) // 2
 
         max_of_half_windows = np.max(half_windows)
         if decreasing:
@@ -188,9 +197,11 @@ class _Smooth(_Algorithm):
         else:
             range_args = (1, max_of_half_windows + 1, 1)
 
-        y = self._setup_smooth(data, max_of_half_windows, **pad_kwargs)
-        num_y = self._len + 2 * max_of_half_windows
+        y = self._setup_smooth(data, max_of_half_windows, pad_kwargs=pad_kwargs, **kwargs)[0]
+        num_y = self._size + 2 * max_of_half_windows
         smooth = smooth_half_window is not None and smooth_half_window > 0
+        if smooth:
+            smooth_window = 2 * _check_half_window(smooth_half_window) + 1
         baseline = y.copy()
         for i in range(*range_args):
             i_left = min(i, half_windows[0])
@@ -247,7 +258,7 @@ class _Smooth(_Algorithm):
                 filters = np.maximum(filters, filters_new)
 
             if smooth:
-                previous_baseline = uniform_filter1d(baseline, 2 * smooth_half_window + 1)[i:-i]
+                previous_baseline = uniform_filter1d(baseline, smooth_window)[i:-i]
             else:
                 previous_baseline = baseline[i:-i]
             baseline[i:-i] = np.where(baseline[i:-i] > filters, filters, previous_baseline)
@@ -256,7 +267,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def swima(self, data, min_half_window=3, max_half_window=None, smooth_half_window=None,
-              **pad_kwargs):
+              pad_kwargs=None, **kwargs):
         """
         Small-window moving average (SWiMA) baseline.
 
@@ -276,9 +287,14 @@ class _Smooth(_Algorithm):
             The half window to use for smoothing the input data with a moving average.
             Default is None, which will use N / 50. Use a value of 0 or less to not
             smooth the data. See Notes below for more details.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -322,20 +338,22 @@ class _Smooth(_Algorithm):
 
         """
         if max_half_window is None:
-            max_half_window = (self._len - 1) // 2
-        y = self._setup_smooth(data, max_half_window, **pad_kwargs)
-        len_y = self._len + 2 * max_half_window  # includes padding of max_half_window at each side
+            max_half_window = (self._size - 1) // 2
+        min_half_window = _check_half_window(min_half_window, allow_zero=True)
+        y = self._setup_smooth(data, max_half_window, pad_kwargs=pad_kwargs, **kwargs)[0]
+        len_y = self._size + 2 * max_half_window  # includes padding of max_half_window at each side
         data_slice = slice(max_half_window, -max_half_window)
         if smooth_half_window is None:
             smooth_half_window = max(1, (len_y - 2 * max_half_window) // 50)
         if smooth_half_window > 0:
-            y = uniform_filter1d(y, 2 * smooth_half_window + 1)
+            y = uniform_filter1d(y, 2 * _check_half_window(smooth_half_window) + 1)
 
         *_, pseudo_inverse = self._setup_polynomial(
             y, None, poly_order=3, calc_vander=True, calc_pinv=True
         )
         baseline, converged, half_window = _swima_loop(
-            y, self.vandermonde, pseudo_inverse, data_slice, max_half_window, min_half_window
+            y, self._polynomial.vandermonde, pseudo_inverse, data_slice, max_half_window,
+            min_half_window
         )
         converges = [converged]
         half_windows = [half_window]
@@ -345,7 +363,7 @@ class _Smooth(_Algorithm):
                 np.arange(len_y), np.max(residual), len_y / 2, len_y / 6
             )
             baseline_2, converged, half_window = _swima_loop(
-                residual + gaussian_bkg, self.vandermonde, pseudo_inverse, data_slice,
+                residual + gaussian_bkg, self._polynomial.vandermonde, pseudo_inverse, data_slice,
                 max_half_window, 3
             )
             baseline += baseline_2 - gaussian_bkg
@@ -356,7 +374,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def ipsa(self, data, half_window=None, max_iter=500, tol=None, roi=None,
-             original_criteria=False, **pad_kwargs):
+             original_criteria=False, pad_kwargs=None, **kwargs):
         """
         Iterative Polynomial Smoothing Algorithm (IPSA).
 
@@ -385,9 +403,14 @@ class _Smooth(_Algorithm):
             correction. If False (default), then compares ``norm(old, new) / norm(old)``, where
             `old` is the previous iteration's baseline, and `new` is the current iteration's
             baseline.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
-            the edges of the data to prevent edge effects from convolution.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -405,16 +428,14 @@ class _Smooth(_Algorithm):
         References
         ----------
         Wang, T., et al. Background Subtraction of Raman Spectra Based on Iterative
-        Polynomial Smoothing. Applied Spectroscopy. 71(6) (2017) 1169-1179.
+        Polynomial Smoothing. Applied Spectroscopy. 2017, 71(6), 1169-1179.
 
         """
-        # TODO should just move optimize window into _setup_smooth since all smooth functions
-        # could use it; maybe just add a multiplier constant; that way, snip and noise_median
-        # no longer require a half window parameter to at least get a guess
-        if half_window is None:
-            half_window = 4 * optimize_window(data)
-        window_size = 2 * half_window + 1
-        y = self._setup_smooth(data, window_size, **pad_kwargs)
+        y, output_half_window = self._setup_smooth(
+            data, half_window, pad_type='full', window_multiplier=4, pad_kwargs=pad_kwargs,
+            **kwargs
+        )
+        window_size = 2 * output_half_window + 1
         y0 = y
         data_slice = slice(window_size, -window_size)
         if original_criteria:
@@ -451,7 +472,7 @@ class _Smooth(_Algorithm):
 
     @_Algorithm._register
     def ria(self, data, half_window=None, max_iter=500, tol=1e-2, side='both',
-            width_scale=0.1, height_scale=1., sigma_scale=1. / 12., **pad_kwargs):
+            width_scale=0.1, height_scale=1., sigma_scale=1 / 12, pad_kwargs=None, **kwargs):
         """
         Range Independent Algorithm (RIA).
 
@@ -485,9 +506,14 @@ class _Smooth(_Algorithm):
             `sigma_scale` * `width_scale` * N. Default is 1/12, which will make
             the Gaussian span +- 6 sigma, making its total width about half of the
             added length.
-        **pad_kwargs
-            Additional keyword arguments to pass to :func:`.pad_edges` for padding
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
             the edges of the data when adding the extended left and/or right sections.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
 
         Returns
         -------
@@ -512,28 +538,30 @@ class _Smooth(_Algorithm):
         References
         ----------
         Krishna, H., et al. Range-independent background subtraction algorithm for
-        recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 43(12)
-        (2012) 1884-1894.
+        recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 2012,
+        43(12), 1884-1894.
 
         """
         side = side.lower()
         if side not in ('left', 'right', 'both'):
             raise ValueError('side must be "left", "right", or "both"')
-        y = self._setup_smooth(data, 0)
-        if half_window is None:
-            half_window = optimize_window(y)
-        min_x = self.x_domain[0]
-        max_x = self.x_domain[1]
+        # note: only pass pad_kwargs to setup_smooth to validate pad_kwargs and kwargs; no
+        # padding is done
+        y, half_window = self._setup_smooth(
+            data, half_window, pad_type=None, pad_kwargs=pad_kwargs, **kwargs
+        )
+        min_x, max_x = self.x_domain
         x_range = max_x - min_x
 
-        added_window = int(self._len * width_scale)
+        added_window = int(self._size * width_scale)
         lower_bound = 0
         upper_bound = 0
         known_area = 0.
 
         # TODO should make this a function that could be used by
         # optimizers.optimize_extended_range too
-        added_left, added_right = _get_edges(y, added_window, **pad_kwargs)
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+        added_left, added_right = _get_edges(y, added_window, **pad_kwargs, **kwargs)
         added_gaussian = gaussian(
             np.linspace(-added_window / 2, added_window / 2, added_window),
             height_scale * abs(y.max()), 0, added_window * sigma_scale
@@ -586,13 +614,150 @@ class _Smooth(_Algorithm):
 
         return baseline, {'tol_history': tol_history[:i + 1]}
 
+    @_Algorithm._register
+    def peak_filling(self, data, half_window=None, sections=None, max_iter=5, lam_smooth=None):
+        """
+        The 4S (Smooth, Subsample, Suppress, Stretch) Peak Filling algorithm.
+
+        Smooths and truncates the input. Each value is then replaced in-place by the minimum of
+        the value or the average of the moving window, with the half-window size decreasing
+        exponentially from the input `half_window` to 1. The result is then interpolated back
+        into the original data size.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        half_window : int, optional
+            The index-based size to use for the moving average window. The total window
+            size will range from [-half_window, ..., half_window] with size
+            ``2 * half_window + 1``. Default is None, which will use two or three times the
+            output from func:`.optimize_window`, which is an okay starting value.
+        sections : int or Sequence[int, ...], optional
+            If the input is an integer, it sets the number of equally sized
+            segments the data will be split into. If the input is a sequence, each integer
+            in the sequence will be the index that splits two segments, which allows
+            constructing unequally sized segments. The minimum of each section will be used
+            to represent the input data for determining the baseline. Higher `sections` values
+            are needed for baselines with higher curvature. Default is None, which will use
+            ``N // 10``.
+        max_iter : int, optional
+            The number of iterations to perform smoothing. Each iteration, the size of the
+            window used for the moving average will shrink logarithmically, starting at
+            ``2 * half_window + 1`` and ending at 3. Default is 5.
+        lam_smooth : float or None, optional
+            The parameter for smoothing the input using Whittaker smoothing.
+            Set to 0 or None (default) to skip smoothing.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'x_fit': numpy.ndarray, shape (P,)
+                The truncated x-values used for fitting and interpolating the baseline.
+            * 'baseline_fit': numpy.ndarray, shape (P,)
+                The truncated baseline values used to interpolate the final baseline.
+
+        Raises
+        ------
+        TypeError
+            Raised if `sections` is an integer not between 1 and ``N``, or if `sections`
+            is a sequence with any value not between 0 and ``N - 1``.
+
+        Notes
+        -----
+        The input parameter `sections` will determine the necessary `half_window` and `max_iter`
+        values required to correctly fit the baseline. Likewise, `max_iter` is highly correlated
+        with `half_window`.
+
+        References
+        ----------
+        Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression. MethodsX.
+        2015, 2, 135-140.
+
+        """
+        if sections is None:
+            sections = self._size // 10
+            scalar_sections = True
+        else:
+            sections, scalar_sections = _check_scalar(
+                sections, None, coerce_0d=False, dtype=np.intp
+            )
+            if scalar_sections and (sections < 1 or sections > self._size):
+                raise ValueError(
+                    f'There must be between 1 and {self._size} sections for peak_filling'
+                )
+            elif (
+                not scalar_sections
+                and (np.any(sections < 0) or np.any(sections > self._size - 1))
+            ):
+                raise ValueError(
+                    f'Section indices must be between 0 and {self._size - 1} for peak_filling'
+                )
+
+        if scalar_sections:
+            y_truncated = np.empty(sections)
+            x_truncated = np.empty(sections)
+            indices = np.linspace(0, self._size, sections + 1, dtype=np.intp)
+        else:
+            # np.unique already sorts so do not need to check order
+            indices = np.unique(np.concatenate(([0], sections, [self._size])))
+            len_arrays = len(indices) - 1
+            y_truncated = np.empty(len_arrays)
+            x_truncated = np.empty(len_arrays)
+
+        if lam_smooth is not None and lam_smooth > 0:
+            _, _, whittaker_system = self._setup_whittaker(data, lam_smooth, diff_order=2)
+            data = whittaker_system.solve(whittaker_system.add_diagonal(1.), data)
+
+        for i, (left_idx, right_idx) in enumerate(zip(indices[:-1], indices[1:])):
+            y_truncated[i] = data[left_idx:right_idx].min()
+            x_truncated[i] = self.x[left_idx:right_idx].mean()
+        # include first and last values to prevent edge effects if they are not already included
+        left_pad = 1 if x_truncated[0] != self.x[0] else 0
+        right_pad = 1 if x_truncated[-1] != self.x[-1] else 0
+        x_truncated = np.pad(
+            x_truncated, [left_pad, right_pad], 'constant',
+            constant_values=([self.x[0], self.x[-1]])
+        )
+        y_truncated = np.pad(
+            y_truncated, [left_pad, right_pad], 'constant', constant_values=([data[0], data[-1]],)
+        )
+
+        _, half_win = self._setup_smooth(
+            y_truncated, half_window, pad_type=None, window_multiplier=3 if max_iter < 3 else 2
+        )
+        if half_win > (sections - 1) // 2:
+            if half_window is not None:  # only emit warning if user input half window
+                warnings.warn(
+                    'half_window values greater than (sections - 1) // 2 have no effect.',
+                    ParameterWarning, stacklevel=2
+                )
+            half_win = (sections - 1) // 2
+        # logspace still works when max_iter=1; use ceil rather than using dtype=int
+        # in logspace since the int casting will floor the result and cause several half
+        # windows of 1
+        half_windows = np.ceil(np.logspace(np.log10(half_win), 0, max_iter)).astype(int)
+        half_windows[0] = half_win  # rounding issues can shift initial half window +- 1
+
+        for half_win in half_windows:
+            y_truncated = _directional_min_moving_avg(y_truncated, sections, half_win)
+            y_truncated = _directional_min_moving_avg(y_truncated[::-1], sections, half_win)[::-1]
+
+        baseline = np.interp(self.x, x_truncated, y_truncated)
+
+        return baseline, {'x_fit': x_truncated, 'baseline_fit': y_truncated}
+
 
 _smooth_wrapper = _class_wrapper(_Smooth)
 
 
 @_smooth_wrapper
 def noise_median(data, half_window=None, smooth_half_window=None, sigma=None, x_data=None,
-                 **pad_kwargs):
+                 pad_kwargs=None, **kwargs):
     """
     The noise-median method for baseline identification.
 
@@ -617,9 +782,14 @@ def noise_median(data, half_window=None, smooth_half_window=None, sigma=None, x_
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from convolution. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -638,7 +808,7 @@ def noise_median(data, half_window=None, smooth_half_window=None, sigma=None, x_
 
 @_smooth_wrapper
 def snip(data, max_half_window=None, decreasing=False, smooth_half_window=None,
-         filter_order=2, x_data=None, **pad_kwargs):
+         filter_order=2, x_data=None, pad_kwargs=None, **kwargs):
     """
     Statistics-sensitive Non-linear Iterative Peak-clipping (SNIP).
 
@@ -672,9 +842,14 @@ def snip(data, max_half_window=None, decreasing=False, smooth_half_window=None,
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -812,7 +987,7 @@ def _swima_loop(y, vander, pseudo_inverse, data_slice, max_half_window, min_half
 
 @_smooth_wrapper
 def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None,
-          x_data=None, **pad_kwargs):
+          x_data=None, pad_kwargs=None, **kwargs):
     """
     Small-window moving average (SWiMA) baseline.
 
@@ -835,9 +1010,14 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -884,7 +1064,7 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
 
 @_smooth_wrapper
 def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
-         original_criteria=False, x_data=None, **pad_kwargs):
+         original_criteria=False, x_data=None, pad_kwargs=None, **kwargs):
     """
     Iterative Polynomial Smoothing Algorithm (IPSA).
 
@@ -916,9 +1096,14 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
-        the edges of the data to prevent edge effects from convolution.
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+        the edges of the data to prevent edge effects from smoothing. Default is None.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -936,14 +1121,14 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
     References
     ----------
     Wang, T., et al. Background Subtraction of Raman Spectra Based on Iterative
-    Polynomial Smoothing. Applied Spectroscopy. 71(6) (2017) 1169-1179.
+    Polynomial Smoothing. Applied Spectroscopy. 2017, 71(6), 1169-1179.
 
     """
 
 
 @_smooth_wrapper
 def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both',
-        width_scale=0.1, height_scale=1., sigma_scale=1. / 12., **pad_kwargs):
+        width_scale=0.1, height_scale=1., sigma_scale=1. / 12., pad_kwargs=None, **kwargs):
     """
     Range Independent Algorithm (RIA).
 
@@ -980,9 +1165,14 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
         `sigma_scale` * `width_scale` * N. Default is 1/12, which will make
         the Gaussian span +- 6 sigma, making its total width about half of the
         added length.
-    **pad_kwargs
-        Additional keyword arguments to pass to :func:`.pad_edges` for padding
+    pad_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
         the edges of the data when adding the extended left and/or right sections.
+    **kwargs
+
+        .. deprecated:: 1.2.0
+            Passing additional keyword arguments is deprecated and will be removed in version
+            1.4.0. Pass keyword arguments using `pad_kwargs`.
 
     Returns
     -------
@@ -1007,7 +1197,160 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
     References
     ----------
     Krishna, H., et al. Range-independent background subtraction algorithm for
-    recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 43(12)
-    (2012) 1884-1894.
+    recovery of Raman spectra of biological tissue. J Raman Spectroscopy. 2012,
+    43(12), 1884-1894.
+
+    """
+
+
+@jit(nopython=True, cache=True)
+def _directional_min_moving_avg(y, data_len, half_window):
+    """
+    Calculates the miniumum of a moving average and current value and modifies in-place.
+
+    Since the data is modified in-place, the smoothing has a directional
+    effect that is canceled out by calling this function a second time with
+    the reversed output and then reversing that output.
+
+    Parameters
+    ----------
+    y : numpy.ndarray
+        The array of data to smooth.
+    data_len : int
+        The length of the array `y`. Used to prevent calling ``len(y)`` each
+        time this function is called.
+    half_window : int
+        The half window used for the moving average.
+
+    Returns
+    -------
+    y : numpy.ndarray
+        The smoothed input. The input `y` is also modified in-place.
+
+    Notes
+    -----
+    Increases and decreases the window width on the edges because otherwise the data
+    becomes shifted; to prevent shifting, the window must always be centered.
+
+    Uses a shrinking window rather than padding the data since [1]_ states (and is
+    readily observed when using typical moving minimums) that the output can otherwise
+    cause too low of a value when data is steep near the ends.
+
+    Calculates the rolling mean using Welford's method [2]_ to improve calculation speed over
+    calling ``numpy.mean`` on each subarray, which scales quite poorly compared to Welford's
+    method with increasing half-window sizes.
+
+    References
+    ----------
+    .. [1] Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression.
+           MethodsX. 2 (2015) 135-140.
+
+    .. [2] https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+
+    """
+    if half_window > (data_len - 1) // 2:
+        half_window = (data_len - 1) // 2
+
+    window_size = 2 * half_window + 1
+    mean = y[0]
+    # fill the first window; have to go to half_window + 1 since the final calculation
+    # needs to adjust for the window finally filling up
+    last_window = 1
+    for i in range(1, half_window + 1):
+        new_window = last_window + 2  # 2 * i + 1 = 2 * (i - 1) + 1 + 2 == last_window + 2
+        # advance and grow window to recenter new window at index i
+        for j in range(last_window, new_window):
+            mean += (y[j] - mean) / (j + 1)
+        last_window = new_window
+        val = y[i]
+        if mean < val:
+            # adjust mean for new value
+            y[i] = mean
+            mean += (mean - val) / new_window
+
+    for i in range(half_window + 1, data_len - half_window):
+        mean += (y[i + half_window] - y[i - half_window - 1]) / window_size
+        val = y[i]
+        if mean < val:
+            y[i] = mean
+            mean += (mean - val) / window_size
+
+    # finally shrink window on right edge
+    last_window = window_size
+    for i in range(data_len - half_window, data_len - 1):
+        new_window = last_window - 2  # 2 * (i - 1) + 1 = 2 * i - 1 == last_window - 2
+        for j in range(data_len - last_window, data_len - new_window):
+            last_window -= 1
+            mean += (mean - y[j]) / last_window
+        val = y[i]
+        if mean < val:
+            y[i] = mean
+            mean += (mean - val) / new_window
+
+    return y
+
+
+@_smooth_wrapper
+def peak_filling(data, x_data=None, half_window=None, sections=None, max_iter=5, lam_smooth=None):
+    """
+    The 4S (Smooth, Subsample, Suppress, Stretch) Peak Filling algorithm.
+
+    Smooths and truncates the input. Each value is then replaced in-place by the minimum of
+    the value or the average of the moving window, with the half-window size decreasing
+    exponentially from the input `half_window` to 1. The result is then interpolated back
+    into the original data size.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points. Not used within this function.
+    half_window : int, optional
+        The index-based size to use for the moving average window. The total window
+        size will range from [-half_window, ..., half_window] with size
+        ``2 * half_window + 1``. Default is None, which will use two or three times the
+        output from func:`.optimize_window`, which is an okay starting value.
+    sections : int, optional
+        The number of sections to divide the input data into for subsampling. The
+        minimum of each section will be used to represent the input data for determining
+        the baseline. Higher `sections` values are needed for baselines with higher
+        curvature. Default is None, which will use ``N // 10``.
+    max_iter : int, optional
+        The number of iterations to perform smoothing. Each iteration, the size of the
+        window used for the moving average will shrink logarithmically, starting at
+        ``2 * half_window + 1`` and ending at 3. Default is 5.
+    lam_smooth : float or None, optional
+        The parameter for smoothing the input using Whittaker smoothing.
+        Set to 0 or None (default) to skip smoothing.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    params : dict
+        A dictionary with the following items:
+
+        * 'x_fit': numpy.ndarray, shape (P,)
+            The truncated x-values used for fitting the baseline.
+        * 'baseline_fit': numpy.ndarray, shape (P,)
+            The truncated y-values used for fitting the baseline.
+
+    Raises
+    ------
+    TypeError
+        Raised if `sections` is not an integer.
+
+    Notes
+    -----
+    The input parameter `sections` will determine the necessary `half_window` and `max_iter`
+    values required to correctly fit the baseline. Likewise, `max_iter` is highly correlated
+    with `half_window`.
+
+    References
+    ----------
+    Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression. MethodsX.
+    2015, 2, 135-140.
 
     """

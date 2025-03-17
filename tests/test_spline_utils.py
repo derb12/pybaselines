@@ -159,72 +159,26 @@ def test_numba_basis_len(data_fixture, num_knots, spline_degree):
     assert len(basis.tocsr().data) == len(x) * (spline_degree + 1)
 
 
-def test_scipy_btb_bty(data_fixture):
-    """
-    Ensures the private function from Scipy works as intended.
-
-    If numba is not installed, the private function scipy.interpolate._bspl._norm_eq_lsq
-    is used to calculate ``B.T @ W @ B`` and ``B.T @ W @ y``.
-
-    This test is a "canary in the coal mine", and if it ever fails, the scipy
-    support will need to be looked at.
-
-    """
-    # import within this function in case this private file is ever renamed
-    from scipy.interpolate import _bspl
-    _scipy_btb_bty = _bspl._norm_eq_lsq
-
-    x, y = data_fixture
-    # ensure x and y are floats
-    x = x.astype(float, copy=False)
-    y = y.astype(float, copy=False)
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, x.size)
-    weights = np.clip(weights, 0, 1).astype(float, copy=False)
-
-    spline_degree = 3
-    num_knots = 100
-
-    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
-    basis = _spline_utils._spline_basis(x, knots, spline_degree)
-    num_bases = basis.shape[1]
-
-    ab = np.zeros((spline_degree + 1, num_bases), order='F')
-    rhs = np.zeros((num_bases, 1), order='F')
-    _scipy_btb_bty(x, knots, spline_degree, y.reshape(-1, 1), np.sqrt(weights), ab, rhs)
-    rhs = rhs.reshape(-1)
-
-    expected_rhs = basis.T @ (weights * y)
-    expected_ab_full = (basis.T @ diags(weights, format='csr') @ basis).todia().data[::-1]
-    expected_ab_lower = expected_ab_full[len(expected_ab_full) // 2:]
-
-    assert_allclose(rhs, expected_rhs, 1e-10, 1e-12)
-    assert_allclose(ab, expected_ab_lower, 1e-10, 1e-12)
-
-
 @pytest.mark.parametrize('num_knots', (100, 1000))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 @pytest.mark.parametrize('lower_only', (True, False))
-def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lower_only):
+def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower_only):
     """
     Tests the accuracy of the penalized spline solvers.
 
-    The penalized spline solver has three routes:
+    The penalized spline solver has two routes:
     1) use the custom numba function (preferred if numba is installed)
-    2) use the scipy function scipy.interpolate._bspl._norm_eq_lsq (used if numba is
-       not installed and the scipy import works correctly)
-    3) compute ``B.T @ W @ B`` and ``B.T @ (w * y)`` using the sparse system (last resort)
+    2) compute ``B.T @ W @ B`` and ``B.T @ (w * y)`` using the sparse system (last resort)
 
-    All three are tested here.
+    Both are tested here.
 
     """
     x, y = data_fixture
     # ensure x and y are floats
     x = x.astype(float, copy=False)
     y = y.astype(float, copy=False)
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, x.size)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
@@ -240,33 +194,38 @@ def test_solve_psplines(data_fixture, num_knots, spline_degree, diff_order, lowe
         basis.T @ diags(weights, format='csr') @ basis + penalty_matrix,
         basis.T @ (weights * y)
     )
+    expected_spline = basis @ expected_coeffs
 
     with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
-        # mock that the scipy import failed, so should use sparse calculation; tested
-        # first since it should be most stable
-        with mock.patch.object(_spline_utils, '_scipy_btb_bty', None):
-            assert_allclose(
-                _spline_utils._solve_pspline(
-                    x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
-                ),
-                expected_coeffs, 1e-10, 1e-12
-            )
-
-        # should use the scipy calculation
+        # use sparse calculation
+        spline_basis = _spline_utils.SplineBasis(
+            x, num_knots=num_knots, spline_degree=spline_degree
+        )
+        pspline = _spline_utils.PSpline(
+            spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+        )
         assert_allclose(
-            _spline_utils._solve_pspline(
-                x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
-            ),
-            expected_coeffs, 1e-10, 1e-12
+            pspline.solve_pspline(y, weights=weights, penalty=penalty),
+            expected_spline, 1e-10, 1e-12
+        )
+        assert_allclose(
+            pspline.coef, expected_coeffs, 1e-10, 1e-12
         )
 
     with mock.patch.object(_spline_utils, '_HAS_NUMBA', True):
         # should use the numba calculation
+        spline_basis = _spline_utils.SplineBasis(
+            x, num_knots=num_knots, spline_degree=spline_degree
+        )
+        pspline = _spline_utils.PSpline(
+            spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+        )
         assert_allclose(
-            _spline_utils._solve_pspline(
-                x, y, weights, basis, penalty, knots, spline_degree, lower_only=lower_only
-            ),
-            expected_coeffs, 1e-10, 1e-12
+            pspline.solve_pspline(y, weights=weights, penalty=penalty),
+            expected_spline, 1e-10, 1e-12
+        )
+        assert_allclose(
+            pspline.coef, expected_coeffs, 1e-10, 1e-12
         )
 
 
@@ -290,14 +249,14 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.lower == allow_lower
     assert penalized_system.diff_order == diff_order
     assert penalized_system.num_bands == diff_order + max(0, padding)
-    assert penalized_system.num_knots == num_knots
-    assert penalized_system.spline_degree == spline_degree
+    assert penalized_system.basis.num_knots == num_knots
+    assert penalized_system.basis.spline_degree == spline_degree
     assert penalized_system.coef is None  # None since the solve method has not been called
-    assert penalized_system.basis.shape == (data_size, num_knots + spline_degree - 1)
-    assert penalized_system._num_bases == num_knots + spline_degree - 1
-    assert penalized_system.knots.shape == (num_knots + 2 * spline_degree,)
-    assert isinstance(penalized_system.x, np.ndarray)
-    assert penalized_system._x_len == len(penalized_system.x)
+    assert penalized_system.basis.basis.shape == (data_size, num_knots + spline_degree - 1)
+    assert penalized_system.basis._num_bases == num_knots + spline_degree - 1
+    assert penalized_system.basis.knots.shape == (num_knots + 2 * spline_degree,)
+    assert isinstance(penalized_system.basis.x, np.ndarray)
+    assert penalized_system.basis._x_len == len(penalized_system.basis.x)
     assert not penalized_system.using_pentapy
     if allow_lower:
         assert penalized_system.main_diagonal_index == 0
@@ -305,14 +264,14 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
         assert penalized_system.main_diagonal_index == diff_order + max(0, padding)
 
     # check that PSpline.same_basis works as expected
-    assert penalized_system.same_basis(num_knots=num_knots, spline_degree=spline_degree)
+    assert penalized_system.basis.same_basis(num_knots=num_knots, spline_degree=spline_degree)
     for new_num_knots in (1, 5, 1000):
         if new_num_knots == num_knots:
             continue
         for new_spline_degree in range(4):
             if new_spline_degree == spline_degree:
                 continue
-            assert not penalized_system.same_basis(
+            assert not penalized_system.basis.same_basis(
                 num_knots=new_num_knots, spline_degree=new_spline_degree
             )
 
@@ -343,9 +302,12 @@ def test_pspline_setup(data_fixture, num_knots, spline_degree, diff_order,
     if reverse_diags:
         expected_penalty = expected_penalty[::-1]
 
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
     pspline = _spline_utils.PSpline(
-        x, num_knots=num_knots, spline_degree=spline_degree, check_finite=False,
-        lam=lam, diff_order=diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
+        spline_basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=reverse_diags
     )
 
     check_penalized_spline(
@@ -362,31 +324,32 @@ def test_pspline_setup(data_fixture, num_knots, spline_degree, diff_order,
     )
 
 
-def test_pspline_non_finite_fails():
+def test_spline_basis_non_finite_fails():
     """Ensure non-finite values raise an exception when check_finite is True."""
     x = np.linspace(-1, 1, 100)
     for value in (np.nan, np.inf, -np.inf):
         x[0] = value
         with pytest.raises(ValueError):
-            _spline_utils.PSpline(x, check_finite=True)
+            _spline_utils.SplineBasis(x, check_finite=True)
 
 
 def test_pspline_diff_order_zero_fails(data_fixture):
     """Ensures a difference order of 0 fails."""
     x, y = data_fixture
+    basis = _spline_utils.SplineBasis(x)
     with pytest.raises(ValueError):
-        _spline_utils.PSpline(x, diff_order=0)
+        _spline_utils.PSpline(basis, diff_order=0)
 
 
 @pytest.mark.parametrize('spline_degree', (-2, -1, 0, 1))
-def test_pspline_negative_spline_degree_fails(data_fixture, spline_degree):
+def test_spline_basis_negative_spline_degree_fails(data_fixture, spline_degree):
     """Ensures a spline degree less than 0 fails."""
     x, y = data_fixture
     if spline_degree >= 0:
-        _spline_utils.PSpline(x, spline_degree=spline_degree)
+        _spline_utils.SplineBasis(x, spline_degree=spline_degree)
     else:
         with pytest.raises(ValueError):
-            _spline_utils.PSpline(x, spline_degree=spline_degree)
+            _spline_utils.SplineBasis(x, spline_degree=spline_degree)
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3))
@@ -396,16 +359,15 @@ def test_pspline_negative_spline_degree_fails(data_fixture, spline_degree):
 def test_pspline_tck(data_fixture, num_knots, spline_degree, diff_order, lam):
     """Ensures the tck attribute can correctly recreate the solved spline."""
     x, y = data_fixture
-    pspline = _spline_utils.PSpline(
-        x, num_knots=num_knots, spline_degree=spline_degree, diff_order=diff_order, lam=lam
-    )
+    basis = _spline_utils.SplineBasis(x, num_knots=num_knots, spline_degree=spline_degree)
+    pspline = _spline_utils.PSpline(basis, diff_order=diff_order, lam=lam)
     fit_spline = pspline.solve_pspline(y, weights=np.ones_like(y))
 
     # ensure tck is the knots, coefficients, and spline degree
     assert len(pspline.tck) == 3
     knots, coeffs, degree = pspline.tck
 
-    assert_allclose(knots, pspline.knots, rtol=1e-12)
+    assert_allclose(knots, pspline.basis.knots, rtol=1e-12)
     assert_allclose(coeffs, pspline.coef, rtol=1e-12)
     assert degree == spline_degree
 
@@ -418,7 +380,8 @@ def test_pspline_tck(data_fixture, num_knots, spline_degree, diff_order, lam):
 def test_pspline_tck_none(data_fixture):
     """Ensures an exception is raised when tck attribute is accessed without first solving once."""
     x, y = data_fixture
-    pspline = _spline_utils.PSpline(x)
+    basis = _spline_utils.SplineBasis(x)
+    pspline = _spline_utils.PSpline(basis)
 
     assert pspline.coef is None
     with pytest.raises(ValueError):
@@ -428,10 +391,38 @@ def test_pspline_tck_none(data_fixture):
 def test_pspline_tck_readonly(data_fixture):
     """Ensures the tck attribute is read-only."""
     x, y = data_fixture
-    pspline = _spline_utils.PSpline(x)
+    basis = _spline_utils.SplineBasis(x)
+    pspline = _spline_utils.PSpline(basis)
     pspline.solve_pspline(y, np.ones_like(y))
     with pytest.raises(AttributeError):
         pspline.tck = (1, 2, 3)
+
+
+def test_spline_basis_tk_readonly(data_fixture):
+    """Ensures the tk attribute is read-only."""
+    x, y = data_fixture
+    basis = _spline_utils.SplineBasis(x)
+    with pytest.raises(AttributeError):
+        basis.tk = (1, 2)
+
+
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('num_knots', (10, 100))
+def test_spline_basis_tk(data_fixture, num_knots, spline_degree):
+    """Ensures the tk attribute can correctly recreate the solved spline."""
+    x, y = data_fixture
+    basis = _spline_utils.SplineBasis(x, num_knots=num_knots, spline_degree=spline_degree)
+
+    # ensure tk is the knots and spline degree
+    assert len(basis.tk) == 2
+    knots, degree = basis.tk
+
+    assert_allclose(knots, basis.knots, rtol=1e-12)
+    assert degree == spline_degree
+
+    if hasattr(BSpline, 'design_matrix'):
+        scipy_basis = BSpline.design_matrix(x, *basis.tk)
+        assert_allclose(basis.basis.toarray(), scipy_basis.toarray(), rtol=1e-10, atol=1e-12)
 
 
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4))
@@ -467,18 +458,18 @@ def test_compare_to_whittaker(data_fixture, lam, diff_order):
     """
     x, y = data_fixture
 
-    pspline = _spline_utils.PSpline(
-        x, num_knots=len(x) + 1, spline_degree=0, lam=lam, diff_order=diff_order,
-        check_finite=False
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=len(x) + 1, spline_degree=0, check_finite=False
     )
 
+    pspline = _spline_utils.PSpline(spline_basis, lam=lam, diff_order=diff_order)
+
     # sanity check to ensure it was set up correctly
-    assert_array_equal(pspline.basis.shape, (len(x), len(x)))
+    assert_array_equal(pspline.basis.basis.shape, (len(x), len(x)))
 
     whittaker_system = _banded_utils.PenalizedSystem(len(y), lam=lam, diff_order=diff_order)
 
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, len(y))
+    weights = np.random.default_rng(0).normal(0.8, 0.05, len(y))
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
     main_diag_idx = whittaker_system.main_diagonal_index

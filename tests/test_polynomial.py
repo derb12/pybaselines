@@ -202,6 +202,7 @@ class TestLoess(IterativePolynomialTester):
 
     func_name = 'loess'
     allows_zero_iteration = False
+    requires_unique_x = True
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('delta', (0, 0.01))
@@ -287,7 +288,7 @@ class TestLoess(IterativePolynomialTester):
         The outputs from statsmodels were created using::
 
             from statsmodels.nonparametric.smoothers_lowess import lowess
-            output = lowess(y, x, fraction, iterations).T[1]
+            output = lowess(y, x, fraction, iterations, delta=0.0).T[1]
 
         with statsmodels version 0.11.1.
 
@@ -295,8 +296,8 @@ class TestLoess(IterativePolynomialTester):
         num_x = 100
         fraction = 0.1
         total_points = int(num_x * fraction)
-        # use set values since minimum numpy version is < 1.17
-        # once min numpy version is >= 1.17, can use the following to create x and y:
+        # Use set values to not worry about rng generation changes causing issues.
+        # Used the following to create x and y:
         # random_generator = np.random.default_rng(0)
         # x = np.sort(random_generator.uniform(0, 10 * np.pi, num_x), kind='stable')
         # use a simple sine function since only smoothing the data
@@ -308,7 +309,8 @@ class TestLoess(IterativePolynomialTester):
         for iterations in range(4):
             output = self.algorithm_base(x, check_finite=False, assume_sorted=True).loess(
                 y, conserve_memory=conserve_memory, total_points=total_points,
-                max_iter=iterations, tol=-1, scale=4.0469385011764905, symmetric_weights=True
+                max_iter=iterations, tol=-1, scale=4.0469385011764905, symmetric_weights=True,
+                delta=0.0
             )
 
             assert_allclose(
@@ -336,8 +338,6 @@ class TestLoess(IterativePolynomialTester):
           m-a-v * scale / 0.6744897501960817, so set scale to 4.0469385011764905 to
           get 6 and match statsmodels.
         * set symmetric weights to True.
-        * since x is scaled to (-1, 1) in pybaselines, use delta = delta * 2 rather than
-          delta = delta * (x.max() - x.min()) for statsmodels.
         * only test the first iteration, since just want to check which points are selected
           for fitting
 
@@ -363,7 +363,7 @@ class TestLoess(IterativePolynomialTester):
 
         output = self.algorithm_base(x, check_finite=False, assume_sorted=True).loess(
             y, total_points=total_points, max_iter=0, scale=4.0469385011764905,
-            symmetric_weights=True, delta=2 * delta
+            symmetric_weights=True, delta=delta * (x.max() - x.min())
         )
 
         assert_allclose(output[0], STATSMODELS_LOESS_DELTA[delta])
@@ -373,11 +373,12 @@ class TestLoess(IterativePolynomialTester):
         """Ensures the input weights are sorted correctly."""
         super().test_input_weights(use_threshold=use_threshold)
 
-    def test_non_sorted_x_fails(self):
-        """Ensures that non-monotonically increasing x-values fails."""
-        reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=True)
-        with pytest.raises(ValueError):
-            getattr(reverse_fitter, self.func_name)(self.y)
+    @pytest.mark.threaded_test
+    @pytest.mark.parametrize('conserve_memory', (True, False))
+    def test_threading(self, conserve_memory):
+        """Tests the different possible computation routes under threading."""
+        delta = 0.05 * (self.x.max() - self.x.min())  # use a larger delta to speed up method
+        super().test_threading(conserve_memory=conserve_memory, delta=delta)
 
 
 class TestQuantReg(IterativePolynomialTester):
@@ -385,6 +386,7 @@ class TestQuantReg(IterativePolynomialTester):
 
     func_name = 'quant_reg'
     required_kwargs = {'tol': 1e-9}
+    required_repeated_kwargs = {'tol': 1e-3}
 
     @pytest.mark.parametrize('quantile', (0, 1, -0.1, 1.1))
     def test_outside_quantile_fails(self, quantile):
@@ -423,11 +425,8 @@ class TestQuantReg(IterativePolynomialTester):
 
         """
         x = np.linspace(-1000, 1000, 200)
-        # TODO directly calculating y gives different results, so probably something to
-        # do with the random seed not working correctly; once minimum numpy version
-        # is >= 1.17, can use np.random.default_rng to get a consistent random
-        # generator and recreate outputs without having to save y as well
-
+        # Use set values to not worry about rng generation changes causing issues.
+        # Used the following to create y:
         # y = x + np.random.default_rng(0).normal(0, 200, x.size)
         y = QUANTILE_Y
 

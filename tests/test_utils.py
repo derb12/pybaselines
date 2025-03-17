@@ -653,8 +653,7 @@ def test_pad_edges2d_custom_pad_func():
 @pytest.mark.parametrize('seed', (123, 98765))
 def test_invert_sort(seed):
     """Ensures the inverted sort works."""
-    # TODO replace with np.random.default_rng once minimum numpy version is >= 1.17
-    values = np.random.RandomState(seed).normal(0, 10, 1000)
+    values = np.random.default_rng(seed).normal(0, 10, 1000)
     sort_order = values.argsort(kind='mergesort')
 
     expected_inverted_sort = sort_order.argsort(kind='mergesort')

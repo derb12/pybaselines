@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import Baseline, optimizers, polynomial, utils
 
-from .conftest import BaseTester, InputWeightsMixin
+from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation
 
 
 class OptimizerInputWeightsMixin(InputWeightsMixin):
@@ -25,8 +25,7 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
         Returns the output for further testing.
 
         """
-        # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-        weights = np.random.RandomState(0).normal(0.8, 0.05, len(self.x))
+        weights = np.random.default_rng(0).normal(0.8, 0.05, len(self.x))
         weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
         reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
@@ -47,15 +46,21 @@ class OptimizerInputWeightsMixin(InputWeightsMixin):
             assertion_kwargs['atol'] = 1e-14
 
         for key in self.weight_keys:
-            assert_allclose(
-                regular_output_params[key], self.reverse_array(reverse_output_params[key]),
-                **assertion_kwargs
-            )
+            if key in regular_output_params:
+                assert_allclose(
+                    regular_output_params[key],
+                    self.reverse_array(reverse_output_params[key]),
+                    **assertion_kwargs
+                )
+            else:
+                assert_allclose(
+                    regular_output_params['method_params'][key],
+                    self.reverse_array(reverse_output_params['method_params'][key]),
+                    **assertion_kwargs
+                )
         assert_allclose(
             regular_output, self.reverse_array(reverse_output), **assertion_kwargs
         )
-
-        return regular_output, regular_output_params, reverse_output, reverse_output_params
 
 
 class OptimizersTester(BaseTester):
@@ -63,14 +68,32 @@ class OptimizersTester(BaseTester):
 
     module = optimizers
     algorithm_base = optimizers._Optimizers
+    checked_method_keys = None
+
+    def test_output(self, additional_keys=None, additional_method_keys=None, **kwargs):
+        """Ensures the keys within the method_params dictionary are also checked."""
+        if additional_keys is None:
+            added_keys = ['method_params']
+        else:
+            added_keys = list(additional_keys) + ['method_params']
+        if additional_method_keys is None:
+            optimizer_keys = self.checked_method_keys
+        elif self.checked_method_keys is None:
+            optimizer_keys = additional_method_keys
+        else:
+            optimizer_keys = list(self.checked_method_keys) + list(additional_method_keys)
+        super().test_output(
+            additional_keys=added_keys, optimizer_keys=optimizer_keys, **kwargs
+        )
 
 
 class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing collab_pls baseline."""
 
     func_name = "collab_pls"
+    checked_keys = ('average_weights',)
     # will need to change checked_keys if default method is changed
-    checked_keys = ('average_weights', 'weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history')
     two_d = True
     weight_keys = ('average_weights', 'weights')
 
@@ -80,7 +103,8 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
             'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
             'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc', 'pspline_asls',
             'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
-            'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa'
+            'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa',
+            'brpls', 'pspline_brpls', 'pspline_mpls', 'lsrpls', 'pspline_lsrpls'
         )
     )
     def test_all_methods(self, method):
@@ -114,8 +138,8 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
         )
 
         assert_allclose(
-            regular_output_params['alpha'],
-            self.reverse_array(reverse_output_params['alpha']),
+            regular_output_params['method_params']['alpha'],
+            self.reverse_array(reverse_output_params['method_params']['alpha']),
             rtol=1e-12, atol=1e-14
         )
 
@@ -124,8 +148,9 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing collab_pls baseline."""
 
     func_name = "optimize_extended_range"
+    checked_keys = ('optimal_parameter', 'min_rmse', 'rmse')
     # will need to change checked_keys if default method is changed
-    checked_keys = ('weights', 'tol_history', 'optimal_parameter', 'min_rmse')
+    checked_method_keys = ('weights', 'tol_history')
     required_kwargs = {'pad_kwargs': {'extrapolate_window': 100}}
 
     @pytest.mark.parametrize('use_class', (True, False))
@@ -160,10 +185,10 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         output = self.class_func(
             self.y, method=method, height_scale=0.1, **kwargs, **self.kwargs
         )
-        if 'weights' in output[1]:
-            assert self.y.shape == output[1]['weights'].shape
-        elif 'alpha' in output[1]:
-            assert self.y.shape == output[1]['alpha'].shape
+        if 'weights' in output[1]['method_params']:
+            assert self.y.shape == output[1]['method_params']['weights'].shape
+        elif 'alpha' in output[1]['method_params']:
+            assert self.y.shape == output[1]['method_params']['alpha'].shape
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
@@ -192,12 +217,12 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
 
         """
         with pytest.raises(ValueError):
-            self.class_func(self.y, method='asls', **{key: 1e4})
+            self.class_func(self.y, method='asls', **{key: 16})
 
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
     def test_aspls_alpha_ordering(self, side):
         """Ensures the `alpha` array for the aspls method is currectly processed."""
-        alpha = np.random.RandomState(0).normal(0.8, 0.05, len(self.x))
+        alpha = np.random.default_rng(0).normal(0.8, 0.05, len(self.x))
         alpha = np.clip(alpha, 0, 1).astype(float, copy=False)
 
         reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)
@@ -213,7 +238,8 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
 
         for key in ('weights', 'alpha'):
             assert_allclose(
-                regular_output_params[key], reverse_output_params[key][::-1],
+                regular_output_params['method_params'][key],
+                reverse_output_params['method_params'][key][::-1],
                 rtol=1e-10, atol=1e-14
             )
         assert_allclose(
@@ -224,6 +250,68 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         """Ensures an exception is raised for passing kwargs meant for the fitting function."""
         with pytest.raises(TypeError):
             self.class_func(self.y, method='asls', lam=1e8)
+
+    @ensure_deprecation(1, 4)
+    def test_min_rmse_deprecation(self):
+        """Placeholder to ensure 'min_rmse' is removed from the output in version 1.4."""
+
+    def test_optimal_parameter(self):
+        """Ensures the output optimal parameter is the correct value.
+
+        For polynomial methods, `optimal_parameter` should be the polynomial degree; for
+        other methods, `optimal_parameter` should be the actual `lam` value, not log(lam)
+        as returned in versions earlier than 1.2.0.
+        """
+        min_value = 2
+        _, params = self.class_func(self.y, method='asls', min_value=min_value, max_value=8)
+        assert params['optimal_parameter'] >= 10**min_value
+
+        max_value = 6
+        _, params2 = self.class_func(self.y, method='modpoly', min_value=2, max_value=max_value)
+        assert params2['optimal_parameter'] <= max_value
+
+    @pytest.mark.parametrize('method', ('asls', 'modpoly'))
+    def test_min_max_ordering(self, method):
+        """Ensures variable ordering handles min and max values correctly."""
+        min_value = 2
+        max_value = 6
+        fit_1, params_1 = self.class_func(
+            self.y, method=method, min_value=min_value, max_value=max_value
+        )
+        # should simply do the fittings in the reversed order
+        fit_2, params_2 = self.class_func(
+            self.y, method=method, min_value=max_value, max_value=min_value
+        )
+
+        # fits and optimal parameter should be the same
+        assert_allclose(fit_2, fit_1, rtol=1e-12, atol=1e-12)
+        assert_allclose(
+            params_1['optimal_parameter'], params_2['optimal_parameter'], rtol=1e-12, atol=1e-12
+        )
+        # rmse should be reversed
+        assert_allclose(params_1['rmse'], params_2['rmse'][::-1], rtol=1e-8, atol=1e-12)
+
+    @pytest.mark.parametrize('method', ('asls', 'modpoly'))
+    def test_no_step(self, method):
+        """Ensures a fit is still done if step is zero or min and max values are equal."""
+        min_value = 2
+        # case 1: step == 0
+        fit_1, params_1 = self.class_func(
+            self.y, method=method, min_value=min_value, max_value=min_value + 5, step=0
+        )
+        # case 2: min and max value are equal
+        fit_2, params_2 = self.class_func(
+            self.y, method=method, min_value=min_value, max_value=min_value
+        )
+
+        # fits, optimal parameter, and rmse should all be the same
+        assert_allclose(fit_2, fit_1, rtol=1e-12, atol=1e-12)
+        assert_allclose(
+            params_1['optimal_parameter'], params_2['optimal_parameter'], rtol=1e-12, atol=1e-12
+        )
+        assert_allclose(params_1['rmse'], params_2['rmse'], rtol=1e-8, atol=1e-12)
+        assert len(params_1['rmse']) == 1
+        assert len(params_2['rmse']) == 1
 
 
 @pytest.mark.parametrize(
@@ -279,6 +367,7 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
 
     func_name = 'adaptive_minmax'
     checked_keys = ('weights', 'constrained_weights', 'poly_order')
+    checked_method_keys = ('weights', 'tol_history')
     weight_keys = ('weights', 'constrained_weights')
 
     @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
@@ -346,13 +435,26 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
             constrained_weight=weightings, constrained_fraction=constrained_fractions
         )
 
+    @pytest.mark.parametrize('return_coef', (True, False))
+    def test_output(self, return_coef):
+        """Ensures the polynomial coefficients are output if `return_coef` is True."""
+        if return_coef:
+            additional_method_keys = ['coef']
+        else:
+            additional_method_keys = None
+        super().test_output(
+            additional_method_keys=additional_method_keys,
+            method_kwargs={'return_coef': return_coef}
+        )
+
 
 class TestCustomBC(OptimizersTester):
     """Class for testing custom_bc baseline."""
 
     func_name = 'custom_bc'
+    checked_keys = ('y_fit', 'x_fit', 'baseline_fit')
     # will need to change checked_keys if default method is changed
-    checked_keys = ('weights', 'tol_history', 'y_fit', 'x_fit')
+    checked_method_keys = ('weights', 'tol_history')
     required_kwargs = {'sampling': 5}
 
     @pytest.mark.parametrize(

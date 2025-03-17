@@ -235,8 +235,7 @@ def test_lower_to_full(data_fixture, num_knots, spline_degree):
     x, y = data_fixture
     # ensure x is a float
     x = x.astype(float, copy=False)
-    # TODO replace with np.random.default_rng when min numpy version is >= 1.17
-    weights = np.random.RandomState(0).normal(0.8, 0.05, x.size)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
     weights = np.clip(weights, 0, 1)
 
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
@@ -420,12 +419,13 @@ def test_difference_matrix_formats(form):
 
 
 def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
-                           allow_lower, reverse_diags, padding, using_pentapy):
+                           allow_lower, reverse_diags, padding, using_pentapy, data_size):
     """Tests a PenalizedSystem object with the expected values."""
     expected_padded_penalty = lam * _banded_utils._pad_diagonals(
         expected_penalty, padding, lower_only=allow_lower
     )
 
+    assert penalized_system._num_bases == data_size
     assert_array_equal(penalized_system.original_diagonals, expected_penalty)
     assert_array_equal(penalized_system.penalty, expected_padded_penalty)
     assert penalized_system.reversed == reverse_diags
@@ -478,6 +478,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
     initial_system = _banded_utils.PenalizedSystem(
         data_size, lam=1, diff_order=0, allow_pentapy=False
     )
+    assert initial_system._num_bases == data_size
 
     for padding in range(-1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
@@ -486,7 +487,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         )
         check_penalized_system(
             penalized_system, expected_penalty, lam, diff_order, allow_lower,
-            bool(reverse_diags), padding, False
+            bool(reverse_diags), padding, False, data_size
         )
         # also check that the reset_diagonal method performs similarly
         initial_system.reset_diagonals(
@@ -495,8 +496,19 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         )
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, allow_lower,
-            bool(reverse_diags), padding, False
+            bool(reverse_diags), padding, False, data_size
         )
+
+        # also check after resetting with a different lam
+        for new_lam in (2.5, 12):
+            initial_system.reset_diagonals(
+                lam=new_lam, diff_order=diff_order, allow_lower=allow_lower,
+                reverse_diags=reverse_diags, allow_pentapy=False, padding=padding
+            )
+            check_penalized_system(
+                initial_system, expected_penalty, new_lam, diff_order, allow_lower,
+                bool(reverse_diags), padding, False, data_size
+            )
 
 
 @has_pentapy
@@ -535,6 +547,7 @@ def test_penalized_system_setup_pentapy(diff_order, allow_lower, reverse_diags):
     initial_system = _banded_utils.PenalizedSystem(
         data_size, lam=1, diff_order=0, allow_pentapy=True
     )
+    assert initial_system._num_bases == data_size
 
     for padding in range(-1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
@@ -543,7 +556,7 @@ def test_penalized_system_setup_pentapy(diff_order, allow_lower, reverse_diags):
         )
         check_penalized_system(
             penalized_system, expected_penalty, lam, diff_order, actual_lower,
-            reversed_penalty, padding, using_pentapy=diff_order == 2
+            reversed_penalty, padding, using_pentapy=diff_order == 2, data_size=data_size
         )
         # also check that the reset_diagonal method performs similarly
         initial_system.reset_diagonals(
@@ -552,7 +565,7 @@ def test_penalized_system_setup_pentapy(diff_order, allow_lower, reverse_diags):
         )
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, actual_lower,
-            reversed_penalty, padding, using_pentapy=diff_order == 2
+            reversed_penalty, padding, using_pentapy=diff_order == 2, data_size=data_size
         )
 
 
@@ -705,7 +718,7 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
     lam = 5
     diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
     penalty = lam * diff_matrix.T @ diff_matrix
-
+    penalty_bands = _banded_utils._sparse_to_banded(penalty, data_size)[0] / lam
     for penalty_order in range(1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
             data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
@@ -749,3 +762,168 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
             )
             # should also modify the penalty attribute
             assert_allclose(penalized_system.penalty, expected_output, rtol=1e-12, atol=1e-12)
+
+            # ensure original diagonals are also not affected
+            expected_diagonals = penalty_bands.copy()
+            if penalized_system.reversed:
+                expected_diagonals = expected_diagonals[::-1]
+            if penalized_system.lower:
+                expected_diagonals = expected_diagonals[expected_diagonals.shape[0] // 2:]
+            assert_allclose(
+                penalized_system.original_diagonals, expected_diagonals,
+                rtol=1e-12, atol=1e-12
+            )
+
+
+@pytest.mark.parametrize('dtype', (float, np.float32))
+def test_sparse_to_banded(dtype):
+    """Tests basic functionality of _sparse_to_banded."""
+    data = np.array([
+        [1, 3, 0, 0],
+        [2, 3, 5, 0],
+        [0, 3, 5, 6],
+        [0, 0, 2, 9]
+    ], dtype=dtype)
+    banded_data = np.array([
+        [0, 3, 5, 6],
+        [1, 3, 5, 9],
+        [2, 3, 2, 0]
+    ], dtype=dtype)
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 1
+    assert out.dtype == dtype
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 1
+    assert out2.dtype == dtype
+
+
+def test_sparse_to_banded_truncation():
+    """Ensures _sparse_to_banded works correctly when zeros are truncated from sparse format."""
+    data = np.array([
+        [1, 3, 0, 0],
+        [2, 3, 5, 0],
+        [0, 3, 5, 0],
+        [0, 0, 2, 0]
+    ])
+    banded_data = np.array([
+        [0, 3, 5, 0],
+        [1, 3, 5, 0],
+        [2, 3, 2, 0]
+    ])
+    matrix = dia_object(data)
+
+    expected_data = np.array([
+        [0, 3, 5],
+        [1, 3, 5],
+        [2, 3, 2]
+    ])
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+    # ensure that the last column of zeros should typically get truncated by SciPy's
+    # sparse matrices
+    assert_array_equal(matrix.data[::-1], expected_data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 1
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 1
+
+
+def test_sparse_to_banded_diagonal():
+    """Ensures _sparse_to_banded works with only a single diagonal."""
+    data = np.array([
+        [1, 0, 0, 0],
+        [0, 3, 0, 0],
+        [0, 0, 5, 0],
+        [0, 0, 0, 9]
+    ])
+    banded_data = np.array([[1, 3, 5, 9]])
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 0
+    assert upper == 0
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 0
+    assert upper2 == 0
+
+
+def test_sparse_to_banded_ragged():
+    """Ensures _sparse_to_banded works when the input is a ragged banded matrix."""
+    data = np.array([
+        [1, 3, 0, 2],
+        [2, 3, 5, 0],
+        [0, 3, 5, 6],
+        [0, 0, 2, 9]
+    ])
+    banded_data = np.array([
+        [0, 0, 0, 2],
+        [0, 0, 0, 0],
+        [0, 3, 5, 6],
+        [1, 3, 5, 9],
+        [2, 3, 2, 0]
+    ])
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 3
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 3
+
+    data = np.array([
+        [1, 3, 0, 0],
+        [2, 3, 5, 0],
+        [0, 3, 5, 6],
+        [-1, 0, 2, 9]
+    ])
+    banded_data = np.array([
+        [0, 3, 5, 6],
+        [1, 3, 5, 9],
+        [2, 3, 2, 0],
+        [0, 0, 0, 0],
+        [-1, 0, 0, 0]
+    ])
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 3
+    assert upper == 1
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 3
+    assert upper2 == 1

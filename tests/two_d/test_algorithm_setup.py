@@ -13,9 +13,10 @@ from scipy.sparse import kron
 
 from pybaselines._compat import identity
 from pybaselines.two_d import _algorithm_setup, optimizers, polynomial, whittaker
-from pybaselines.utils import ParameterWarning, difference_matrix
+from pybaselines.utils import ParameterWarning, SortingWarning, difference_matrix, optimize_window
+from pybaselines._validation import _check_scalar
 
-from ..conftest import get_2dspline_inputs, get_data2d
+from ..conftest import ensure_deprecation, get_2dspline_inputs, get_data2d
 
 
 @pytest.fixture
@@ -41,9 +42,8 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
     x, z, y = data_fixture2d
 
     algorithm = _algorithm_setup._Algorithm2D(x, z)
-    assert algorithm.whittaker_system is None
 
-    _ = algorithm._setup_whittaker(y, lam=lam, diff_order=diff_order)
+    _, _, whittaker_system = algorithm._setup_whittaker(y, lam=lam, diff_order=diff_order)
 
     *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
         lam=lam, diff_order=diff_order
@@ -57,7 +57,7 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
     expected_penalty = P1 + P2
 
     assert_allclose(
-        algorithm.whittaker_system.penalty.toarray(),
+        whittaker_system.penalty.toarray(),
         expected_penalty.toarray(),
         rtol=1e-12, atol=1e-12
     )
@@ -83,7 +83,7 @@ def test_setup_whittaker_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
 
-    _, weight_array = algorithm._setup_whittaker(
+    _, weight_array, _ = algorithm._setup_whittaker(
         small_data2d, lam=1, diff_order=2, weights=weights
     )
 
@@ -205,11 +205,13 @@ def test_setup_polynomial_vandermonde(small_data2d, algorithm, vander_enum, incl
     desired_vander = np.polynomial.polynomial.polyvander2d(
         *np.meshgrid(mapped_x, mapped_z, indexing='ij'), (x_order, z_order)
     ).reshape((-1, (x_order + 1) * (z_order + 1)))
-    assert_allclose(desired_vander, algorithm.vandermonde, 1e-12)
+    assert_allclose(algorithm._polynomial.vandermonde, desired_vander, 1e-12)
 
     if include_pinv:
         desired_pinv = np.linalg.pinv(np.sqrt(weight_array)[:, np.newaxis] * desired_vander)
-        assert_allclose(desired_pinv, pinv_matrix, 1e-10)
+        assert_allclose(pinv_matrix, desired_pinv, 1e-10)
+        if weights is None:
+            assert_allclose(pinv_matrix, algorithm._polynomial.pseudo_inverse, 1e-10)
 
 
 def test_setup_polynomial_negative_polyorder_fails(small_data2d, algorithm):
@@ -241,48 +243,116 @@ def test_setup_polynomial_too_large_polyorder_fails(small_data2d, algorithm):
 
 def test_setup_polynomial_maxcross(small_data2d, algorithm):
     """Ensures the _max_cross attribute is updated after calling _setup_polynomial."""
-    algorithm._setup_polynomial(small_data2d, max_cross=[1])
-    assert algorithm._max_cross == 1
+    algorithm._setup_polynomial(small_data2d, max_cross=[1], calc_vander=True)
+    assert algorithm._polynomial.max_cross == 1
 
-    algorithm._setup_polynomial(small_data2d, max_cross=1)
-    assert algorithm._max_cross == 1
+    algorithm._setup_polynomial(small_data2d, max_cross=1, calc_vander=True)
+    assert algorithm._polynomial.max_cross == 1
 
     algorithm._setup_polynomial(small_data2d, max_cross=0)
-    assert algorithm._max_cross == 0
+    # should not update the _polynomial since Vandermonde is not calculated
+    assert algorithm._polynomial.max_cross == 1
 
-    algorithm._setup_polynomial(small_data2d, max_cross=None)
-    assert algorithm._max_cross is None
+    algorithm._setup_polynomial(small_data2d, max_cross=0, calc_vander=True)
+    assert algorithm._polynomial.max_cross == 0
+
+    algorithm._setup_polynomial(small_data2d, max_cross=None, calc_vander=True)
+    assert algorithm._polynomial.max_cross is None
 
 
 def test_setup_polynomial_too_large_maxcross_fails(small_data2d, algorithm):
     """Ensures an exception is raised if max_cross has more than one value."""
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2])
+        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2], calc_vander=True)
 
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2, 3])
+        algorithm._setup_polynomial(small_data2d, max_cross=[1, 2, 3], calc_vander=True)
 
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=np.array([1, 2]))
+        algorithm._setup_polynomial(small_data2d, max_cross=np.array([1, 2]), calc_vander=True)
 
 
 def test_setup_polynomial_negative_maxcross_fails(small_data2d, algorithm):
     """Ensures an exception is raised if max_cross is negative."""
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=[-1])
+        algorithm._setup_polynomial(small_data2d, max_cross=[-1], calc_vander=True)
 
     with pytest.raises(ValueError):
-        algorithm._setup_polynomial(small_data2d, max_cross=-2)
+        algorithm._setup_polynomial(small_data2d, max_cross=-2, calc_vander=True)
+
+
+@pytest.mark.parametrize('half_window', (None, 2, (2, 2)))
+def test_setup_morphology(data_fixture2d, algorithm, half_window):
+    """
+    Ensures setup_morphology works as expected.
+
+    Note that a half window of 2 was selected since it should not be the output
+    of optimize_window; setup_morphology should just pass the half window back
+    out if it was not None.
+    """
+    x, z, y = data_fixture2d
+    y_out, half_window_out = algorithm._setup_morphology(y, half_window)
+    if half_window is None:
+        half_window_expected = optimize_window(y)
+    else:
+        half_window_expected = _check_scalar(half_window, 2, fill_scalar=True, dtype=int)[0]
+        # sanity check that the calculated half window does not match the test case one
+        assert not np.array_equal(half_window, optimize_window(y))
+
+    assert np.array_equal(half_window_out, half_window_expected)
+    assert y is y_out  # should not be modified by setup_morphology
+
+
+@pytest.mark.parametrize('half_window', (-1, 0))
+def test_setup_morphology_bad_hw_fails(small_data2d, algorithm, half_window):
+    """Ensures half windows less than 1 raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_morphology(small_data2d, half_window=half_window)
+
+
+@ensure_deprecation(1, 4)
+def test_setup_morphology_kwargs_warns(small_data2d, algorithm):
+    """Ensures passing keyword arguments is deprecated."""
+    with pytest.warns(DeprecationWarning):
+        algorithm._setup_morphology(small_data2d, min_half_window=2)
+
+    # also ensure both window_kwargs and **kwargs are passed to optimize_window
+    with pytest.raises(TypeError):
+        with pytest.warns(DeprecationWarning):
+            algorithm._setup_morphology(
+                small_data2d, window_kwargs={'min_half_window': 2}, min_half_window=2
+            )
 
 
 def test_setup_smooth_shape(small_data2d, algorithm):
     """Ensures output y is correctly padded."""
     pad_length = 4
-    y, hw = algorithm._setup_smooth(small_data2d, pad_length, mode='edge')
+    y, hw = algorithm._setup_smooth(small_data2d, pad_length, pad_kwargs={'mode': 'edge'})
     assert_array_equal(
         y.shape, (small_data2d.shape[0] + 2 * pad_length, small_data2d.shape[1] + 2 * pad_length)
     )
     assert_array_equal(hw, [pad_length, pad_length])
+
+
+@pytest.mark.parametrize('half_window', (-1, 0))
+def test_setup_smooth_bad_hw_fails(small_data2d, algorithm, half_window):
+    """Ensures half windows less than 1 raises an exception."""
+    with pytest.raises(ValueError):
+        algorithm._setup_smooth(small_data2d, half_window=half_window)
+
+
+@ensure_deprecation(1, 4)
+def test_setup_smooth_kwargs_warns(small_data2d, algorithm):
+    """Ensures passing keyword arguments is deprecated."""
+    with pytest.warns(DeprecationWarning):
+        algorithm._setup_smooth(small_data2d, extrapolate_window=2)
+
+    # also ensure both pad_kwargs and **kwargs are passed to pad_edges
+    with pytest.raises(TypeError):
+        with pytest.warns(DeprecationWarning):
+            algorithm._setup_smooth(
+                small_data2d, pad_kwargs={'extrapolate_window': 2}, extrapolate_window=2
+            )
 
 
 @pytest.mark.parametrize('num_knots', (10, 30, (20, 30)))
@@ -291,9 +361,9 @@ def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
     """Ensures the spline basis function is correctly created."""
     x, z, y = data_fixture2d
     fitter = _algorithm_setup._Algorithm2D(x, z)
-    assert fitter.pspline is None
+    assert fitter._spline_basis is None
 
-    _ = fitter._setup_spline(
+    fitter._setup_spline(
         y, weights=None, spline_degree=spline_degree, num_knots=num_knots
     )
 
@@ -309,11 +379,11 @@ def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
         spline_degree_x, spline_degree_z = spline_degree
 
     assert_array_equal(
-        fitter.pspline.basis_r.shape,
+        fitter._spline_basis.basis_r.shape,
         (len(x), num_knots_r + spline_degree_x - 1)
     )
     assert_array_equal(
-        fitter.pspline.basis_c.shape,
+        fitter._spline_basis.basis_c.shape,
         (len(z), num_knots_c + spline_degree_z - 1)
     )
 
@@ -327,7 +397,7 @@ def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree
     x, z, y = data_fixture2d
 
     algorithm = _algorithm_setup._Algorithm2D(x, z)
-    _ = algorithm._setup_spline(
+    _, _, pspline = algorithm._setup_spline(
         y, weights=None, spline_degree=spline_degree, num_knots=num_knots,
         diff_order=diff_order, lam=lam
     )
@@ -350,7 +420,7 @@ def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree
     expected_penalty = P1 + P2
 
     assert_allclose(
-        algorithm.pspline.penalty.toarray(),
+        pspline.penalty.toarray(),
         expected_penalty.toarray(),
         rtol=1e-12, atol=1e-12
     )
@@ -468,7 +538,7 @@ def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size).reshape(small_data2d.shape)
 
-    _, weight_array = algorithm._setup_spline(
+    _, weight_array, _ = algorithm._setup_spline(
         small_data2d, lam=1, diff_order=2, weights=weights
     )
 
@@ -501,18 +571,26 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         expected_x = x.copy()
         if change_order:
             x[sort_order] = x[sort_order][::-1]
-            if assume_sorted:
-                expected_x[sort_order] = expected_x[sort_order][::-1]
+            # sanity check that a true copy was made
+            assert (expected_x != x).any()
+
     if input_z:
         expected_z = z.copy()
         if change_order:
             z[sort_order] = z[sort_order][::-1]
-            if assume_sorted:
-                expected_z[sort_order] = expected_z[sort_order][::-1]
+            # sanity check that a true copy was made
+            assert (expected_z != z).any()
 
-    algorithm = _algorithm_setup._Algorithm2D(
-        x, z, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
-    )
+    if assume_sorted and change_order and (input_x or input_z):
+        with pytest.warns(SortingWarning):
+            algorithm = _algorithm_setup._Algorithm2D(
+                x, z, check_finite=check_finite, assume_sorted=assume_sorted,
+                output_dtype=output_dtype
+            )
+    else:
+        algorithm = _algorithm_setup._Algorithm2D(
+            x, z, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
+        )
     assert_array_equal(algorithm.x, expected_x)
     assert_array_equal(algorithm.z, expected_z)
     assert algorithm._check_finite == check_finite
@@ -523,9 +601,14 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         expected_shape[0] = len(x)
     if input_z:
         expected_shape[1] = len(z)
-    assert algorithm._len == expected_shape
+    assert isinstance(algorithm._shape, tuple)
+    assert algorithm._shape == tuple(expected_shape)
+    if None in expected_shape:
+        assert algorithm._size is None
+    else:
+        assert algorithm._size == len(x) * len(z)
 
-    if not assume_sorted and change_order and (input_x or input_z):
+    if change_order and (input_x or input_z):
         if input_x and input_z:
             x_order = np.arange(len(x))
             z_order = np.arange(len(z))
@@ -557,10 +640,16 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         assert algorithm._inverted_order is None
 
     # ensure attributes are correctly initialized
-    assert algorithm.poly_order == -1
-    assert algorithm.pspline is None
-    assert algorithm.whittaker_system is None
-    assert algorithm.vandermonde is None
+    assert algorithm._polynomial is None
+    assert algorithm._spline_basis is None
+    if input_x:
+        assert not algorithm._validated_x
+    else:
+        assert algorithm._validated_x
+    if input_z:
+        assert not algorithm._validated_z
+    else:
+        assert algorithm._validated_z
 
 
 @pytest.mark.parametrize('assume_sorted', (True, False))
@@ -598,22 +687,38 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
     if reshape_baseline:
         baseline = baseline.reshape(baseline.shape[0], -1)
 
-    if change_order and not assume_sorted:
+    if change_order:
         expected_baseline = expected_baseline[..., ::-1, ::-1]
         expected_params['a'] = expected_params['a'][::-1, ::-1]
         expected_params['d'] = expected_params['d'][::-1, ::-1]
 
-    algorithm = _algorithm_setup._Algorithm2D(
-        x, z, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-    )
+    if assume_sorted and change_order:
+        with pytest.warns(SortingWarning):
+            algorithm = _algorithm_setup._Algorithm2D(
+                x, z, check_finite=False, assume_sorted=assume_sorted,
+                output_dtype=output_dtype
+            )
+    else:
+        algorithm = _algorithm_setup._Algorithm2D(
+            x, z, check_finite=False, assume_sorted=assume_sorted, output_dtype=output_dtype
+        )
     output, output_params = algorithm._return_results(
         baseline, params, dtype=output_dtype, sort_keys=('a', 'd'),
         reshape_baseline=reshape_baseline, reshape_keys=('c', 'd'),
         ensure_2d=not three_d
     )
 
+    if not change_order and (output_dtype is None or baseline.dtype == output_dtype):
+        assert np.shares_memory(output, baseline)  # should be the same object
+    else:
+        assert baseline is not output
+
+    if output_dtype is not None:
+        assert output.dtype == output_dtype
+    else:
+        assert output.dtype == baseline.dtype
+
     assert_allclose(output, expected_baseline, 1e-14, 1e-14)
-    assert output.dtype == output_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key])
 
@@ -642,10 +747,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         def func(self, data, *args, **kwargs):
             """For checking sorting and reshaping output parameters."""
             expected_x, expected_z, expected_y = get_data2d()
-            if change_order and assume_sorted:
-                expected_y = expected_y[::-1, ::-1]
-                expected_x = expected_x[::-1]
-                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_y, 1e-14, 1e-14)
@@ -666,10 +767,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         def func2(self, data, *args, **kwargs):
             """For checking reshaping output baseline."""
             expected_x, expected_z, expected_y = get_data2d()
-            if change_order and assume_sorted:
-                expected_y = expected_y[::-1, ::-1]
-                expected_x = expected_x[::-1]
-                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_y, 1e-14, 1e-14)
@@ -684,10 +781,6 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         def func3(self, data, *args, **kwargs):
             """For checking empty decorator."""
             expected_x, expected_z, expected_y = get_data2d()
-            if change_order and assume_sorted:
-                expected_y = expected_y[::-1, ::-1]
-                expected_x = expected_x[::-1]
-                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_y, 1e-14, 1e-14)
@@ -704,11 +797,8 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         def func4(self, data, *args, **kwargs):
             """For checking skip_sorting key."""
             expected_x, expected_z, expected_y = get_data2d()
-            if change_order and (assume_sorted or skip_sorting):
+            if change_order and skip_sorting:
                 expected_y = expected_y[::-1, ::-1]
-            if change_order and assume_sorted:
-                expected_x = expected_x[::-1]
-                expected_z = expected_z[::-1]
 
             assert isinstance(data, np.ndarray)
             assert_allclose(data, expected_y, 1e-14, 1e-14)
@@ -725,6 +815,16 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
             }
 
             return 1 * data, params
+
+        @_algorithm_setup._Algorithm2D._register(require_unique_xz=False)
+        def func5(self, data, *args, **kwargs):
+            """For ensuring require_unique_xz works as intedended."""
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._register(require_unique_xz=True)
+        def func6(self, data, *args, **kwargs):
+            """For ensuring require_unique_xz works as intedended."""
+            return 1 * data, {}
 
     if change_order:
         x = x[::-1]
@@ -746,15 +846,21 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         z = z.tolist()
         y = y.tolist()
 
-    if change_order and not assume_sorted:
-        # if assume_sorted is False, the param order should be inverted to match
-        # the input y-order
+    if change_order:
         expected_params['a'] = expected_params['a'][::-1, ::-1]
         expected_params['d'] = expected_params['d'][::-1, ::-1]
 
-    algorithm = SubClass(
-        x, z, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-    )
+    if assume_sorted and change_order:
+        with pytest.warns(SortingWarning):
+            algorithm = SubClass(
+                x, z, check_finite=False, assume_sorted=assume_sorted,
+                output_dtype=output_dtype
+            )
+    else:
+        algorithm = SubClass(
+            x, z, check_finite=False, assume_sorted=assume_sorted, output_dtype=output_dtype
+        )
+
     output, output_params = algorithm.func(y)
 
     # baseline should always match y-order on the output; only sorted within the
@@ -781,6 +887,37 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
     assert output4.dtype == expected_dtype
     for key, value in expected_params.items():
         assert_array_equal(value, output_params4[key], err_msg=f'{key} failed')
+
+    assert not algorithm._validated_x  # has not had a need to validate x or z yet
+    assert not algorithm._validated_z
+    output = algorithm.func6(y)
+    assert algorithm._validated_x
+    assert algorithm._validated_z
+
+    x[5] = x[4]
+    new_algorithm = SubClass(x)
+    # ensure calling a method that does not require unique x does not validate or raise an error
+    out = new_algorithm.func5(y)
+    assert not new_algorithm._validated_x
+    assert new_algorithm._validated_z  # not given z
+    with pytest.raises(ValueError):
+        out = new_algorithm.func6(y)
+
+    z[5] = z[4]
+    new_algorithm = SubClass(z_data=z)
+    # ensure calling a method that does not require unique z does not validate or raise an error
+    out = new_algorithm.func5(y)
+    assert new_algorithm._validated_x  # not given x
+    assert not new_algorithm._validated_z
+    with pytest.raises(ValueError):
+        out = new_algorithm.func6(y)
+
+    new_algorithm = SubClass(x, z)
+    out = new_algorithm.func5(y)
+    assert not new_algorithm._validated_x
+    assert not new_algorithm._validated_z
+    with pytest.raises(ValueError):
+        out = new_algorithm.func6(y)
 
 
 def test_algorithm_register_no_data_fails():
@@ -867,13 +1004,7 @@ def test_override_x(algorithm):
     new_len = 20
     new_x = np.arange(new_len)
     with pytest.raises(NotImplementedError):
-        with algorithm._override_x(new_x) as new_algorithm:
-            assert len(new_algorithm.x) == new_len
-            assert new_algorithm._len == new_len
-            assert new_algorithm.poly_order == -1
-            assert new_algorithm.vandermonde is None
-            assert new_algorithm.whittaker_system is None
-            assert new_algorithm.pspline is None
+        new_algorithm = algorithm._override_x(new_x)
 
 
 @pytest.mark.parametrize(
@@ -994,3 +1125,26 @@ def test_setup_optimizer_copy_kwargs(small_data2d, algorithm, copy_kwargs):
         assert input_kwargs['a'] == 1
     else:
         assert input_kwargs['a'] == 2
+
+
+@ensure_deprecation(1, 4)
+def test_deprecated_pentapy_solver(algorithm):
+    """Ensures setting and getting the pentapy_solver attribute is deprecated."""
+    with pytest.warns(DeprecationWarning):
+        algorithm.pentapy_solver = 2
+    with pytest.warns(DeprecationWarning):
+        solver = algorithm.pentapy_solver
+
+
+@pytest.mark.parametrize('banded_solver', (1, 2, 3, 4))
+def test_banded_solver(algorithm, banded_solver):
+    """Ensures setting banded_solver works as intended."""
+    algorithm.banded_solver = banded_solver
+    assert algorithm.banded_solver == banded_solver
+
+
+@pytest.mark.parametrize('banded_solver', (0, -1, 5, '1', True, False))
+def test_wrong_banded_solver_fails(algorithm, banded_solver):
+    """Ensures only valid integers between 0 and 4 are allowed as banded_solver inputs."""
+    with pytest.raises(ValueError):
+        algorithm.banded_solver = banded_solver

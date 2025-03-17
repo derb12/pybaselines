@@ -77,7 +77,7 @@ def _use_sparse_arrays():
 
     Notes
     -----
-    Scipy introduced its sparse arrays in version 1.8, but the interface and helper
+    SciPy introduced its sparse arrays in version 1.8, but the interface and helper
     functions were not stable until version 1.12; a warning will be emitted in scipy
     1.13 when using the matrix interface, so want to use the sparse array interface
     as early as possible.
@@ -157,7 +157,7 @@ def identity(size, format=None, **kwargs):
 
     Returns
     -------
-    scipy.sparse.spmatrix or scipy.sparse._sparray
+    scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse identity matrix.
 
     Notes
@@ -187,7 +187,7 @@ def diags(data, offsets=0, **kwargs):
 
     Returns
     -------
-    scipy.sparse.spmatrix or scipy.sparse._sparray
+    scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse identiy matrix.
 
     Notes

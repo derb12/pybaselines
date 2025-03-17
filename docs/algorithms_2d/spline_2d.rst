@@ -37,7 +37,7 @@ penalty along the columns, :math:`W_{ij}` is the weighting, :math:`\Delta^{d_r}`
 operator of order :math:`d_r` along each row of :math:`\alpha`, :math:`\alpha_{i\bullet}`, and :math:`\Delta^{d_c}` is the
 finite-difference operator of order :math:`d_c` along each column of :math:`\alpha`, :math:`\alpha_{j\bullet}`.
 
-Let :math:`B = B_c \otimes B_r` denote the kronecker product of the basis matrices for the columns and rows,
+Let :math:`B = B_c \otimes B_r` denote the Kronecker product of the basis matrices for the columns and rows,
 which represents the overall two dimensional tensor product spline basis. The resulting linear equation for
 solving the above minimization is:
 
@@ -57,14 +57,14 @@ the :ref:`1D case <difference-matrix-explanation>`. Further, :math:`\otimes` den
 product, and :math:`I_g` and :math:`I_h` are the identity matrices of length :math:`g` and
 :math:`h`, respectively. After solving, the array :math:`v` can then be reshaped into the matrix :math:`V`.
 
+.. _generalized-linear-array-model-explanation:
+
 Since experimental data is measured on gridded data (ie. :math:`Y_{ij} = f(x_i, z_j)`), the above equation
 can be optimized following `[1] <https://doi.org/10.1016/j.csda.2004.07.008>`_ and expressed as a
 `generalized linear array model <https://en.wikipedia.org/wiki/Generalized_linear_array_model>`_
 which allows directly using the matrices of the measured data, :math:`Y`, and the weights,
-:math:`W`, rather than flattening them, which significantly reduces the required
+:math:`W`, rather than flattening them, and significantly reduces the required
 memory and computation time.
-
-.. _generalized-linear-array-model-explanation:
 
 Let :math:`F` be the
 `face-splitting product operator <https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product>`_
@@ -158,6 +158,7 @@ irsqr (Iterative Reweighted Spline Quantile Regression)
    :align: center
    :context: close-figs
 
+    # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.irsqr(y, lam=(1e3, 1e2), quantile=0.3)
     create_plots(y, baseline)
 
@@ -172,6 +173,7 @@ pspline_asls (Penalized Spline Version of asls)
    :align: center
    :context: close-figs
 
+    # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_asls(y, lam=(1e3, 1e0), p=0.005)
     create_plots(y, baseline)
 
@@ -186,6 +188,7 @@ pspline_iasls (Penalized Spline Version of iasls)
    :align: center
    :context: close-figs
 
+    # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_iasls(y, lam=(1e2, 1e-2))
     create_plots(y, baseline)
 
@@ -200,6 +203,7 @@ pspline_airpls (Penalized Spline Version of airpls)
    :align: center
    :context: close-figs
 
+    # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_airpls(y, lam=(1e3, 1e-1))
     create_plots(y, baseline)
 
@@ -214,6 +218,7 @@ pspline_arpls (Penalized Spline Version of arpls)
    :align: center
    :context: close-figs
 
+    # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_arpls(y, lam=(1e3, 5e0))
     create_plots(y, baseline)
 
@@ -228,6 +233,7 @@ pspline_iarpls (Penalized Spline Version of iarpls)
    :align: center
    :context: close-figs
 
+    # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_iarpls(y, lam=(1e2, 1e0))
     create_plots(y, baseline)
 
@@ -242,5 +248,36 @@ pspline_psalsa (Penalized Spline Version of psalsa)
    :align: center
    :context: close-figs
 
+    # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_psalsa(y, lam=(1e3, 5e0), k=0.5)
+    create_plots(y, baseline)
+
+
+pspline_brpls (Penalized Spline Version of brpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline2D.pspline_brpls`:
+:ref:`explanation for the algorithm <algorithms/spline:pspline_brpls (Penalized Spline Version of brpls)>`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_plots function, look at the top-most algorithm's code
+    baseline, params = baseline_fitter.pspline_brpls(y, lam=(1e3, 5e0))
+    create_plots(y, baseline)
+
+
+pspline_lsrpls (Penalized Spline Version of lsrpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline2D.pspline_lsrpls`:
+:ref:`explanation for the algorithm <algorithms/spline:pspline_lsrpls (Penalized Spline Version of lsrpls)>`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_plots function, look at the top-most algorithm's code
+    baseline, params = baseline_fitter.pspline_lsrpls(y, lam=(1e3, 5e0))
     create_plots(y, baseline)

@@ -2,9 +2,6 @@
 Spline Baselines
 ================
 
-The contents of :mod:`pybaselines.spline` contain algorithms for fitting
-splines to the baseline.
-
 Introduction
 ------------
 
@@ -14,7 +11,7 @@ predominantly used in pybaselines. B-splines can be expressed as:
 
 .. math::
 
-    z(x) = \sum\limits_{i}^N \sum\limits_{j}^M {B_j(x_i) c_j}
+    v(x) = \sum\limits_{i}^N \sum\limits_{j}^M {B_j(x_i) c_j}
 
 where :math:`N` is the number of points in :math:`x`, :math:`M` is the number of spline
 basis functions, :math:`B_j(x_i)` is the j-th basis function evaluated at :math:`x_i`,
@@ -273,8 +270,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 .. plot::
@@ -308,14 +305,14 @@ Minimized function:
 .. math::
 
     \sum\limits_{i}^N (w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j}))^2
-    + \lambda \sum\limits_{i}^{M - 2} (\Delta^2 c_i)^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
     + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - \sum\limits_{j}^M {B_j(x_i) c_j}))^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1 B + \lambda D_2^{\top} D_2) c
+    (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1 B + \lambda D_d^{\top} D_d) c
     = (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1) y
 
 Weighting:
@@ -323,8 +320,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 
@@ -374,12 +371,14 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        0 & y_i \ge z_i \\
-        exp{\left(\frac{t (y_i - z_i)}{|\mathbf{r}^-|}\right)} & y_i < z_i
+        0 & y_i \ge v_i \\
+        \exp{\left(\frac{\text{abs}(y_i - v_i) t}{|\mathbf{r}^-|}\right)} & y_i < v_i
     \end{array}\right.
 
 where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the l1-norm of the negative
-values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - z_i < 0} |y_i - z_i|`.
+values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - v_i < 0} |y_i - v_i|`.
+Note that the absolute value within the weighting was mistakenly omitted in the original
+publication, as `specified by the author <https://github.com/zmzhang/airPLS/issues/8>`_.
 
 .. plot::
    :align: center
@@ -422,12 +421,12 @@ Weighting:
 
     w_i = \frac
         {1}
-        {1 + exp{\left(\frac
+        {1 + \exp{\left(\frac
             {2(r_i - (-\mu^- + 2 \sigma^-))}
             {\sigma^-}
         \right)}}
 
-where :math:`r_i = y_i - z_i` and :math:`\mu^-` and
+where :math:`r_i = y_i - v_i` and :math:`\mu^-` and
 :math:`\sigma^-` are the mean and standard deviation, respectively, of the negative
 values in the residual vector :math:`\mathbf r`.
 
@@ -452,7 +451,7 @@ Minimized function:
 .. math::
 
     \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
-    + \lambda \sum\limits_{i}^{M - 2}(1 - \eta w_{i,intp}) (\Delta^2 c_i)^2
+    + \lambda \sum\limits_{i}^{M - d}(1 - \eta w_{i,intp}) (\Delta^d c_i)^2
     + \sum\limits_{i}^{M - 1} (\Delta^1 (c_i))^2
 
 where :math:`\eta` is a value between 0 and 1 that controls the
@@ -464,7 +463,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top}W B + D_1^{\top} D_1 + \lambda (I - \eta W_{intp}) D_2^{\top} D_2) c = B^{\top} W y
+    (B^{\top}W B + D_1^{\top} D_1 + \lambda (I - \eta W_{intp}) D_d^{\top} D_d) c = B^{\top} W y
 
 where :math:`I` is the identity matrix.
 
@@ -475,11 +474,11 @@ Weighting:
     w_i = \frac{1}{2}\left(
         1 -
         \frac
-            {exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
-            {1 + abs[exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
+            {\exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
+            {1 + \text{abs}[\exp(t)(r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
     \right)
 
-where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
 :math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
 respectively, of the negative values in the residual vector :math:`\mathbf r`.
 
@@ -523,11 +522,11 @@ Weighting:
     w_i = \frac{1}{2}\left(
         1 -
         \frac
-            {exp(t)(r_i - 2 \sigma^-)/\sigma^-}
-            {\sqrt{1 + [exp(t)(r_i - 2 \sigma^-)/\sigma^-]^2}}
+            {\exp(t)(r_i - 2 \sigma^-)/\sigma^-}
+            {\sqrt{1 + [\exp(t)(r_i - 2 \sigma^-)/\sigma^-]^2}}
     \right)
 
-where :math:`r_i = y_i - z_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
 :math:`\sigma^-` is the standard deviation of the negative values in
 the residual vector :math:`\mathbf r`.
 
@@ -563,8 +562,8 @@ where
 .. math::
 
     \alpha_i = \frac
-        {abs(r_i)}
-        {max(abs(\mathbf r))}
+        {\text{abs}(r_i)}
+        {\max(\text{abs}(\mathbf r))}
 
 and :math:`\alpha_{intp}` is the :math:`\alpha` array after interpolating using
 :math:`x` and the basis midpoints in order to map :math:`\alpha` from length
@@ -582,15 +581,15 @@ Weighting:
 
     w_i = \frac
         {1}
-        {1 + exp{\left(\frac
-            {0.5 (r_i - \sigma^-)}
+        {1 + \exp{\left(\frac
+            {k (r_i - \sigma^-)}
             {\sigma^-}
         \right)}}
 
-where :math:`r_i = y_i - z_i`  and :math:`\sigma^-` is the standard deviation
-of the negative values in the residual vector :math:`\mathbf r`. (Note that the
-:math:`0.5 (r_i - \sigma^-) / \sigma^-` term is different than the published
-version of the asPLS, which used :math:`2 (r_i - \sigma^-) / \sigma^-`. pybaselines
+where :math:`r_i = y_i - v_i`, :math:`\sigma^-` is the standard deviation
+of the negative values in the residual vector :math:`\mathbf r`, and :math:`k`
+is the asymmetric coefficient (Note that the default value of :math:`k` is 0.5 in
+pybaselines rather than 2 in the published version of the asPLS. pybaselines
 uses the factor of 0.5 since it matches the results in Table 2 and Figure 5
 of the asPLS paper closer than the factor of 2 and fits noisy data much better).
 
@@ -634,8 +633,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p \cdot exp{\left(\frac{-(y_i - z_i)}{k}\right)} & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p \cdot \exp{\left(\frac{-(y_i - v_i)}{k}\right)} & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 where :math:`k` is a factor that controls the exponential decay of the weights for baseline
@@ -687,17 +686,17 @@ where:
 .. math::
 
     w_{0i} = \left\{\begin{array}{cr}
-        p \cdot exp{\left(\frac{-[(y_i - z_i)/k]^2}{2}\right)} & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p \cdot \exp{\left(\frac{-[(y_i - v_i)/k]^2}{2}\right)} & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 .. math::
 
-    w_{1i} = exp{\left(\frac{-[y_{sm_i}' / rms(y_{sm}')]^2}{2}\right)}
+    w_{1i} = \exp{\left(\frac{-[y_{sm_i}' / rms(y_{sm}')]^2}{2}\right)}
 
 .. math::
 
-    w_{2i} = exp{\left(\frac{-[y_{sm_i}'' / rms(y_{sm}'')]^2}{2}\right)}
+    w_{2i} = \exp{\left(\frac{-[y_{sm_i}'' / rms(y_{sm}'')]^2}{2}\right)}
 
 :math:`k` is a factor that controls the exponential decay of the weights for baseline
 values greater than the data and should be approximately the height at which a value could
@@ -743,8 +742,8 @@ Weighting:
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > z_i \\
-        1 - p & y_i \le z_i
+        p & y_i > v_i \\
+        1 - p & y_i \le v_i
     \end{array}\right.
 
 .. plot::
@@ -762,4 +761,103 @@ Weighting:
         else:
             p = 0.001
         baseline, params = baseline_fitter.pspline_mpls(y, lam=lam, p=p)
+        ax.plot(baseline, 'g--')
+
+
+pspline_brpls (Penalized Spline Version of brpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline.pspline_brpls` is a penalized spline version of :meth:`~.Baseline.brpls`.
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \frac
+        {1}
+        {1 + \frac{\beta}{1-\beta}\sqrt{\frac{\pi}{2}}F_i}
+
+where:
+
+.. math::
+
+    F_i = \frac{\sigma^-}{\mu^+}
+    \left(
+        1 + \text{erf}{\left[\frac{r_i}{\sqrt{2}\sigma^-} - \frac{\sigma^-}{\sqrt{2}\mu^+}\right]}
+    \right)
+    \exp{\left(
+        \left[\frac{r_i}{\sqrt{2}\sigma^-} - \frac{\sigma^-}{\sqrt{2}\mu^+}\right]^2
+    \right)}
+
+:math:`r_i = y_i - v_i`, :math:`\beta` is 1 minus the mean of the weights of the previous
+iteration, :math:`\sigma^-` is the root mean square of the negative values
+in the residual vector :math:`\mathbf r`, and :math:`\mu^+` is the mean of the positive values
+within :math:`\mathbf r`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        baseline, params = baseline_fitter.pspline_brpls(y)
+        ax.plot(baseline, 'g--')
+
+
+pspline_lsrpls (Penalized Spline Version of lsrpls)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline.pspline_lsrpls` is a penalized spline version of :meth:`~.Baseline.lsrpls`.
+
+
+Minimized function:
+
+.. math::
+
+    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+Linear system:
+
+.. math::
+
+    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+
+Weighting:
+
+.. math::
+
+    w_i = \frac{1}{2}\left(
+        1 -
+        \frac
+            {10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
+            {1 + \text{abs}[10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
+    \right)
+
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
+:math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
+respectively, of the negative values in the residual vector :math:`\mathbf r`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        baseline, params = baseline_fitter.pspline_lsrpls(y)
         ax.plot(baseline, 'g--')

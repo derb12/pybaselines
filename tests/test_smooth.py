@@ -12,7 +12,7 @@ import pytest
 from pybaselines import smooth
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BaseTester
+from .conftest import BaseTester, ensure_deprecation, get_data
 
 
 class SmoothTester(BaseTester):
@@ -20,6 +20,25 @@ class SmoothTester(BaseTester):
 
     module = smooth
     algorithm_base = smooth._Smooth
+    uses_padding = True  # TODO remove after version 1.4 when kwargs are deprecated
+
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        if not self.uses_padding:
+            return
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, mode='edge')
+        output_2, _ = self.class_func(self.y, pad_kwargs={'mode': 'edge'})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
+
+        # also ensure both pad_kwargs and **kwargs are passed to pad_edges; some algorithms do
+        # the padding outside of setup_smooth, so have to do this to cover those cases
+        with pytest.raises(TypeError):
+            with pytest.warns(DeprecationWarning):
+                self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
 
 
 class TestNoiseMedian(SmoothTester):
@@ -164,3 +183,89 @@ class TestRIA(SmoothTester):
         area_output = self.class_func(self.y, tol=low_tol, max_iter=high_max_iter)[1]
         assert len(area_output['tol_history']) < high_max_iter
         assert area_output['tol_history'][-1] > low_tol
+
+
+def nieve_directional_min_moving_avg(y, data_len, half_window):
+    """A simpler version of pybaselines.smooth.nieve_directional_min_moving_avg for testing."""
+    output = y.copy()
+    for i in range(1, data_len - 1):
+        if i - half_window < 0:
+            hw = i
+        else:
+            hw = half_window
+        # half_window could also be too large on the right side; in actual
+        # implementation, half_window is set to (data_len - 1) // 2 to prevent
+        # this occurring
+        if i + hw > data_len - 1:
+            hw = data_len - 1 - i
+        output[i] = min(output[i], output[i - hw:i + hw + 1].mean())
+
+    return output
+
+
+@pytest.mark.parametrize('half_window', (1, 5, 50, 249, 251))
+def test_directional_min_moving_avg(half_window):
+    """Ensures the output of _directional_min_moving_avg is correct."""
+    _, y = get_data(num_points=500)
+    len_y = len(y)
+    y_input = y.copy()
+
+    expected = nieve_directional_min_moving_avg(y, len_y, half_window)
+    output = smooth._directional_min_moving_avg(y_input, len_y, half_window)
+
+    assert_allclose(output, expected, rtol=1e-12, atol=1e-12)
+    # y_input should be modified inplace
+    assert_allclose(y_input, expected, rtol=1e-12, atol=1e-12)
+
+    # now do the second direction
+    expected = nieve_directional_min_moving_avg(expected[::-1], len_y, half_window)[::-1]
+    output = smooth._directional_min_moving_avg(y_input[::-1], len_y, half_window)[::-1]
+
+    assert_allclose(output, expected, rtol=1e-12, atol=1e-12)
+    assert_allclose(y_input, expected, rtol=1e-12, atol=1e-12)
+
+
+class TestPeakFilling(SmoothTester):
+    """Class for testing peak_filling baseline."""
+
+    func_name = 'peak_filling'
+    checked_keys = ('x_fit', 'baseline_fit')
+    uses_padding = False  # TODO remove after version 1.4 when passing kwargs is deprecated
+
+    @pytest.mark.parametrize('half_window', (None, 15))
+    def test_half_windows(self, half_window):
+        """Tests possible inputs for `half_window`."""
+        self.class_func(self.y, half_window=half_window)
+
+    @pytest.mark.parametrize('half_window', (0, -5))
+    def test_non_positive_half_window_fails(self, half_window):
+        """Ensures an exception is raised when `half_window` is non-positive."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, half_window=half_window)
+
+    def test_too_large_half_window_warns(self):
+        """Ensures an exception is raised when `half_window` is too large."""
+        # warning emitted when half_window > (sections - 1) // 2
+        sections = 10
+        half_window = ((sections - 1) // 2) + 1
+        with pytest.warns(ParameterWarning):
+            self.class_func(self.y, half_window=half_window, sections=sections)
+
+    @pytest.mark.parametrize('sections', (0, -5, [-1, 50]))
+    def test_non_positive_sections_fails(self, sections):
+        """Ensures an exception is raised when `sections` is non-positive."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, sections=sections)
+
+    def test_too_large_sections_fails(self):
+        """Ensures an exception is raised when `sections` is larger than the data length."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, sections=len(self.y) + 1)
+
+        with pytest.raises(ValueError):
+            self.class_func(self.y, sections=[5, len(self.y)])
+
+    @pytest.mark.parametrize('lam_smooth', (0, None, 1e1, -1))
+    def test_lam_inputs(self, lam_smooth):
+        """Ensures typical lam_smooth inputs work."""
+        self.class_func(self.y, lam_smooth=lam_smooth)

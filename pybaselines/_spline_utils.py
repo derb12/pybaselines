@@ -44,19 +44,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as np
 from scipy.interpolate import BSpline, splev
-from scipy.linalg import solve_banded, solveh_banded
 
-from ._banded_utils import PenalizedSystem, _add_diagonals, _lower_to_full
+from ._banded_utils import PenalizedSystem, _add_diagonals, _lower_to_full, _sparse_to_banded
 from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
 from ._validation import _check_array
-
-
-try:
-    from scipy.interpolate import _bspl
-    _scipy_btb_bty = _bspl._norm_eq_lsq
-except (AttributeError, ImportError):
-    # in case scipy ever changes
-    _scipy_btb_bty = None
 
 
 # adapted from scipy (scipy/interpolate/_bspl.pyx/find_interval); see license above
@@ -218,7 +209,7 @@ def _make_design_matrix(x, knots, spline_degree):
 
     Returns
     -------
-    scipy.sparse.csr.csr_matrix, shape (N, K - `spline_degree` - 1)
+    scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
         The sparse matrix containing all the spline basis functions.
 
     """
@@ -242,7 +233,7 @@ def _slow_design_matrix(x, knots, spline_degree):
 
     Returns
     -------
-    scipy.sparse.csr.csr_matrix, shape (N, K - `spline_degree` - 1)
+    scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
         The sparse matrix containing all the spline basis functions.
 
     """
@@ -364,7 +355,7 @@ def _spline_basis(x, knots, spline_degree=3):
 
     Returns
     -------
-    scipy.sparse.csr.csr_matrix, shape (N, K - `spline_degree` - 1)
+    scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
         The matrix of basis functions for the spline.
 
     Notes
@@ -477,131 +468,6 @@ def _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data):
             rhs[row] += work_val * y_val * weight_val
 
 
-# adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above
-def _solve_pspline(x, y, weights, basis, penalty, knots, spline_degree, rhs_extra=None,
-                   lower_only=True):
-    """
-    Solves the coefficients for a weighted penalized spline.
-
-    Solves the linear equation ``(B.T @ W @ B + P) c = B.T @ W @ y`` for the spline
-    coefficients, `c`, given the spline basis, `B`, the weights (diagonal of `W`), the
-    penalty `P`, and `y`. Attempts to calculate ``B.T @ W @ B`` and ``B.T @ W @ y`` as
-    a banded system to speed up the calculation.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The x-values for the spline.
-    y : numpy.ndarray, shape (N,)
-        The y-values for fitting the spline.
-    weights : numpy.ndarray, shape (N,)
-        The weights for each y-value.
-    basis : scipy.sparse.base.spmatrix, shape (N, K - `spline_degree` - 1)
-        The sparse spline basis matrix. CSR format is preferred.
-    penalty : numpy.ndarray, shape (D, N)
-        The finite difference penalty matrix, in LAPACK's lower banded format (see
-        :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
-        format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
-    knots : numpy.ndarray, shape (K,)
-        The array of knots for the spline. Should be padded on each end with
-        `spline_degree` extra knots.
-    spline_degree : int
-        The degree of the spline.
-    rhs_extra : float or numpy.ndarray, shape (N,), optional
-        If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
-        of the equation before solving. Default is None, which adds nothing.
-    lower_only : boolean, optional
-        If True (default), will include only the lower non-zero diagonals of
-        ``B.T @ W @ B`` and use :func:`scipy.linalg.solveh_banded` to solve the equation.
-        If False, will use all of the non-zero diagonals and use
-        :func:`scipy.linalg.solve_banded` for solving. `penalty` is not modified, so it
-        must be in the correct lower or full format before passing to this function.
-
-    Returns
-    -------
-    coeffs : numpy.ndarray, shape (K - `spline_degree` - 1,)
-        The coefficients for the spline. To calculate the spline, do ``basis @ coeffs``.
-
-    Raises
-    ------
-    ValueError
-        Raised if `penalty` and the calculated `basis.T @ W @ basis` have different number
-        of columns.
-
-    Notes
-    -----
-    Most checks on the inputs are skipped since this is an internal function and the
-    proper steps are assumed to be done. For more proper error handling in the inputs,
-    see :func:`scipy.interpolate.make_lsq_spline`.
-
-    """
-    use_backup = True
-    num_bases = basis.shape[1]
-    # prefer numba version since it directly uses the basis
-    if _HAS_NUMBA:
-        # the spline basis must explicitly be created such that the csr matrix's data
-        # attribute is not missing any zeros; it is correct for all the internal basis
-        # creation functions used, but need to ensure just in case something ever changes;
-        # could guess if missing_values==2 that the first and last basis functions are
-        # missing a near-zero value, but safer to just move to other options
-        basis_data = basis.tocsr().data
-        missing_values = len(y) * (spline_degree + 1) - len(basis_data)
-        if not missing_values:
-            # TODO if using the numba version, does fortran ordering speed up the calc? or
-            # can ab just be c ordered?
-
-            # create ab and rhs arrays outside of numba function since numba's implementation
-            # of np.zeros is slower than numpy's (https://github.com/numba/numba/issues/7259)
-            ab = np.zeros((spline_degree + 1, num_bases), order='F')
-            rhs = np.zeros(num_bases)
-            _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data)
-            # TODO can probably make the full matrix directly within the numba
-            # btb calculation
-            if not lower_only:
-                ab = _lower_to_full(ab)
-            use_backup = False
-
-    if use_backup and _scipy_btb_bty is not None:
-        ab = np.zeros((spline_degree + 1, num_bases), order='F')
-        rhs = np.zeros((num_bases, 1), order='F')
-        _scipy_btb_bty(x, knots, spline_degree, y.reshape(-1, 1), np.sqrt(weights), ab, rhs)
-        rhs = rhs.reshape(-1)
-        if not lower_only:
-            ab = _lower_to_full(ab)
-        use_backup = False
-
-    if use_backup:
-        # worst case scenario; have to convert weights to a sparse diagonal matrix,
-        # do B.T @ W @ B, and convert back to lower banded
-        len_y = len(y)
-        full_matrix = basis.T @ dia_object((weights, 0), shape=(len_y, len_y)).tocsr() @ basis
-        rhs = basis.T @ (weights * y)
-        ab = full_matrix.todia().data[::-1]
-        # take only the lower diagonals of the symmetric ab; cannot just do
-        # ab[spline_degree:] since some diagonals become fully 0 and are truncated from
-        # the data attribute, so have to calculate the number of bands first
-        if lower_only:
-            ab = ab[len(ab) // 2:]
-
-    lhs = _add_diagonals(ab, penalty, lower_only)
-    if rhs_extra is not None:
-        rhs = rhs + rhs_extra
-
-    if lower_only:
-        coeffs = solveh_banded(
-            lhs, rhs, overwrite_ab=True, overwrite_b=True, lower=True,
-            check_finite=False
-        )
-    else:
-        bands = len(lhs) // 2
-        coeffs = solve_banded(
-            (bands, bands), lhs, rhs, overwrite_ab=True, overwrite_b=True,
-            check_finite=False
-        )
-
-    return coeffs
-
-
 def _basis_midpoints(knots, spline_degree):
     """
     Calculates the midpoint x-values of spline basis functions assuming evenly spaced knots.
@@ -628,25 +494,16 @@ def _basis_midpoints(knots, spline_degree):
     return points
 
 
-class PSpline(PenalizedSystem):
+class SplineBasis:
     """
-    A Penalized Spline, which penalizes the difference of the spline coefficients.
-
-    Penalized splines (P-Splines) are solved with the following equation
-    ``(B.T @ W @ B + P) c = B.T @ W @ y`` where `c` is the spline coefficients, `B` is the
-    spline basis, the weights are the diagonal of `W`, the penalty is `P`, and `y` is the
-    fit data. The penalty `P` is usually in the form ``lam * D.T @ D``, where `lam` is a
-    penalty factor and `D` is the matrix version of the finite difference operator.
+    Object containing the information about the B-spline design matrix.
 
     Attributes
     ----------
-    basis : scipy.sparse.csr.csr_matrix, shape (N, M)
+    basis : scipy.sparse.csr_matrix, shape (N, M)
         The spline basis. Has a shape of (`N,` `M`), where `N` is the number of points
         in `x`, and `M` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots + spline_degree - 1``).
-    coef : None or numpy.ndarray, shape (M,)
-        The spline coefficients. Is None if :meth:`~PSpline.solve_pspline` has not been called
-        at least once.
     knots : numpy.ndarray, shape (K,)
         The knots for the spline. Has a shape of `K`, which is equal to
         ``num_knots + 2 * spline_degree``.
@@ -658,20 +515,11 @@ class PSpline(PenalizedSystem):
     x : numpy.ndarray, shape (N,)
         The x-values for the spline.
 
-    References
-    ----------
-    Eilers, P., et al. Twenty years of P-splines. SORT: Statistics and Operations Research
-    Transactions, 2015, 39(2), 149-186.
-
-    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
-    Reviews: Computational Statistics, 2010, 2(6), 637-653.
-
     """
 
-    def __init__(self, x, num_knots=100, spline_degree=3, check_finite=False, lam=1,
-                 diff_order=2, allow_lower=True, reverse_diags=False):
+    def __init__(self, x, num_knots=100, spline_degree=3, check_finite=False):
         """
-        Initializes the penalized spline by calculating the basis and penalty.
+        Initializes the spline basis by calculating the design matrix.
 
         Parameters
         ----------
@@ -685,6 +533,91 @@ class PSpline(PenalizedSystem):
         check_finite : bool, optional
             If True, will raise an error if any values in `x` are not finite. Default
             is False, which skips the check.
+
+        Raises
+        ------
+        ValueError
+            Raised if `spline_degree` is less than 0 or if `diff_order` is less than 1
+            or greater than or equal to the number of spline basis functions
+            (``num_knots + spline_degree - 1``).
+
+        """
+        if spline_degree < 0:
+            raise ValueError('spline degree must be >= 0')
+
+        self.x = _check_array(
+            x, dtype=float, order='C', check_finite=check_finite, ensure_1d=True
+        )
+        self._x_len = len(x)
+        self.knots = _spline_knots(self.x, num_knots, spline_degree, True)
+        self.spline_degree = spline_degree
+        self.num_knots = num_knots
+        self.basis = _spline_basis(self.x, self.knots, spline_degree)
+        self._num_bases = self.basis.shape[1]
+
+    def same_basis(self, num_knots=100, spline_degree=3):
+        """
+        Sees if the current basis is equivalent to the input number of knots of spline degree.
+
+        Parameters
+        ----------
+        num_knots : int, optional
+            The number of knots for the new spline. Default is 100.
+        spline_degree : int, optional
+            The degree of the new spline. Default is 3.
+
+        Returns
+        -------
+        bool
+            True if the input number of knots and spline degree are equivalent to the current
+            spline basis of the object.
+
+        """
+        return num_knots == self.num_knots and spline_degree == self.spline_degree
+
+    @property
+    def tk(self):
+        """The knots and spline degree for the spline."""
+        return self.knots, self.spline_degree
+
+
+class PSpline(PenalizedSystem):
+    """
+    A Penalized Spline, which penalizes the difference of the spline coefficients.
+
+    Penalized splines (P-Splines) are solved with the following equation
+    ``(B.T @ W @ B + P) c = B.T @ W @ y`` where `c` is the spline coefficients, `B` is the
+    spline basis, the weights are the diagonal of `W`, the penalty is `P`, and `y` is the
+    fit data. The penalty `P` is usually in the form ``lam * D.T @ D``, where `lam` is a
+    penalty factor and `D` is the matrix version of the finite difference operator.
+
+    Attributes
+    ----------
+    basis : SplineBasis
+        The SplineBasis object that contains information about the B-spline design matrix.
+    coef : None or numpy.ndarray, shape (M,)
+        The spline coefficients. Is None if :meth:`~PSpline.solve_pspline` has not been called
+        at least once.
+
+    References
+    ----------
+    Eilers, P., et al. Twenty years of P-splines. SORT: Statistics and Operations Research
+    Transactions, 2015, 39(2), 149-186.
+
+    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+
+    """
+
+    def __init__(self, spline_basis, lam=1, diff_order=2, allow_lower=True, reverse_diags=False):
+        """
+        Initializes the penalized spline by calculating the basis and penalty.
+
+        Parameters
+        ----------
+        spline_basis : SplineBasis
+            The SplineBasis object that contains the information about the design matrix
+            of the spline being fit.
         lam : float, optional
             The penalty factor applied to the difference matrix. Larger values produce
             smoother results. Must be greater than 0. Default is 1.
@@ -708,40 +641,32 @@ class PSpline(PenalizedSystem):
             (``num_knots + spline_degree - 1``).
 
         """
-        if spline_degree < 0:
-            raise ValueError('spline degree must be >= 0')
-        elif diff_order < 1:
+        self.basis = spline_basis
+        if diff_order < 1:
             raise ValueError(
                 'the difference order must be > 0 for a penalized spline'
             )
-
-        self.x = _check_array(
-            x, dtype=float, order='C', check_finite=check_finite, ensure_1d=True
-        )
-        self._x_len = len(x)
-        self.knots = _spline_knots(self.x, num_knots, spline_degree, True)
-        self.spline_degree = spline_degree
-        self.num_knots = num_knots
-        self.basis = _spline_basis(self.x, self.knots, spline_degree)
-        self._num_bases = self.basis.shape[1]
-        self.coef = None
-
-        if diff_order >= self._num_bases:
+        elif diff_order >= self.basis._num_bases:
             raise ValueError((
                 'the difference order must be less than the number of basis '
                 'functions, which is the number of knots + spline degree - 1'
             ))
 
         super().__init__(
-            self._num_bases, lam, diff_order, allow_lower, reverse_diags,
-            allow_pentapy=False, padding=spline_degree - diff_order
+            self.basis._num_bases, lam, diff_order, allow_lower, reverse_diags,
+            allow_pentapy=False, padding=self.basis.spline_degree - diff_order
         )
+        self.coef = None
 
         # if using the numba B.T @ W @ B calculation, the spline basis must explicitly be
         # created such that the csr matrix's data attribute is not missing any zeros; it is
         # correct for all the internal basis creation functions used, but need to ensure
         # just in case something ever changes
-        if _HAS_NUMBA and (self._x_len * (spline_degree + 1)) == len(self.basis.tocsr().data):
+        if (
+            _HAS_NUMBA
+            and (self.basis._x_len * (self.basis.spline_degree + 1))
+                 == len(self.basis.basis.tocsr().data)
+        ):
             self._use_numba = True
         else:
             self._use_numba = False
@@ -764,27 +689,8 @@ class PSpline(PenalizedSystem):
         """
         if self.coef is None:
             raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
-        return self.knots, self.coef, self.spline_degree
-
-    def same_basis(self, num_knots=100, spline_degree=3):
-        """
-        Sees if the current basis is equivalent to the input number of knots of spline degree.
-
-        Parameters
-        ----------
-        num_knots : int, optional
-            The number of knots for the new spline. Default is 100.
-        spline_degree : int, optional
-            The degree of the new spline. Default is 3.
-
-        Returns
-        -------
-        bool
-            True if the input number of knots and spline degree are equivalent to the current
-            spline basis of the object.
-
-        """
-        return num_knots == self.num_knots and spline_degree == self.spline_degree
+        knots, spline_degree = self.basis.tk
+        return knots, self.coef, spline_degree
 
     def reset_penalty_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=False):
         """
@@ -819,9 +725,10 @@ class PSpline(PenalizedSystem):
         """
         self.reset_diagonals(
             lam=lam, diff_order=diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags,
-            allow_pentapy=False, padding=self.spline_degree - diff_order
+            allow_pentapy=False, padding=self.basis.spline_degree - diff_order
         )
 
+    # adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above
     def solve_pspline(self, y, weights, penalty=None, rhs_extra=None):
         """
         Solves the coefficients for a weighted penalized spline.
@@ -856,28 +763,20 @@ class PSpline(PenalizedSystem):
         use_backup = True
         # prefer numba version since it directly uses the basis
         if self._use_numba:
-            basis_data = self.basis.tocsr().data
+            basis_data = self.basis.basis.tocsr().data
             # TODO if using the numba version, does fortran ordering speed up the calc? or
             # can ab just be c ordered?
 
             # create ab and rhs arrays outside of numba function since numba's implementation
             # of np.zeros is slower than numpy's (https://github.com/numba/numba/issues/7259)
-            ab = np.zeros((self.spline_degree + 1, self._num_bases), order='F')
-            rhs = np.zeros(self._num_bases)
-            _numba_btb_bty(self.x, self.knots, self.spline_degree, y, weights, ab, rhs, basis_data)
+            ab = np.zeros((self.basis.spline_degree + 1, self.basis._num_bases), order='F')
+            rhs = np.zeros(self.basis._num_bases)
+            _numba_btb_bty(
+                self.basis.x, self.basis.knots, self.basis.spline_degree, y, weights, ab, rhs,
+                basis_data
+            )
             # TODO can probably make the full matrix directly within the numba
             # btb calculation
-            if not self.lower:
-                ab = _lower_to_full(ab)
-            use_backup = False
-
-        if use_backup and _scipy_btb_bty is not None:
-            ab = np.zeros((self.spline_degree + 1, self._num_bases), order='F')
-            rhs = np.zeros((self._num_bases, 1), order='F')
-            _scipy_btb_bty(
-                self.x, self.knots, self.spline_degree, y.reshape(-1, 1), np.sqrt(weights), ab, rhs
-            )
-            rhs = rhs.reshape(-1)
             if not self.lower:
                 ab = _lower_to_full(ab)
             use_backup = False
@@ -886,13 +785,13 @@ class PSpline(PenalizedSystem):
             # worst case scenario; have to convert weights to a sparse diagonal matrix,
             # do B.T @ W @ B, and convert back to lower banded
             full_matrix = (
-                self.basis.T
-                @ dia_object((weights, 0), shape=(self._x_len, self._x_len)).tocsr()
-                @ self.basis
+                self.basis.basis.T
+                @ dia_object((weights, 0), shape=(self.basis._x_len, self.basis._x_len)).tocsr()
+                @ self.basis.basis
             )
+            rhs = self.basis.basis.T @ (weights * y)
+            ab = _sparse_to_banded(full_matrix, self.basis._num_bases)[0]
 
-            rhs = self.basis.T @ (weights * y)
-            ab = full_matrix.todia().data[::-1]
             # take only the lower diagonals of the symmetric ab; cannot just do
             # ab[spline_degree:] since some diagonals become fully 0 and are truncated from
             # the data attribute, so have to calculate the number of bands first
@@ -910,4 +809,4 @@ class PSpline(PenalizedSystem):
             lhs, rhs, overwrite_ab=True, overwrite_b=True, check_finite=False
         )
 
-        return self.basis @ self.coef
+        return self.basis.basis @ self.coef

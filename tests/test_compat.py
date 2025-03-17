@@ -190,10 +190,9 @@ def _scipy_below_1_12():
     """
     try:
         _scipy_version = [int(val) for val in scipy.__version__.lstrip('v').split('.')[:2]]
-    except Exception:
-        # in case in the far future scipy stops using semantic versioning; probably
-        # bigger problems than this check at that point so just return True
-        return False
+    except Exception as e:
+        # raise the exception so that version parsing can be changed if needed
+        raise ValueError('Issue parsing SciPy version') from e
 
     return not (_scipy_version[0] > 1 or (_scipy_version[0] == 1 and _scipy_version[1] >= 12))
 

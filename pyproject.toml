@@ -1,29 +1,43 @@
 [build-system]
-# setuptools v64.0.0 was first version to allow creating editable installs with only pyproject.toml
-requires = ["setuptools>=64"]
-build-backend = "setuptools.build_meta"
+# hatchling v1.27 was first version to use default metadata version 2.4, allowing project.license
+# and project.license-files fields following PEP-639
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+  "/.*",
+  "/docs",
+  "/examples",
+  "/requirements",
+  "/tools",
+]
+
 
 [project]
 name = "pybaselines"
-version = "1.1.0"
+version = "1.2.0"
 authors = [
     {name = "Donald Erb", email = "donnie.erb@gmail.com"},
 ]
 description = "A library of algorithms for the baseline correction of experimental data."
 readme = "README.rst"
-license = {file = "LICENSE.txt"}
+license = "BSD-3-Clause"
+license-files = [
+    "LICENSE.txt",
+    "LICENSES_bundled.txt"
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Information Analysis",
@@ -40,10 +54,10 @@ keywords = [
     "spectroscopy",
     "raman",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "numpy>=1.20",  # lowest version to allow dtype for np.concatenate
-    "scipy>=1.5",  # lowest versions supported for python 3.8
+    "scipy>=1.6",  # lowest version supported for python 3.9
 ]
 
 [project.urls]
@@ -52,18 +66,18 @@ Documentation = "https://pybaselines.readthedocs.io"
 
 [project.optional-dependencies]
 full = [
-    "pentapy>=1.1",  # first version with wheels for python 3.8
-    "numba>=0.49",  # first to allow usage with python 3.8
+    "pentapy>=1.1",  # 1.1.1 is first version with wheels for python 3.9; don't pin patch versions
+    "numba>=0.53",  # first to allow usage with python 3.9
 ]
 test = [
-    "pytest",
+    "pytest>=6.0",  # first version to work with pyproject.toml
     "ruff",
 ]
 docs = [
     "sphinx",
+    "sphinx-copybutton",
+    "sphinx-gallery>=0.16", # first version allowing strings to specify gallery sorting
     "sphinx-rtd-theme",
-    "sphinx-autoapi",
-    "sphinx-gallery",
     "matplotlib",
     "numpydoc",
 ]
@@ -74,15 +88,13 @@ release = [
 ]
 dev = ["pybaselines[full, docs, test, release]"]
 
-[tool.setuptools]
-# TODO license-files usage may change in the future once PEP 639 is accepted
-license-files = [
-    "LICENSE.txt",
-    "LICENSES_bundled.txt",
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+    "threaded_test: mark a test as using threading and only run on free-threaded CPython by default",
 ]
 
-[tool.setuptools.packages.find]
-include = ["pybaselines", "pybaselines.*"]
 
 [tool.isort]
 skip_glob = ["docs/*", "*__init__.py"]
@@ -104,11 +116,13 @@ output-format = "full"
 preview = true  # for using experimental rules
 select = [
     "B",  # flake8-bugbear
-    "D",
+    "D",  # pydocstyle
     "E",  # pycodestyle errors
     "F",  # pyflakes
     #"I",  # isort
     "W",  # pycodestyle warnings
+    "C4",  # flake8-comprehensions
+    "NPY",  # numpy specific
 ]
 ignore = [
     "D401",  # D401 first line should be in imperative mood; try rephrasing
@@ -132,6 +146,7 @@ convention = "numpy"
     "B007",  # B007: Loop control variable `name` not used within loop body; want to be explicit in examples
     "D205",  # D205: 1 blank line required between summary line and description
     "D400",  # D400: first line should end with a period
+    "E501",  # E501: line too long; reference links can be very long so ignore the limit
 ]
 "tests/*" = [
     "F841",  # F841: Local variable 'name' is assigned to but never used; want to be explicit within tests
@@ -139,7 +154,7 @@ convention = "numpy"
 
 
 [tool.bumpversion]
-current_version = "1.1.0"
+current_version = "1.2.0"
 commit = false
 tag = false
 message = "Bump version: {current_version} -> {new_version}"
@@ -163,8 +178,3 @@ replace = "version = '{new_version}'"
 filename = "CITATION.cff"
 search = "version: {current_version}"
 replace = "version: {new_version}"
-
-[[tool.bumpversion.files]]
-filename = "docs/citing.rst"
-search = "version = {{{current_version}}}"
-replace = "version = {{{new_version}}}"

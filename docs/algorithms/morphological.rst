@@ -2,15 +2,59 @@
 Morphological Baselines
 =======================
 
-The contents of :mod:`pybaselines.morphological` contain algorithms that
-use morphological operations for estimating the baseline.
-
 Introduction
 ------------
 
 `Morphological operations <https://en.wikipedia.org/wiki/Mathematical_morphology>`_
-include dilation, erosion, opening, and closing. Morphological operators use moving
-windows and compute the maximum, minimum, or a combination of the two within each window.
+include dilation, erosion, opening, and closing, and they use moving windows to compute the
+maximum, minimum, or a combination of the two within each window, as shown in the figures
+below. The algorithms in this section use these operations to estimate the baseline.
+
+.. plot::
+   :align: center
+   :context: reset
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from pybaselines.utils import gaussian
+    from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening
+
+    x = np.linspace(1, 1000, 500)
+    signal = (
+        gaussian(x, 6, 180, 5)
+        + gaussian(x, 8, 350, 10)
+        + gaussian(x, 15, 400, 8)
+        + gaussian(x, 13, 600, 12)
+        + gaussian(x, 9, 800, 10)
+    )
+    real_baseline = 5 + gaussian(x, 5, 500, 300)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+    y = signal + real_baseline + noise
+    window = 25
+
+    operators = (
+        (grey_dilation, 'dilation'),
+        (grey_erosion, 'erosion'),
+        (grey_closing, 'closing'),
+        (grey_opening, 'opening'),
+    )
+
+    _, (ax, ax2) = plt.subplots(nrows=2, tight_layout={'pad': 0.1})
+    ax.plot(y)
+    ax.plot(grey_dilation(y, window), label='dilation: max(window)')
+    ax.plot(grey_erosion(y, window), label='erosion: min(window)')
+    ax2.plot(y)
+    ax2.plot(grey_closing(y, window), label='closing: erosion(dilation(y))')
+    ax2.plot(grey_opening(y, window), label='opening: dilation(erosion(y))')
+    ax.set_yticks([])
+    ax.set_xticks([])
+    ax.legend()
+    ax2.set_yticks([])
+    ax2.set_xticks([])
+    ax2.legend()
+
+    plt.show()
+
 
 .. note::
    All morphological algorithms use a ``half_window`` parameter to define the size
@@ -356,30 +400,30 @@ Minimized function:
 
 .. math::
 
-    \frac{1}{2} \sum\limits_{i = 1}^N (s_i + b_i - y_i)^2
-    + \alpha \sum\limits_{i = 1}^N (b_i - Op_i)^2
-    + \beta \sum\limits_{i = 1}^{N - d} (\Delta^d b_i)^2
+    \frac{1}{2} \sum\limits_{i = 1}^N (s_i + v_i - y_i)^2
+    + \alpha \sum\limits_{i = 1}^N (v_i - Op_i)^2
+    + \beta \sum\limits_{i = 1}^{N - d} (\Delta^d v_i)^2
     + \gamma \sum\limits_{i = 1}^{N - d} (\Delta^d s_i)^2
 
-where :math:`y_i` is the measured data, :math:`b_i` is the estimated baseline,
+where :math:`y_i` is the measured data, :math:`v_i` is the estimated baseline,
 :math:`s_i` is the estimated signal, :math:`\Delta^d` is the forward-difference
 operator of order d, :math:`Op_i` is the morphological opening of the measured data,
 and :math:`\alpha`, :math:`\beta`, and :math:`\gamma` are regularization parameters.
 
 Linear systems:
 
-The initial signal, :math:`s^0`, and baseline, :math:`b^0`, are set equal to :math:`y`,
+The initial signal, :math:`s^0`, and baseline, :math:`v^0`, are set equal to :math:`y`,
 and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`n`, :math:`s^n`
-and :math:`b^n`, are solved for sequentially using the following two
+and :math:`v^n`, are solved for sequentially using the following two
 linear equations:
 
 .. math::
 
-    (I + 2 \gamma D_d^{\top} D_d) s^n = y - b^{n-1}
+    (I + 2 \gamma D_d^{\top} D_d) s^n = y - v^{n-1}
 
 .. math::
 
-    (I + 2 \alpha I + 2 \beta D_d^{\top} D_d) b^n = y - s^n + 2 \alpha Op
+    (I + 2 \alpha I + 2 \beta D_d^{\top} D_d) v^n = y - s^n + 2 \alpha Op
 
 where :math:`I` is the identity matrix and :math:`D_d` is the matrix version
 of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.

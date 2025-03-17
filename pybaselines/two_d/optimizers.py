@@ -11,6 +11,7 @@ Created on January 14, 2024
 
 from collections import defaultdict
 from functools import partial
+import itertools
 from math import ceil
 
 import numpy as np
@@ -61,11 +62,11 @@ class _Optimizers(_Algorithm2D):
             * 'average_alpha': numpy.ndarray, shape (M, N)
                 Only returned if `method` is 'aspls'. The
                 `alpha` array used to fit all of the baselines for the
-                :meth:`~Baseline2D.aspls`.
-
-            Additional items depend on the output of the selected method. Every
-            other key will have a list of values, with each item corresponding to a
-            fit.
+                :meth:`~.Baseline2D.aspls`.
+            * 'method_params': dict[str, list]
+                A dictionary containing the output parameters for each individual fit.
+                Keys will depend on the selected method and will have a list of values,
+                with each item corresponding to a fit.
 
         Notes
         -----
@@ -117,8 +118,10 @@ class _Optimizers(_Algorithm2D):
         # to fit each individual data entry; set tol to infinity so that only one
         # iteration is done and new weights are not calculated
         method_kws['tol'] = np.inf
+        if method in ('brpls', 'pspline_brpls'):
+            method_kws['tol_2'] = np.inf
         baselines = np.empty(data_shape)
-        params = {'average_weights': method_kws['weights']}
+        params = {'average_weights': method_kws['weights'], 'method_params': defaultdict(list)}
         if calc_alpha:
             params['average_alpha'] = method_kws['alpha']
         if method == 'fabc':
@@ -128,10 +131,7 @@ class _Optimizers(_Algorithm2D):
         for i, entry in enumerate(dataset):
             baselines[i], param = baseline_func(entry, **method_kws)
             for key, value in param.items():
-                if key in params:
-                    params[key].append(value)
-                else:
-                    params[key] = [value]
+                params['method_params'][key].append(value)
 
         return baselines, params
 
@@ -153,7 +153,7 @@ class _Optimizers(_Algorithm2D):
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
-            and then select the appropriate polynomial orders according to [32]_.
+            and then select the appropriate polynomial orders according to [1]_.
         method : {'modpoly', 'imodpoly'}, optional
             The method to use for fitting each polynomial. Default is 'modpoly'.
         weights : array-like, shape (M, N), optional
@@ -176,7 +176,7 @@ class _Optimizers(_Algorithm2D):
             Default is 2.
         method_kwargs : dict, optional
             Additional keyword arguments to pass to
-            :meth:`~Baseline.modpoly` or :meth:`~Baseline.imodpoly`. These include
+            :meth:`~.Baseline2D.modpoly` or :meth:`~.Baseline2D.imodpoly`. These include
             `tol`, `max_iter`, `use_original`, `mask_initial_peaks`, and `num_std`.
 
         Returns
@@ -192,10 +192,14 @@ class _Optimizers(_Algorithm2D):
                 The weight array used for the endpoint-constrained fits.
             * 'poly_order': numpy.ndarray, shape (2,)
                 An array of the two polynomial orders used for the fitting.
+            * 'method_params': dict[str, list]
+                A dictionary containing the output parameters for each individual fit.
+                Keys will depend on the selected method and will have a list of values,
+                with each item corresponding to a fit.
 
         References
         ----------
-        .. [32] Cao, A., et al. A robust method for automated background subtraction
+        .. [1] Cao, A., et al. A robust method for automated background subtraction
             of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
             1199-1205.
 
@@ -205,7 +209,7 @@ class _Optimizers(_Algorithm2D):
         )
         sort_weights = weights is not None
         weight_array = _check_optional_array(
-            self._len, weights, check_finite=self._check_finite, ensure_1d=False, axis=slice(None)
+            self._shape, weights, check_finite=self._check_finite, ensure_1d=False, axis=slice(None)
         )
         if poly_order is None:
             poly_orders = _determine_polyorders(
@@ -229,42 +233,34 @@ class _Optimizers(_Algorithm2D):
             weight_array = _sort_array2d(weight_array, self._sort_order)
 
         constrained_weights = weight_array.copy()
-        constrained_weights[:ceil(self._len[0] * constrained_fractions[0])] = weightings[0]
-        constrained_weights[:, :ceil(self._len[1] * constrained_fractions[2])] = weightings[2]
+        constrained_weights[:ceil(self._shape[0] * constrained_fractions[0])] = weightings[0]
+        constrained_weights[:, :ceil(self._shape[1] * constrained_fractions[2])] = weightings[2]
         constrained_weights[
-            self._len[0] - ceil(self._len[0] * constrained_fractions[1]):
+            self._shape[0] - ceil(self._shape[0] * constrained_fractions[1]):
         ] = weightings[1]
         constrained_weights[
-            :, self._len[1] - ceil(self._len[1] * constrained_fractions[3]):
+            :, self._shape[1] - ceil(self._shape[1] * constrained_fractions[3]):
         ] = weightings[3]
         # and now change back to original ordering
         if sort_weights:
             weight_array = _sort_array2d(weight_array, self._inverted_order)
             constrained_weights = _sort_array2d(constrained_weights, self._inverted_order)
 
-        # TODO should make parameters available; a list with an item for each fit like collab_pls
-        # TODO could maybe just use itertools.permutations, but would want to know the order in
-        # which the parameters are used
-        baselines = np.empty((4, *self._len))
-        baselines[0] = baseline_func(
-            data=y, poly_order=poly_orders[0], weights=weight_array, **method_kws
-        )[0]
-        baselines[1] = baseline_func(
-            data=y, poly_order=poly_orders[0], weights=constrained_weights, **method_kws
-        )[0]
-        baselines[2] = baseline_func(
-            data=y, poly_order=poly_orders[1], weights=weight_array, **method_kws
-        )[0]
-        baselines[3] = baseline_func(
-            data=y, poly_order=poly_orders[1], weights=constrained_weights, **method_kws
-        )[0]
-
-        # TODO should the coefficients also be made available? Would need to get them from
-        # each of the fits
         params = {
             'weights': weight_array, 'constrained_weights': constrained_weights,
-            'poly_order': poly_orders
+            'poly_order': poly_orders, 'method_params': defaultdict(list)
         }
+        # order of inputs is (poly_orders[0], weight_array), (poly_orders[0], constrained_weights),
+        # (poly_orders[1], weight_array), (poly_orders[1], constrained_weights)
+        baselines = np.empty((4, *self._shape))
+        for i, (p_order, weight) in enumerate(
+            itertools.product(poly_orders, (weight_array, constrained_weights))
+        ):
+            baselines[i], method_params = baseline_func(
+                data=y, poly_order=p_order, weights=weight, **method_kws
+            )
+            for key, value in method_params.items():
+                params['method_params'][key].append(value)
 
         return np.maximum.reduce(baselines), params
 
@@ -343,14 +339,14 @@ class _Optimizers(_Algorithm2D):
             raise ValueError('Method kwargs must have the same length as the input axes')
 
         keys = ('rows', 'columns')
-        baseline = np.zeros(self._len)
+        baseline = np.zeros(self._shape)
         params = {}
         for i, axis in enumerate(axes):
             fitter = Baseline(
                 (self.x, self.z)[axis], check_finite=self._check_finite, assume_sorted=True,
                 output_dtype=self._dtype
             )
-            fitter.pentapy_solver = self.pentapy_solver
+            fitter.banded_solver = self.banded_solver
             baseline_func = fitter._get_method(method)
             params[f'params_{keys[axis]}'] = defaultdict(list)
             func = partial(

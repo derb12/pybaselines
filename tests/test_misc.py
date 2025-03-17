@@ -31,6 +31,7 @@ class TestInterpPts(MiscTester):
 
     func_name = 'interp_pts'
     required_kwargs = {'baseline_points': ((5, 10), (10, 20), (90, 100))}
+    required_repeated_kwargs = {'baseline_points': ((5, 10), (10, 20), (90, 100))}
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('interp_method', ('linear', 'slinear', 'quadratic'))
@@ -246,7 +247,7 @@ def test_parabola():
     num_points = 51
     x = np.arange(num_points)
     mid_point = num_points // 2
-    y = np.sin(x) + 0.1 * x + np.random.uniform(0, 0.05, x.size)
+    y = np.sin(x) + 0.1 * x + np.random.default_rng(5).uniform(0, 0.05, x.size)
 
     parabola = misc._parabola(y)
 

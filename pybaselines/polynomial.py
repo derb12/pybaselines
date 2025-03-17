@@ -80,7 +80,7 @@ import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import jit, prange
+from ._compat import _HAS_NUMBA, jit
 from .utils import _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, relative_difference
 
 
@@ -132,7 +132,7 @@ class _Polynomial(_Algorithm):
         sqrt_w = np.sqrt(weight_array)
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         params = {'weights': weight_array}
         if return_coef:
             params['coef'] = _convert_coef(coef, self.x_domain)
@@ -163,11 +163,11 @@ class _Polynomial(_Algorithm):
             size equal to N and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [8]_ when choosing minimum values. If True,
-            will compare the baseline with the original y-values given by `data` [9]_.
+            the y-values of that iteration [1]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [2]_.
         mask_initial_peaks : bool, optional
             If True, will mask any data where the initial baseline fit + the standard
-            deviation of the residual is less than measured data [10]_. Default is False.
+            deviation of the residual is less than measured data [3]_. Default is False.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
@@ -194,17 +194,17 @@ class _Polynomial(_Algorithm):
 
         Notes
         -----
-        Algorithm originally developed in [9]_ and then slightly modified in [8]_.
+        Algorithm originally developed in [2]_ and then slightly modified in [1]_.
 
         References
         ----------
-        .. [8] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-        .. [9] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
-        .. [10] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+        .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
             Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
             2007, 61(11), 1225-1232.
 
@@ -217,19 +217,19 @@ class _Polynomial(_Algorithm):
             y0 = y
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         if mask_initial_peaks:
             # use baseline + deviation since without deviation, half of y should be above baseline
             weight_array[baseline + np.std(y - baseline) < y] = 0
             sqrt_w = np.sqrt(weight_array)
-            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             y = np.minimum(y0 if use_original else y, baseline)
             coef = pseudo_inverse @ (sqrt_w * y)
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -262,11 +262,11 @@ class _Polynomial(_Algorithm):
             size equal to N and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [11]_ when choosing minimum values. If True,
-            will compare the baseline with the original y-values given by `data` [12]_.
+            the y-values of that iteration [1]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [2]_.
         mask_initial_peaks : bool, optional
             If True (default), will mask any data where the initial baseline fit +
-            the standard deviation of the residual is less than measured data [13]_.
+            the standard deviation of the residual is less than measured data [3]_.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
@@ -301,17 +301,17 @@ class _Polynomial(_Algorithm):
 
         Notes
         -----
-        Algorithm originally developed in [13]_.
+        Algorithm originally developed in [3]_.
 
         References
         ----------
-        .. [11] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-        .. [12] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
-        .. [13] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+        .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
             Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
             2007, 61(11), 1225-1232.
 
@@ -327,18 +327,18 @@ class _Polynomial(_Algorithm):
             y0 = y
 
         coef = pseudo_inverse @ (sqrt_w * y)
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         deviation = np.std(y - baseline)
         if mask_initial_peaks:
             weight_array[baseline + deviation < y] = 0
             sqrt_w = np.sqrt(weight_array)
-            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self.vandermonde)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
             coef = pseudo_inverse @ (sqrt_w * y)
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             new_deviation = np.std(y - baseline)
             # use new_deviation as dividing term in relative difference
             calc_difference = relative_difference(new_deviation, deviation)
@@ -385,12 +385,12 @@ class _Polynomial(_Algorithm):
             'symmetric' for symmetric loss. Default is 'asymmetric_truncated_quadratic'.
             Available methods, and their associated reference, are:
 
-                * 'asymmetric_truncated_quadratic'[14]_
-                * 'symmetric_truncated_quadratic'[14]_
-                * 'asymmetric_huber'[14]_
-                * 'symmetric_huber'[14]_
-                * 'asymmetric_indec'[15]_
-                * 'symmetric_indec'[15]_
+                * 'asymmetric_truncated_quadratic'[1]_
+                * 'symmetric_truncated_quadratic'[1]_
+                * 'asymmetric_huber'[1]_
+                * 'symmetric_huber'[1]_
+                * 'asymmetric_indec'[2]_
+                * 'symmetric_indec'[2]_
 
         threshold : float, optional
             The threshold value for the loss method, where the function goes from
@@ -438,10 +438,10 @@ class _Polynomial(_Algorithm):
 
         References
         ----------
-        .. [14] Mazet, V., et al. Background removal from spectra by designing and
+        .. [1] Mazet, V., et al. Background removal from spectra by designing and
             minimising a non-quadratic cost function. Chemometrics and Intelligent
             Laboratory Systems, 2005, 76(2), 121-133.
-        .. [15] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+        .. [2] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
             Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
         """
@@ -467,12 +467,12 @@ class _Polynomial(_Algorithm):
         y = sqrt_w * y
 
         coef = pseudo_inverse @ y
-        baseline = self.vandermonde @ coef
+        baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             coef = pseudo_inverse @ (y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
-            baseline = self.vandermonde @ coef
+            baseline = self._polynomial.vandermonde @ coef
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -484,11 +484,11 @@ class _Polynomial(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights', 'coef'))
+    @_Algorithm._register(sort_keys=('weights', 'coef'), require_unique_x=True)
     def loess(self, data, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
               tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False,
               num_std=1, use_original=False, weights=None, return_coef=False,
-              conserve_memory=True, delta=0.0):
+              conserve_memory=True, delta=None):
         """
         Locally estimated scatterplot smoothing (LOESS).
 
@@ -506,8 +506,8 @@ class _Polynomial(_Algorithm):
             is None, which will use `fraction` * N to determine the number of points.
         scale : float, optional
             A scale factor applied to the weighted residuals to control the robustness
-            of the fit. Default is 3.0, as used in [16]_. Note that the original loess
-            procedure in [17]_ used a `scale` of ~4.05.
+            of the fit. Default is 3.0, as used in [1]_. Note that the original loess
+            procedure for smoothing in [2]_ used a `scale` of ~4.05.
         poly_order : int, optional
             The polynomial order for fitting the baseline. Default is 1.
         tol : float, optional
@@ -516,14 +516,14 @@ class _Polynomial(_Algorithm):
             The maximum number of iterations. Default is 10.
         symmetric_weights : bool, optional
             If False (default), will apply weighting asymmetrically, with residuals
-            < 0 having a weight of 1, according to [16]_. If True, will apply weighting
+            < 0 having a weight of 1, according to [1]_. If True, will apply weighting
             the same for both positive and negative residuals, which is regular LOESS.
             If `use_threshold` is True, this parameter is ignored.
         use_threshold : bool, optional
             If False (default), will compute weights each iteration to perform the
             robust fitting, which is regular LOESS. If True, will apply a threshold
             on the data being fit each iteration, based on the maximum values of the
-            data and the fit baseline, as proposed by [18]_, similar to the modpoly
+            data and the fit baseline, as proposed by [3]_, similar to the modpoly
             and imodpoly techniques.
         num_std : float, optional
             The number of standard deviations to include when thresholding. Default
@@ -531,9 +531,9 @@ class _Polynomial(_Algorithm):
             `use_threshold` is True.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [19]_ when choosing minimum values for
+            the y-values of that iteration [4]_ when choosing minimum values for
             thresholding. If True, will compare the baseline with the original
-            y-values given by `data` [20]_. Only used if `use_threshold` is True.
+            y-values given by `data` [5]_. Only used if `use_threshold` is True.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -551,14 +551,13 @@ class _Polynomial(_Algorithm):
             numba is installed, there is no significant time difference since the calculations are
             sped up.
         delta : float, optional
-            If `delta` is > 0, will skip all but the last x-value in the range x_last + `delta`,
-            where x_last is the last x-value to be fit using weighted least squares, and instead
-            use linear interpolation to calculate the fit for those x-values (same behavior as in
-            statsmodels [21]_ and Cleveland's original Fortran lowess implementation [22]_).
-            Fits all x-values if `delta` is <= 0. Default is 0.0. Note that `x_data` is scaled to
-            fit in the range [-1, 1], so `delta` should likewise be scaled. For example, if the
-            desired `delta` value was ``0.01 * (max(x_data) - min(x_data))``, then the
-            correctly scaled `delta` would be 0.02 (ie. ``0.01 * (1 - (-1))``).
+            If `delta` is > 0, will skip all but the last x-value in the range `x_last + delta`,
+            where `x_last` is the last x-value to be fit using weighted least squares, and instead
+            use linear interpolation to calculate the fit for those x-values, which can
+            significantly reduce the calculation time (same behavior as in
+            statsmodels [6]_ and Cleveland's original Fortran lowess implementation [7]_).
+            Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
+            `0.01 * (max(x_data) - min(x_data))`.
 
         Returns
         -------
@@ -592,7 +591,7 @@ class _Polynomial(_Algorithm):
         -----
         The iterative, robust, aspect of the fitting can be achieved either through
         reweighting based on the residuals (the typical usage), or thresholding the
-        fit data based on the residuals, as proposed by [18]_, similar to the modpoly
+        fit data based on the residuals, as proposed by [3]_, similar to the modpoly
         and imodpoly techniques.
 
         In baseline literature, this procedure is sometimes called "rbe", meaning
@@ -600,33 +599,30 @@ class _Polynomial(_Algorithm):
 
         References
         ----------
-        .. [16] Ruckstuhl, A.F., et al. Baseline subtraction using robust local
-            regression estimation. J. Quantitative Spectroscopy and Radiative
-            Transfer, 2001, 68, 179-193.
-        .. [17] Cleveland, W. Robust locally weighted regression and smoothing
+        .. [1] Ruckstuhl, A.F., et al. Baseline subtraction using robust local
+                regression estimation. J. Quantitative Spectroscopy and Radiative
+                Transfer, 2001, 68, 179-193.
+        .. [2] Cleveland, W. Robust locally weighted regression and smoothing
                 scatterplots. Journal of the American Statistical Association,
                 1979, 74(368), 829-836.
-        .. [18] Komsta, Ł. Comparison of Several Methods of Chromatographic
+        .. [3] Komsta, Ł. Comparison of Several Methods of Chromatographic
                 Baseline Removal with a New Approach Based on Quantile Regression.
                 Chromatographia, 2011, 73, 721-731.
-        .. [19] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [4] Gan, F., et al. Baseline correction by improved iterative polynomial
                 fitting with automatic threshold. Chemometrics and Intelligent
                 Laboratory Systems, 2006, 82, 59-65.
-        .. [20] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [5] Lieber, C., et al. Automated method for subtraction of fluorescence
                 from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
                 1363-1367.
-        .. [21] https://github.com/statsmodels/statsmodels.
-        .. [22] https://www.netlib.org/go (lowess.f is the file).
+        .. [6] https://github.com/statsmodels/statsmodels.
+        .. [7] https://www.netlib.org/go (lowess.f is the file).
 
         """
-        if np.any(self.x[1:] < self.x[:-1]):
-            raise ValueError('x must be strictly increasing')
-
         if total_points is None:
-            total_points = ceil(fraction * self._len)
+            total_points = ceil(fraction * self._size)
         if total_points < poly_order + 1:
             raise ValueError('total points must be greater than polynomial order + 1')
-        elif total_points > self._len:
+        elif total_points > self._size:
             raise ValueError((
                 'points per window is higher than total number of points; lower either '
                 '"fraction" or "total_points"'
@@ -642,20 +638,27 @@ class _Polynomial(_Algorithm):
         if use_original:
             y0 = y
 
+        if delta is None:
+            delta = 0.01 * (self.x_domain[1] - self.x_domain[0])
+
         # x is the scaled version of self.x to fit within the [-1, 1] domain
         x = np.polynomial.polyutils.mapdomain(self.x, self.x_domain, np.array([-1., 1.]))
         # find the indices for fitting beforehand so that the fitting can be done
         # in parallel; cast delta as float so numba does not have to compile for
         # both int and float
-        windows, fits, skips = _determine_fits(x, self._len, total_points, float(delta))
+        windows, fits, skips = _determine_fits(self.x, self._size, total_points, float(delta))
 
         # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
-        # when matrix multiplied with the C-ordered coefficient array gives a warning
-        # when using numba, so convert Vandermonde matrix to C-ordering.
-        self.vandermonde = np.ascontiguousarray(self.vandermonde)
+        # is not continguous when indexed (ie. vandermonde[i]) and issues a warning
+        # when using numba, so convert Vandermonde matrix to C-ordering; without Numba,
+        # there is no major slowdown using the non-contiguous array
+        if _HAS_NUMBA:
+            vandermonde = np.ascontiguousarray(self._polynomial.vandermonde)
+        else:
+            vandermonde = self._polynomial.vandermonde
 
         baseline = y
-        coefs = np.zeros((self._len, poly_order + 1))
+        coefs = np.zeros((self._size, poly_order + 1))
         tol_history = np.empty(max_iter + 1)
         sqrt_w = np.sqrt(weight_array)
         # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
@@ -663,15 +666,15 @@ class _Polynomial(_Algorithm):
             baseline_old = baseline
             if conserve_memory:
                 baseline = _loess_low_memory(
-                    x, y, sqrt_w, coefs, self.vandermonde, self._len, windows, fits
+                    x, y, sqrt_w, coefs, vandermonde, self._size, windows, fits
                 )
             elif i == 0:
                 kernels, baseline = _loess_first_loop(
-                    x, y, sqrt_w, coefs, self.vandermonde, total_points, self._len, windows, fits
+                    x, y, sqrt_w, coefs, vandermonde, total_points, self._size, windows, fits
                 )
             else:
                 baseline = _loess_nonfirst_loops(
-                    y, sqrt_w, coefs, self.vandermonde, kernels, windows, self._len, fits
+                    y, sqrt_w, coefs, vandermonde, kernels, windows, self._size, fits
                 )
 
             _fill_skips(x, baseline, skips)
@@ -761,17 +764,17 @@ class _Polynomial(_Algorithm):
 
         Notes
         -----
-        Application of quantile regression for baseline fitting ss described in [23]_.
+        Application of quantile regression for baseline fitting ss described in [1]_.
 
         Performs quantile regression using iteratively reweighted least squares (IRLS)
-        as described in [24]_.
+        as described in [2]_.
 
         References
         ----------
-        .. [23] Komsta, Ł. Comparison of Several Methods of Chromatographic
+        .. [1] Komsta, Ł. Comparison of Several Methods of Chromatographic
                 Baseline Removal with a New Approach Based on Quantile Regression.
                 Chromatographia, 2011, 73, 721-731.
-        .. [24] Schnabel, S., et al. Simultaneous estimation of quantile curves using
+        .. [2] Schnabel, S., et al. Simultaneous estimation of quantile curves using
                 quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
 
         """
@@ -783,14 +786,16 @@ class _Polynomial(_Algorithm):
         y, weight_array = self._setup_polynomial(data, weights, poly_order, calc_vander=True)
         # estimate first iteration using least squares
         sqrt_w = np.sqrt(weight_array)
-        coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-        baseline = self.vandermonde @ coef
+        coef = np.linalg.lstsq(self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
+        baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
         for i in range(max_iter):
             baseline_old = baseline
             sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
-            coef = np.linalg.lstsq(self.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-            baseline = self.vandermonde @ coef
+            coef = np.linalg.lstsq(
+                self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
+            )[0]
+            baseline = self._polynomial.vandermonde @ coef
             # relative_difference(baseline_old, baseline, 1) gives nearly same result and
             # the l2 norm is faster to calculate, so use that instead of l1 norm
             calc_difference = relative_difference(baseline_old, baseline)
@@ -828,14 +833,14 @@ class _Polynomial(_Algorithm):
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
         cost_function : str, optional
-            The non-quadratic cost function to minimize. Unlike :func:`.penalized_poly`,
+            The non-quadratic cost function to minimize. Unlike :meth:`~.Baseline.penalized_poly`,
             this function only works with asymmetric cost functions, so the symmetry prefix
             ('a' or 'asymmetric') is optional (eg. 'indec' and 'a_indec' are the same). Default
             is 'asymmetric_indec'. Available methods, and their associated reference, are:
 
-                * 'asymmetric_indec'[25]_
-                * 'asymmetric_truncated_quadratic'[26]_
-                * 'asymmetric_huber'[26]_
+                * 'asymmetric_indec'[1]_
+                * 'asymmetric_truncated_quadratic'[2]_
+                * 'asymmetric_huber'[2]_
 
         peak_ratio : float, optional
             A value between 0 and 1 that designates how many points in the data belong
@@ -877,7 +882,7 @@ class _Polynomial(_Algorithm):
                 iterations for the threshold and the maximum number of iterations for all of
                 the fits of the various threshold values (related to `max_iter` and `tol`).
             * 'threshold' : float
-                The optimal threshold value. Could be used in :func:`.penalized_poly`
+                The optimal threshold value. Could be used in :meth:`~.Baseline.penalized_poly`
                 for fitting other similar data.
             * 'coef': numpy.ndarray, shape (poly_order + 1,)
                 Only if `return_coef` is True. The array of polynomial parameters
@@ -892,9 +897,9 @@ class _Polynomial(_Algorithm):
 
         References
         ----------
-        .. [25] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+        .. [1] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
                 Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
-        .. [26] Mazet, V., et al. Background removal from spectra by designing and
+        .. [2] Mazet, V., et al. Background removal from spectra by designing and
                 minimising a non-quadratic cost function. Chemometrics and Intelligent
                 Laboratory Systems, 2005, 76(2), 121-133.
 
@@ -935,7 +940,7 @@ class _Polynomial(_Algorithm):
         y_fit = sqrt_w * y
 
         coef = pseudo_inverse @ y_fit
-        initial_baseline = self.vandermonde @ coef
+        initial_baseline = self._polynomial.vandermonde @ coef
 
         a = 0
         # reference used b=1, but normalized y before fitting; instead, set b as max of
@@ -957,16 +962,15 @@ class _Polynomial(_Algorithm):
                 coef = pseudo_inverse @ (
                     y_fit + loss_function(y_fit - sqrt_w * baseline, **loss_kwargs)
                 )
-                baseline = self.vandermonde @ coef
+                baseline = self._polynomial.vandermonde @ coef
                 calc_difference = relative_difference(baseline_old, baseline)
                 tol_history[i + 2, j] = calc_difference
                 if calc_difference < tol:
                     break
-            if j > j_max:
-                j_max = j
+            j_max = max(j, j_max)
 
             up_count = (y > baseline).sum()
-            up_down_ratio = up_count / max(1, self._len - up_count)
+            up_down_ratio = up_count / max(1, self._size - up_count)
             calc_difference = up_down_ratio - up_down_ratio_goal
             tol_history[0, i] = calc_difference
             if calc_difference > tol_2:
@@ -1606,7 +1610,7 @@ def _loess_solver(AT, b):
     return np.linalg.solve(AT.dot(AT.T), AT.dot(b))
 
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _fill_skips(x, baseline, skips):
     """
     Fills in the skipped baseline points using linear interpolation.
@@ -1630,7 +1634,7 @@ def _fill_skips(x, baseline, skips):
     All changes to `baseline` are done inplace.
 
     """
-    for i in prange(skips.shape[0]):
+    for i in range(skips.shape[0]):
         window = skips[i]
         left = window[0]
         right = window[1]
@@ -1638,7 +1642,7 @@ def _fill_skips(x, baseline, skips):
 
 
 # adapted from (https://gist.github.com/agramfort/850437); see license above
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     """
     A version of loess that uses near constant memory.
@@ -1654,10 +1658,10 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
         The y-values of the measured data, with N points.
     weights : numpy.ndarray, shape (N,)
         The array of weights.
-    coefs : numpy.ndarray, shape (N, poly_order + 1)
+    coefs : numpy.ndarray, shape (N, ``poly_order + 1``)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
-    vander : numpy.ndarray, shape (N, poly_order + 1)
+    vander : numpy.ndarray, shape (N, ``poly_order + 1``)
         The Vandermonde matrix for the `x` array.
     num_x : int
         The number of data points in `x`, also known as N.
@@ -1668,6 +1672,11 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     fits : numpy.ndarray, shape (F,)
         The array of indices indicating which x-values to fit.
 
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+
     Notes
     -----
     The coefficient array, `coefs`, is modified inplace.
@@ -1676,7 +1685,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]
@@ -1698,7 +1707,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
 
 
 # adapted from (https://gist.github.com/agramfort/850437); see license above
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows, fits):
     """
     The initial fit for loess that also caches the window values for each x-value.
@@ -1711,10 +1720,10 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
         The y-values of the measured data, with N points.
     weights : numpy.ndarray, shape (N,)
         The array of weights.
-    coefs : numpy.ndarray, shape (N, poly_order + 1)
+    coefs : numpy.ndarray, shape (N, ``poly_order + 1``)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
-    vander : numpy.ndarray, shape (N, poly_order + 1)
+    vander : numpy.ndarray, shape (N, ``poly_order + 1``)
         The Vandermonde matrix for the `x` array.
     total_points : int
         The number of points to include when fitting each x-value.
@@ -1729,8 +1738,10 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
 
     Returns
     -------
-    kernels : numpy.ndarray, shape (num_x, total_points)
+    kernels : numpy.ndarray, shape (N, total_points)
         The array containing the distance-weighted kernel for each x-value.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
 
     Notes
     -----
@@ -1741,7 +1752,7 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]
@@ -1763,7 +1774,7 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
     return kernels, baseline
 
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fits):
     """
     The loess fit to use after the first loop that uses the cached window values.
@@ -1774,10 +1785,10 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
         The y-values of the measured data, with N points.
     weights : numpy.ndarray, shape (N,)
         The array of weights.
-    coefs : numpy.ndarray, shape (N, poly_order + 1)
+    coefs : numpy.ndarray, shape (N, ``poly_order + 1``)
         The array of polynomial coefficients (with polynomial order poly_order),
         for each value in `x`.
-    vander : numpy.ndarray, shape (N, poly_order + 1)
+    vander : numpy.ndarray, shape (N, ``poly_order + 1``)
         The Vandermonde matrix for the `x` array.
     kernels : numpy.ndarray, shape (N, total_points)
         The array containing the distance-weighted kernel for each x-value. Each
@@ -1791,6 +1802,11 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
     fits : numpy.ndarray, shape (F,)
         The array of indices indicating which x-values to fit.
 
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+
     Notes
     -----
     The coefficient array, `coefs`, is modified inplace.
@@ -1799,7 +1815,7 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
-    for idx in prange(fits.shape[0]):
+    for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]
@@ -1934,7 +1950,7 @@ def _determine_fits(x, num_x, total_points, delta):
 @_polynomial_wrapper
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
           tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
-          use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=0.0):
+          use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=None):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -2000,14 +2016,13 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         numba is installed, there is no significant time difference since the calculations are
         sped up.
     delta : float, optional
-        If `delta` is > 0, will skip all but the last x-value in the range x_last + `delta`,
-        where x_last is the last x-value to be fit using weighted least squares, and instead
-        use linear interpolation to calculate the fit for those x-values (same behavior as in
+        If `delta` is > 0, will skip all but the last x-value in the range `x_last + delta`,
+        where `x_last` is the last x-value to be fit using weighted least squares, and instead
+        use linear interpolation to calculate the fit for those x-values, which can
+        significantly reduce the calculation time (same behavior as in
         statsmodels [14]_ and Cleveland's original Fortran lowess implementation [15]_).
-        Fits all x-values if `delta` is <= 0. Default is 0.0. Note that `x_data` is scaled to
-        fit in the range [-1, 1], so `delta` should likewise be scaled. For example, if the
-        desired `delta` value was ``0.01 * (max(x_data) - min(x_data))``, then the
-        correctly scaled `delta` would be 0.02 (ie. ``0.01 * (1 - (-1))``).
+        Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
+        `0.01 * (max(x_data) - min(x_data))`.
 
     Returns
     -------
@@ -2174,7 +2189,7 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
         The weighting array. If None (default), then will be an array with
         size equal to N and all values set to 1.
     cost_function : str, optional
-        The non-quadratic cost function to minimize. Unlike :func:`.penalized_poly`,
+        The non-quadratic cost function to minimize. Unlike :meth:`~.Baseline.penalized_poly`,
         this function only works with asymmetric cost functions, so the symmetry prefix
         ('a' or 'asymmetric') is optional (eg. 'indec' and 'a_indec' are the same). Default
         is 'asymmetric_indec'. Available methods, and their associated reference, are:
@@ -2223,7 +2238,7 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
             iterations for the threshold and the maximum number of iterations for all of
             the fits of the various threshold values (related to `max_iter` and `tol`).
         * 'threshold' : float
-            The optimal threshold value. Could be used in :func:`.penalized_poly`
+            The optimal threshold value. Could be used in :meth:`~.Baseline.penalized_poly`
             for fitting other similar data.
         * 'coef': numpy.ndarray, shape (poly_order + 1,)
             Only if `return_coef` is True. The array of polynomial parameters

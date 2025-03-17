@@ -16,13 +16,13 @@ from scipy.special import binom
 from ._banded_utils import PenalizedSystem
 from ._banded_utils import difference_matrix as _difference_matrix
 from ._compat import jit
-from ._spline_utils import PSpline
+from ._spline_utils import PSpline, SplineBasis
 from ._validation import (
     _check_array, _check_optional_array, _check_scalar, _get_row_col_values, _yx_arrays
 )
 
 
-# the minimum positive float values such that a + _MIN_FLOAT != a
+# the minimum positive float values such that 1 + _MIN_FLOAT != 1
 # TODO this is mostly used to prevent dividing by 0; is there a better way to do that?
 # especially since it is usually max(value, _MIN_FLOAT) and in some cases value could be
 # < _MIN_FLOAT but still > 0 and useful; think about it
@@ -37,6 +37,10 @@ class ParameterWarning(UserWarning):
     outside of the recommended range of values and as a result may cause issues
     such as numerical instability that would otherwise be hard to diagnose.
     """
+
+
+class SortingWarning(UserWarning):
+    """Issued when `assume_sorted` is set to True and inputs are not in ascending order."""
 
 
 def relative_difference(old, new, norm_order=None):
@@ -180,7 +184,7 @@ def _mollifier_kernel(window_size):
 
     Returns
     -------
-    numpy.ndarray, shape (2 * window_size + 1,)
+    numpy.ndarray, shape (``2 * window_size + 1``,)
         The area normalized kernel.
 
     References
@@ -713,7 +717,7 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
 
     Returns
     -------
-    diff_matrix : scipy.sparse.spmatrix or scipy.sparse._sparray
+    diff_matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse difference matrix.
 
     Raises
@@ -1067,7 +1071,8 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
 
     """
     y, x = _yx_arrays(data, x_data, check_finite=check_finite, ensure_1d=True)
-    pspline = PSpline(x, num_knots, spline_degree, check_finite, lam, diff_order)
+    spline_basis = SplineBasis(x, num_knots, spline_degree, check_finite)
+    pspline = PSpline(spline_basis, lam, diff_order)
 
     weight_array = _check_optional_array(
         len(y), weights, dtype=float, order='C', check_finite=check_finite

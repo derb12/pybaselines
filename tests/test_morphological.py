@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines import _banded_utils, morphological
 
-from .conftest import BaseTester, InputWeightsMixin, has_pentapy
+from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation, has_pentapy
 
 
 class MorphologicalTester(BaseTester):
@@ -23,6 +23,16 @@ class MorphologicalTester(BaseTester):
     module = morphological
     algorithm_base = morphological._Morphological
     checked_keys = ('half_window',)
+
+    @ensure_deprecation(1, 4)
+    def test_kwargs_deprecation(self):
+        """Ensure passing kwargs outside of the window_kwargs keyword is deprecated."""
+        with pytest.warns(DeprecationWarning):
+            output, _ = self.class_func(self.y, min_half_window=2)
+        output_2, _ = self.class_func(self.y, window_kwargs={'min_half_window': 2})
+
+        # ensure the outputs are still the same
+        assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
 
 
 class IterativeMorphologicalTester(MorphologicalTester):
@@ -55,10 +65,8 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin):
         """Ensure pentapy solver gives similar result to SciPy's solver."""
         with mock.patch.object(_banded_utils, '_HAS_PENTAPY', False):
             scipy_output = self.class_func(self.y)[0]
-            assert not self.algorithm.whittaker_system.using_pentapy
 
         pentapy_output = self.class_func(self.y)[0]
-        assert self.algorithm.whittaker_system.using_pentapy
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
@@ -67,6 +75,18 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
+
+    @ensure_deprecation(1, 4)
+    def test_tol_deprecation(self):
+        """Ensures a DeprecationWarning is given when tol is input."""
+        with pytest.warns(DeprecationWarning):
+            self.class_func(self.y, tol=1e-3)
+
+    @ensure_deprecation(1, 4)
+    def test_max_iter_deprecation(self):
+        """Ensures a DeprecationWarning is given when max_iter is input."""
+        with pytest.warns(DeprecationWarning):
+            self.class_func(self.y, max_iter=20)
 
 
 class TestMor(MorphologicalTester):
@@ -134,7 +154,7 @@ class TestTophat(MorphologicalTester):
     func_name = 'tophat'
 
 
-class TestMpsline(MorphologicalTester, InputWeightsMixin):
+class TestMpspline(MorphologicalTester, InputWeightsMixin):
     """Class for testing mpspline baseline."""
 
     func_name = 'mpspline'
@@ -181,10 +201,8 @@ class TestJBCD(MorphologicalTester):
         """Ensure pentapy solver gives similar result to SciPy's solver."""
         with mock.patch.object(_banded_utils, '_HAS_PENTAPY', False):
             scipy_output = self.class_func(self.y, diff_order=2)[0]
-            assert not self.algorithm.whittaker_system.using_pentapy
 
         pentapy_output = self.class_func(self.y, diff_order=2)[0]
-        assert self.algorithm.whittaker_system.using_pentapy
 
         assert_allclose(pentapy_output, scipy_output, 1e-4)
 
