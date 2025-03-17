@@ -2,6 +2,98 @@
 Changelog
 =========
 
+Version 1.2.0 (2025-03-17)
+--------------------------
+
+This is a minor version with new features, bug fixes, deprecations,
+and documentation improvements.
+
+New Features
+~~~~~~~~~~~~
+
+* Added the locally symmetric reweighted penalized least squares (``lsrpls``) Whittaker smoothing
+  algorithm and its penalized spline version ``pspline_lsrpls``.
+* Added the Bayesian reweighted penalized least squares (``brpls``) Whittaker smoothing
+  algorithm and its penalized spline version ``pspline_brpls``.
+* Added the 4S peak filling (``peak_filling``) algorithm, which truncates the data and then iteratively
+  selects the minimum of a directional moving average and the current data point.
+* ``Baseline`` and ``Baseline2D`` objects keep the computed pseudo-inverse of the Vandermonde for
+  polynomial methods if weights are not given, which speeds up most polynomial methods for repeated
+  fits.
+
+Bug Fixes
+~~~~~~~~~
+
+* All methods of ``Baseline`` and ``Baseline2D`` are now thread-safe as long as non-data arguments
+  are the same for each method call.
+* Fixed incorrect indexing in ``rubberband``.
+* Removed using ``copy=False`` for numpy.array calls since it raised an error in Numpy versions
+  2.0 or later if a copy had to be made.
+* Fixed an issue converting sparse matrices to banded matrices when solving penalized splines
+  where a column could be omitted if the last diagonal value was zero. Only relevant if Numba
+  is not installed and using SciPy versions 1.15 and newer.
+* Corrected ``airpls`` weighting; the weighting equation for airpls was misprinted in its journal
+  article, so changed to the correct weighting scheme.
+* Improved overflow avoidance for ``iarpls``, ``airpls``, and ``drpls``.
+* Removed internal parallel processing for ``loess`` since it was problematic for both threaded and
+  multiprocessing uses.
+* Fixed an issue when flattening 3D arrays with shape (N, M, 1) to (N, M) where the shape would be
+  output instead of the flattened array.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Officially list Python 3.13 as supported, as well as the experimental free-threaded
+  Python 3.13 build.
+* Updated lowest supported Python version to 3.9
+* Updated lowest supported dependency versions: NumPy 1.20, SciPy 1.6,
+  pentapy 1.1, and Numba 0.53
+* Allow inputting ``assymetric_coef`` for ``aspls`` and ``pspline_aspls`` to modify shape of the
+  weighting curve.
+* Added ``normalize_weights`` for ``airpls`` to normalize weights between 0 and 1, which is set to
+  True by default. The new, corrected ``airpls`` weighting makes all negative residuals have weights
+  greater than 1, so this option can help to avoid numerical issues or overflow. Set to False to ensure
+  matching the literature implementation.
+
+Deprecations/Breaking Changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* All optimizer algorithms other than ``Baseline2D.individual_axes`` now return the parameter
+  dictionary from the underlying method within the ``method_params`` key in order to avoid
+  key overlap between the optimizer's parameters and the method parameters.
+* The default ``delta`` for ``loess`` was changed from 0 to ``0.01 * (max(x_data) - min(x_data))``.
+* The ``delta`` parameter for ``loess`` is now used on the actual input `x_data` rather
+  than the `x_data` after scaling to the domain [-1, 1] to make it easier to use.
+* The ``optimal_parameter`` key for the ``optimize_extended_range`` method no longer returns the
+  log10 of the optimal value when fitting a non polynomial method. For example, it now returns
+  10000 rather than 4 if the optimal ``lam`` value was 10000.
+* Deprecated passing ``tol`` and ``max_iter`` to ``mpls`` and ``pspline_mpls`` since the keywords
+  were not internally used. The keywords will be removed in version 1.4.
+* Deprecated the ``pentapy_solver`` attribute of ``Baseline`` and ``Baseline2D`` in
+  favor of the ``banded_solver`` attribute to control the solvers used for banded linear systems.
+  The attribute will be removed in version 1.4.
+* Deprecated passing additional keyword arguments for padding to multiple methods, and will remove
+  the functionality in version 1.4. Keyword arguments for padding should now be grouped into
+  the ``pad_kwargs`` parameter instead.
+* Deprecated passing additional keyword arguments for estimating the half-window parameter if none was
+  given for morphological methods, and will remove the functionality in version 1.4. Keyword arguments
+  for estimating the half-window should now be grouped into the ``window_kwargs`` parameter instead.
+* Deprecated the ``min_rmse`` key from the parameter dictionary output of ``optimize_extended_range``
+  in favor of returning all calculated root mean square values from the fittings through the new ``rmse``
+  key. The ``min_rmse`` key will be removed in version 1.4.
+* **Pending Deprecation**: The functional interface of pybaselines will be deprecated in version 1.3, and
+  will be removed in version 2.0. For example, user code using ``whittaker.arpls(...)`` should
+  migrate to ``Baseline.arpls(...)``. The only items that will be kept under the main pybaselines
+  namespace will be ``Baseline``, ``Baseline2D``, and ``utils``.
+
+Documentation/Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Added new examples to the documentation.
+* Added a page describing best practices for fitting multiple datasets with pybaselines.
+* Render each method on its own page in the documentation.
+
+
 Version 1.1.0 (2024-02-18)
 --------------------------
 
@@ -21,7 +113,7 @@ New Features
 * Added the Customized Baseline Correction (custom_bc) method to
   pybaselines.optimizers, which allows fitting baselines with controllable
   levels of stiffness in different regions.
-* Added a penalized version of mpls (pspline_mpls) to pybaselines.spline.
+* Added a penalized spline version of mpls (pspline_mpls) to pybaselines.spline.
 * Updated spline.mixture_model to use expectation-maximization rather than the previous
   nieve approach of fitting the histogram of the residuals with the probability density
   function. Should reduce calculation times.
