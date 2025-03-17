@@ -1289,7 +1289,7 @@ class _Spline(_Algorithm):
             Default is 1e3.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Anchor points
-            identified by the procedure in [32]_ are given a weight of `1 - p`, and all
+            identified by the procedure in [1]_ are given a weight of `1 - p`, and all
             other points have a weight of `p`. Default is 0.0.
         num_knots : int, optional
             The number of knots for the spline. Default is 100.
@@ -1312,7 +1312,7 @@ class _Spline(_Algorithm):
 
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the weights will be
-            calculated following the procedure in [32]_.
+            calculated following the procedure in [1]_.
         window_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.optimize_window` for
             estimating the half window if `half_window` is None. Default is None.
@@ -1345,7 +1345,7 @@ class _Spline(_Algorithm):
 
         References
         ----------
-        .. [32] Li, Zhong, et al. Morphological weighted penalized least squares for
+        .. [1] Li, Zhong, et al. Morphological weighted penalized least squares for
             background correction. Analyst, 2013, 138, 4483-4492.
 
         Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary

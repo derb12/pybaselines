@@ -163,11 +163,11 @@ class _Polynomial(_Algorithm):
             size equal to N and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [8]_ when choosing minimum values. If True,
-            will compare the baseline with the original y-values given by `data` [9]_.
+            the y-values of that iteration [1]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [2]_.
         mask_initial_peaks : bool, optional
             If True, will mask any data where the initial baseline fit + the standard
-            deviation of the residual is less than measured data [10]_. Default is False.
+            deviation of the residual is less than measured data [3]_. Default is False.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
@@ -194,17 +194,17 @@ class _Polynomial(_Algorithm):
 
         Notes
         -----
-        Algorithm originally developed in [9]_ and then slightly modified in [8]_.
+        Algorithm originally developed in [2]_ and then slightly modified in [1]_.
 
         References
         ----------
-        .. [8] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-        .. [9] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
-        .. [10] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+        .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
             Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
             2007, 61(11), 1225-1232.
 
@@ -262,11 +262,11 @@ class _Polynomial(_Algorithm):
             size equal to N and all values set to 1.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [11]_ when choosing minimum values. If True,
-            will compare the baseline with the original y-values given by `data` [12]_.
+            the y-values of that iteration [1]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [2]_.
         mask_initial_peaks : bool, optional
             If True (default), will mask any data where the initial baseline fit +
-            the standard deviation of the residual is less than measured data [13]_.
+            the standard deviation of the residual is less than measured data [3]_.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
@@ -301,17 +301,17 @@ class _Polynomial(_Algorithm):
 
         Notes
         -----
-        Algorithm originally developed in [13]_.
+        Algorithm originally developed in [3]_.
 
         References
         ----------
-        .. [11] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
             fitting with automatic threshold. Chemometrics and Intelligent
             Laboratory Systems, 2006, 82, 59-65.
-        .. [12] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
             from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
             1363-1367.
-        .. [13] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+        .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
             Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
             2007, 61(11), 1225-1232.
 
@@ -385,12 +385,12 @@ class _Polynomial(_Algorithm):
             'symmetric' for symmetric loss. Default is 'asymmetric_truncated_quadratic'.
             Available methods, and their associated reference, are:
 
-                * 'asymmetric_truncated_quadratic'[14]_
-                * 'symmetric_truncated_quadratic'[14]_
-                * 'asymmetric_huber'[14]_
-                * 'symmetric_huber'[14]_
-                * 'asymmetric_indec'[15]_
-                * 'symmetric_indec'[15]_
+                * 'asymmetric_truncated_quadratic'[1]_
+                * 'symmetric_truncated_quadratic'[1]_
+                * 'asymmetric_huber'[1]_
+                * 'symmetric_huber'[1]_
+                * 'asymmetric_indec'[2]_
+                * 'symmetric_indec'[2]_
 
         threshold : float, optional
             The threshold value for the loss method, where the function goes from
@@ -438,10 +438,10 @@ class _Polynomial(_Algorithm):
 
         References
         ----------
-        .. [14] Mazet, V., et al. Background removal from spectra by designing and
+        .. [1] Mazet, V., et al. Background removal from spectra by designing and
             minimising a non-quadratic cost function. Chemometrics and Intelligent
             Laboratory Systems, 2005, 76(2), 121-133.
-        .. [15] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+        .. [2] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
             Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
         """
@@ -506,8 +506,8 @@ class _Polynomial(_Algorithm):
             is None, which will use `fraction` * N to determine the number of points.
         scale : float, optional
             A scale factor applied to the weighted residuals to control the robustness
-            of the fit. Default is 3.0, as used in [16]_. Note that the original loess
-            procedure in [17]_ used a `scale` of ~4.05.
+            of the fit. Default is 3.0, as used in [1]_. Note that the original loess
+            procedure for smoothing in [2]_ used a `scale` of ~4.05.
         poly_order : int, optional
             The polynomial order for fitting the baseline. Default is 1.
         tol : float, optional
@@ -516,14 +516,14 @@ class _Polynomial(_Algorithm):
             The maximum number of iterations. Default is 10.
         symmetric_weights : bool, optional
             If False (default), will apply weighting asymmetrically, with residuals
-            < 0 having a weight of 1, according to [16]_. If True, will apply weighting
+            < 0 having a weight of 1, according to [1]_. If True, will apply weighting
             the same for both positive and negative residuals, which is regular LOESS.
             If `use_threshold` is True, this parameter is ignored.
         use_threshold : bool, optional
             If False (default), will compute weights each iteration to perform the
             robust fitting, which is regular LOESS. If True, will apply a threshold
             on the data being fit each iteration, based on the maximum values of the
-            data and the fit baseline, as proposed by [18]_, similar to the modpoly
+            data and the fit baseline, as proposed by [3]_, similar to the modpoly
             and imodpoly techniques.
         num_std : float, optional
             The number of standard deviations to include when thresholding. Default
@@ -531,9 +531,9 @@ class _Polynomial(_Algorithm):
             `use_threshold` is True.
         use_original : bool, optional
             If False (default), will compare the baseline of each iteration with
-            the y-values of that iteration [19]_ when choosing minimum values for
+            the y-values of that iteration [4]_ when choosing minimum values for
             thresholding. If True, will compare the baseline with the original
-            y-values given by `data` [20]_. Only used if `use_threshold` is True.
+            y-values given by `data` [5]_. Only used if `use_threshold` is True.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -555,7 +555,7 @@ class _Polynomial(_Algorithm):
             where `x_last` is the last x-value to be fit using weighted least squares, and instead
             use linear interpolation to calculate the fit for those x-values, which can
             significantly reduce the calculation time (same behavior as in
-            statsmodels [21]_ and Cleveland's original Fortran lowess implementation [22]_).
+            statsmodels [6]_ and Cleveland's original Fortran lowess implementation [7]_).
             Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
             `0.01 * (max(x_data) - min(x_data))`.
 
@@ -591,7 +591,7 @@ class _Polynomial(_Algorithm):
         -----
         The iterative, robust, aspect of the fitting can be achieved either through
         reweighting based on the residuals (the typical usage), or thresholding the
-        fit data based on the residuals, as proposed by [18]_, similar to the modpoly
+        fit data based on the residuals, as proposed by [3]_, similar to the modpoly
         and imodpoly techniques.
 
         In baseline literature, this procedure is sometimes called "rbe", meaning
@@ -599,23 +599,23 @@ class _Polynomial(_Algorithm):
 
         References
         ----------
-        .. [16] Ruckstuhl, A.F., et al. Baseline subtraction using robust local
+        .. [1] Ruckstuhl, A.F., et al. Baseline subtraction using robust local
                 regression estimation. J. Quantitative Spectroscopy and Radiative
                 Transfer, 2001, 68, 179-193.
-        .. [17] Cleveland, W. Robust locally weighted regression and smoothing
+        .. [2] Cleveland, W. Robust locally weighted regression and smoothing
                 scatterplots. Journal of the American Statistical Association,
                 1979, 74(368), 829-836.
-        .. [18] Komsta, Ł. Comparison of Several Methods of Chromatographic
+        .. [3] Komsta, Ł. Comparison of Several Methods of Chromatographic
                 Baseline Removal with a New Approach Based on Quantile Regression.
                 Chromatographia, 2011, 73, 721-731.
-        .. [19] Gan, F., et al. Baseline correction by improved iterative polynomial
+        .. [4] Gan, F., et al. Baseline correction by improved iterative polynomial
                 fitting with automatic threshold. Chemometrics and Intelligent
                 Laboratory Systems, 2006, 82, 59-65.
-        .. [20] Lieber, C., et al. Automated method for subtraction of fluorescence
+        .. [5] Lieber, C., et al. Automated method for subtraction of fluorescence
                 from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
                 1363-1367.
-        .. [21] https://github.com/statsmodels/statsmodels.
-        .. [22] https://www.netlib.org/go (lowess.f is the file).
+        .. [6] https://github.com/statsmodels/statsmodels.
+        .. [7] https://www.netlib.org/go (lowess.f is the file).
 
         """
         if total_points is None:
@@ -764,17 +764,17 @@ class _Polynomial(_Algorithm):
 
         Notes
         -----
-        Application of quantile regression for baseline fitting ss described in [23]_.
+        Application of quantile regression for baseline fitting ss described in [1]_.
 
         Performs quantile regression using iteratively reweighted least squares (IRLS)
-        as described in [24]_.
+        as described in [2]_.
 
         References
         ----------
-        .. [23] Komsta, Ł. Comparison of Several Methods of Chromatographic
+        .. [1] Komsta, Ł. Comparison of Several Methods of Chromatographic
                 Baseline Removal with a New Approach Based on Quantile Regression.
                 Chromatographia, 2011, 73, 721-731.
-        .. [24] Schnabel, S., et al. Simultaneous estimation of quantile curves using
+        .. [2] Schnabel, S., et al. Simultaneous estimation of quantile curves using
                 quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
 
         """
@@ -838,9 +838,9 @@ class _Polynomial(_Algorithm):
             ('a' or 'asymmetric') is optional (eg. 'indec' and 'a_indec' are the same). Default
             is 'asymmetric_indec'. Available methods, and their associated reference, are:
 
-                * 'asymmetric_indec'[25]_
-                * 'asymmetric_truncated_quadratic'[26]_
-                * 'asymmetric_huber'[26]_
+                * 'asymmetric_indec'[1]_
+                * 'asymmetric_truncated_quadratic'[2]_
+                * 'asymmetric_huber'[2]_
 
         peak_ratio : float, optional
             A value between 0 and 1 that designates how many points in the data belong
@@ -897,9 +897,9 @@ class _Polynomial(_Algorithm):
 
         References
         ----------
-        .. [25] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+        .. [1] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
                 Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
-        .. [26] Mazet, V., et al. Background removal from spectra by designing and
+        .. [2] Mazet, V., et al. Background removal from spectra by designing and
                 minimising a non-quadratic cost function. Chemometrics and Intelligent
                 Laboratory Systems, 2005, 76(2), 121-133.
 

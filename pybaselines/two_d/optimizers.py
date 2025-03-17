@@ -153,7 +153,7 @@ class _Optimizers(_Algorithm2D):
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
-            and then select the appropriate polynomial orders according to [32]_.
+            and then select the appropriate polynomial orders according to [1]_.
         method : {'modpoly', 'imodpoly'}, optional
             The method to use for fitting each polynomial. Default is 'modpoly'.
         weights : array-like, shape (M, N), optional
@@ -199,7 +199,7 @@ class _Optimizers(_Algorithm2D):
 
         References
         ----------
-        .. [32] Cao, A., et al. A robust method for automated background subtraction
+        .. [1] Cao, A., et al. A robust method for automated background subtraction
             of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38,
             1199-1205.
 

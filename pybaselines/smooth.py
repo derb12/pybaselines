@@ -101,22 +101,22 @@ class _Smooth(_Algorithm):
             width of a feature or peak. `max_half_window` can also be a sequence of
             two integers for asymmetric peaks, with the first item corresponding to
             the `max_half_window` of the peak's left edge, and the second item
-            for the peak's right edge [29]_. Default is None, which will use the output
+            for the peak's right edge [3]_. Default is None, which will use the output
             from :func:`.optimize_window`, which is an okay starting value.
         decreasing : bool, optional
             If False (default), will iterate through window sizes from 1 to
             `max_half_window`. If True, will reverse the order and iterate from
-            `max_half_window` to 1, which gives a smoother baseline according to [29]_
-            and [30]_.
+            `max_half_window` to 1, which gives a smoother baseline according to [3]_
+            and [4]_.
         smooth_half_window : int, optional
             The half window to use for smoothing the data. If `smooth_half_window`
             is greater than 0, will perform a moving average smooth on the data for
-            each window, which gives better results for noisy data [29]_. Default is
+            each window, which gives better results for noisy data [3]_. Default is
             None, which will not perform any smoothing.
         filter_order : {2, 4, 6, 8}, optional
             If the measured data has a more complicated baseline consisting of other
             elements such as Compton edges, then a higher `filter_order` should be
-            selected [29]_. Default is 2, which works well for approximating a linear
+            selected [3]_. Default is 2, which works well for approximating a linear
             baseline.
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
@@ -146,12 +146,12 @@ class _Smooth(_Algorithm):
 
         Notes
         -----
-        Algorithm initially developed by [27]_, and this specific version of the
-        algorithm is adapted from [28]_, [29]_, and [30]_.
+        Algorithm initially developed by [1]_, and this specific version of the
+        algorithm is adapted from [2]_, [3]_, and [4]_.
 
         If data covers several orders of magnitude, better results can be obtained
         by first transforming the data using log-log-square transform before
-        using SNIP [28]_::
+        using SNIP [2]_::
 
             transformed_data =  np.log(np.log(np.sqrt(data + 1) + 1) + 1)
 
@@ -161,20 +161,20 @@ class _Smooth(_Algorithm):
 
         References
         ----------
-        .. [27] Ryan, C.G., et al. SNIP, A Statistics-Sensitive Background Treatment
+        .. [1] Ryan, C.G., et al. SNIP, A Statistics-Sensitive Background Treatment
             For The Quantitative Analysis Of Pixe Spectra In Geoscience Applications.
             Nuclear Instruments and Methods in Physics Research B, 1988, 934, 396-402.
-        .. [28] Morháč, M., et al. Background elimination methods for multidimensional
+        .. [2] Morháč, M., et al. Background elimination methods for multidimensional
             coincidence γ-ray spectra. Nuclear Instruments and Methods in Physics
             Research A, 1997, 401, 113-132.
-        .. [29] Morháč, M., et al. Peak Clipping Algorithms for Background Estimation in
+        .. [3] Morháč, M., et al. Peak Clipping Algorithms for Background Estimation in
             Spectroscopic Data. Applied Spectroscopy, 2008, 62(1), 91-106.
-        .. [30] Morháč, M. An algorithm for determination of peak regions and baseline
+        .. [4] Morháč, M. An algorithm for determination of peak regions and baseline
             elimination in spectroscopic data. Nuclear Instruments and Methods in
             Physics Research A, 2009, 60, 478-487.
 
         """
-        # TODO potentially add adaptive window sizes from [30]_, or at least allow inputting
+        # TODO potentially add adaptive window sizes from [4]_, or at least allow inputting
         # an array of max_half_windows; would need to have a separate function for array
         # windows since it would no longer be able to be vectorized
         if filter_order not in {2, 4, 6, 8}:
