@@ -46,7 +46,7 @@ def _asls(y, baseline, p):
     return weights
 
 
-def _airpls(y, baseline, iteration, normalize_weights):
+def _airpls(y, baseline, iteration, normalize_weights=False):
     """
     The weighting for adaptive iteratively reweighted penalized least squares (airPLS).
 
@@ -59,9 +59,9 @@ def _airpls(y, baseline, iteration, normalize_weights):
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
-    normalize_weights : bool
+    normalize_weights : bool, optional
         If True, will normalize the computed weights between 0 and 1 to improve
-        the numerical stabilty. Set to False to use the original implementation, which
+        the numerical stabilty. Set to False (default) to use the original implementation, which
         sets weights for all negative residuals to be greater than 1.
 
     Returns

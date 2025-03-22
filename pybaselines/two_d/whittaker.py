@@ -217,7 +217,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               num_eigens=(10, 10), return_dof=False, normalize_weights=True):
+               num_eigens=(10, 10), return_dof=False, normalize_weights=False):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -251,9 +251,9 @@ class _Whittaker(_Algorithm2D):
             each eigenvector will be calculated and returned in the parameter dictionary.
             Default is False since the calculation takes time.
         normalize_weights : bool, optional
-            If True (default), will normalize the computed weights between 0 and 1 to improve
-            the numerical stabilty. Set to False to use the original implementation, which
-            sets weights for all negative residuals to be greater than 1.
+            If True, will normalize the computed weights between 0 and 1 to potentially
+            improve the numerical stabilty. Set to False (default) to use the original
+            implementation, which sets weights for all negative residuals to be greater than 1.
 
         Returns
         -------

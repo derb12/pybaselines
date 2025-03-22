@@ -200,7 +200,7 @@ class _Whittaker(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               normalize_weights=True):
+               normalize_weights=False):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -223,9 +223,9 @@ class _Whittaker(_Algorithm):
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
         normalize_weights : bool, optional
-            If True (default), will normalize the computed weights between 0 and 1 to improve
-            the numerical stabilty. Set to False to use the original implementation, which
-            sets weights for all negative residuals to be greater than 1.
+            If True, will normalize the computed weights between 0 and 1 to potentially
+            improve the numerical stabilty. Set to False (default) to use the original
+            implementation, which sets weights for all negative residuals to be greater than 1.
 
         Returns
         -------
@@ -1137,7 +1137,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
 
 @_whittaker_wrapper
 def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None,
-           normalize_weights=True):
+           normalize_weights=False):
     """
     Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -1163,9 +1163,9 @@ def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_d
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     normalize_weights : bool, optional
-        If True (default), will normalize the computed weights between 0 and 1 to improve
-        the numerical stabilty. Set to False to use the original implementation, which
-        sets weights for all negative residuals to be greater than 1.
+        If True, will normalize the computed weights between 0 and 1 to potentially
+        improve the numerical stabilty. Set to False (default) to use the original
+        implementation, which sets weights for all negative residuals to be greater than 1.
 
     Returns
     -------
