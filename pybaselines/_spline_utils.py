@@ -360,22 +360,23 @@ def _spline_basis(x, knots, spline_degree=3):
 
     Notes
     -----
-    The numba version is ~70% faster than scipy's BSpline.design_matrix (tested
-    with python 3.9.7 and scipy 1.8.0.dev0+1981 and python 3.8.6 and scipy 1.8.0rc1),
-    so the numba version is preferred.
+    The numba version was originally ~70% faster than SciPy's BSpline.design_matrix (tested
+    with python 3.9.7 and scipy 1.8.0.dev0+1981 and python 3.8.6 and scipy 1.8.0rc1), but newer
+    SciPy versions (tested with python 3.12.9 and all major SciPy versions compatible with python
+    3.12) are now ~2x faster than the numba version, so prefer SciPy's implementation.
 
     Most checks on the inputs are skipped since this is an internal function and the
     proper steps are assumed to be done. For more proper error handling in the inputs,
     see :func:`scipy.interpolate.make_lsq_spline`.
 
     """
-    if _HAS_NUMBA:
-        validate_inputs = True
-        basis_func = _make_design_matrix
-    elif hasattr(BSpline, 'design_matrix'):
+    if hasattr(BSpline, 'design_matrix'):
         validate_inputs = False
         # BSpline.design_matrix introduced in scipy version 1.8.0
         basis_func = BSpline.design_matrix
+    elif _HAS_NUMBA:
+        validate_inputs = True
+        basis_func = _make_design_matrix
     else:
         validate_inputs = True
         basis_func = _slow_design_matrix
