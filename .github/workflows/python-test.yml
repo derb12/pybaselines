@@ -23,6 +23,11 @@ on:
     - 'tests/**'
     - '.github/workflows/**'
 
+# cancel current jobs if a new job is started
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
 
@@ -34,12 +39,16 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.13t']
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # fetch-depth: '0' is needed to fetch tags for hatch-vcs (and thus setuptools-scm)
+      # to generate the version correctly; only really needed for jobs that would build and
+      # upload to pypi, so ignore it since fetching the entire git history can take much longer
+      # than the default of fetching just the last commit
+      #with:
+        #fetch-depth: '0'
 
     - name: Set up Python
-      # Switch back to actions/setup-python@v5 once they support free-threaded python;
-      # see revelant PR: https://github.com/actions/setup-python/pull/973
-      uses: Quansight-Labs/setup-python@v5
+      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -71,10 +80,10 @@ jobs:
         python-version: ['3.9']
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -83,7 +92,7 @@ jobs:
       # for minimum supported versions
       run: |
         python -m pip install --upgrade pip
-        python -m pip install "numpy==1.20.*" "scipy==1.6.*" pytest
+        python -m pip install . "numpy==1.20.*" "scipy==1.6.*" pytest
 
     - name: Test with minimum required dependencies
       run: pytest .
@@ -103,10 +112,10 @@ jobs:
         python-version: ['3.13']
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
       with:
         python-version: ${{ matrix.python-version }}
 

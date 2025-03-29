@@ -23,6 +23,11 @@ on:
     - 'tests/**'
     - '.github/workflows/**'
 
+# cancel current jobs if a new job is started
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-nightly:
 
@@ -34,10 +39,10 @@ jobs:
         python-version: ['3.13']
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -47,6 +52,7 @@ jobs:
         python -m pip install pytest
         python -m pip install -i https://pypi.anaconda.org/scientific-python-nightly-wheels/simple numpy
         python -m pip install -i https://pypi.anaconda.org/scientific-python-nightly-wheels/simple scipy
+        python -m pip install .
 
     - name: Test with required dependencies
       # use -Werror so that any warnings will show up as errors -> want to be as stringent
