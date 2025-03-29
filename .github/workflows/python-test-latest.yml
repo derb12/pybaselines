@@ -23,6 +23,11 @@ on:
     - 'tests/**'
     - '.github/workflows/**'
 
+# cancel current jobs if a new job is started
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-nightly:
 
