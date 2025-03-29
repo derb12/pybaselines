@@ -21,4 +21,6 @@ formats:
 # Additional requirements for the documentation
 python:
   install:
+    - method: pip
+      path: .
     - requirements: requirements/requirements-documentation.txt
