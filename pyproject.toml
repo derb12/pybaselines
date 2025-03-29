@@ -1,7 +1,7 @@
 [build-system]
 # hatchling v1.27 was first version to use default metadata version 2.4, allowing project.license
 # and project.license-files fields following PEP-639
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.27", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
@@ -13,10 +13,20 @@ exclude = [
   "/tools",
 ]
 
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "1.2.0.post1.dev0"
+
+[tool.hatch.version.raw-options]
+version_scheme = "no-guess-dev"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "pybaselines/_version.py"
+
 
 [project]
 name = "pybaselines"
-version = "1.2.0"
+dynamic = ["version"]
 authors = [
     {name = "Donald Erb", email = "donnie.erb@gmail.com"},
 ]
@@ -107,7 +117,7 @@ src_paths = ["pybaselines", "tests"]
 known_local_folder = ["example_helpers"]
 
 [tool.ruff]
-exclude = ["docs/*"]
+exclude = ["docs/conf.py"]
 line-length = 100
 fix = false
 output-format = "full"
@@ -142,7 +152,7 @@ convention = "numpy"
     "D205",  # D205: 1 blank line required between summary line and description
 
 ]
-"examples/*" = [
+"docs/examples/*" = [
     "B007",  # B007: Loop control variable `name` not used within loop body; want to be explicit in examples
     "D205",  # D205: 1 blank line required between summary line and description
     "D400",  # D400: first line should end with a period
@@ -165,14 +175,14 @@ search = "version = \"{current_version}\""
 replace = "version = \"{new_version}\""
 
 [[tool.bumpversion.files]]
-filename = "pybaselines/__init__.py"
-search = "__version__ = '{current_version}'"
-replace = "__version__ = '{new_version}'"
+filename = "pyproject.toml"
+search = "fallback-version = \"{current_version}.post1.dev0\""
+replace = "fallback-version = \"{new_version}.post1.dev0\""
 
 [[tool.bumpversion.files]]
-filename = "docs/conf.py"
-search = "version = '{current_version}'"
-replace = "version = '{new_version}'"
+filename = "pybaselines/__init__.py"
+search = "__version__ = '{current_version}.post1.dev0'"
+replace = "__version__ = '{new_version}.post1.dev0'"
 
 [[tool.bumpversion.files]]
 filename = "CITATION.cff"
