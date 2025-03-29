@@ -47,6 +47,7 @@ jobs:
         python -m pip install pytest
         python -m pip install -i https://pypi.anaconda.org/scientific-python-nightly-wheels/simple numpy
         python -m pip install -i https://pypi.anaconda.org/scientific-python-nightly-wheels/simple scipy
+        python -m pip install .
 
     - name: Test with required dependencies
       # use -Werror so that any warnings will show up as errors -> want to be as stringent

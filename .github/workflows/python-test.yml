@@ -35,6 +35,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      # fetch-depth: '0' is needed to fetch tags for hatch-vcs (and thus setuptools-scm)
+      # to generate the version correctly; only really needed for jobs that would build and
+      # upload to pypi, so ignore it since fetching the entire git history can take much longer
+      # than the default of fetching just the last commit
+      #with:
+        #fetch-depth: '0'
 
     - name: Set up Python
       # Switch back to actions/setup-python@v5 once they support free-threaded python;
