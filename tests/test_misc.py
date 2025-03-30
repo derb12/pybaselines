@@ -33,12 +33,12 @@ class TestInterpPts(MiscTester):
     required_kwargs = {'baseline_points': ((5, 10), (10, 20), (90, 100))}
     required_repeated_kwargs = {'baseline_points': ((5, 10), (10, 20), (90, 100))}
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('interp_method', ('linear', 'slinear', 'quadratic'))
-    def test_unchanged_data(self, use_class, interp_method):
+    def test_unchanged_data(self, new_instance, interp_method):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(
-            use_class, interp_method=interp_method
+            new_instance, interp_method=interp_method
         )
 
     def test_no_x(self):
@@ -61,14 +61,11 @@ class TestInterpPts(MiscTester):
     def test_no_y(self):
         """Ensures the function works when no y-values are input."""
         self.class_func(**self.kwargs)
-        self.func(x_data=self.x, **self.kwargs)
 
     def test_no_y_no_x_fails(self):
         """Ensures an error is raised when both x and y are not input."""
         with pytest.raises(TypeError):
             getattr(self.algorithm_base(), self.func_name)(**self.kwargs)
-        with pytest.raises(TypeError):
-            self.func(**self.kwargs)
 
 
 class TestBeads(MiscTester):
@@ -77,14 +74,14 @@ class TestBeads(MiscTester):
     func_name = 'beads'
     checked_keys = ('signal', 'tol_history')
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('cost_function', (1, 2, 'l1_v1', 'l1_v2', 'L1_V1'))
     @pytest.mark.parametrize('smooth_hw', (None, 0, 5))
     @pytest.mark.parametrize('fit_parabola', (True, False))
-    def test_unchanged_data(self, use_class, cost_function, smooth_hw, fit_parabola):
+    def test_unchanged_data(self, new_instance, cost_function, smooth_hw, fit_parabola):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(
-            use_class, cost_function=cost_function,
+            new_instance, cost_function=cost_function,
             smooth_half_window=smooth_hw, fit_parabola=fit_parabola
         )
 

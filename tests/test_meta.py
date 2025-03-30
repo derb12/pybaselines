@@ -7,6 +7,7 @@ Created on March 22, 2021
 """
 
 from contextlib import contextmanager
+from functools import wraps
 import warnings
 
 import numpy as np
@@ -15,118 +16,109 @@ import pytest
 
 from .base_tests import (
     BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, dummy_wrapper, get_data,
-    get_data2d
+    get_data2d, ensure_deprecation
 )
+
+
+@ensure_deprecation(2, 0)
+def deprecation_wrapper(func):
+    """A dummy wrapper to simulate using the _Algorithm._class_wrapper wrapper function."""
+    method = func.__name__
+
+    @wraps(func)
+    def inner(*args, **kwargs):
+        warnings.warn('Dummy deprecation warning', DeprecationWarning, stacklevel=1)
+        fitter = DummyAlgorithm(
+            x_data=kwargs.pop('x_data', None), z_data=kwargs.pop('z_data', None)
+        )
+        return getattr(fitter, method)(*args, **kwargs)
+    return inner
 
 
 class DummyModule:
     """A dummy object to serve as a fake module."""
 
     @staticmethod
+    @deprecation_wrapper
     def good_func(data=None, x_data=None, **kwargs):
         """Dummy function."""
-        return np.asarray(data), {'a': 1}
 
     @staticmethod
+    @deprecation_wrapper
     def good_func2(data=None, x_data=None, **kwargs):
         """Dummy function."""
-        return np.asarray(data), {}
 
     @staticmethod
+    @deprecation_wrapper
     def good_poly_func(data, x_data=None, return_coef=False, **kwargs):
         """A good polynomial algorithm."""
-        if x_data is None:
-            x = np.linspace(-1, 1, len(data))
-            original_domain = np.array([-1, 1])
-        else:
-            original_domain = np.polynomial.polyutils.getdomain(x_data)
-            x = np.polynomial.polyutils.mapdomain(
-                x_data, original_domain, np.array([-1., 1.])
-            )
-
-        polynomial = np.polynomial.Polynomial.fit(data, x, 1)
-        baseline = polynomial(x)
-        params = {'a': 1}
-        if return_coef:
-            params['coef'] = polynomial.convert(window=original_domain).coef
-
-        return baseline, params
 
     @staticmethod
+    @deprecation_wrapper
     def bad_poly_func(data, x_data=None, return_coef=False, **kwargs):
         """A bad polynomial algorithm."""
-        params = {'a': 1}
-        if not return_coef:
-            params['coef'] = np.zeros(5)
-
-        return np.ones_like(data), params
 
     @staticmethod
+    @deprecation_wrapper
     def good_weights_func(data, x_data=None, weights=None, **kwargs):
         """A good algorithm that can take weights."""
-        return np.ones_like(data), {'a': 1, 'weights': np.ones_like(data)}
 
     @staticmethod
     def good_mask_func(data, x_data=None, weights=None, **kwargs):
         """A good algorithm that can take weights and outputs them as the 'mask' key."""
-        return np.ones_like(data), {'a': 1, 'mask': np.ones_like(data)}
 
     @staticmethod
+    @deprecation_wrapper
     def bad_weights_func(data, x_data=None, weights=None, **kwargs):
         """An algorithm that incorrectly uses weights."""
-        return np.ones_like(data), {'a': 1, 'weights': np.arange(len(data))}
 
     @staticmethod
+    @deprecation_wrapper
     def bad_weights_func_no_weights(data, x_data=None, weights=None, **kwargs):
         """An algorithm that does not include weights in the output parameters."""
-        return np.ones_like(data), {'a': 1}
 
     @staticmethod
+    @deprecation_wrapper
     def change_y(data, x_data=None):
         """Changes the input data values, which is unwanted."""
-        data[0] = 200000
-        return data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def change_x(data, x_data=None):
         """Changes the input x-data values, which is unwanted."""
-        x_data[0] = 200000
-        return data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def different_output(data, x_data=None):
         """Has different behavior based on the input data type, which is unwanted."""
-        if isinstance(data, np.ndarray):
-            return data
-        else:
-            return np.asarray(data) * 20
 
     @staticmethod
+    @deprecation_wrapper
     def single_output(data, x_data=None):
         """Does not include the parameter dictionary output, which is unwanted."""
-        return data
 
     @staticmethod
+    @deprecation_wrapper
     def output_list(data, x_data=None):
         """Returns a list rather than a numpy array, which is unwanted."""
-        return [0, 1, 2, 3], {}
 
     @staticmethod
+    @deprecation_wrapper
     def output_nondict(data, x_data=None):
         """The second output is not a dictionary, which is unwanted."""
-        return data, []
 
     @staticmethod
+    @deprecation_wrapper
     def output_wrong_shape(data, x_data=None):
         """The returned array has a different shape than the input data, which is unwanted."""
-        return data[:-1], {}
 
     @staticmethod
+    @deprecation_wrapper
     def no_wrapper(data, x_data=None):
         """A function without the correct wrapper."""
-        return data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def repitition_changes(data, x_data=None):
         """
         Changes the output with repeated calls.
@@ -134,66 +126,57 @@ class DummyModule:
         Not actually used, only the class interface is used.
 
         """
-        return data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def no_func(data=None, x_data=None, *args, **kwargs):
         """Dummy function."""
         raise NotImplementedError('need to set func')
 
     @staticmethod
+    @deprecation_wrapper
     def no_x(data=None, *args, **kwargs):
         """A module function without an x_data input."""
-        return data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def different_kwargs(data=None, x_data=None, a=10, b=12):
         """A module function with different parameter names than the class function."""
-        return data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def different_defaults(data=None, x_data=None, a=10, b=12):
         """A module function with different parameter defaults than the class function."""
-        return data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def different_function_output(data=None, x_data=None, a=10, b=12):
         """A module function with different output than the class function."""
-        return 10 * data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def different_output_params(data=None, x_data=None, a=10, b=12):
         """A module function with different output params than the class function."""
-        return data, {'b': 10}
 
     @staticmethod
+    @deprecation_wrapper
     def different_x_output(data=None, x_data=None):
         """Gives different output depending on the x-values."""
-        if x_data is None:
-            return data, {}
-        else:
-            return 10 * data, {}
 
     @staticmethod
+    @deprecation_wrapper
     def different_x_ordering(data=None, x_data=None):
         """Gives different output depending on the x-value sorting."""
-        return data[np.argsort(x_data)], {}
 
     @staticmethod
+    @deprecation_wrapper
     def interp_x(data=None, x_data=None, z_data=None):
         """Will divide by zero if x-values are not unique."""
-        diff_x = np.pad(np.diff(x_data), [1, 0], mode='constant', constant_values=1)
-        if z_data is not None:
-            diff_x, _ = np.meshgrid(diff_x, z_data, indexing='ij')
-
-        return data / diff_x, {}
 
     @staticmethod
+    @deprecation_wrapper
     def non_unique_x_raises(data=None, x_data=None):
         """Will raise an exception if x-values are not unique."""
-        if np.any(x_data[1:] <= x_data[:-1]):
-            raise ValueError('x is non-sorted or non-unique')
-        return 1 * data, {}
 
 
 class DummyAlgorithm:
@@ -207,54 +190,61 @@ class DummyAlgorithm:
     @dummy_wrapper
     def good_func(self, data=None, **kwargs):
         """Dummy function."""
-        return DummyModule.good_func(data=data, **kwargs)
+        return np.asarray(data), {'a': 1}
 
     @dummy_wrapper
     def good_func2(self, data=None, **kwargs):
         """Dummy function."""
-        return DummyModule.good_func2(data=data, **kwargs)
+        return np.asarray(data), {}
 
     @dummy_wrapper
     def good_poly_func(self, data, return_coef=False, **kwargs):
         """A good polynomial algorithm."""
-        return DummyModule.good_poly_func(
-            data=data, x_data=self.x, return_coef=return_coef, **kwargs
-        )
+        if self.x is None:
+            x = np.linspace(-1, 1, len(data))
+            original_domain = np.array([-1, 1])
+        else:
+            original_domain = np.polynomial.polyutils.getdomain(self.x)
+            x = np.polynomial.polyutils.mapdomain(
+                self.x, original_domain, np.array([-1., 1.])
+            )
+
+        polynomial = np.polynomial.Polynomial.fit(data, x, 1)
+        baseline = polynomial(x)
+        params = {'a': 1}
+        if return_coef:
+            params['coef'] = polynomial.convert(window=original_domain).coef
+
+        return baseline, params
 
     @dummy_wrapper
     def bad_poly_func(self, data, return_coef=False, **kwargs):
         """A bad polynomial algorithm."""
-        return DummyModule.bad_poly_func(
-            data=data, x_data=self.x, return_coef=return_coef, **kwargs
-        )
+        params = {'a': 1}
+        if not return_coef:
+            params['coef'] = np.zeros(5)
+
+        return np.ones_like(data), params
 
     @dummy_wrapper
     def good_weights_func(self, data, weights=None, **kwargs):
         """A good algorithm that can take weights."""
-        return DummyModule.good_weights_func(
-            data=data, x_data=self.x, weights=weights, **kwargs
-        )
+        return np.ones_like(data), {'a': 1, 'weights': np.ones_like(data)}
 
     @dummy_wrapper
     def good_mask_func(self, data, weights=None, **kwargs):
         """A good algorithm that can take weights and outputs them as the 'mask' key."""
-        return DummyModule.good_mask_func(
-            data=data, x_data=self.x, weights=weights, **kwargs
-        )
+        return np.ones_like(data), {'a': 1, 'mask': np.ones_like(data)}
 
     @dummy_wrapper
     def bad_weights_func(self, data, weights=None, **kwargs):
         """An algorithm that incorrectly uses weights."""
-        return DummyModule.bad_weights_func(
-            data=data, x_data=self.x, weights=weights, **kwargs
-        )
+        return np.ones_like(data), {'a': 1, 'weights': np.arange(len(data))}
 
     @dummy_wrapper
     def bad_weights_func_no_weights(self, data, weights=None, **kwargs):
         """An algorithm that does not include weights in the output parameters."""
-        return DummyModule.bad_weights_func_no_weights(
-            data=data, x_data=self.x, weights=weights, **kwargs
-        )
+        return np.ones_like(data), {'a': 1}
 
     @dummy_wrapper
     def change_y(self, data):
@@ -381,15 +371,18 @@ class DummyAlgorithm:
     @dummy_wrapper
     def interp_x(self, data=None):
         """Will divide by zero if x-values are not unique."""
-        if hasattr(self, 'z'):
-            return DummyModule.interp_x(data=data, x_data=self.x, z_data=self.z)
-        else:
-            return DummyModule.interp_x(data=data, x_data=self.x)
+        diff_x = np.pad(np.diff(self.x), [1, 0], mode='constant', constant_values=1)
+        if self.z is not None:
+            diff_x, _ = np.meshgrid(diff_x, self.z, indexing='ij')
+
+        return data / diff_x, {}
 
     @dummy_wrapper
     def non_unique_x_raises(self, data=None):
         """Will raise an exception if x-values are not unique."""
-        return DummyModule.non_unique_x_raises(data=data, x_data=self.x)
+        if np.any(self.x[1:] <= self.x[:-1]):
+            raise ValueError('x is non-sorted or non-unique')
+        return 1 * data, {}
 
 
 class TestBaseTesterWorks(BaseTester):
@@ -494,13 +487,13 @@ class TestBaseTesterFailures(BaseTester):
             with pytest.raises(AssertionError):
                 super().test_ensure_wrapped()
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('func', ('change_x', 'change_y'))
-    def test_unchanged_data(self, use_class, func):
+    def test_unchanged_data(self, new_instance, func):
         """Ensures changing the x and y data fails."""
         with self.set_func(func):
             with pytest.raises(AssertionError):
-                super().test_unchanged_data(use_class)
+                super().test_unchanged_data(new_instance)
 
     def test_repeated_fits(self):
         """Ensures no wrapper fails."""
@@ -621,15 +614,20 @@ class TestBaseTesterFailures(BaseTester):
         with self.set_func('non_unique_x_raises', attributes={'requires_unique_x': True}):
             super().test_non_unique_x()
 
+    def test_deprecated_func(self):
+        """Ensures using the functional interface emits a warning."""
+        with pytest.raises(NotImplementedError):
+            super().test_deprecated_func()
+
 
 class TestBaseTesterNoFunc(BaseTester):
     """Ensures the BaseTester fails if not setup correctly."""
 
-    @pytest.mark.parametrize('use_class', (True, False))
-    def test_unchanged_data(self, use_class):
+    @pytest.mark.parametrize('new_instance', (True, False))
+    def test_unchanged_data(self, new_instance):
         """Ensures that input data is unchanged by the function."""
         with pytest.raises(NotImplementedError):
-            super().test_unchanged_data(use_class)
+            super().test_unchanged_data(new_instance)
 
     def test_repeated_fits(self):
         """Ensures the setup is properly reset when using class api."""
@@ -678,6 +676,11 @@ class TestBaseTesterNoFunc(BaseTester):
         """Ensures handling of unique x values."""
         with pytest.raises(NotImplementedError):
             super().test_non_unique_x()
+
+    def test_deprecated_func(self):
+        """Ensures using the functional interface emits a warning."""
+        with pytest.raises(NotImplementedError):
+            super().test_deprecated_func()
 
 
 class TestBasePolyTesterWorks(BasePolyTester):

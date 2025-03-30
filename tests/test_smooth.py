@@ -47,11 +47,11 @@ class TestNoiseMedian(SmoothTester):
     func_name = 'noise_median'
     required_kwargs = {'half_window': 15}
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('smooth_hw', (None, 0, 2))
-    def test_unchanged_data(self, use_class, smooth_hw):
+    def test_unchanged_data(self, new_instance, smooth_hw):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(use_class, smooth_half_window=smooth_hw)
+        super().test_unchanged_data(new_instance, smooth_half_window=smooth_hw)
 
     @pytest.mark.parametrize('half_window', (None, 15))
     def test_half_windows(self, half_window):
@@ -65,13 +65,13 @@ class TestSNIP(SmoothTester):
     func_name = 'snip'
     required_kwargs = {'max_half_window': 15}
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('smooth_hw', (-1, 0, 2))
     @pytest.mark.parametrize('decreasing', (True, False))
-    def test_unchanged_data(self, use_class, smooth_hw, decreasing):
+    def test_unchanged_data(self, new_instance, smooth_hw, decreasing):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(
-            use_class, smooth_half_window=smooth_hw, decreasing=decreasing
+            new_instance, smooth_half_window=smooth_hw, decreasing=decreasing
         )
 
     @pytest.mark.parametrize('max_half_window', (15, [15], [12, 20], (12, 15)))
@@ -120,11 +120,11 @@ class TestIpsa(SmoothTester):
     func_name = 'ipsa'
     checked_keys = ('tol_history',)
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('original_criteria', (True, False))
-    def test_unchanged_data(self, use_class, original_criteria):
+    def test_unchanged_data(self, new_instance, original_criteria):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(use_class, original_criteria=original_criteria)
+        super().test_unchanged_data(new_instance, original_criteria=original_criteria)
 
 
 class TestRIA(SmoothTester):
@@ -133,11 +133,11 @@ class TestRIA(SmoothTester):
     func_name = 'ria'
     checked_keys = ('tol_history',)
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
-    def test_unchanged_data(self, use_class, side):
+    def test_unchanged_data(self, new_instance, side):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(use_class, side=side)
+        super().test_unchanged_data(new_instance, side=side)
 
     def test_unknown_side_fails(self):
         """Ensures function fails when the input side is not 'left', 'right', or 'both'."""

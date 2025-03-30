@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import _spline_utils, morphological, spline, Baseline
+from pybaselines import _spline_utils, Baseline, spline
 
 from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
 
@@ -83,15 +83,15 @@ class TestMixtureModel(IterativeSplineTester):
 
     func_name = 'mixture_model'
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('weight_bool', (True, False))
-    def test_unchanged_data(self, use_class, weight_bool):
+    def test_unchanged_data(self, new_instance, weight_bool):
         """Ensures that input data is unchanged by the function."""
         if weight_bool:
             weights = np.ones_like(self.y)
         else:
             weights = None
-        super().test_unchanged_data(use_class, weights=weights)
+        super().test_unchanged_data(new_instance, weights=weights)
 
     @pytest.mark.parametrize('symmetric', (False, True))
     def test_output(self, symmetric):
@@ -195,15 +195,15 @@ class TestPsplineIAsLS(IterativeSplineTester, WhittakerComparisonMixin):
 
     func_name = 'pspline_iasls'
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('weight_bool', (True, False))
-    def test_unchanged_data(self, use_class, weight_bool):
+    def test_unchanged_data(self, new_instance, weight_bool):
         """Ensures that input data is unchanged by the function."""
         if weight_bool:
             weights = np.ones_like(self.y)
         else:
             weights = None
-        super().test_unchanged_data(use_class, weights=weights)
+        super().test_unchanged_data(new_instance, weights=weights)
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -574,7 +574,9 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin)
         only on the half window.
         """
         _, params = self.class_func(self.y, half_window=half_window)
-        _, mpls_params = morphological.mpls(self.y, half_window=half_window)
+        _, mpls_params = Baseline(self.x, check_finite=False, assume_sorted=True).mpls(
+            self.y, half_window=half_window
+        )
 
         assert_allclose(params['weights'], mpls_params['weights'], rtol=1e-9)
 

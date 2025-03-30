@@ -118,13 +118,13 @@ class TestRollingBall(MorphologicalTester):
 
     func_name = 'rolling_ball'
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('half_window', (None, 10))
     @pytest.mark.parametrize('smooth_half_window', (None, 0, 1))
-    def test_unchanged_data(self, use_class, half_window, smooth_half_window):
+    def test_unchanged_data(self, new_instance, half_window, smooth_half_window):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(
-            use_class, half_window=half_window, smooth_half_window=smooth_half_window
+            new_instance, half_window=half_window, smooth_half_window=smooth_half_window
         )
 
     @pytest.mark.parametrize('smooth_half_window', (None, 0, 10))
@@ -184,11 +184,11 @@ class TestJBCD(MorphologicalTester):
     func_name = 'jbcd'
     checked_keys = ('half_window', 'tol_history', 'signal')
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('robust_opening', (False, True))
-    def test_unchanged_data(self, use_class, robust_opening):
+    def test_unchanged_data(self, new_instance, robust_opening):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(use_class, robust_opening=robust_opening)
+        super().test_unchanged_data(new_instance, robust_opening=robust_opening)
 
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_diff_orders(self, diff_order):

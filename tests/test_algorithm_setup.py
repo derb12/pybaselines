@@ -886,6 +886,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
         out = new_algorithm.func4(y)
 
 
+@ensure_deprecation(2, 0)
 def test_class_wrapper():
     """Ensures the class wrapper function correctly processes inputs for _Algorithm classes."""
     default_b = 2
@@ -907,7 +908,8 @@ def test_class_wrapper():
 
     assert func(0) == (0, default_b, default_c, None)
     assert func(0) == Dummy().func(0)
-    assert func(0) == func2(0)
+    with pytest.warns(DeprecationWarning):
+        assert func(0) == func2(0)
 
     a = 5
     b = 9
@@ -916,9 +918,11 @@ def test_class_wrapper():
 
     assert func(a, b, c, x) == (a, b, c, x)
     assert func(a, b, c, x) == Dummy(x).func(a, b, c)
-    assert func(a, b, c, x) == func2(a, b, c, x)
+    with pytest.warns(DeprecationWarning):
+        assert func(a, b, c, x) == func2(a, b, c, x)
 
 
+@ensure_deprecation(2, 0)
 def test_class_wrapper_kwargs():
     """Ensures the class wrapper function correctly processes kwargs for _Algorithm classes."""
     default_b = 2
@@ -942,7 +946,8 @@ def test_class_wrapper_kwargs():
 
     assert func(0, d=d) == (0, default_b, default_c, None, {'d': d})
     assert func(0, d=d) == Dummy().func(0, d=d)
-    assert func(0, d=d) == func2(0, d=d)
+    with pytest.warns(DeprecationWarning):
+        assert func(0, d=d) == func2(0, d=d)
 
     a = 5
     b = 9
@@ -951,7 +956,8 @@ def test_class_wrapper_kwargs():
 
     assert func(a, b, c, x, d=d) == (a, b, c, x, {'d': d})
     assert func(a, b, c, x, d=d) == Dummy(x).func(a, b, c, d=d)
-    assert func(a, b, c, x, d=d) == func2(a, b, c, x, d=d)
+    with pytest.warns(DeprecationWarning):
+        assert func(a, b, c, x, d=d) == func2(a, b, c, x, d=d)
 
 
 def test_override_x(algorithm):

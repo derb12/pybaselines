@@ -910,6 +910,12 @@ def _class_wrapper(klass):
         def inner(*args, **kwargs):
             total_inputs = func_signature.bind(*args, **kwargs)
             x = total_inputs.arguments.pop('x_data', None)
+            msg = 'Baseline()' if x is None else 'Baseline(x_data)'
+            warnings.warn(
+                ('Accessing functions from individual modules is deprecated and will be removed '
+                 f'in pybaselines version 2.0. Use "{msg}.{method}" instead'),
+                 DeprecationWarning, stacklevel=2
+            )
             return getattr(klass(x_data=x), method)(*total_inputs.args, **total_inputs.kwargs)
         return inner
 

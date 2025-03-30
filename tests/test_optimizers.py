@@ -153,11 +153,11 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     checked_method_keys = ('weights', 'tol_history')
     required_kwargs = {'pad_kwargs': {'extrapolate_window': 100}}
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
-    def test_unchanged_data(self, use_class, side):
+    def test_unchanged_data(self, new_instance, side):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(use_class, side=side)
+        super().test_unchanged_data(new_instance, side=side)
 
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
     def test_input_weights(self, side):

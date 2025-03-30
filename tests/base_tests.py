@@ -9,6 +9,7 @@ Created on March 30, 2025
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial, wraps
 import inspect
+import warnings
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
@@ -342,6 +343,7 @@ class DummyModule:
     @staticmethod
     def func(*args, data=None, x_data=None, **kwargs):
         """Dummy function."""
+        warnings.warn('Dummy warning', DeprecationWarning, stacklevel=1)
         raise NotImplementedError('need to set func')
 
 
@@ -446,26 +448,31 @@ class BaseTester:
         """Ensures the class method was wrapped using _Algorithm._register to control inputs."""
         assert hasattr(self.class_func, '__wrapped__')
 
-    @pytest.mark.parametrize('use_class', (True, False))
-    def test_unchanged_data(self, use_class, **kwargs):
+    @pytest.mark.parametrize('new_instance', (True, False))
+    def test_unchanged_data(self, new_instance, **kwargs):
         """Ensures that input data is unchanged by the function."""
         x, y = get_data(two_d=self.two_d)
         x2, y2 = get_data(two_d=self.two_d)
-        x.setflags(write=False)
         y.setflags(write=False)
-
         try:
-            if use_class:
+            if new_instance:
+                x.setflags(write=False)
                 getattr(self.algorithm_base(x_data=x), self.func_name)(
                     data=y, **self.kwargs, **kwargs
                 )
+                compared_x = x
             else:
-                self.func(data=y, x_data=x, **self.kwargs, **kwargs)
+                self.x.setflags(write=False)
+                self.class_func(data=y, **self.kwargs, **kwargs)
+                compared_x = self.x
         except ValueError as e:  # from trying to assign value to read-only array
             raise AssertionError('method modified the input x- or y-data.') from e
+        finally:
+            if not new_instance:
+                self.x.setflags(write=True)
 
         assert_array_equal(y2, y, err_msg='the y-data was changed by the algorithm')
-        assert_array_equal(x2, x, err_msg='the x-data was changed by the algorithm')
+        assert_array_equal(x2, compared_x, err_msg='the x-data was changed by the algorithm')
 
     def test_repeated_fits(self):
         """Ensures the setup is properly reset when using class api."""
@@ -688,6 +695,12 @@ class BaseTester:
                 output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
             assert np.isfinite(output).all()
 
+    @ensure_deprecation(2, 0)
+    def test_deprecated_func(self):
+        """Ensures using the functional interface emits a warning."""
+        with pytest.warns(DeprecationWarning):
+            self.func(self.y, **self.kwargs)
+
 
 class BasePolyTester(BaseTester):
     """
@@ -723,9 +736,14 @@ class InputWeightsMixin:
     weight_keys = ('weights',)
 
     def test_input_weights(self, assertion_kwargs=None, **kwargs):
-        """Ensures input weights are correctly sorted within the function."""
+        """
+        Ensures input weights are correctly sorted within the method.
+
+        Also tests that input weights are not modified within the method.
+        """
         weights = np.random.default_rng(0).normal(0.8, 0.05, self.y.size)
         weights = np.clip(weights, 0, 1).astype(float, copy=False)
+        weights.setflags(write=False)
 
         if hasattr(self, 'two_d'):  # BaseTester
             reverse_fitter = self.algorithm_base(self.x[::-1], assume_sorted=False)

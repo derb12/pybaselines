@@ -80,15 +80,15 @@ class TestMixtureModel(IterativeSplineTester):
 
     func_name = 'mixture_model'
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('weight_bool', (True, False))
-    def test_unchanged_data(self, use_class, weight_bool):
+    def test_unchanged_data(self, new_instance, weight_bool):
         """Ensures that input data is unchanged by the function."""
         if weight_bool:
             weights = np.ones_like(self.y)
         else:
             weights = None
-        super().test_unchanged_data(use_class, weights=weights)
+        super().test_unchanged_data(new_instance, weights=weights)
 
     @pytest.mark.parametrize('symmetric', (False, True))
     def test_output(self, symmetric):

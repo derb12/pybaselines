@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import polynomial
+from pybaselines import Baseline, polynomial
 from pybaselines.utils import ParameterWarning
 
 from .base_tests import BasePolyTester, InputWeightsMixin
@@ -58,13 +58,13 @@ class TestModPoly(IterativePolynomialTester):
 
     func_name = 'modpoly'
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('use_original', (True, False))
     @pytest.mark.parametrize('mask_initial_peaks', (True, False))
-    def test_unchanged_data(self, use_class, use_original, mask_initial_peaks):
+    def test_unchanged_data(self, new_instance, use_original, mask_initial_peaks):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(
-            use_class, use_original=use_original, mask_initial_peaks=mask_initial_peaks
+            new_instance, use_original=use_original, mask_initial_peaks=mask_initial_peaks
         )
 
 
@@ -73,13 +73,13 @@ class TestIModPoly(IterativePolynomialTester):
 
     func_name = 'imodpoly'
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('use_original', (True, False))
     @pytest.mark.parametrize('mask_initial_peaks', (True, False))
-    def test_unchanged_data(self, use_class, use_original, mask_initial_peaks):
+    def test_unchanged_data(self, new_instance, use_original, mask_initial_peaks):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(
-            use_class, use_original=use_original, mask_initial_peaks=mask_initial_peaks
+            new_instance, use_original=use_original, mask_initial_peaks=mask_initial_peaks
         )
 
     @pytest.mark.parametrize('num_std', (-1, -0.01, 0, 1))
@@ -97,7 +97,7 @@ class TestPenalizedPoly(IterativePolynomialTester):
 
     func_name = 'penalized_poly'
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize(
         'cost_function',
         (
@@ -111,9 +111,9 @@ class TestPenalizedPoly(IterativePolynomialTester):
             'symmetric_indec'
         )
     )
-    def test_unchanged_data(self, use_class, cost_function):
+    def test_unchanged_data(self, new_instance, cost_function):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(use_class, cost_function=cost_function)
+        super().test_unchanged_data(new_instance, cost_function=cost_function)
 
     @pytest.mark.parametrize('cost_function', ('huber', 'p_huber', ''))
     def test_unknown_cost_function_prefix_fails(self, cost_function):
@@ -172,7 +172,8 @@ class TestPenalizedPoly(IterativePolynomialTester):
         poly_order = 2
         tol = 1e-3
 
-        poly_baseline = polynomial.poly(self.y, self.x, poly_order, weights=weights)[0]
+        fitter = Baseline(self.x, check_finite=False, assume_sorted=True)
+        poly_baseline = fitter.poly(self.y, poly_order, weights=weights)[0]
         penalized_poly_1 = self.class_func(
             self.y, poly_order, cost_function='s_huber',
             threshold=1e10, weights=weights
@@ -180,8 +181,8 @@ class TestPenalizedPoly(IterativePolynomialTester):
 
         assert_allclose(poly_baseline, penalized_poly_1, 1e-10)
 
-        modpoly_baseline = polynomial.modpoly(
-            self.y, self.x, poly_order, tol=tol, weights=weights, use_original=True
+        modpoly_baseline = fitter.modpoly(
+            self.y, poly_order, tol=tol, weights=weights, use_original=True
         )[0]
         penalized_poly_2 = self.class_func(
             self.y, poly_order, cost_function='a_truncated_quadratic',
@@ -204,14 +205,14 @@ class TestLoess(IterativePolynomialTester):
     allows_zero_iteration = False
     requires_unique_x = True
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('delta', (0, 0.01))
     @pytest.mark.parametrize('conserve_memory', (True, False))
     @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_unchanged_data(self, use_class, use_threshold, conserve_memory, delta):
+    def test_unchanged_data(self, new_instance, use_threshold, conserve_memory, delta):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(
-            use_class, use_threshold=use_threshold,
+            new_instance, use_threshold=use_threshold,
             conserve_memory=conserve_memory, delta=delta
         )
 
@@ -443,7 +444,7 @@ class TestGoldindec(PolynomialTester):
     func_name = 'goldindec'
     checked_keys = ('weights', 'tol_history', 'threshold')
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize(
         'cost_function',
         (
@@ -456,9 +457,9 @@ class TestGoldindec(PolynomialTester):
             'truncated_quadratic'
         )
     )
-    def test_unchanged_data(self, use_class, cost_function):
+    def test_unchanged_data(self, new_instance, cost_function):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(use_class, cost_function=cost_function)
+        super().test_unchanged_data(new_instance, cost_function=cost_function)
 
     @pytest.mark.parametrize('cost_function', ('p_huber', ''))
     def test_unknown_cost_function_prefix_fails(self, cost_function):
@@ -518,8 +519,9 @@ class TestGoldindec(PolynomialTester):
         if uniform_weights:
             reference_baseline = self.class_func(self.y, poly_order=poly_order)[0]
         else:
-            reference_baseline = polynomial.penalized_poly(
-                self.y, self.x, poly_order=poly_order, weights=weights,
+            fitter = Baseline(self.x, check_finite=False, assume_sorted=True)
+            reference_baseline = fitter.penalized_poly(
+                self.y, poly_order=poly_order, weights=weights,
                 threshold=params['threshold'], cost_function='a_indec'
             )[0]
 

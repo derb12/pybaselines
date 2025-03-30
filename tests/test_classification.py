@@ -529,13 +529,13 @@ class TestRubberband(ClassificationTester):
         )
         assert_allclose(output, spline, rtol=1e-10)
 
-    @pytest.mark.parametrize('use_class', (True, False))
+    @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('lam', (0, 1))
     @pytest.mark.parametrize('smooth_half_window', (None, 0, 1))
-    def test_unchanged_data(self, use_class, lam, smooth_half_window):
+    def test_unchanged_data(self, new_instance, lam, smooth_half_window):
         """Ensures that input data is unchanged by the function."""
         super().test_unchanged_data(
-            use_class, lam=lam, smooth_half_window=smooth_half_window
+            new_instance, lam=lam, smooth_half_window=smooth_half_window
         )
 
     def test_indexing(self):
