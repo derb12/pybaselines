@@ -1153,3 +1153,35 @@ class BasePolyTester2D(BaseTester2D):
 
         numpy_poly = np.polynomial.polynomial.polyval2d(X, Z, params['coef'])
         assert_allclose(numpy_poly, baseline, rtol=1e-10, atol=1e-12)
+
+
+class RecreationMixin:
+    """A mixin for BaseTester and BaseTester2D for recreating output from input weights."""
+
+    def test_recreation(self):
+        """
+        Ensures inputting weights can recreate the same baseline.
+
+        Optimizers such as `collab_pls` require this functionality, so ensure
+        it works.
+
+        Note that if `max_iter` is set such that the function does not converge,
+        then this will fail; that behavior is fine since exiting before convergence
+        should not be a typical usage.
+        """
+        first_baseline, params = self.class_func(self.y, **self.kwargs)
+
+        kwargs = {'weights': params['weights'], **self.kwargs}
+        kwargs['tol'] = np.inf
+        if self.func_name in ('aspls', 'pspline_aspls'):
+            kwargs['alpha'] = params['alpha']
+        elif self.func_name in ('brpls', 'pspline_brpls'):
+            kwargs['tol_2'] = np.inf
+        second_baseline, params_2 = self.class_func(self.y, **kwargs)
+
+        if self.func_name in ('brpls', 'pspline_brpls'):
+            assert params_2['tol_history'].shape == (2, 1)
+            assert params_2['tol_history'].size == 2
+        else:
+            assert len(params_2['tol_history']) == 1
+        assert_allclose(second_baseline, first_baseline, rtol=1e-12, atol=1e-12)
