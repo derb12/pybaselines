@@ -336,13 +336,6 @@ def _aspls(y, baseline, asymmetric_coef):
         Designates if there is a potential error with the calculation such that no further
         iterations should be performed.
 
-    Notes
-    -----
-    The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
-    of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
-    matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
-    factor of 2 and fits noisy data much better.
-
     References
     ----------
     Zhang, F., et al. Baseline correction for infrared spectra using adaptive smoothness

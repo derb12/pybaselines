@@ -919,7 +919,7 @@ class _Spline(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights', 'alpha'))
     def pspline_aspls(self, data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
-                      max_iter=100, tol=1e-3, weights=None, alpha=None, asymmetric_coef=0.5):
+                      max_iter=100, tol=1e-3, weights=None, alpha=None, asymmetric_coef=2.):
         """
         A penalized spline version of the asPLS algorithm.
 
@@ -951,7 +951,7 @@ class _Spline(_Algorithm):
             will be an array with size equal to N and all values set to 1.
         asymmetric_coef : float
             The asymmetric coefficient for the weighting. Higher values leads to a steeper
-            weighting curve (ie. more step-like). Default is 0.5.
+            weighting curve (ie. more step-like). Default is 2.
 
         Returns
         -------
@@ -979,13 +979,6 @@ class _Spline(_Algorithm):
         See Also
         --------
         Baseline.aspls
-
-        Notes
-        -----
-        The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
-        of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
-        matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
-        factor of 2 and fits noisy data much better.
 
         References
         ----------
@@ -2332,7 +2325,7 @@ def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 @_spline_wrapper
 def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
                   max_iter=100, tol=1e-3, weights=None, alpha=None, x_data=None,
-                  asymmetric_coef=0.5):
+                  asymmetric_coef=2.):
     """
     A penalized spline version of the asPLS algorithm.
 
@@ -2367,7 +2360,7 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
         array from -1 to 1 with N points.
     asymmetric_coef : float
         The asymmetric coefficient for the weighting. Higher values leads to a steeper
-        weighting curve (ie. more step-like). Default is 0.5.
+        weighting curve (ie. more step-like). Default is 2.
 
     Returns
     -------
@@ -2395,13 +2388,6 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
     See Also
     --------
     pybaselines.whittaker.aspls
-
-    Notes
-    -----
-    The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
-    of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
-    matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
-    factor of 2 and fits noisy data much better.
 
     References
     ----------

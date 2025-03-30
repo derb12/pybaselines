@@ -457,7 +457,7 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
         get the alpha values at the coefficients' x-values.
         """
         if diff_order == 2:
-            rtol = 2e-3
+            rtol = 5e-3
         else:
             rtol = 5e-2
         super().test_whittaker_comparison(lam=lam, diff_order=diff_order, test_rtol=rtol)
