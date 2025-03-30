@@ -14,7 +14,7 @@ import scipy
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning, gaussian, whittaker_smooth
 
-from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation
+from .base_tests import BaseTester, InputWeightsMixin, ensure_deprecation
 from .data import PYWAVELETS_HAAR
 
 

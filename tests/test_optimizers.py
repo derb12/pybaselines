@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines import Baseline, optimizers, polynomial, utils
 
-from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation
+from .base_tests import BaseTester, InputWeightsMixin, ensure_deprecation
 
 
 class OptimizerInputWeightsMixin(InputWeightsMixin):

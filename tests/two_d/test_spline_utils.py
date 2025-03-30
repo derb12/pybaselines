@@ -17,7 +17,7 @@ from pybaselines._compat import identity
 from pybaselines.two_d import _spline_utils
 from pybaselines.utils import difference_matrix
 
-from ..conftest import get_2dspline_inputs
+from ..base_tests import get_2dspline_inputs
 
 
 @pytest.mark.parametrize('num_knots', (10, 40, (10, 20)))

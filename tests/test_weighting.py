@@ -8,7 +8,7 @@ from scipy.special import erf
 
 from pybaselines import _weighting, utils, Baseline2D
 
-from .conftest import get_data, get_data2d
+from .base_tests import get_data, get_data2d
 
 
 def baseline_1d_normal():

@@ -18,7 +18,7 @@ from pybaselines._compat import dia_object, identity
 from pybaselines.two_d import _spline_utils, _whittaker_utils
 from pybaselines.utils import difference_matrix
 
-from ..conftest import get_2dspline_inputs
+from ..base_tests import get_2dspline_inputs
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))

@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines.two_d import polynomial
 
-from ..conftest import BasePolyTester2D, InputWeightsMixin
+from ..base_tests import BasePolyTester2D, InputWeightsMixin
 from ..data import STATSMODELS_QUANTILES_2D
 
 

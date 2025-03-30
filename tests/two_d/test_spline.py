@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines.two_d import Baseline2D, spline
 
-from ..conftest import BaseTester2D, InputWeightsMixin, RecreationMixin
+from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin
 
 
 class WhittakerComparisonMixin:

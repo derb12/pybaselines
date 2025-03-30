@@ -13,7 +13,7 @@ import pytest
 from pybaselines import _banded_utils, whittaker
 from pybaselines._compat import diags
 
-from .conftest import (
+from .base_tests import (
     BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation, has_pentapy
 )
 

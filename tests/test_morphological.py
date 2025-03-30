@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines import _banded_utils, morphological
 
-from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation, has_pentapy
+from .base_tests import BaseTester, InputWeightsMixin, ensure_deprecation, has_pentapy
 
 
 class MorphologicalTester(BaseTester):

@@ -11,7 +11,7 @@ import pytest
 
 from pybaselines.two_d import whittaker
 
-from ..conftest import BaseTester2D, InputWeightsMixin, RecreationMixin
+from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin
 
 
 class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin):

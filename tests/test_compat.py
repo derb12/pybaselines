@@ -16,7 +16,7 @@ from scipy import integrate, sparse
 
 from pybaselines import _compat
 
-from .conftest import _HAS_PENTAPY
+from .base_tests import _HAS_PENTAPY
 
 
 def test_pentapy_installation():

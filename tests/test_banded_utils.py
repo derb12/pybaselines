@@ -14,7 +14,7 @@ from scipy.sparse.linalg import spsolve
 from pybaselines import _banded_utils, _spline_utils
 from pybaselines._compat import dia_object, diags, identity
 
-from .conftest import has_pentapy
+from .base_tests import has_pentapy
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))

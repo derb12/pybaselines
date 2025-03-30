@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines import _spline_utils, morphological, spline, Baseline
 
-from .conftest import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
+from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
 
 
 class WhittakerComparisonMixin:

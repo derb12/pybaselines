@@ -16,7 +16,7 @@ from scipy.sparse import vstack
 from pybaselines import _banded_utils, misc
 from pybaselines._compat import dia_object, diags
 
-from .conftest import BaseTester, get_data
+from .base_tests import BaseTester, get_data
 
 
 class MiscTester(BaseTester):

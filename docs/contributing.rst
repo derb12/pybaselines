@@ -143,7 +143,7 @@ Adding New Algorithms
 If adding a new baseline algorithm to pybaselines:
 
 *   Add tests for the method. pybaselines supplies testing classes within the
-    ``pybaselines/tests/conftest.py`` file that should be subclassed to ensure all basic
+    ``pybaselines/tests/base_tests.py`` file that should be subclassed to ensure all basic
     requirements for a new algorithm are met. Additional tests should also be added as needed.
     See existing tests for examples.
 *   Add a short summary of the algorithm to the appropriate place in the
