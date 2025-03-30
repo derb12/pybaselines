@@ -249,7 +249,7 @@ def test_setup_polynomial_maxcross(small_data2d, algorithm):
     algorithm._setup_polynomial(small_data2d, max_cross=1, calc_vander=True)
     assert algorithm._polynomial.max_cross == 1
 
-    algorithm._setup_polynomial(small_data2d, max_cross=0)
+    algorithm._setup_polynomial(small_data2d, max_cross=0, calc_vander=False)
     # should not update the _polynomial since Vandermonde is not calculated
     assert algorithm._polynomial.max_cross == 1
 

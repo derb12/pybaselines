@@ -444,7 +444,7 @@ class _Algorithm:
 
         return y, weight_array, whittaker_system
 
-    def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
+    def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=True,
                           calc_pinv=False, copy_weights=False):
         """
         Sets the starting parameters for doing polynomial fitting.
@@ -460,7 +460,7 @@ class _Algorithm:
         poly_order : int, optional
             The polynomial order. Default is 2.
         calc_vander : bool, optional
-            If True, will calculate and the Vandermonde matrix. Default is False.
+            If True (default), will calculate and the Vandermonde matrix.
         calc_pinv : bool, optional
             If True, and if `return_vander` is True, will calculate and return the
             pseudo-inverse of the Vandermonde matrix. Default is False.
@@ -496,9 +496,6 @@ class _Algorithm:
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
-        poly_order = _check_scalar_variable(
-            poly_order, allow_zero=True, variable_name='polynomial order', dtype=int
-        )
 
         if calc_vander:
             if self._polynomial is None:
@@ -950,9 +947,6 @@ class _PolyHelper:
             The polynomial order.
 
         """
-        poly_order = _check_scalar_variable(
-            poly_order, allow_zero=True, variable_name='polynomial order', dtype=int
-        )
         self.poly_order = -1
         self.vandermonde = None
         self._pseudo_inverse = None
@@ -976,6 +970,9 @@ class _PolyHelper:
             The polynomial order.
 
         """
+        poly_order = _check_scalar_variable(
+            poly_order, allow_zero=True, variable_name='polynomial order', dtype=int
+        )
         if self.vandermonde is None or poly_order > self.poly_order:
             mapped_x = np.polynomial.polyutils.mapdomain(
                 x, x_domain, np.array([-1., 1.])
