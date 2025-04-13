@@ -13,16 +13,6 @@ from scipy import integrate, sparse
 
 
 try:
-    from pentapy import solve as _pentapy_solve
-    _HAS_PENTAPY = True
-except ImportError:
-    _HAS_PENTAPY = False
-
-    def _pentapy_solve(*args, **kwargs):
-        """Dummy function in case pentapy is not installed."""
-        raise NotImplementedError('must have pentapy installed to use its solver')
-
-try:
     from numba import jit, prange
     _HAS_NUMBA = True
 except ImportError:
