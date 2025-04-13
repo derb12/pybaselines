@@ -6,17 +6,13 @@ Created on March 20, 2021
 
 """
 
-from unittest import mock
-
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import _banded_utils, morphological
+from pybaselines import morphological
 
-from .base_tests import (
-    BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation, has_pentapy
-)
+from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
 
 
 class MorphologicalTester(BaseTester):
@@ -62,15 +58,19 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin):
         lam = {1: 1e4, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(_banded_utils, '_HAS_PENTAPY', False):
-            scipy_output = self.class_func(self.y)[0]
+    @pytest.mark.parametrize('pentadiagonal_solver', (1, 2))
+    def test_pentadiagonal_solver(self, pentadiagonal_solver):
+        """Ensure pentadiagonal solvers give similar result to SciPy's solvers."""
+        self.algorithm.banded_solver = pentadiagonal_solver
+        pentapy_output = self.class_func(self.y, diff_order=2)[0]
 
-        pentapy_output = self.class_func(self.y)[0]
+        self.algorithm.banded_solver = 3  # use solveh_banded
+        solveh_output = self.class_func(self.y, diff_order=2)[0]
+        self.algorithm.banded_solver = 4  # use solve_banded
+        solve_output = self.class_func(self.y, diff_order=2)[0]
 
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
+        assert_allclose(pentapy_output, solveh_output, rtol=5e-5, atol=1e-8)
+        assert_allclose(pentapy_output, solve_output, rtol=5e-5, atol=1e-8)
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -219,15 +219,19 @@ class TestJBCD(MorphologicalTester):
         factor = {2: 1e4, 3: 1e10}[diff_order]
         self.class_func(self.y, beta=factor, gamma=factor, diff_order=diff_order)
 
-    @has_pentapy
-    def test_pentapy_solver(self):
-        """Ensure pentapy solver gives similar result to SciPy's solver."""
-        with mock.patch.object(_banded_utils, '_HAS_PENTAPY', False):
-            scipy_output = self.class_func(self.y, diff_order=2)[0]
-
+    @pytest.mark.parametrize('pentadiagonal_solver', (1, 2))
+    def test_pentadiagonal_solver(self, pentadiagonal_solver):
+        """Ensure pentadiagonal solvers give similar result to SciPy's solvers."""
+        self.algorithm.banded_solver = pentadiagonal_solver
         pentapy_output = self.class_func(self.y, diff_order=2)[0]
 
-        assert_allclose(pentapy_output, scipy_output, 1e-4)
+        self.algorithm.banded_solver = 3  # use solveh_banded
+        solveh_output = self.class_func(self.y, diff_order=2)[0]
+        self.algorithm.banded_solver = 4  # use solve_banded
+        solve_output = self.class_func(self.y, diff_order=2)[0]
+
+        assert_allclose(pentapy_output, solveh_output, rtol=5e-5, atol=1e-8)
+        assert_allclose(pentapy_output, solve_output, rtol=5e-5, atol=1e-8)
 
     def test_zero_gamma_passes(self):
         """Ensures gamma can be 0, which just does baseline correction without denoising."""

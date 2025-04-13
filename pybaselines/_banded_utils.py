@@ -9,7 +9,8 @@ Created on December 8, 2021
 import numpy as np
 from scipy.linalg import solve_banded, solveh_banded
 
-from ._compat import _HAS_PENTAPY, _pentapy_solve, dia_object, diags, identity
+from ._banded_solvers import solve_banded_penta
+from ._compat import _HAS_NUMBA, dia_object, diags, identity
 from ._validation import _check_lam
 
 
@@ -605,6 +606,11 @@ def _pentapy_solver(ab, y, check_output=False, pentapy_solver=2):
         The solution to the linear system.
 
     """
+    try:
+        from pentapy import solve as _pentapy_solve
+    except ImportError as exc:
+        raise NotImplementedError('must have pentapy installed to use its solver') from exc
+
     output = _pentapy_solve(ab, y, is_flat=True, index_row_wise=True, solver=pentapy_solver)
     if check_output and not np.isfinite(output.dot(output)):
         raise np.linalg.LinAlgError('non-finite value encountered in pentapy solver output')
@@ -780,7 +786,7 @@ class PenalizedSystem:
             layers. Negative `padding` is treated as equivalent to 0.
 
         """
-        using_pentapy = allow_pentapy and _HAS_PENTAPY and diff_order == 2
+        using_pentapy = allow_pentapy and _HAS_NUMBA and diff_order == 2
         if allow_lower and not using_pentapy:
             lower_only = True
         else:
@@ -826,11 +832,9 @@ class PenalizedSystem:
         rhs : array-like, shape (N,)
             The right-hand side of the equation.
         overwrite_ab : bool, optional
-            Whether to overwrite `lhs` when using :func:`scipy.linalg.solveh_banded` or
-            :func:`scipy.linalg.solve_banded`. Default is False.
+            Whether to overwrite `lhs` when using any of the solvers. Default is False.
         overwrite_b : bool, optional
-            Whether to overwrite `rhs` when using :func:`scipy.linalg.solveh_banded` or
-            :func:`scipy.linalg.solve_banded`. Default is False.
+            Whether to overwrite `rhs` when using any of the solvers. Default is False.
         check_finite : bool, optional
             Whether to check if the inputs are finite when using
             :func:`scipy.linalg.solveh_banded` or :func:`scipy.linalg.solve_banded`.
@@ -839,9 +843,6 @@ class PenalizedSystem:
             The number of lower and upper bands in `lhs` when using
             :func:`scipy.linalg.solve_banded`. Default is None, which uses
             (``len(lhs) // 2``, ``len(lhs) // 2``).
-        check_output : bool, optional
-            If True, will check the output for non-finite values when using
-            :func:`._pentapy_solver`. Default is False.
 
         Returns
         -------
@@ -850,9 +851,16 @@ class PenalizedSystem:
 
         """
         if self.using_pentapy:
-            output = _pentapy_solver(
-                lhs, rhs, check_output=check_output, pentapy_solver=self.pentapy_solver
-            )
+            if self.pentapy_solver > 0:
+                output = solve_banded_penta(
+                    lhs, rhs, solver=self.pentapy_solver, overwrite_ab=overwrite_ab,
+                    overwrite_b=overwrite_b
+                )
+            else:
+                # still allow using pentapy for testing, designate by setting self.pentapy_solver
+                # to -1 or -2
+                # TODO should this be kept or just moved within tests?
+                output = _pentapy_solver(lhs, rhs, pentapy_solver=abs(self.pentapy_solver))
         elif self.lower:
             output = solveh_banded(
                 lhs, rhs, overwrite_ab=overwrite_ab,

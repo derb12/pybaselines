@@ -538,7 +538,6 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
             )
 
 
-@has_pentapy
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
 @pytest.mark.parametrize('reverse_diags', (None, True, False))
