@@ -179,7 +179,7 @@ class _Algorithm:
         """
         if isinstance(solver, bool) or solver not in {1, 2, 3, 4}:
             # catch True since it can be interpreted as in {1, 2, 3, 4}; would likely
-            # not cause issues downsteam, but just eliminate that possibility
+            # not cause issues downstream, but just eliminate that possibility
             raise ValueError('banded_solver must be an integer with a value in (1, 2, 3, 4)')
         self._banded_solver = solver
         if solver < 3:
@@ -369,7 +369,7 @@ class _Algorithm:
         return new_object
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
-                         allow_lower=True, reverse_diags=None):
+                         allow_lower=True, reverse_diags=False):
         """
         Sets the starting parameters for doing penalized least squares.
 
@@ -393,10 +393,9 @@ class _Algorithm:
         allow_lower : boolean, optional
             If True (default), will allow using only the lower non-zero diagonals of
             the squared difference matrix. If False, will include all non-zero diagonals.
-        reverse_diags : {None, False, True}, optional
+        reverse_diags : bool, optional
             If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False, will never reverse the diagonals. If None (default), will
-            only reverse the diagonals if using pentapy's solver.
+            matrix. Default is False.
 
         Returns
         -------
