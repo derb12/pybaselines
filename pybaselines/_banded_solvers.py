@@ -34,22 +34,24 @@ SOFTWARE.
 """
 
 import numpy as np
+from scipy.linalg import solve_banded
 
 from ._compat import jit
 
 
 # adapted from pentapy (https://github.com/GeoStat-Framework/pentapy); see license above
 @jit(nopython=True, cache=True)
-def ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
+def _ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     """
     Pentadiagonal banded matrix solver using transformations and backward substitution.
 
-    Solves the equation ``A @ x = rhs``, given `A` in row-wise banded format as `lhs`.
+    Solves the equation ``A @ x = rhs``, given `A` in LAPACK banded format as `lhs`.
 
     Parameters
     ----------
     lhs : numpy.ndarray, shape (5, N)
-        The pentadiagonal matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
+        The pentadiagonal matrix `A` in LAPACK banded format banded format (see
+        :func:`scipy.linalg.solve_banded`).
     rhs : numpy.ndarray, shape (N,)
         The right-hand side of the equation.
     overwrite_ab : bool, optional
@@ -71,6 +73,8 @@ def ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     following pentapy issue #11 and pentapy pull request #27 for faster indexing and better error
     handling.
 
+    Uses `lhs` in LAPACK banded format rather than the row-wise banded format used by pentapy.
+
     References
     ----------
     Askar, S., et al. On Solving Pentadiagonal Linear Systems via Transformations. Mathematical
@@ -80,8 +84,8 @@ def ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     num_rows = lhs.shape[1]
     if overwrite_ab:
         # alpha and beta rows in the factorization correspond to lhs[1] and lhs[0], respectively,
-        # so the location of expected zeros will be the same when using lhs[1] and lhs[0] -> no need
-        # to make new zero arrays
+        # when lhs is in LAPACK format, their values are referenced before those locations are set,
+        # so can safely fill with the alpha and beta values
         alpha = lhs[1]
         beta = lhs[0]
     else:
@@ -96,39 +100,39 @@ def ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     mu_i = lhs[2, 0]
     if mu_i == 0.0:
         return out, 1
-    alpha_i_minus_1 = lhs[1, 0] / mu_i
-    beta_i_minus_1 = lhs[0, 0] / mu_i
+    alpha_i_minus_1 = lhs[1, 1] / mu_i
+    beta_i_minus_1 = lhs[0, 2] / mu_i
     z_i_minus_1 = rhs[0] / mu_i
     alpha[0] = alpha_i_minus_1
     beta[0] = beta_i_minus_1
     out[0] = z_i_minus_1
 
     # Second row
-    gamma_i = lhs[3, 1]
+    gamma_i = lhs[3, 0]
     mu_i = lhs[2, 1] - alpha_i_minus_1 * gamma_i
     if mu_i == 0.0:
         return out, 2
-    alpha_i = (lhs[1, 1] - beta_i_minus_1 * gamma_i) / mu_i
+    alpha_i = (lhs[1, 2] - beta_i_minus_1 * gamma_i) / mu_i
     alpha[1] = alpha_i
-    beta_i = lhs[0, 1] / mu_i
+    beta_i = lhs[0, 3] / mu_i
     beta[1] = beta_i
     z_i = (rhs[1] - z_i_minus_1 * gamma_i) / mu_i
     out[1] = z_i
 
     # Central rows
     for i in range(2, num_rows - 2):
-        e_i = lhs[4, i]
-        gamma_i = lhs[3, i] - alpha_i_minus_1 * e_i
+        e_i = lhs[4, i - 2]
+        gamma_i = lhs[3, i - 1] - alpha_i_minus_1 * e_i
         mu_i = lhs[2, i] - beta_i_minus_1 * e_i - alpha_i * gamma_i
         if mu_i == 0.0:
             return out, i + 1
 
-        alpha_i_plus_1 = (lhs[1, i] - beta_i * gamma_i) / mu_i
+        alpha_i_plus_1 = (lhs[1, i + 1] - beta_i * gamma_i) / mu_i
         alpha_i_minus_1 = alpha_i
         alpha_i = alpha_i_plus_1
         alpha[i] = alpha_i
 
-        beta_i_plus_1 = lhs[0, i] / mu_i
+        beta_i_plus_1 = lhs[0, i + 2] / mu_i
         beta_i_minus_1 = beta_i
         beta_i = beta_i_plus_1
         beta[i] = beta_i
@@ -140,29 +144,37 @@ def ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     # Second to last row
     row = num_rows - 2
-    e_i = lhs[4, row]
-    gamma_i = lhs[3, row] - alpha_i_minus_1 * e_i
+    e_i = lhs[4, row - 2]
+    gamma_i = lhs[3, row - 1] - alpha_i_minus_1 * e_i
     mu_i = lhs[2, row] - beta_i_minus_1 * e_i - alpha_i * gamma_i
     if mu_i == 0.0:
         return out, num_rows - 1
 
-    alpha_i_plus_1 = (lhs[1, row] - beta_i * gamma_i) / mu_i
+    alpha_i_plus_1 = (lhs[1, row + 1] - beta_i * gamma_i) / mu_i
+    # Note that none of the below section is needed since only alpha[:num_rows - 2] and
+    # beta[:num_rows - 2] is required for the backward substitution (would be needed if the
+    # factorization was desired), but still compute it since it's cheap
     alpha[row] = alpha_i_plus_1
+    if overwrite_ab:
+        # have to account for LAPACK format not having zeros in top right corner as compared
+        # to row-wise banded format
+        beta[row:] = 0.0
+        alpha[row + 1:] = 0.0
+    # End of unneeded section
 
     z_i_plus_1 = (rhs[row] - z_i_minus_1 * e_i - z_i * gamma_i) / mu_i
     z_i_minus_1 = z_i
     z_i = z_i_plus_1
-    out[row] = z_i_plus_1
 
     # Last Row
     row = num_rows - 1
-    e_i = lhs[4, row]
-    gamma_i = lhs[3, row] - alpha_i * e_i
+    e_i = lhs[4, row - 2]
+    gamma_i = lhs[3, row - 1] - alpha_i * e_i
     mu_i = lhs[2, row] - beta_i * e_i - alpha_i_plus_1 * gamma_i
     if mu_i == 0.0:
         return out, num_rows
 
-    # Backward substitution that overwrites z with the result
+    # Backward substitution
     z_i_plus_1 = (rhs[row] - z_i_minus_1 * e_i - z_i * gamma_i) / mu_i
     z_i -= alpha_i_plus_1 * z_i_plus_1
     out[row] = z_i_plus_1
@@ -178,16 +190,17 @@ def ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
 # adapted from pentapy (https://github.com/GeoStat-Framework/pentapy); see license above
 @jit(nopython=True, cache=True)
-def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
+def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     """
     Pentadiagonal banded matrix solver using transformations and forward substitution.
 
-    Solves the equation ``A @ x = rhs``, given `A` in row-wise banded format as `lhs`.
+    Solves the equation ``A @ x = rhs``, given `A` in LAPACK banded format as `lhs`.
 
     Parameters
     ----------
     lhs : numpy.ndarray, shape (5, N)
-        The pentadiagonal matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
+        The pentadiagonal matrix `A` in LAPACK banded format banded format (see
+        :func:`scipy.linalg.solve_banded`).
     rhs : numpy.ndarray, shape (N,)
         The right-hand side of the equation.
     overwrite_ab : bool, optional
@@ -209,6 +222,8 @@ def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     following pentapy issue #11 and pentapy pull request #27 for faster indexing and better error
     handling.
 
+    Uses `lhs` in LAPACK banded format rather than the row-wise banded format used by pentapy.
+
     References
     ----------
     Askar, S., et al. On Solving Pentadiagonal Linear Systems via Transformations. Mathematical
@@ -217,9 +232,9 @@ def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     """
     num_rows = lhs.shape[1]
     if overwrite_ab:
-        # sigma and phi rows in the factorization correspond to lhs[3] and lhs[4], respectively,
-        # so the location of expected zeros will be the same when using lhs[1] and lhs[0] -> no need
-        # to make new zero arrays
+        # sigma and phi rows in the factorization correspond to lhs[3] and lhs[4], respectively;
+        # when lhs is in LAPACK format, their values are referenced before those locations are set,
+        # so can safely fill with the sigma and phi values
         sigma = lhs[3]
         phi = lhs[4]
     else:
@@ -236,8 +251,8 @@ def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     if psi_i == 0.0:
         return out, num_rows
 
-    sigma_i_plus_1 = lhs[3, row] / psi_i
-    phi_i_plus_1 = lhs[4, row] / psi_i
+    sigma_i_plus_1 = lhs[3, row - 1] / psi_i
+    phi_i_plus_1 = lhs[4, row - 2] / psi_i
     w_i_plus_1 = rhs[row] / psi_i
 
     sigma[row] = sigma_i_plus_1
@@ -246,13 +261,13 @@ def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     # Second row
     row = num_rows - 2
-    rho_i = lhs[1, row]
+    rho_i = lhs[1, row + 1]
     psi_i = lhs[2, row] - sigma_i_plus_1 * rho_i
     if psi_i == 0.0:
         return out, num_rows - 1
 
-    sigma_i = (lhs[3, row] - phi_i_plus_1 * rho_i) / psi_i
-    phi_i = lhs[4, row] / psi_i
+    sigma_i = (lhs[3, row - 1] - phi_i_plus_1 * rho_i) / psi_i
+    phi_i = lhs[4, row - 2] / psi_i
     w_i = (rhs[row] - w_i_plus_1 * rho_i) / psi_i
 
     sigma[row] = sigma_i
@@ -261,16 +276,16 @@ def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     # Central rows
     for i in range(num_rows - 3, 1, -1):
-        b_i = lhs[0, i]
-        rho_i = lhs[1, i] - sigma_i_plus_1 * b_i
+        b_i = lhs[0, i + 2]
+        rho_i = lhs[1, i + 1] - sigma_i_plus_1 * b_i
         psi_i = lhs[2, i] - phi_i_plus_1 * b_i - sigma_i * rho_i
         if psi_i == 0.0:
             return out, i + 1
 
-        sigma_i_minus_1 = (lhs[3, i] - phi_i * rho_i) / psi_i
+        sigma_i_minus_1 = (lhs[3, i - 1] - phi_i * rho_i) / psi_i
         sigma_i_plus_1 = sigma_i
         sigma_i = sigma_i_minus_1
-        phi_i_minus_1 = lhs[4, i] / psi_i
+        phi_i_minus_1 = lhs[4, i - 2] / psi_i
         phi_i_plus_1 = phi_i
         phi_i = phi_i_minus_1
 
@@ -283,13 +298,13 @@ def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
         out[i] = w_i
 
     # Second to last row
-    b_i = lhs[0, 1]
-    rho_i = lhs[1, 1] - sigma_i_plus_1 * b_i
+    b_i = lhs[0, 3]
+    rho_i = lhs[1, 2] - sigma_i_plus_1 * b_i
     psi_i = lhs[2, 1] - phi_i_plus_1 * b_i - sigma_i * rho_i
     if psi_i == 0.0:
         return out, 2
 
-    sigma_i_minus_1 = (lhs[3, 1] - phi_i * rho_i) / psi_i
+    sigma_i_minus_1 = (lhs[3, 0] - phi_i * rho_i) / psi_i
     sigma_i_plus_1 = sigma_i
     sigma_i = sigma_i_minus_1
 
@@ -297,12 +312,20 @@ def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     w_i_plus_1 = w_i
     w_i = w_i_minus_1
 
+    # Note that none of the below section is needed since only sigma[2:] and phi[2:] is required
+    # for the forward substitution (would be needed if the factorization was desired), but still
+    # compute it since it's cheap
     sigma[1] = sigma_i
-    out[1] = w_i
+    if overwrite_ab:
+        # have to account for LAPACK format not having zeros in bottom left corner as compared
+        # to row-wise banded format
+        sigma[0] = 0.0
+        phi[:2] = 0.0
+    # End of unneeded section
 
     # Last row
-    b_i = lhs[0, 0]
-    rho_i = lhs[1, 0] - sigma_i_plus_1 * b_i
+    b_i = lhs[0, 2]
+    rho_i = lhs[1, 1] - sigma_i_plus_1 * b_i
     psi_i = lhs[2, 0] - phi_i * b_i - sigma_i * rho_i
     if psi_i == 0.0:
         return out, 1
@@ -310,7 +333,7 @@ def ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     w_i_minus_1 = (rhs[0] - w_i_plus_1 * b_i - w_i * rho_i) / psi_i
     out[0] = w_i_minus_1
 
-    # Foreward substitution
+    # Forward substitution
     w_i -= sigma_i * w_i_minus_1
     out[1] = w_i
     w_i_plus_1 = out[2]
@@ -327,12 +350,13 @@ def solve_banded_penta(ab, b, solver=1, overwrite_ab=False, overwrite_b=False):
     """
     Pentadiagonal banded matrix solver using transformations.
 
-    Solves the equation ``A @ x = rhs``, given `A` in row-wise banded format as `lhs`.
+    Solves the equation ``A @ x = rhs``, given `A` in LAPACK banded format as `lhs`.
 
     Parameters
     ----------
     ab : numpy.ndarray, shape (5, N)
-        The pentadiagonal matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
+        The pentadiagonal matrix `A` in LAPACK banded format banded format (see
+        :func:`scipy.linalg.solve_banded`).
     b : numpy.ndarray, shape (N,)
         The right-hand side of the equation.
     solver : {1, 2}
@@ -368,13 +392,14 @@ def solve_banded_penta(ab, b, solver=1, overwrite_ab=False, overwrite_b=False):
     rows, columns = ab.shape
     if rows != 5:
         raise ValueError('ab matrix must have 5 rows')
-    if columns <= 3:
-        # pentapy special-cased this, but not worth handling in pybaselines since the lhs should
-        # never only have 3 columns -> just throw an error to prevent numba mis-handling this
-        # TODO could also just shift the rows back to LAPACK format and send to solve_banded
-        raise ValueError('ab matrix must have at least 4 rows')
+    if columns < 4:
+        # solvers always directly access first 4 columns, so use solve_banded instead
+        return solve_banded(
+            (2, 2), lhs, rhs, overwrite_ab=overwrite_ab, overwrite_b=overwrite_b,
+            check_finite=False
+        )
 
-    func = {1: ptrans_1, 2: ptrans_2}[solver]
+    func = {1: _ptrans_1, 2: _ptrans_2}[solver]
     result, info = func(lhs, rhs, overwrite_ab, overwrite_b)
     if info > 0:
         raise np.linalg.LinAlgError(f'Matrix is singular at row index {info - 1}')

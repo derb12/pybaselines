@@ -582,13 +582,13 @@ def _pentapy_solver(ab, y, check_output=False, pentapy_solver=2):
     Convenience function for calling pentapy's solver with defaults already set.
 
     Solves the linear system :math:`A @ x = y` for `x`, given the matrix `A` in
-    banded format, `ab`. The default settings of :func`:pentapy.solve` are
-    already set for the fastest configuration.
+    LAPACK banded format, `ab`. The default settings of :func`:pentapy.solve` are
+    already set for the correct configuration.
 
     Parameters
     ----------
     ab : array-like, shape (M, N)
-        The matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
+        The matrix `A` in LAPACK banded format (see :func:`scipy.linalg.solve_banded`).
     y : array-like, shape (N,)
         The right-hand side of the equation.
     check_output : bool, optional
@@ -611,7 +611,7 @@ def _pentapy_solver(ab, y, check_output=False, pentapy_solver=2):
     except ImportError as exc:
         raise NotImplementedError('must have pentapy installed to use its solver') from exc
 
-    output = _pentapy_solve(ab, y, is_flat=True, index_row_wise=True, solver=pentapy_solver)
+    output = _pentapy_solve(ab, y, is_flat=True, index_row_wise=False, solver=pentapy_solver)
     if check_output and not np.isfinite(output.dot(output)):
         raise np.linalg.LinAlgError('non-finite value encountered in pentapy solver output')
 
@@ -630,7 +630,7 @@ class PenalizedSystem:
         If True, the penalty uses only the lower bands of the symmetric banded penalty. Will
         use :func:`scipy.linalg.solveh_banded` for solving. If False, contains both the upper
         and lower bands of the penalty and will use either :func:`scipy.linalg.solve_banded`
-        (if `using_pentapy` is False) or :func:`._pentapy_solver` when solving.
+        (if `using_pentapy` is False) or :func:`.solve_banded_penta` when solving.
     main_diagonal : numpy.ndarray
         The main diagonal of the penalty matrix.  Is updated when adding additional matrices
         to the penalty through :meth:`.add_penalty`, and takes into account whether the penalty
@@ -640,13 +640,13 @@ class PenalizedSystem:
         to the penalty through :meth:`.add_penalty`, and takes into account whether the penalty
         is only the lower bands or the total bands.
     num_bands : int
-        The number of bands in the penalty. The number of bands is assumbed to be symmetric,
+        The number of bands in the penalty. The number of bands is assumed to be symmetric,
         so the number of upper and lower bands should both be equal to `num_bands`.
     original_diagonals : numpy.ndarray
         The original penalty diagonals before multiplying by `lam` or adding any padding.
         Maintained so that repeated computations with different `lam` values can be quickly
         set up. `original_diagonals` can be either the full or lower bands of the penalty,
-        and may be reveresed, it depends on the set up. Reset by calling
+        and may be reversed, it depends on the set up. Reset by calling
         :meth:`~PenalizedSystem.reset_diagonals`.
     penalty : numpy.ndarray
         The current penalty. Originally is `original_diagonals` after multiplying by `lam`
@@ -667,7 +667,7 @@ class PenalizedSystem:
     """
 
     def __init__(self, data_size, lam=1, diff_order=2, allow_lower=True,
-                 reverse_diags=None, allow_pentapy=True, padding=0, pentapy_solver=2):
+                 reverse_diags=False, allow_pentapy=True, padding=0, pentapy_solver=2):
         """
         Initializes the banded system.
 
@@ -684,10 +684,9 @@ class PenalizedSystem:
             If True (default), will allow only using the lower bands of the penalty matrix,
             which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
             slower :func:`scipy.linalg.solve_banded`.
-        reverse_diags : {None, False, True}, optional
+        reverse_diags : bool, optional
             If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False, will never reverse the diagonals. If None (default), will
-            only reverse the diagonals if using pentapy's solver.
+            matrix. Default is False.
         allow_pentapy : bool, optional
             If True (default), will allow using pentapy's solver if `diff_order` is 2
             and pentapy is installed. pentapy's solver is faster than scipy's banded solvers.
@@ -755,7 +754,7 @@ class PenalizedSystem:
         self.penalty[self.main_diagonal_index] = self.main_diagonal + value
         return self.penalty
 
-    def reset_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=None,
+    def reset_diagonals(self, lam=1, diff_order=2, allow_lower=True, reverse_diags=False,
                         allow_pentapy=True, padding=0):
         """
         Resets the diagonals of the system and all of the attributes.
@@ -773,10 +772,9 @@ class PenalizedSystem:
             If True (default), will allow only using the lower bands of the penalty matrix,
             which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
             slower :func:`scipy.linalg.solve_banded`.
-        reverse_diags : {None, False, True}, optional
+        reverse_diags : bool, optional
             If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False, will never reverse the diagonals. If None (default), will
-            only reverse the diagonals if using pentapy's solver.
+            matrix. Default is False.
         allow_pentapy : bool, optional
             If True (default), will allow using pentapy's solver if `diff_order` is 2
             and pentapy is installed. pentapy's solver is faster than scipy's banded solvers.
@@ -785,26 +783,30 @@ class PenalizedSystem:
             the top if the full bands are used. Default is 0, which adds no extra
             layers. Negative `padding` is treated as equivalent to 0.
 
+        Raises
+        ------
+        ValueError
+            Raised if both `allow_lower` and `reverse_diags` are True, since reversing the
+            half diagonals does not make physical sense.
+
         """
+        if allow_lower and reverse_diags:
+            raise ValueError('cannot reverse diagonals when allow_lower is True')
         using_pentapy = allow_pentapy and _HAS_NUMBA and diff_order == 2
         if allow_lower and not using_pentapy:
             lower_only = True
         else:
             lower_only = False
-        if reverse_diags or (using_pentapy and reverse_diags is None):
-            needs_reversed = True
-        else:
-            needs_reversed = False
 
         if self.original_diagonals is None or self.diff_order != diff_order:
             diagonal_data = diff_penalty_diagonals(self._num_bases, diff_order, lower_only)
-            if needs_reversed:
+            if reverse_diags:
                 diagonal_data = diagonal_data[::-1]
             self.original_diagonals = diagonal_data
         else:
             if self.lower and not lower_only:
                 self.original_diagonals = _lower_to_full(self.original_diagonals)
-            if (self.reversed and not needs_reversed) or (not self.reversed and needs_reversed):
+            if (self.reversed and not reverse_diags) or (not self.reversed and reverse_diags):
                 self.original_diagonals = self.original_diagonals[::-1]
             if not self.lower and lower_only:
                 self.original_diagonals = self.original_diagonals[self.diff_order:]
@@ -812,7 +814,7 @@ class PenalizedSystem:
         self.diff_order = diff_order
         self.lower = lower_only
         self.using_pentapy = using_pentapy
-        self.reversed = needs_reversed
+        self.reversed = reverse_diags
 
         self.lam = _check_lam(lam, allow_zero=False)
         self.penalty = self.lam * _pad_diagonals(self.original_diagonals, padding, self.lower)

@@ -35,7 +35,7 @@ def algorithm():
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lam', (1, 20))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('reverse_diags', (True, False, None))
+@pytest.mark.parametrize('reverse_diags', (True, False))
 def test_setup_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
                                      allow_lower, reverse_diags):
     """Ensures output difference matrix diagonal data is in desired format."""
@@ -129,12 +129,16 @@ def test_setup_whittaker_array_lam(small_data):
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('reverse_diags', (True, False, None))
+@pytest.mark.parametrize('reverse_diags', (True, False))
 def test_setup_whittaker_reset_penalized_system(small_data, algorithm, diff_order, allow_lower,
                                                 reverse_diags):
     """Ensures the whittaker_system is correctly updated when reusing."""
     if reverse_diags and allow_lower:
-        # this configuration is never used
+        # this configuration should never be used
+        with pytest.raises(ValueError):
+            _, _, whittaker_system = algorithm._setup_whittaker(
+                small_data, 1, diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
+            )
         return
 
     lam = 20.5
