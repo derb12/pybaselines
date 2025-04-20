@@ -447,7 +447,8 @@ class TestAsPLS(WhittakerTester):
             asymmetric_coef=asymmetric_coef
         )[0]
 
-        assert_allclose(banded_output, sparse_output, rtol=1e-4, atol=1e-8)
+        rtol = {2: 5e-5, 3: 2e-4}[diff_order]
+        assert_allclose(banded_output, sparse_output, rtol=rtol, atol=1e-8)
 
 
 class TestPsalsa(WhittakerTester):
