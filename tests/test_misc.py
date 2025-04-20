@@ -585,3 +585,71 @@ def test_beads_ATb(beads_data, filter_type, freq_cutoff):
 
     # use rtol=1.5e-7 since values are very small for d=2 and small freq_cutoff
     assert_allclose(lam_ATb_actual, lam_ATb_banded, rtol=1.5e-7)
+
+
+def test_process_lams(data_fixture):
+    """Ensures _process_lams correctly calculates lam values according to the L1 norms."""
+    x, y = data_fixture
+    lam_0_factor = 1 / np.linalg.norm(y, 1)
+    lam_1_factor = 1 / np.linalg.norm(np.diff(y, 1), 1)
+    lam_2_factor = 1 / np.linalg.norm(np.diff(y, 2), 1)
+    alpha = 5
+
+    # if no lam values are given, the default alpha is 1
+    output = misc._process_lams(y, None, None, None)
+    assert_allclose(output[0], lam_0_factor)
+    assert_allclose(output[1], lam_1_factor)
+    assert_allclose(output[2], lam_2_factor)
+
+    # only input lam_0
+    output2 = misc._process_lams(y, alpha * lam_0_factor, None, None)
+    assert_allclose(output2[0], alpha * lam_0_factor)
+    assert_allclose(output2[1], alpha * lam_1_factor)
+    assert_allclose(output2[2], alpha * lam_2_factor)
+
+    # only input lam_1
+    output3 = misc._process_lams(y, None, alpha * lam_1_factor, None)
+    assert_allclose(output3[0], alpha * lam_0_factor)
+    assert_allclose(output3[1], alpha * lam_1_factor)
+    assert_allclose(output3[2], alpha * lam_2_factor)
+
+    # only input lam_2
+    output4 = misc._process_lams(y, None, None, alpha * lam_2_factor)
+    assert_allclose(output4[0], alpha * lam_0_factor)
+    assert_allclose(output4[1], alpha * lam_1_factor)
+    assert_allclose(output4[2], alpha * lam_2_factor)
+
+    # test inputting both lam_0 and lam_1; alpha should be determined by lam_0; since lam_1 is
+    # given, its value should be output as well
+    lam_0 = alpha * lam_0_factor
+    lam_1 = alpha * 2 * lam_1_factor
+    output5 = misc._process_lams(y, lam_0, lam_1, None)
+    assert_allclose(output5[0], lam_0)
+    assert_allclose(output5[1], lam_1)
+    assert_allclose(output5[2], alpha * lam_2_factor)
+
+    # test inputting both lam_0 and lam_1; since lam_0 is 0, alpha should be calculated
+    # from lam_1
+    lam_0 = 0
+    lam_1 = alpha * 2 * lam_1_factor
+    output5 = misc._process_lams(y, lam_0, lam_1, None)
+    assert_allclose(output5[0], lam_0)
+    assert_allclose(output5[1], lam_1)
+    assert_allclose(output5[2], alpha * 2 * lam_2_factor)
+
+    # test inputting both lam_0 and lam_1; since lam_0 and lam_1 are 0, alpha should be 1
+    lam_0 = 0
+    lam_1 = 0
+    output5 = misc._process_lams(y, lam_0, lam_1, None)
+    assert_allclose(output5[0], lam_0)
+    assert_allclose(output5[1], lam_1)
+    assert_allclose(output5[2], 1 * lam_2_factor)
+
+    # all lams given, so they should just be checked and then output
+    lam_0 = 5
+    lam_1 = 10
+    lam_2 = 3
+    output6 = misc._process_lams(y, lam_0, lam_1, lam_2)
+    assert_allclose(output6[0], lam_0)
+    assert_allclose(output6[1], lam_1)
+    assert_allclose(output6[2], lam_2)
