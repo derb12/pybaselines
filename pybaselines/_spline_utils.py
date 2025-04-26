@@ -182,11 +182,12 @@ def __make_design_matrix(x, knots, spline_degree):
         _de_boor(knots, x_val, spline_degree, left_knot_idx, work)
 
         next_idx = idx + spline_order
-        basis_data[idx:next_idx] = work[:spline_order]
-        row_ind[idx:next_idx] = i
-        col_ind[idx:next_idx] = np.arange(
-            left_knot_idx - spline_degree, min(left_knot_idx + 1, num_bases)
-        )
+        col_idx = left_knot_idx - spline_degree
+        for j, k in enumerate(range(idx, next_idx)):
+            basis_data[k] = work[j]
+            row_ind[k] = i
+            col_ind[k] = col_idx + j
+
         idx = next_idx
 
     return basis_data, row_ind, col_ind
@@ -443,30 +444,23 @@ def _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data):
     """
     spline_order = spline_degree + 1
     num_bases = len(knots) - spline_order
-    work = np.zeros(2 * spline_order)
 
     left_knot_idx = spline_degree
     idx = 0
     for i in range(len(x)):
-        x_val = x[i]
         y_val = y[i]
         weight_val = weights[i]
-        left_knot_idx = _find_interval(knots, spline_degree, x_val, left_knot_idx, num_bases)
-
+        left_knot_idx = _find_interval(knots, spline_degree, x[i], left_knot_idx, num_bases)
         next_idx = idx + spline_order
-        work[:] = 0
-        work[:spline_order] = basis_data[idx:next_idx]
+        work = basis_data[idx:next_idx]
         idx = next_idx
+        initial_idx = left_knot_idx - spline_degree
         for j in range(spline_order):
-            work_val = work[j]
-            # B.T @ W @ B
+            work_val = work[j] * weight_val  # B.T @ W
             for k in range(j + 1):
-                column = left_knot_idx - spline_degree + k
-                ab[j - k, column] += work_val * work[k] * weight_val
+                ab[j - k, initial_idx + k] += work_val * work[k]   # B.T @ W @ B
 
-            # B.T @ W @ y
-            row = left_knot_idx - spline_degree + j
-            rhs[row] += work_val * y_val * weight_val
+            rhs[initial_idx + j] += work_val * y_val  # B.T @ W @ y
 
 
 def _basis_midpoints(knots, spline_degree):

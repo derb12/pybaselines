@@ -125,15 +125,15 @@ def test_spline_basis(data_fixture, num_knots, spline_degree, source):
     assert basis.shape == (len(x), len(knots) - spline_degree - 1)
 
     assert issparse(basis)
-    assert_allclose(basis.toarray(), expected_basis, 1e-10, 1e-12)
+    assert_allclose(basis.toarray(), expected_basis, 1e-14, 1e-14)
     # also test the main interface for the spline basis; only test for one
     # source to avoid unnecessary repitition
     if source == 'simple':
         basis_2 = _spline_utils._spline_basis(x, knots, spline_degree)
         assert issparse(basis_2)
 
-        assert_allclose(basis.toarray(), expected_basis, 1e-10, 1e-12)
-        assert_allclose(basis.toarray(), basis_2.toarray(), 1e-10, 1e-12)
+        assert_allclose(basis.toarray(), expected_basis, 1e-14, 1e-14)
+        assert_allclose(basis.toarray(), basis_2.toarray(), 1e-14, 1e-14)
 
 
 @pytest.mark.parametrize('num_knots', (2, 20, 1001))
