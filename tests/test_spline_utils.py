@@ -136,6 +136,56 @@ def test_spline_basis(data_fixture, num_knots, spline_degree, source):
         assert_allclose(basis.toarray(), basis_2.toarray(), 1e-14, 1e-14)
 
 
+def test_spline_basis_x_bounds():
+    """
+    Ensures an exception is raised when x-values are outside of the knots range.
+
+    Hard to test all of the basis creation pathways using mock, so just rely on
+    CI to test all pathways.
+    """
+    num_knots = 20
+    spline_degree = 3
+    x = np.linspace(-1, 1, 50)
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+
+    x[0] = knots[spline_degree] - 1  # lower than the knots bounds
+    with pytest.raises(ValueError):
+        _spline_utils._spline_basis(x, knots, spline_degree)
+    x[0] = -1  # reset the value so that the upper bounds can be checked
+    x[-1] = knots[-(spline_degree + 1)] + 1
+    with pytest.raises(ValueError):
+        _spline_utils._spline_basis(x, knots, spline_degree)
+
+
+def test_bspline_has_extrapolate():
+    """Validates the check for ``BSpline.design_matrix`` having an extrapolate keyword."""
+    if not hasattr(BSpline, 'design_matrix'):
+        # BSpline.design_matrix not available until scipy 1.8.0
+        with pytest.raises(AttributeError):
+            _spline_utils._bspline_has_extrapolate()
+
+    spline_degree = 3
+    x = np.linspace(-1, 1, 100)
+    knots = _spline_utils._spline_knots(
+        x, num_knots=50, spline_degree=spline_degree, penalized=True
+    )
+    # check if extrapolate is actually an allowable keyword argument
+    has_extrapolate = True
+    try:
+        BSpline.design_matrix(x, knots, spline_degree, extrapolate=True)
+    except TypeError:
+        has_extrapolate = False
+
+    assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
+
+    # Also check that the result is cached so that the actual check is only done once. The
+    # cache hits would depend on the test run order, so just check that calling it twice
+    # results in a non-zero hits value and that misses is 1 (the first call counts as a miss)
+    assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
+    assert _spline_utils._bspline_has_extrapolate.cache_info().hits > 0
+    assert _spline_utils._bspline_has_extrapolate.cache_info().misses == 1
+
+
 @pytest.mark.parametrize('num_knots', (2, 20, 1001))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 def test_numba_basis_len(data_fixture, num_knots, spline_degree):

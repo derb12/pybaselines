@@ -42,6 +42,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 """
 
+from functools import lru_cache, partial
+from inspect import signature
+
 import numpy as np
 from scipy.interpolate import BSpline, splev
 
@@ -338,6 +341,28 @@ def _spline_knots(x, num_knots=10, spline_degree=3, penalized=True):
     return knots
 
 
+@lru_cache(maxsize=1)
+def _bspline_has_extrapolate():
+    """
+    Checks if ``scipy.interpolate.BSpline.design_matrix`` has the `extrapolate` keyword.
+
+    Returns
+    -------
+    bool
+        True if `extrapolate` is a keyword argument, otherwise False.
+
+    Notes
+    -----
+    An equivalent function would be checking that the SciPy version is at least 1.10.0.
+
+    The bounds check in ``BSpline.design_matrix`` when ``extrapolate=False``, which is the
+    default, is slow since it uses built-in min and max on x instead of x.min() and x.max(),
+    so want to skip that check if possible.
+
+    """
+    return 'extrapolate' in signature(BSpline.design_matrix).parameters
+
+
 def _spline_basis(x, knots, spline_degree=3):
     """
     Constructs the spline basis matrix.
@@ -371,24 +396,27 @@ def _spline_basis(x, knots, spline_degree=3):
     see :func:`scipy.interpolate.make_lsq_spline`.
 
     """
-    if hasattr(BSpline, 'design_matrix'):
-        validate_inputs = False
-        # BSpline.design_matrix introduced in scipy version 1.8.0
-        basis_func = BSpline.design_matrix
+    validate_inputs = True
+    if hasattr(BSpline, 'design_matrix'):  # introduced in scipy version 1.8.0
+        if _bspline_has_extrapolate():  # extrapolate keyword added in scipy version 1.10.0
+            # do not want to actually extrapolate, but the bounds check when extrapolate=False,
+            # which is the default, is slow since it uses built-in min and max on x instead
+            # of x.min() and x.max(); as a result, skipping that bounds check and doing it
+            # using x.min() and x.max() below is ~50% faster
+            basis_func = partial(BSpline.design_matrix, extrapolate=True)
+        else:
+            basis_func = BSpline.design_matrix
+            validate_inputs = False
     elif _HAS_NUMBA:
-        validate_inputs = True
         basis_func = _make_design_matrix
     else:
-        validate_inputs = True
         basis_func = _slow_design_matrix
 
     # validate inputs only if not using scipy's version
     if validate_inputs:
-        len_knots = len(knots)
-        if np.any(x < knots[spline_degree]) or np.any(x > knots[len_knots - spline_degree - 1]):
+        if x.min() < knots[spline_degree] or x.max() > knots[-spline_degree - 1]:
             raise ValueError((
-                f'x-values are either < {knots[spline_degree]} or '
-                f'> {knots[len_knots - spline_degree - 1]}'
+                f'x-values are either < {knots[spline_degree]} or > {knots[-spline_degree - 1]}'
             ))
 
     return basis_func(x, knots, spline_degree)
