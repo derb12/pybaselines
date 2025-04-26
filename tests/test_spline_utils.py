@@ -176,10 +176,10 @@ def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower
     """
     x, y = data_fixture
     # ensure x and y are floats
-    x = x.astype(float, copy=False)
-    y = y.astype(float, copy=False)
+    x = x.astype(float)
+    y = y.astype(float)
     weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
-    weights = np.clip(weights, 0, 1).astype(float, copy=False)
+    weights = np.clip(weights, 0, 1).astype(float)
 
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
@@ -483,3 +483,46 @@ def test_compare_to_whittaker(data_fixture, lam, diff_order):
     whittaker_output = whittaker_system.solve(whittaker_system.penalty, weights.ravel() * y.ravel())
 
     assert_allclose(spline_output, whittaker_output, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4))
+@pytest.mark.parametrize('num_knots', (10, 33, 100))
+def test_numba_btb_bty(data_fixture, spline_degree, num_knots):
+    """Ensures the B.T @ W @ B and B.T @ W @ y Numba implementations are correct."""
+    x, y = data_fixture
+    x = x.astype(float)
+    y = y.astype(float)
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
+
+    weights = np.random.default_rng(1234).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    expected_lhs = spline_basis.basis.T @ diags(weights, format='csr') @ spline_basis.basis
+    expected_rhs = spline_basis.basis.T @ (weights * y)
+
+    basis_data = spline_basis.basis.tocsr().data
+    # sanity check that the data attribute contains the correct amount of points
+    assert len(basis_data) == len(x) * (spline_basis.spline_degree + 1)
+
+    ab_lower = np.zeros((spline_basis.spline_degree + 1, spline_basis._num_bases), order='F')
+    rhs = np.zeros(spline_basis._num_bases)
+    _spline_utils._numba_btb_bty(
+        x, spline_basis.knots, spline_basis.spline_degree, y, weights, ab_lower, rhs,
+        basis_data
+    )
+
+    ab_full = _banded_utils._lower_to_full(ab_lower)
+
+    expected_ab, _ = _banded_utils._sparse_to_banded(expected_lhs, spline_basis._num_bases)
+    if expected_ab.shape[0] != ab_full.shape[0]:
+        # diagonals became 0 and were truncated from the sparse object's data attritube
+        expected_ab = _banded_utils._pad_diagonals(
+            expected_ab, ab_full.shape[0] - expected_ab.shape[0], lower_only=False
+        )
+    expected_ab_lower = expected_ab[len(expected_ab) // 2:]
+
+    assert_allclose(rhs, expected_rhs, rtol=1e-15, atol=1e-15)
+    assert_allclose(ab_full, expected_ab, rtol=1e-15, atol=1e-15)
+    assert_allclose(ab_lower, expected_ab_lower, rtol=1e-15, atol=1e-15)

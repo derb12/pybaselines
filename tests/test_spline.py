@@ -77,6 +77,29 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):
 
         assert params['tol_history'].size == max_iter + 1
 
+    @pytest.mark.parametrize('spline_degree', (1, 2, 3))
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    def test_numba_implementation(self, diff_order, spline_degree):
+        """
+        Ensures the output is consistent between the two separate P-Spline setup pathways.
+
+        The calculation of ``B.T @ W @ B`` and ``B.T @ W @ y`` is done using sparse matrices or
+        arrays if Numba is not installed; otherwise, a faster method is used. While simple
+        cases are tested within test_spline_utils, this test is a more useful smoke test for
+        any complex issues that could arise.
+
+        """
+        with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
+            sparse_output = self.class_func(
+                self.y, diff_order=diff_order, spline_degree=spline_degree
+            )[0]
+        with mock.patch.object(_spline_utils, '_HAS_NUMBA', True):
+            numba_output = self.class_func(
+                self.y, diff_order=diff_order, spline_degree=spline_degree
+            )[0]
+
+        assert_allclose(numba_output, sparse_output, rtol=1e-9)
+
 
 class TestMixtureModel(IterativeSplineTester):
     """Class for testing mixture_model baseline."""
