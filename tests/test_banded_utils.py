@@ -202,6 +202,33 @@ def test_shift_rows_2_1_diags():
     assert_array_equal(expected, matrix)
 
 
+def test_shift_rows_3_diags():
+    """Ensures rows are correctly shifted for a matrix with three off-diagonals on either side."""
+    matrix = np.array([
+        [5, 3, 0, 0, 0],
+        [1, 2, 9, 0, 0],
+        [1, 2, 3, 4, 0],
+        [1, 2, 3, 4, 5],
+        [0, 1, 2, 3, 8],
+        [0, 0, 1, 2, 3],
+        [0, 0, 0, 2, 8]
+    ])
+    expected = np.array([
+        [0, 0, 0, 5, 3],
+        [0, 0, 1, 2, 9],
+        [0, 1, 2, 3, 4],
+        [1, 2, 3, 4, 5],
+        [1, 2, 3, 8, 0],
+        [1, 2, 3, 0, 0],
+        [2, 8, 0, 0, 0]
+    ])
+    output = _banded_utils._shift_rows(matrix, 3, 3)
+
+    assert_array_equal(expected, output)
+    # matrix should also be shifted since the changes are done in-place
+    assert_array_equal(expected, matrix)
+
+
 def test_lower_to_full_simple():
     """Simple test for _lower_to_full."""
     lower = np.array([
@@ -241,7 +268,9 @@ def test_lower_to_full(data_fixture, num_knots, spline_degree):
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
 
-    BTWB_full = (basis.T @ diags(weights, format='csr') @ basis).todia().data[::-1]
+    BTWB_full = _banded_utils._sparse_to_banded(
+        basis.T @ diags(weights, format='csr') @ basis, basis.shape[1]
+    )[0]
     BTWB_lower = BTWB_full[len(BTWB_full) // 2:]
 
     assert_allclose(_banded_utils._lower_to_full(BTWB_lower), BTWB_full, 1e-10, 1e-14)
