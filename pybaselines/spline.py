@@ -810,7 +810,6 @@ class _Spline(_Algorithm):
         # reverse P_n for the eta * W @ P_n calculation to match the original diagonal
         # structure of the sparse matrix
         diff_n_diagonals = -eta * pspline.penalty[::-1]
-        penalty_bands = pspline.num_bands
         pspline.add_penalty(diff_penalty_diagonals(pspline.basis._num_bases, 1, False))
 
         interp_pts = _basis_midpoints(pspline.basis.knots, pspline.basis.spline_degree)
@@ -818,7 +817,7 @@ class _Spline(_Algorithm):
         for i in range(1, max_iter + 2):
             diff_n_w_diagonals = _shift_rows(
                 diff_n_diagonals * np.interp(interp_pts, self.x, weight_array),
-                penalty_bands, penalty_bands
+                pspline.num_bands, pspline.num_bands
             )
             baseline = pspline.solve_pspline(
                 y, weight_array,
