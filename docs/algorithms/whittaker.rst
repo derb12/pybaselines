@@ -510,7 +510,10 @@ Weighting:
 
 where :math:`r_i = y_i - v_i`, :math:`\sigma^-` is the standard deviation
 of the negative values in the residual vector :math:`\mathbf r`, and :math:`k`
-is the asymmetric coefficient (default is 2).
+is the asymmetric coefficient (Note that the default value of :math:`k` is 0.5 in
+pybaselines rather than 2 in the published version of the asPLS. pybaselines
+uses the factor of 0.5 since it matches the results in Table 2 and Figure 5
+of the asPLS paper closer than the factor of 2 and fits noisy data much better).
 
 .. plot::
    :align: center
