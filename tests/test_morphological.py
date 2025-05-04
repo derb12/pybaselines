@@ -14,7 +14,9 @@ import pytest
 
 from pybaselines import _banded_utils, morphological
 
-from .base_tests import BaseTester, InputWeightsMixin, ensure_deprecation, has_pentapy
+from .base_tests import (
+    BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation, has_pentapy
+)
 
 
 class MorphologicalTester(BaseTester):
@@ -48,7 +50,7 @@ class IterativeMorphologicalTester(MorphologicalTester):
         assert params['tol_history'].size == max_iter + 1
 
 
-class TestMPLS(MorphologicalTester, InputWeightsMixin):
+class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpls baseline."""
 
     func_name = 'mpls'
@@ -87,6 +89,12 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin):
         """Ensures a DeprecationWarning is given when max_iter is input."""
         with pytest.warns(DeprecationWarning):
             self.class_func(self.y, max_iter=20)
+
+    @ensure_deprecation(1, 4)
+    def test_recreation(self):
+        """Ignores the warning emitted by inputting tol within RecreationMixin.test_recreation."""
+        with pytest.warns(DeprecationWarning):
+            super().test_recreation()
 
 
 class TestMor(MorphologicalTester):
@@ -154,7 +162,7 @@ class TestTophat(MorphologicalTester):
     func_name = 'tophat'
 
 
-class TestMpspline(MorphologicalTester, InputWeightsMixin):
+class TestMpspline(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpspline baseline."""
 
     func_name = 'mpspline'

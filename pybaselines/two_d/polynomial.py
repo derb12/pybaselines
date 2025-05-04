@@ -572,16 +572,10 @@ class _Polynomial(_Algorithm2D):
         y, weight_array = self._setup_polynomial(
             data, weights, poly_order, calc_vander=True, max_cross=max_cross
         )
-        # estimate first iteration using least squares
         sqrt_w = np.sqrt(weight_array)
-        coef = np.linalg.lstsq(
-            self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
-        )[0]
-        baseline = self._polynomial.vandermonde @ coef
-        tol_history = np.empty(max_iter)
-        for i in range(max_iter):
-            baseline_old = baseline
-            sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+        baseline_old = y
+        tol_history = np.empty(max_iter + 1)
+        for i in range(max_iter + 1):
             coef = np.linalg.lstsq(
                 self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
             )[0]
@@ -592,6 +586,8 @@ class _Polynomial(_Algorithm2D):
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
+            sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+            baseline_old = baseline
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
         if return_coef:

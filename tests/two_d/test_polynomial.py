@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines.two_d import polynomial
 
-from ..base_tests import BasePolyTester2D, InputWeightsMixin
+from ..base_tests import BasePolyTester2D, InputWeightsMixin, RecreationMixin
 from ..data import STATSMODELS_QUANTILES_2D
 
 
@@ -195,11 +195,12 @@ class TestPenalizedPoly(IterativePolynomialTester):
             self.class_func(self.y, alpha_factor=alpha_factor)
 
 
-class TestQuantReg(IterativePolynomialTester):
+class TestQuantReg(IterativePolynomialTester, RecreationMixin):
     """Class for testing quant_reg baseline."""
 
     func_name = 'quant_reg'
     required_kwargs = {'tol': 1e-9}
+    allows_zero_iteration = False
 
     @pytest.mark.parametrize('quantile', (0, 1, -0.1, 1.1))
     def test_outside_quantile_fails(self, quantile):

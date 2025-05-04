@@ -8,7 +8,7 @@ Created on March 30, 2025
 
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial, wraps
-import inspect
+from inspect import signature
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
@@ -505,8 +505,8 @@ class BaseTester:
         the two signatures should be that the functional api has an `x_data` keyword.
 
         """
-        class_parameters = inspect.signature(self.class_func).parameters
-        functional_parameters = inspect.signature(
+        class_parameters = signature(self.class_func).parameters
+        functional_parameters = signature(
             getattr(self.module, self.func_name)
         ).parameters
 
@@ -1098,16 +1098,19 @@ class RecreationMixin:
         first_baseline, params = self.class_func(self.y, **self.kwargs)
 
         kwargs = {'weights': params['weights'], **self.kwargs}
-        kwargs['tol'] = np.inf
+        class_parameters = signature(self.class_func).parameters
+        if 'tol' in class_parameters:
+            kwargs['tol'] = np.inf
+        if 'tol_2' in class_parameters:
+            kwargs['tol_2'] = np.inf
         if self.func_name in ('aspls', 'pspline_aspls'):
             kwargs['alpha'] = params['alpha']
-        elif self.func_name in ('brpls', 'pspline_brpls'):
-            kwargs['tol_2'] = np.inf
         second_baseline, params_2 = self.class_func(self.y, **kwargs)
 
-        if self.func_name in ('brpls', 'pspline_brpls'):
-            assert params_2['tol_history'].shape == (2, 1)
-            assert params_2['tol_history'].size == 2
-        else:
-            assert len(params_2['tol_history']) == 1
+        if 'tol_history' in params_2:
+            if params_2['tol_history'].ndim == 1:
+                assert len(params_2['tol_history']) == 1
+            else:
+                assert params_2['tol_history'].shape == (2, 1)
+                assert params_2['tol_history'].size == 2
         assert_allclose(second_baseline, first_baseline, rtol=1e-12, atol=1e-12)
