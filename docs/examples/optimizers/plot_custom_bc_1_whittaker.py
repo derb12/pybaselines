@@ -3,7 +3,7 @@
 Customized Baseline Correction
 ------------------------------
 
-This example looks at the ingenious basline correction method created
+This example looks at the ingenious baseline correction method created
 by Liland et al., :meth:`~.Baseline.custom_bc`.
 
 The :meth:`.custom_bc` method works exceedingly well for morphological
@@ -43,7 +43,7 @@ y = signal + baseline + noise
 baseline_fitter = Baseline(x_data=x)
 # %%
 # For certain types of data, there can often be a sharp change in the
-# baseline withinin a small region, such as in Raman spectroscopy
+# baseline within a small region, such as in Raman spectroscopy
 # near a Raman shift of 0 or in XRD at low two-theta. This presents a
 # significant challenge to baseline algorithms that fit a single "global"
 # baseline such as Whittaker-smoothing-based methods.

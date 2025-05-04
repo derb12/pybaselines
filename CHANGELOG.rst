@@ -83,7 +83,7 @@ Deprecations/Breaking Changes
   key. The ``min_rmse`` key will be removed in version 1.4.
 * **Pending Deprecation**: The functional interface of pybaselines will be deprecated in version 1.3, and
   will be removed in version 2.0. For example, user code using ``whittaker.arpls(...)`` should
-  migrate to ``Baseline.arpls(...)``. The only items that will be kept under the main pybaselines
+  migrate to ``Baseline().arpls(...)``. The only items that will be kept under the main pybaselines
   namespace will be ``Baseline``, ``Baseline2D``, and ``utils``.
 
 Documentation/Examples

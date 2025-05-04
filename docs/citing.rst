@@ -19,8 +19,14 @@ The resulting citation would look something like:
 
 .. code-block:: text
 
-    Erb, D. (2024). pybaselines: A Python library of algorithms for the baseline correction of
+    Erb, D. pybaselines: A Python library of algorithms for the baseline correction of
     experimental data. https://doi.org/10.5281/zenodo.5608581.
+
+.. note::
+
+  Please note that the name pybaselines is intentionally not capitalized to maintain consistency
+  with early citations to the package before citation guidelines were considered, so styling
+  it as "Pybaselines" or "PyBaselines" is very much not preferred for the sake of consistency.
 
 The above DOI is valid for all versions of pybaselines. If citing a specific version,
 the DOI can be found on the project's Zenodo page: https://doi.org/10.5281/zenodo.5608581.
