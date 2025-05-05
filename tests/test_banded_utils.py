@@ -268,9 +268,7 @@ def test_lower_to_full(data_fixture, num_knots, spline_degree):
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
 
-    BTWB_full = _banded_utils._sparse_to_banded(
-        basis.T @ diags(weights, format='csr') @ basis, basis.shape[1]
-    )[0]
+    BTWB_full = _banded_utils._sparse_to_banded(basis.T @ diags(weights, format='csr') @ basis)[0]
     BTWB_lower = BTWB_full[len(BTWB_full) // 2:]
 
     assert_allclose(_banded_utils._lower_to_full(BTWB_lower), BTWB_full, 1e-10, 1e-14)
@@ -747,7 +745,7 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
     lam = 5
     diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
     penalty = lam * diff_matrix.T @ diff_matrix
-    penalty_bands = _banded_utils._sparse_to_banded(penalty, data_size)[0] / lam
+    penalty_bands = _banded_utils._sparse_to_banded(penalty)[0] / lam
     for penalty_order in range(1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
             data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
@@ -820,8 +818,8 @@ def test_sparse_to_banded(dtype):
     ], dtype=dtype)
     matrix = dia_object(data)
 
-    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
-    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
 
     # sanity check
     assert_array_equal(matrix.toarray(), data)
@@ -833,6 +831,68 @@ def test_sparse_to_banded(dtype):
     assert_array_equal(banded_data, out2)
     assert lower2 == 1
     assert upper2 == 1
+    assert out2.dtype == dtype
+
+    # also test non-square matrices
+    # case 1: rows > columns
+    data = np.array([
+        [1, 3, 0, 0],
+        [2, 3, 5, 0],
+        [4, 3, 5, 6],
+        [0, 8, 4, 8],
+        [0, 0, 7, 9]
+    ], dtype=dtype)
+    banded_data = np.array([
+        [0, 3, 5, 6],
+        [1, 3, 5, 8],
+        [2, 3, 4, 9],
+        [4, 8, 7, 0]
+    ], dtype=dtype)
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 2
+    assert upper == 1
+    assert out.dtype == dtype
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 2
+    assert upper2 == 1
+    assert out2.dtype == dtype
+
+    # case 2: rows < columns
+    data = np.array([
+        [1, 3, 2, 0, 0],
+        [2, 3, 5, 8, 0],
+        [0, 3, 5, 6, 1],
+        [0, 0, 2, 9, 3]
+    ], dtype=dtype)
+    banded_data = np.array([
+        [0, 0, 2, 8, 1],
+        [0, 3, 5, 6, 3],
+        [1, 3, 5, 9, 0],
+        [2, 3, 2, 0, 0]
+    ], dtype=dtype)
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 2
+    assert out.dtype == dtype
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 2
     assert out2.dtype == dtype
 
 
@@ -857,13 +917,47 @@ def test_sparse_to_banded_truncation():
         [2, 3, 2]
     ])
 
-    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
-    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
 
     # sanity check
     assert_array_equal(matrix.toarray(), data)
     # ensure that the last column of zeros should typically get truncated by SciPy's
     # sparse matrices
+    assert_array_equal(matrix.data[::-1], expected_data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 1
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 1
+
+    data = np.array([
+        [0, 3, 0, 0],
+        [0, 3, 5, 0],
+        [0, 3, 5, 2],
+        [0, 0, 2, 3]
+    ])
+    banded_data = np.array([
+        [0, 3, 5, 2],
+        [0, 3, 5, 3],
+        [0, 3, 2, 0]
+    ])
+    matrix = dia_object(data)
+    # since zeros are on first column, they shouldn't be truncated
+    expected_data = np.array([
+        [0, 3, 5, 2],
+        [0, 3, 5, 3],
+        [0, 3, 2, 0]
+    ])
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+    # ensure that the first column isn't truncted by SciPy's sparse conversion
     assert_array_equal(matrix.data[::-1], expected_data)
 
     assert_array_equal(banded_data, out)
@@ -885,8 +979,8 @@ def test_sparse_to_banded_diagonal():
     banded_data = np.array([[1, 3, 5, 9]])
     matrix = dia_object(data)
 
-    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
-    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
 
     # sanity check
     assert_array_equal(matrix.toarray(), data)
@@ -916,8 +1010,8 @@ def test_sparse_to_banded_ragged():
     ])
     matrix = dia_object(data)
 
-    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
-    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
 
     # sanity check
     assert_array_equal(matrix.toarray(), data)
@@ -944,11 +1038,88 @@ def test_sparse_to_banded_ragged():
     ])
     matrix = dia_object(data)
 
-    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix, 4)
-    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr(), 4)
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
 
     # sanity check
     assert_array_equal(matrix.toarray(), data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 3
+    assert upper == 1
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 3
+    assert upper2 == 1
+
+
+def test_sparse_to_banded_ragged_truncated():
+    """Ensures _sparse_to_banded works when input is a ragged banded matrix with truncated zeros."""
+    data = np.array([
+        [1, 3, 0, 2, 0],
+        [2, 3, 5, 0, 0],
+        [0, 3, 5, 6, 0],
+        [0, 0, 2, 9, 0]
+    ])
+    banded_data = np.array([
+        [0, 0, 0, 2, 0],
+        [0, 0, 0, 0, 0],
+        [0, 3, 5, 6, 0],
+        [1, 3, 5, 9, 0],
+        [2, 3, 2, 0, 0]
+    ])
+    expected_data = np.array([
+        [0, 0, 0, 2],
+        [0, 3, 5, 6],
+        [1, 3, 5, 9],
+        [2, 3, 2, 0]
+    ])
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+    # ensure that the last column of zeros should typically get truncated by SciPy's
+    # sparse matrices
+    assert_array_equal(matrix.data[::-1], expected_data)
+
+    assert_array_equal(banded_data, out)
+    assert lower == 1
+    assert upper == 3
+    assert_array_equal(banded_data, out2)
+    assert lower2 == 1
+    assert upper2 == 3
+
+    data = np.array([
+        [1, 3, 0, 0, 0],
+        [2, 3, 5, 0, 0],
+        [0, 3, 5, 6, 0],
+        [-1, 0, 2, 9, 0]
+    ])
+    banded_data = np.array([
+        [0, 3, 5, 6, 0],
+        [1, 3, 5, 9, 0],
+        [2, 3, 2, 0, 0],
+        [0, 0, 0, 0, 0],
+        [-1, 0, 0, 0, 0]
+    ])
+    expected_data = np.array([
+        [0, 3, 5, 6],
+        [1, 3, 5, 9],
+        [2, 3, 2, 0],
+        [-1, 0, 0, 0]
+    ])
+    matrix = dia_object(data)
+
+    out, (lower, upper) = _banded_utils._sparse_to_banded(matrix)
+    out2, (lower2, upper2) = _banded_utils._sparse_to_banded(matrix.tocsr())
+
+    # sanity check
+    assert_array_equal(matrix.toarray(), data)
+    # ensure that the last column of zeros should typically get truncated by SciPy's
+    # sparse matrices
+    assert_array_equal(matrix.data[::-1], expected_data)
 
     assert_array_equal(banded_data, out)
     assert lower == 3

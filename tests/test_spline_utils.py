@@ -565,7 +565,7 @@ def test_numba_btb_bty(data_fixture, spline_degree, num_knots):
 
     ab_full = _banded_utils._lower_to_full(ab_lower)
 
-    expected_ab, _ = _banded_utils._sparse_to_banded(expected_lhs, spline_basis._num_bases)
+    expected_ab, _ = _banded_utils._sparse_to_banded(expected_lhs)
     if expected_ab.shape[0] != ab_full.shape[0]:
         # diagonals became 0 and were truncated from the sparse object's data attritube
         expected_ab = _banded_utils._pad_diagonals(

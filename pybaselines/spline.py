@@ -549,9 +549,7 @@ class _Spline(_Algorithm):
         )
         partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array
-        d1_penalty = _sparse_to_banded(
-            d1_penalty @ pspline.basis.basis, pspline.basis._num_bases
-        )[0]
+        d1_penalty = _sparse_to_banded(d1_penalty @ pspline.basis.basis)[0]
         if pspline.lower:
             d1_penalty = d1_penalty[len(d1_penalty) // 2:]
         pspline.add_penalty(d1_penalty)

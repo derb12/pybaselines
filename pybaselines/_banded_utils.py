@@ -188,20 +188,18 @@ def _add_diagonals(array_1, array_2, lower_only=True):
     return summed_diagonals
 
 
-def _sparse_to_banded(matrix, expected_length):
+def _sparse_to_banded(matrix):
     """
     Converts sparse matrices to LAPACK banded format.
 
     Parameters
     ----------
-    matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
+    matrix : scipy.sparse.spmatrix or scipy.sparse.sparray, shape (L, N)
         The sparse, banded matrix.
-    expected_length : int
-        The expected total length of the data from the sparse matrix.
 
     Returns
     -------
-    ab : numpy.ndarray, shape (M, `expected_length`)
+    ab : numpy.ndarray, shape (M, N)
         The data from the input sparse matrix in LAPACK banded format.
     tuple(int, int)
         The number of lower and upper bands within the banded matrix.
@@ -214,12 +212,13 @@ def _sparse_to_banded(matrix, expected_length):
 
     """
     diag_matrix = matrix.todia()
+    num_columns = diag_matrix.shape[1]  # the actual expected number of columns
     lower = min(0, diag_matrix.offsets.min())
     upper = max(0, diag_matrix.offsets.max())
 
-    data_size = diag_matrix.data.shape[1]
+    sparse_columns = diag_matrix.data.shape[1]
     if (
-        data_size == expected_length
+        sparse_columns == num_columns
         and np.array_equal(np.sort(diag_matrix.offsets), np.arange(lower, upper + 1))
     ):
         # offsets are typically negative to positive, but can get flipped during conversion
@@ -230,8 +229,8 @@ def _sparse_to_banded(matrix, expected_length):
         else:
             ab = diag_matrix.data[::-1]
     else:
-        ab = np.zeros((abs(lower) + upper + 1, expected_length), dtype=diag_matrix.dtype)
-        ab[upper - diag_matrix.offsets, :data_size] = diag_matrix.data
+        ab = np.zeros((abs(lower) + upper + 1, num_columns), dtype=diag_matrix.dtype)
+        ab[upper - diag_matrix.offsets, :sparse_columns] = diag_matrix.data
 
     return ab, (abs(lower), upper)
 
@@ -517,7 +516,7 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
         diagonals = np.ones((1, data_size))
     elif data_size < 2 * diff_order + 1 or diff_order > 3:
         diff_matrix = difference_matrix(data_size, diff_order, 'csc')
-        diagonals = _sparse_to_banded(diff_matrix.T @ diff_matrix, data_size)[0]
+        diagonals = _sparse_to_banded(diff_matrix.T @ diff_matrix)[0]
         if lower_only:
             diagonals = diagonals[diff_order:]
     else:

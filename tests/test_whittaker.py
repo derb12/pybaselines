@@ -412,9 +412,7 @@ class TestAsPLS(WhittakerTester):
         )
         penalty_matrix = lam * _banded_utils.diff_penalty_matrix(num_points, diff_order=diff_order)
 
-        expected_result = _banded_utils._sparse_to_banded(
-            diags(alpha) @ penalty_matrix, num_points
-        )[0]
+        expected_result = _banded_utils._sparse_to_banded(diags(alpha) @ penalty_matrix)[0]
 
         result = alpha * penalized_system.penalty
         result = _banded_utils._shift_rows(result, diff_order, diff_order)
