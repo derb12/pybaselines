@@ -988,9 +988,9 @@ def _refine_mask(mask, min_length=2):
     Examples
     --------
     >>> mask = np.array([1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1])
-    >>> _remove_single_points(mask, 3).astype(int)
+    >>> _refine_mask(mask, 3).astype(int)
     array([1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1])
-    >>> _remove_single_points(mask, 5).astype(int)
+    >>> _refine_mask(mask, 5).astype(int)
     array([0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
     """
