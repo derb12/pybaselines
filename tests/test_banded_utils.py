@@ -631,6 +631,48 @@ def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_pen
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('allow_pentapy', (True, False))
+def test_whittaker_lam_extremes(data_fixture, diff_order, allow_lower, allow_pentapy):
+    """
+    Tests the result of Whittaker smoothing for high and low limits of ``lam``.
+
+    When ``lam`` is ~infinite, the solution to ``(I + lam * D.T @ D) x = y`` should approximate
+    a polynomial of degree ``diff_order - 1`` according to [1]_. Likewise, as ``lam`` approaches
+    0, the solution should be the same as ``y``.
+
+    References
+    ----------
+    .. [1] Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+    """
+    _, y = data_fixture
+    data_size = len(y)
+    x = np.arange(data_size)
+
+    penalized_system = _banded_utils.PenalizedSystem(
+        data_size, lam=1e13, diff_order=diff_order, allow_lower=allow_lower,
+        allow_pentapy=allow_pentapy
+    )
+    output = penalized_system.solve(penalized_system.add_diagonal(1.), y)
+
+    polynomial_fit = np.polynomial.Polynomial.fit(x, y, deg=diff_order - 1)(x)
+    # limited by how close to infinity lam can get before it causes numerical instability,
+    # and larger diff_orders need larger lam for it to be a polynomial, so have to reduce the
+    # relative tolerance as diff_order increases
+    rtol = {1: 1e-7, 2: 5e-4, 3: 3e-3}[diff_order]
+    assert_allclose(output, polynomial_fit, rtol=rtol, atol=1e-10)
+
+    # for lam ~ 0, should just approximate the input
+    penalized_system2 = _banded_utils.PenalizedSystem(
+        data_size, lam=1e-8, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=None, allow_pentapy=allow_pentapy
+    )
+    output2 = penalized_system.solve(penalized_system2.add_diagonal(1.), y)
+    assert_allclose(output2, y, rtol=1e-8, atol=1e-10)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
 def test_penalized_system_add_penalty(diff_order, allow_lower):
     """
     Tests adding a penalty to a PenalizedSystem.

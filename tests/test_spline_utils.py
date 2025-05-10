@@ -576,3 +576,51 @@ def test_numba_btb_bty(data_fixture, spline_degree, num_knots):
     assert_allclose(rhs, expected_rhs, rtol=1e-15, atol=1e-15)
     assert_allclose(ab_full, expected_ab, rtol=1e-15, atol=1e-15)
     assert_allclose(ab_lower, expected_ab_lower, rtol=1e-15, atol=1e-15)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('num_knots', (50, 501))
+def test_pspline_lam_extremes(data_fixture, diff_order, allow_lower, spline_degree, num_knots):
+    """
+    Tests the result of P-spline smoothing for high and low limits of ``lam``.
+
+    When ``lam`` is ~infinite, the solution to ``(B.T @ B + lam * D.T @ D) x = B.T @ y`` should
+    approximate a polynomial of degree ``diff_order - 1`` as long as the spline degree is greater
+    than or equal to ``diff_order`` according to [1]_. Likewise, as ``lam`` approaches 0, the
+    solution should be the same as an interpolating spline of the same spline degree.
+
+    References
+    ----------
+    .. [1] Eilers, P., et al. Flexible Smoothing with B-splines and Penalties. Statistical
+           Science, 1996, 11(2), 89-121.
+
+    """
+    x, y = data_fixture
+    weights = np.ones_like(y)
+
+    spline_basis = _spline_utils.SplineBasis(x, num_knots=num_knots, spline_degree=spline_degree)
+    if spline_degree >= diff_order:  # can only approximate a polynomial if the spline allows
+        pspline = _spline_utils.PSpline(
+            spline_basis, lam=1e13, diff_order=diff_order, allow_lower=allow_lower
+        )
+        output = pspline.solve_pspline(y, weights)
+
+        polynomial_fit = np.polynomial.Polynomial.fit(x, y, deg=diff_order - 1)(x)
+        # limited by how close to infinity lam can get before it causes numerical instability,
+        # and both larger num_knots and larger diff_orders need larger lam for it to be a
+        # polynomial, so have to reduce the relative tolerance; num_knots has a larger effect
+        # than diff_order, so base the rtol on it
+        rtol = {50: 5e-4, 501: 5e-3}[num_knots]
+        assert_allclose(output, polynomial_fit, rtol=rtol, atol=1e-10)
+
+    # for lam ~ 0, should just approximate the an interpolating spline
+    pspline2 = _spline_utils.PSpline(
+        spline_basis, lam=1e-10, diff_order=diff_order, allow_lower=allow_lower
+    )
+    output2 = pspline2.solve_pspline(y, weights)
+    # cannot use interpolation from SciPy since the knot arrangement is going to be different
+    expected_coeffs = spsolve(spline_basis.basis.T @ spline_basis.basis, spline_basis.basis.T @ y)
+    expected = spline_basis.basis @ expected_coeffs
+    assert_allclose(output2, expected, rtol=1e-9, atol=1e-10)

@@ -149,9 +149,6 @@ class _Polynomial(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
         poly_order : int, optional
             The polynomial order for fitting the baseline. Default is 2.
         tol : float, optional
