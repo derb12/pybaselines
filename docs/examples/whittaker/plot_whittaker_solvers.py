@@ -35,11 +35,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import Baseline
+from pybaselines import Baseline, utils
 from pybaselines.utils import difference_matrix, relative_difference
-
-# local import with setup code
-from example_helpers import make_data
 
 
 def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
@@ -106,7 +103,7 @@ if __name__ == '__main__':
     for func_name in functions:
         timings = []
         for num_x in data_sizes:
-            y = make_data(num_x)[0]
+            y = utils._make_data(num_x)[1]
             lam = lam_equation(num_x)
             if func_name == 'sparse':
                 func = sparse_asls

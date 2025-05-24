@@ -20,14 +20,54 @@ values for fitting new datasets.
 # sphinx_gallery_thumbnail_number = 2
 
 from itertools import cycle
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines import Baseline
+from pybaselines import Baseline, utils
 
-# local import with setup code
-from example_helpers import make_data, optimize_lam
+
+def _minimize(data, known_baseline, func, lams, **kwargs):
+    """Finds the `lam` value that minimizes the L2 norm."""
+    min_error = np.inf
+    best_lam = lams[0]
+    with warnings.catch_warnings():
+        # ignore warnings that occur when using very small lam values
+        warnings.filterwarnings('ignore')
+        for lam in lams:
+            try:
+                baseline = func(data, lam=10**lam, **kwargs)[0]
+            except np.linalg.LinAlgError:
+                continue  # numerical instability can occur for lam >~1e12, just ignore
+            fit_error = np.linalg.norm(known_baseline - baseline, 2)
+            if fit_error < min_error:
+                min_error = fit_error
+                best_lam = lam
+
+    return best_lam
+
+
+def optimize_lam(data, known_baseline, func, previous_min=None, **kwargs):
+    """
+    Finds the optimum `lam` value.
+
+    The optimal `lam` value should be ``10**best_lam``. Could alternatively
+    use scipy.optimize.fmin, but this simple version is enough for examples.
+
+    """
+    if previous_min is None:
+        min_lam = -1
+    else:
+        min_lam = previous_min - 0.5
+    # coarse optimization
+    lams = np.arange(min_lam, 13.5, 0.5)
+    best_lam = _minimize(data, known_baseline, func, lams, **kwargs)
+    # fine optimization
+    lams = np.arange(best_lam - 0.5, best_lam + 0.7, 0.2)
+    best_lam = _minimize(data, known_baseline, func, lams, **kwargs)
+
+    return best_lam
 
 
 def iasls(*args, lam=1, p=0.05, **kwargs):
@@ -48,7 +88,7 @@ bkg_dict = {}
 bkg_types = ('exponential', 'gaussian', 'sine')
 for bkg_type in bkg_types:
     bkg_dict[bkg_type] = {}
-    plt.plot(make_data(1000, bkg_type)[0], label=bkg_type)
+    plt.plot(utils._make_data(1000, bkg_type)[1], label=bkg_type)
 plt.legend()
 
 # %%
@@ -75,7 +115,7 @@ for i, func_name in enumerate((
                 func = iasls
             else:
                 func = getattr(Baseline(), func_name)
-            y, baseline = make_data(num_x, bkg_type)
+            x, y, baseline = utils._make_data(num_x, bkg_type)
             # use a slightly lower tolerance to speed up the calculation
             min_lam = optimize_lam(y, baseline, func, min_lam, tol=1e-2, max_iter=50)
             best_lams[j] = min_lam
