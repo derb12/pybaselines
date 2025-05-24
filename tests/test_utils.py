@@ -828,3 +828,23 @@ def test_optimize_window(small_data2d, two_d):
         assert isinstance(output, np.ndarray)
     else:
         assert isinstance(output, int)
+
+
+@pytest.mark.parametrize('data_size', (500, 1000, 1001))
+@pytest.mark.parametrize('baseline_type', ('exponential', 'gaussian', 'linear', 'sine'))
+def test_make_data(data_size, baseline_type):
+    """Ensures basic functionality of the _make_data function."""
+    x, y, baseline = utils._make_data(data_size, baseline_type)
+    assert isinstance(x, np.ndarray)
+    assert isinstance(y, np.ndarray)
+    assert isinstance(baseline, np.ndarray)
+
+    assert x.shape == (data_size,)
+    assert y.shape == (data_size,)
+    assert baseline.shape == (data_size,)
+
+
+def test_make_data_invalid_baseline():
+    """Ensures an error is raised when an invalid baseline type is specified."""
+    with pytest.raises(ValueError):
+        utils._make_data(100, 'aaaaa')

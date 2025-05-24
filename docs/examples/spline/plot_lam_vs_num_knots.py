@@ -17,14 +17,54 @@ values for fitting new datasets.
 
 from functools import partial
 from itertools import cycle
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pybaselines import Baseline
+from pybaselines import Baseline, utils
 
-# local import with setup code
-from example_helpers import make_data, optimize_lam
+
+def _minimize(data, known_baseline, func, lams, **kwargs):
+    """Finds the `lam` value that minimizes the L2 norm."""
+    min_error = np.inf
+    best_lam = lams[0]
+    with warnings.catch_warnings():
+        # ignore warnings that occur when using very small lam values
+        warnings.filterwarnings('ignore')
+        for lam in lams:
+            try:
+                baseline = func(data, lam=10**lam, **kwargs)[0]
+            except np.linalg.LinAlgError:
+                continue  # numerical instability can occur for lam >~1e12, just ignore
+            fit_error = np.linalg.norm(known_baseline - baseline, 2)
+            if fit_error < min_error:
+                min_error = fit_error
+                best_lam = lam
+
+    return best_lam
+
+
+def optimize_lam(data, known_baseline, func, previous_min=None, **kwargs):
+    """
+    Finds the optimum `lam` value.
+
+    The optimal `lam` value should be ``10**best_lam``. Could alternatively
+    use scipy.optimize.fmin, but this simple version is enough for examples.
+
+    """
+    if previous_min is None:
+        min_lam = -1
+    else:
+        min_lam = previous_min - 0.5
+    # coarse optimization
+    lams = np.arange(min_lam, 13.5, 0.5)
+    best_lam = _minimize(data, known_baseline, func, lams, **kwargs)
+    # fine optimization
+    lams = np.arange(best_lam - 0.5, best_lam + 0.7, 0.2)
+    best_lam = _minimize(data, known_baseline, func, lams, **kwargs)
+
+    return best_lam
 
 
 # %%
@@ -32,7 +72,7 @@ from example_helpers import make_data, optimize_lam
 # Other baseline types could be examined, similar to the
 # :ref:`Whittaker lam vs data size example <sphx_glr_generated_examples_whittaker_plot_lam_vs_data_size.py>`,
 # which should give similar results.
-plt.plot(make_data(1000, bkg_type='exponential')[0])
+plt.plot(utils._make_data(1000, bkg_type='exponential')[1])
 
 # %%
 # The number of knots will vary from 20 to 1000 on a logarithmic scale. For each number
@@ -47,7 +87,7 @@ for i, num_knot in enumerate(num_knots):
     min_lam = 0
     for j, num_x in enumerate(num_points):
         func = partial(Baseline().mixture_model, num_knots=num_knot, diff_order=2)
-        y, baseline = make_data(num_x, bkg_type='exponential')
+        x, y, baseline = utils._make_data(num_x, bkg_type='exponential')
         # use a slightly lower tolerance to speed up the calculation
         min_lam = optimize_lam(y, baseline, func, min_lam, tol=1e-2, max_iter=50)
         best_lams[i, j] = min_lam
