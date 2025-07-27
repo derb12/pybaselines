@@ -916,7 +916,8 @@ class _Spline(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights', 'alpha'))
     def pspline_aspls(self, data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
-                      max_iter=100, tol=1e-3, weights=None, alpha=None, asymmetric_coef=0.5):
+                      max_iter=100, tol=1e-3, weights=None, alpha=None, asymmetric_coef=2.,
+                      alternate_weighting=True):
         """
         A penalized spline version of the asPLS algorithm.
 
@@ -946,9 +947,16 @@ class _Spline(_Algorithm):
             An array of values that control the local value of `lam` to better
             fit peak and non-peak regions. If None (default), then the initial values
             will be an array with size equal to N and all values set to 1.
-        asymmetric_coef : float
+        asymmetric_coef : float, optional
             The asymmetric coefficient for the weighting. Higher values leads to a steeper
-            weighting curve (ie. more step-like). Default is 0.5.
+            weighting curve (ie. more step-like). Default is 2, as used in the asPLS paper [1]_.
+            Note that a value of 4 results in the weighting scheme used in the NasPLS
+            (Non-sensitive-areas adaptive smoothness penalized least squares smoothing) algorithm
+            [2]_.
+        alternate_weighting : bool, optional
+            If True (default), subtracts the mean of the negative residuals within the weighting
+            equation. If False, uses the weighting equation as stated within the asPLS paper [1]_.
+            See the Notes section below for more details.
 
         Returns
         -------
@@ -979,19 +987,25 @@ class _Spline(_Algorithm):
 
         Notes
         -----
-        The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
-        of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
-        matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
-        factor of 2 and fits noisy data much better.
+        The weighting scheme as written in the asPLS paper [1]_ does not reproduce the paper's
+        results for noisy data. By subtracting the mean of negative residuals (``data-baseline``)
+        within the weighting scheme, as used by other algorithms such as ``arPLS`` and ``drPLS``,
+        the asPLS paper's results can be correctly replicated (see
+        https://github.com/derb12/pybaselines/issues/40 for more details). Given this discrepancy,
+        the default for ``aspls`` is to also subtract the negative residuals within the weighting.
+        To use the weighting scheme as it is written in the asPLS paper, simply set
+        ``alternate_weighting`` to False.
 
         References
         ----------
-        Zhang, F., et al. Baseline correction for infrared spectra using
-        adaptive smoothness parameter penalized least squares method.
-        Spectroscopy Letters, 2020, 53(3), 222-233.
-
-        Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
-        Reviews: Computational Statistics, 2010, 2(6), 637-653.
+        .. [1] Zhang, F., et al. Baseline correction for infrared spectra using
+            adaptive smoothness parameter penalized least squares method.
+            Spectroscopy Letters, 2020, 53(3), 222-233.
+        .. [2] Zhang, F., et al. An automatic baseline correction method based on reweighted
+            penalized least squares method for non-sensitive areas. Vibrational Spectroscopy,
+            2025, 138, 103806.
+        .. [3] Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+            Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
         y, weight_array, pspline = self._setup_spline(
@@ -1014,7 +1028,9 @@ class _Spline(_Algorithm):
                 pspline.num_bands, pspline.num_bands
             )
             baseline = pspline.solve_pspline(y, weight_array, alpha_penalty)
-            new_weights, residual, exit_early = _weighting._aspls(y, baseline, asymmetric_coef)
+            new_weights, residual, exit_early = _weighting._aspls(
+                y, baseline, asymmetric_coef, alternate_weighting
+            )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -1507,7 +1523,7 @@ class _Spline(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',))
     def pspline_lsrpls(self, data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
-                       max_iter=50, tol=1e-3, weights=None):
+                       max_iter=50, tol=1e-3, weights=None, alternate_weighting=False):
         """
         A penalized spline version of the LSRPLS algorithm.
 
@@ -1533,6 +1549,10 @@ class _Spline(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
+        alternate_weighting : bool, optional
+            If False (default), the weighting uses a prefactor term of ``10^t``, where ``t`` is
+            the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
+            a prefactor term of ``exp(t)``. See the Notes section below for more details.
 
         Returns
         -------
@@ -1553,10 +1573,24 @@ class _Spline(_Algorithm):
         --------
         Baseline.lsrpls
 
+        Notes
+        -----
+        In the LSRPLS paper [1]_, the weighting equation is written with a prefactor term
+        of ``10^t``, where ``t`` is the iteration number, but the plotted weighting curve in
+        Figure 1 of the paper shows a prefactor term of ``exp(t)`` instead. Since it is ambiguous
+        which prefactor term is actually used for the algorithm, both are permitted by setting
+        `alternate_weighting` to True to use ``10^t`` and False to use ``exp(t)``. In practice,
+        the prefactor determines how quickly the weighting curve converts from a sigmoidal curve
+        to a step curve, and does not heavily influence the result.
+
+        If ``alternate_weighting`` is False, the weighting is the same as the drPLS algorithm [2]_.
+
         References
         ----------
-        Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
-        Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+        .. [1] Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+            Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+        .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
+            penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
         """
         y, weight_array, pspline = self._setup_spline(
@@ -1565,7 +1599,7 @@ class _Spline(_Algorithm):
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = pspline.solve_pspline(y, weight_array)
-            new_weights, exit_early = _weighting._lsrpls(y, baseline, i)
+            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -2329,7 +2363,7 @@ def pspline_iarpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
 @_spline_wrapper
 def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
                   max_iter=100, tol=1e-3, weights=None, alpha=None, x_data=None,
-                  asymmetric_coef=0.5):
+                  asymmetric_coef=2., alternate_weighting=True):
     """
     A penalized spline version of the asPLS algorithm.
 
@@ -2362,9 +2396,16 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
-    asymmetric_coef : float
+    asymmetric_coef : float, optional
         The asymmetric coefficient for the weighting. Higher values leads to a steeper
-        weighting curve (ie. more step-like). Default is 0.5.
+        weighting curve (ie. more step-like). Default is 2, as used in the asPLS paper [1]_.
+        Note that a value of 4 results in the weighting scheme used in the NasPLS
+        (Non-sensitive-areas adaptive smoothness penalized least squares smoothing) algorithm
+        [2]_.
+    alternate_weighting : bool, optional
+        If True (default), subtracts the mean of the negative residuals within the weighting
+        equation. If False, uses the weighting equation as stated within the asPLS paper [1]_.
+        See the Notes section below for more details.
 
     Returns
     -------
@@ -2395,19 +2436,25 @@ def pspline_aspls(data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
 
     Notes
     -----
-    The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
-    of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
-    matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
-    factor of 2 and fits noisy data much better.
+    The weighting scheme as written in the asPLS paper [1]_ does not reproduce the paper's
+    results for noisy data. By subtracting the mean of negative residuals (``data-baseline``)
+    within the weighting scheme, as used by other algorithms such as ``arPLS`` and ``drPLS``,
+    the asPLS paper's results can be correctly replicated (see
+    https://github.com/derb12/pybaselines/issues/40 for more details). Given this discrepancy,
+    the default for ``aspls`` is to also subtract the negative residuals within the weighting.
+    To use the weighting scheme as it is written in the asPLS paper, simply set
+    ``alternate_weighting`` to False.
 
     References
     ----------
-    Zhang, F., et al. Baseline correction for infrared spectra using
-    adaptive smoothness parameter penalized least squares method.
-    Spectroscopy Letters, 2020, 53(3), 222-233.
-
-    Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
-    Reviews: Computational Statistics, 2010, 2(6), 637-653.
+    .. [1] Zhang, F., et al. Baseline correction for infrared spectra using
+        adaptive smoothness parameter penalized least squares method.
+        Spectroscopy Letters, 2020, 53(3), 222-233.
+    .. [2] Zhang, F., et al. An automatic baseline correction method based on reweighted
+        penalized least squares method for non-sensitive areas. Vibrational Spectroscopy,
+        2025, 138, 103806.
+    .. [3] Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+        Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
     """
 
@@ -2742,7 +2789,7 @@ def pspline_brpls(data, x_data=None, lam=1e3, num_knots=100, spline_degree=3, di
 
 @_spline_wrapper
 def pspline_lsrpls(data, x_data=None, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
-                   max_iter=50, tol=1e-3, weights=None):
+                   max_iter=50, tol=1e-3, weights=None, alternate_weighting=False):
     """
     A penalized spline version of the LSRPLS algorithm.
 
@@ -2771,6 +2818,10 @@ def pspline_lsrpls(data, x_data=None, lam=1e3, num_knots=100, spline_degree=3, d
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then the initial weights
         will be an array with size equal to N and all values set to 1.
+    alternate_weighting : bool, optional
+        If False (default), the weighting uses a prefactor term of ``10^t``, where ``t`` is
+        the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
+        a prefactor term of ``exp(t)``. See the Notes section below for more details.
 
     Returns
     -------
@@ -2791,9 +2842,23 @@ def pspline_lsrpls(data, x_data=None, lam=1e3, num_knots=100, spline_degree=3, d
     --------
     Baseline.lsrpls
 
+    Notes
+    -----
+    In the LSRPLS paper [1]_, the weighting equation is written with a prefactor term
+    of ``10^t``, where ``t`` is the iteration number, but the plotted weighting curve in
+    Figure 1 of the paper shows a prefactor term of ``exp(t)`` instead. Since it is ambiguous
+    which prefactor term is actually used for the algorithm, both are permitted by setting
+    `alternate_weighting` to True to use ``10^t`` and False to use ``exp(t)``. In practice,
+    the prefactor determines how quickly the weighting curve converts from a sigmoidal curve
+    to a step curve, and does not heavily influence the result.
+
+    If ``alternate_weighting`` is False, the weighting is the same as the drPLS algorithm [2]_.
+
     References
     ----------
-    Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
-    Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+    .. [1] Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+        Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+    .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
+        penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """

@@ -947,7 +947,7 @@ class _Spline(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_lsrpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
-                       max_iter=50, tol=1e-3, weights=None):
+                       max_iter=50, tol=1e-3, weights=None, altnerate_weighting=False):
         """
         A penalized spline version of the LSRPLS algorithm.
 
@@ -976,6 +976,10 @@ class _Spline(_Algorithm2D):
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
+        alternate_weighting : bool, optional
+            If False (default), the weighting uses a prefactor term of ``10^t``, where ``t`` is
+            the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
+            a prefactor term of ``exp(t)``. See the Notes section below for more details.
 
         Returns
         -------
@@ -996,13 +1000,26 @@ class _Spline(_Algorithm2D):
         --------
         Baseline2D.lsrpls
 
+        Notes
+        -----
+        In the LSRPLS paper [1]_, the weighting equation is written with a prefactor term
+        of ``10^t``, where ``t`` is the iteration number, but the plotted weighting curve in
+        Figure 1 of the paper shows a prefactor term of ``exp(t)`` instead. Since it is ambiguous
+        which prefactor term is actually used for the algorithm, both are permitted by setting
+        `alternate_weighting` to True to use ``10^t`` and False to use ``exp(t)``. In practice,
+        the prefactor determines how quickly the weighting curve converts from a sigmoidal curve
+        to a step curve, and does not heavily influence the result.
+
+        If ``alternate_weighting`` is False, the weighting is the same as the drPLS algorithm [2]_.
+
         References
         ----------
-        Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
-        Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
-
-        Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
-        Reviews: Computational Statistics, 2010, 2(6), 637-653.
+        .. [1] Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+            Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+        .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
+            penalized least squares, Applied Optics, 2019, 58, 3913-3920.
+        .. [3] Eilers, P., et al. Splines, knots, and penalties. Wiley Interdisciplinary
+            Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
         y, weight_array, pspline = self._setup_spline(
@@ -1011,7 +1028,7 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = pspline.solve(y, weight_array)
-            new_weights, exit_early = _weighting._lsrpls(y, baseline, i)
+            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, altnerate_weighting)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break

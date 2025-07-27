@@ -722,7 +722,7 @@ def test_iarpls_overflow(one_d):
     assert not exit_early
 
 
-def expected_aspls(y, baseline, asymmetric_coef=0.5):
+def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
     """
     The weighting for adaptive smoothness penalized least squares smoothing (aspls).
 
@@ -736,7 +736,10 @@ def expected_aspls(y, baseline, asymmetric_coef=0.5):
         The calculated baseline.
     asymmetric_coef : float
         The asymmetric coefficient for the weighting. Higher values leads to a steeper
-        weighting curve (ie. more step-like). Default is 0.5.
+        weighting curve (ie. more step-like).
+    alternate_weighting : bool
+        If True (default), subtracts the mean of the negative residuals within the weighting
+        equation. If False, uses the weighting equation as stated within the aspls paper.
 
     Returns
     -------
@@ -750,24 +753,34 @@ def expected_aspls(y, baseline, asymmetric_coef=0.5):
 
     """
     residual = y - baseline
-    std = np.std(residual[residual < 0], ddof=1)  # use dof=1 since sampling subset
+    neg_residual = residual[residual < 0]
+    std = np.std(neg_residual, ddof=1)  # use dof=1 since sampling subset
 
-    weights = 1 / (1 + np.exp(asymmetric_coef * (residual - std) / std))
+    if alternate_weighting:
+        shifted_residual = residual + neg_residual.mean()
+    else:
+        shifted_residual = residual
+    weights = 1 / (1 + np.exp(asymmetric_coef * (shifted_residual - std) / std))
 
     return weights, residual
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-@pytest.mark.parametrize('asymmetric_coef', (0.5, 2))
-def test_aspls_normal(one_d, asymmetric_coef):
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_aspls_normal(one_d, asymmetric_coef, alternate_weighting):
     """Ensures aspls weighting works as intented for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, residual, exit_early = _weighting._aspls(y_data, baseline, asymmetric_coef)
-    expected_weights, expected_residual = expected_aspls(y_data, baseline, asymmetric_coef)
+    weights, residual, exit_early = _weighting._aspls(
+        y_data, baseline, asymmetric_coef, alternate_weighting
+    )
+    expected_weights, expected_residual = expected_aspls(
+        y_data, baseline, asymmetric_coef, alternate_weighting
+    )
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
@@ -779,16 +792,21 @@ def test_aspls_normal(one_d, asymmetric_coef):
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-@pytest.mark.parametrize('asymmetric_coef', (0.5, 2))
-def test_aspls_all_above(one_d, asymmetric_coef):
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_aspls_all_above(one_d, asymmetric_coef, alternate_weighting):
     """Ensures aspls weighting works as intented for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
 
-    weights, residual, exit_early = _weighting._aspls(y_data, baseline, asymmetric_coef)
-    expected_weights, expected_residual = expected_aspls(y_data, baseline, asymmetric_coef)
+    weights, residual, exit_early = _weighting._aspls(
+        y_data, baseline, asymmetric_coef, alternate_weighting
+    )
+    expected_weights, expected_residual = expected_aspls(
+        y_data, baseline, asymmetric_coef, alternate_weighting
+    )
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
@@ -798,8 +816,9 @@ def test_aspls_all_above(one_d, asymmetric_coef):
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-@pytest.mark.parametrize('asymmetric_coef', (0.5, 2))
-def test_aspls_all_below(one_d, asymmetric_coef):
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_aspls_all_below(one_d, asymmetric_coef, alternate_weighting):
     """Ensures aspls weighting works as intented for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
@@ -807,7 +826,9 @@ def test_aspls_all_below(one_d, asymmetric_coef):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, residual, exit_early = _weighting._aspls(y_data, baseline, asymmetric_coef)
+        weights, residual, exit_early = _weighting._aspls(
+            y_data, baseline, asymmetric_coef, alternate_weighting
+        )
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -818,8 +839,9 @@ def test_aspls_all_below(one_d, asymmetric_coef):
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-@pytest.mark.parametrize('asymmetric_coef', (0.5, 2))
-def test_aspls_overflow(one_d, asymmetric_coef):
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_aspls_overflow(one_d, asymmetric_coef, alternate_weighting):
     """Ensures exponential overflow does not occur from aspls weighting."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
@@ -843,12 +865,16 @@ def test_aspls_overflow(one_d, asymmetric_coef):
 
     # sanity check to ensure overflow actually should occur
     with pytest.warns(RuntimeWarning):
-        expected_weights, expected_residual = expected_aspls(y_data, baseline, asymmetric_coef)
+        expected_weights, expected_residual = expected_aspls(
+            y_data, baseline, asymmetric_coef, alternate_weighting
+        )
     # the resulting weights should still be finite since 1 / (1 + inf) == 0
     assert np.isfinite(expected_weights).all()
 
     with np.errstate(over='raise'):
-        weights, residual, exit_early = _weighting._aspls(y_data, baseline, asymmetric_coef)
+        weights, residual, exit_early = _weighting._aspls(
+            y_data, baseline, asymmetric_coef, alternate_weighting
+        )
 
     assert np.isfinite(weights).all()
     assert not exit_early
@@ -1327,7 +1353,7 @@ def test_brpls_beta_extremes(one_d, beta):
     assert_allclose(weights, expected_weights, rtol=1e-10, atol=1e-10)
 
 
-def expected_lsrpls(y, baseline, iteration):
+def expected_lsrpls(y, baseline, iteration, alternate_weighting):
     """
     The weighting for the locally symmetric reweighted penalized least squares (lsrpls).
 
@@ -1342,38 +1368,67 @@ def expected_lsrpls(y, baseline, iteration):
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
+    alternate_weighting : bool
+        If False, the weighting uses a prefactor term of ``10^t``, where ``t`` is
+        the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
+        a prefactor term of ``exp(t)``. See the Notes section below for more details.
 
     Returns
     -------
     weights : numpy.ndarray, shape (N,)
         The calculated weights.
 
+    Notes
+    -----
+    In the LSRPLS paper [1]_, the weighting equation is written with a prefactor term
+    of ``10^t``, where ``t`` is the iteration number, but the plotted weighting curve in
+    Figure 1 of the paper shows a prefactor term of ``exp(t)`` instead. Since it is ambiguous
+    which prefactor term is actually used for the algorithm, both are permitted by setting
+    `alternate_weighting` to True to use ``10^t`` and False to use ``exp(t)``. In practice,
+    the prefactor determines how quickly the weighting curve converts from a sigmoidal curve
+    to a step curve, and does not heavily influence the result.
+
+    If ``alternate_weighting`` is False, the weighting is the same as the drPLS algorithm [2]_.
+
+
     References
     ----------
-    Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
-    Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+    .. [1] Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+        Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+    .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
+        penalized least squares, Applied Optics, 2019, 58, 3913-3920.
+
 
     """
     residual = y - baseline
     neg_residual = residual[residual < 0]
 
     std = _weighting._safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
-    inner = ((10**iteration) / std) * (residual - (2 * std - np.mean(neg_residual)))
+    if alternate_weighting:
+        prefactor = np.exp(iteration)
+    else:
+        prefactor = 10**iteration
+    inner = (prefactor / std) * (residual - (2 * std - np.mean(neg_residual)))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
     return weights
 
 
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
-def test_lsrpls_normal(iteration, one_d):
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_lsrpls_normal(iteration, one_d, alternate_weighting):
     """Ensures lsrpls weighting works as intented for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration)
-    expected_weights = expected_lsrpls(y_data, baseline, iteration)
+    weights, exit_early = _weighting._lsrpls(
+        y_data, baseline, iteration, alternate_weighting
+    )
+    expected_weights = expected_lsrpls(
+        y_data, baseline, iteration, alternate_weighting
+    )
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
@@ -1385,14 +1440,15 @@ def test_lsrpls_normal(iteration, one_d):
 
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
-def test_lsrpls_all_above(iteration, one_d):
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_lsrpls_all_above(iteration, one_d, alternate_weighting):
     """Ensures lsrpls weighting works as intented for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
-    weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration)
-    expected_weights = expected_lsrpls(y_data, baseline, iteration)
+    weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration, alternate_weighting)
+    expected_weights = expected_lsrpls(y_data, baseline, iteration, alternate_weighting)
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
@@ -1402,7 +1458,8 @@ def test_lsrpls_all_above(iteration, one_d):
 
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
-def test_lsrpls_all_below(iteration, one_d):
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_lsrpls_all_below(iteration, one_d, alternate_weighting):
     """Ensures lsrpls weighting works as intented for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
@@ -1410,7 +1467,7 @@ def test_lsrpls_all_below(iteration, one_d):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration)
+        weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration, alternate_weighting)
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -1420,7 +1477,8 @@ def test_lsrpls_all_below(iteration, one_d):
 
 
 @pytest.mark.parametrize('one_d', (True, False))
-def test_lsrpls_overflow(one_d):
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_lsrpls_overflow(one_d, alternate_weighting):
     """Ensures exponential overflow does not occur from lsrpls weighting."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
@@ -1429,11 +1487,17 @@ def test_lsrpls_overflow(one_d):
 
     iteration = 10000
     # sanity check to ensure overflow actually should occur
-    with pytest.raises(OverflowError):
-        expected_lsrpls(y_data, baseline, iteration)
+    if alternate_weighting:
+        # exponential overflow only warns, so ensure that it produces nan weights
+        with pytest.warns(RuntimeWarning):
+            expected_weights = expected_drpls(y_data, baseline, iteration)
+        assert (~np.isfinite(expected_weights)).any()
+    else:
+        with pytest.raises(OverflowError):
+            expected_lsrpls(y_data, baseline, iteration, alternate_weighting)
 
     with np.errstate(over='raise'):
-        weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration)
+        weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration, alternate_weighting)
 
     assert np.isfinite(weights).all()
     assert not exit_early
