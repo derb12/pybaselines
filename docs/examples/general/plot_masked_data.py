@@ -80,7 +80,7 @@ plt.plot(x, y_bad, label='problematic data')
 plt.legend()
 
 # %%
-# First, the mask for fitting the data has to be made. This can be done by eye if fitting
+# To start, the mask for fitting the data has to be made. This can be done by eye if fitting
 # a few datasets, or can be automated using some metric. Many
 # :doc:`classification methods <../../../algorithms/classification>` use different methods for
 # excluding positive peaks; for excluding negative peaks, see
@@ -107,12 +107,12 @@ _, (ax1, ax2) = plt.subplots(2, layout='constrained')
 ax1.set_title('std_distribution')
 ax2.set_title('imodpoly')
 
-ax1.plot(x, y_bad, label='original data')
+ax1.plot(x, y_bad, label='data')
 ax1.plot(x, non_masked_std_distributionc, label='non-masked baseline')
 ax1.plot(x, masked_std_distribution, label='masked baseline')
 ax1.legend()
 
-ax2.plot(x, y_bad, label='original data')
+ax2.plot(x, y_bad, label='data')
 ax2.plot(x, non_masked_imodpoly, label='non-masked baseline')
 ax2.plot(x, masked_imodpoly, label='masked baseline')
 ax2.legend()
@@ -142,10 +142,10 @@ ax1.set_title('What x-aware algorithms see')
 ax2.set_title('What non-x-aware algorithms see')
 
 # %%
-# For this example, simple linear interpolation will be used.
+# For the next example, simple linear interpolation will be used.
 y_linear = np.interp(x, x[fit_mask], y_bad[fit_mask])
 plt.figure()
-plt.plot(x, y_bad, label='original data')
+plt.plot(x, y_bad, label='data')
 plt.plot(x, y_linear, label='linear interpolation')
 plt.fill_between(
     x[~fit_mask], 0, 1, color='green', alpha=0.1, transform=plt.gca().get_xaxis_transform(),
