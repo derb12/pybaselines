@@ -29,7 +29,7 @@ def find_super_method(app, modname):
     code : str
         The entire source code for the specified module.
     output_tags : dict[str, tuple(str, int, int)]
-        A dictionary that maps each the name of each object in the module to its type ('def'
+        A dictionary that maps the name of each object in the module to its type ('def'
         for functions and methods, 'class' for classes, and 'other' for attributes) and the
         start and end line numbers in ``code``. For example, the key "Baseline.poly" would
         have a value resembling `('def', 90, 140))`, and the key "Baseline" would have a value
