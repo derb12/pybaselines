@@ -6,7 +6,7 @@ Working with Masked or Missing Data
 There are cases where data needs to be filtered/masked before processing, for example a faulty
 detector can result in problematic regions in measurements. In these cases, baseline correction on
 the raw data could lead to severely incorrect fits. One such use of masking in literature is presented by
-`Temmiink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_ for removing downward spikes in
+`Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_ for removing downward spikes in
 mid-infrared data collected from the James Webb Space Telescope before performing baseline correction.
 This example will detail  how to handle working with masked data for the various types of baseline
 correction algorithms in pybaselines.
@@ -84,7 +84,7 @@ plt.legend()
 # a few datasets, or can be automated using some metric. Many
 # :doc:`classification methods <../../../algorithms/classification>` use different methods for
 # excluding positive peaks; for excluding negative peaks, see
-# `Temmiink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_ for an example. This example
+# `Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_ for an example. This example
 # will simply define the mask region by hand.
 fit_mask = (x < 1900) | (x > 2550)  # 1 in regions to fit, 0 in masked region
 
