@@ -12,7 +12,7 @@ import numpy as np
 from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._validation import _check_lam
+from ._validation import _check_lam, _check_half_window
 from .utils import _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
 
 
@@ -292,7 +292,7 @@ class _Morphological(_Algorithm):
         """
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         window_size = 2 * half_wind + 1
-        kernel = _mollifier_kernel(window_size)
+        kernel = _mollifier_kernel(half_wind)
         data_bounds = slice(window_size, -window_size)
 
         pad_kws = pad_kwargs if pad_kwargs is not None else {}
@@ -376,9 +376,14 @@ class _Morphological(_Algorithm):
         """
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         window_size = 2 * half_wind + 1
-        kernel = _mollifier_kernel(window_size)
+        kernel = _mollifier_kernel(half_wind)
         if smooth_half_window is None:
             smooth_half_window = 1
+        else:
+            # a smooth_half_window of 1 equates to no smoothing in mormol, which is typically
+            # smooth_half_window=0 for other methods, so ensure a smooth_half_window
+            # of 0 works as intended too
+            smooth_half_window = _check_half_window(smooth_half_window, allow_zero=True)
         smooth_kernel = _mollifier_kernel(smooth_half_window)
         data_bounds = slice(window_size, -window_size)
 

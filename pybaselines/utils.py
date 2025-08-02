@@ -173,18 +173,18 @@ def gaussian_kernel(window_size, sigma=1.0):
     return gaus / np.sum(gaus)
 
 
-def _mollifier_kernel(window_size):
+def _mollifier_kernel(half_window):
     """
     A kernel for smoothing/mollification.
 
     Parameters
     ----------
-    window_size : int
-        The number of points for the entire kernel.
+    half_window : int
+        The half-window length of the kernel.
 
     Returns
     -------
-    numpy.ndarray, shape (``2 * window_size + 1``,)
+    numpy.ndarray, shape (``2 * half_window + 1``,)
         The area normalized kernel.
 
     References
@@ -194,7 +194,9 @@ def _mollifier_kernel(window_size):
     Mollifications. Applied Spectroscopy, 2019, 73(3), 284-293.
 
     """
-    x = (np.arange(0, 2 * window_size + 1) - window_size) / window_size
+    if half_window == 0:
+        return np.ones(1)
+    x = (np.arange(2 * half_window + 1) - half_window) / half_window
     kernel = np.zeros_like(x)
     # x[1:-1] is same as x[abs(x) < 1]
     kernel[1:-1] = np.exp(-1 / (1 - (x[1:-1])**2))
