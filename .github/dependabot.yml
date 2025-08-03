@@ -7,3 +7,5 @@ updates:
     directory: "/" # Only update the worflow files
     schedule:
       interval: "monthly"
+    commit-message:
+      prefix: "MAINT"
