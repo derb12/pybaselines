@@ -113,8 +113,6 @@ line_length = 100
 lines_after_imports = 2
 multi_line_output = 5
 src_paths = ["pybaselines", "tests"]
-# example_helpers are locally used in doc examples
-known_local_folder = ["example_helpers"]
 
 [tool.ruff]
 exclude = ["docs/conf.py"]

@@ -928,7 +928,7 @@ class _PolyHelper:
     Attributes
     ----------
     poly_order : int
-        The last polynomial order used to calculate the Vadermonde matrix.
+        The last polynomial order used to calculate the Vandermonde matrix.
     pseudo_inverse : numpy.ndarray or None
         The pseudo-inverse of the current Vandermonde matrix.
     vandermonde : numpy.ndarray

@@ -64,11 +64,11 @@ class _Algorithm2D:
         x_data : array-like, shape (M,), optional
             The x-values of the measured data (independant variable for the rows). Default is
             None, which will create an array from -1 to 1 during the first function call with
-            length equal to the input data length.
+            length equal to the number of rows in the input data.
         z_data : array-like, shape (N,), optional
             The z-values of the measured data (independant variable for the columns). Default is
             None, which will create an array from -1 to 1 during the first function call with
-            length equal to the input data length.
+            length equal to the number of columns in the input data.
         check_finite : bool, optional
             If True (default), will raise an error if any values in input data are not finite.
             Setting to False will skip the check. Note that errors may occur if
@@ -560,7 +560,7 @@ class _Algorithm2D:
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
-        max_cross: int, optional
+        max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
             does not limit the cross terms.
@@ -1002,7 +1002,7 @@ class _PolyHelper2D:
     max_cross : int
         The maximum degree for the cross terms.
     poly_order : Container[int, int]
-        The last polynomial order used to calculate the Vadermonde matrix.
+        The last polynomial order used to calculate the Vandermonde matrix.
     pseudo_inverse : numpy.ndarray or None
         The pseudo-inverse of the current Vandermonde matrix.
     vandermonde : numpy.ndarray
@@ -1026,7 +1026,7 @@ class _PolyHelper2D:
             The minimum and maximum values of `z`.
         poly_order : int or Container[int, int]
             The polynomial orders for the rows and columns, respectively.
-        max_cross: int
+        max_cross : int
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
 
@@ -1057,7 +1057,7 @@ class _PolyHelper2D:
             The minimum and maximum values of `z`.
         poly_order : int or Container[int, int]
             The polynomial orders for the rows and columns, respectively.
-        max_cross: int
+        max_cross : int
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
 

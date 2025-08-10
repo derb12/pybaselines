@@ -69,7 +69,7 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
-        max_cross: int, optional
+        max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
             does not limit the cross terms.
@@ -121,9 +121,6 @@ class _Polynomial(_Algorithm2D):
         ----------
         data : array-like, shape (M, N)
             The y-values of the measured data.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
         poly_order : int or Sequence[int, int], optional
             The polynomial orders for x and z. If a single value, will use that for both x and
             z. Default is 2.
@@ -145,7 +142,7 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
-        max_cross: int, optional
+        max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
             does not limit the cross terms.
@@ -258,7 +255,7 @@ class _Polynomial(_Algorithm2D):
         num_std : float, optional
             The number of standard deviations to include when thresholding. Default
             is 1. Must be greater or equal to 0.
-        max_cross: int, optional
+        max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
             does not limit the cross terms.
@@ -401,7 +398,7 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
-        max_cross: int, optional
+        max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
             does not limit the cross terms.
@@ -519,7 +516,7 @@ class _Polynomial(_Algorithm2D):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the x and z values and return them in the params dictionary.
             Default is False, since the conversion takes time.
-        max_cross: int, optional
+        max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
             does not limit the cross terms.
