@@ -280,7 +280,7 @@ and opening of either the data (first iteration) or previous iteration's baselin
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
     for i, (ax, y) in enumerate(zip(axes, data)):
-        baseline, params = baseline_fitter.amormol(y, 20)
+        baseline, params = baseline_fitter.amormol(y, 10)
         ax.plot(baseline, 'g--')
 
 
