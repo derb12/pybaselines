@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines.two_d import morphological
 
-from ..conftest import BaseTester2D, ensure_deprecation
+from ..base_tests import BaseTester2D, ensure_deprecation
 
 
 class MorphologicalTester(BaseTester2D):

@@ -46,6 +46,7 @@ extensions = [
     'matplotlib.sphinxext.plot_directive',
     'sphinx_gallery.gen_gallery',
     'viewcode_inherit_methods',  # custom extension to allow viewcode with inherited methods
+    'modify_module_docstring',  # custom extension to modify module docstrings
 ]
 
 autosummary_generate = True # enables autosummary extension
@@ -72,7 +73,8 @@ author = "Donald Erb"
 #
 from importlib.metadata import version as _get_version
 # The full version, including alpha/beta/rc tags.
-release = _get_version('pybaselines')
+# remove the git tag to shorten the displayed version
+release = _get_version('pybaselines').split('+')[0]
 # The short X.Y version.
 version = '.'.join(release.split('.')[:2])
 
@@ -208,7 +210,7 @@ sphinx_gallery_conf = {
     # order sections explicitly
     'subsection_order': gallery_section_order,
     # order subsection examples by filename
-    'within_subsection_order': "FileNameSortKey",
+    'within_subsection_order': 'FileNameSortKey',
     # removes configuration comments from rst output
     'remove_config_comments': True,
     # disables trying to link variables to intersphinx
@@ -225,21 +227,19 @@ sphinx_gallery_conf = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-try:
-    import sphinx_rtd_theme
-except ImportError:
-    html_theme = 'nature'
-else:
-    html_theme = 'sphinx_rtd_theme'
-
-
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
 # documentation.
-#
-html_theme_options = {
-    'navigation_depth': 4,
-}
+try:
+    import sphinx_rtd_theme
+    html_theme = 'sphinx_rtd_theme'
+    html_theme_options = {
+        'navigation_depth': 5,
+        'prev_next_buttons_location': 'both',
+    }
+except ImportError:
+    html_theme = 'nature'
+    html_theme_options = {}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

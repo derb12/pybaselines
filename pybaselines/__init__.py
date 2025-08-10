@@ -15,7 +15,7 @@ try:
     from ._version import __version__
 except ImportError:
     # in case of local use without installing first
-    __version__ = '1.2.0.post1.dev0'
+    __version__ = '1.2.1.post1.dev0'
 
 # import utils first since it is imported by other modules; likewise, import
 # optimizers and api last since they import the other modules

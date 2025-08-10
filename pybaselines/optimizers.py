@@ -235,6 +235,13 @@ class _Optimizers(_Algorithm):
         lambda or the polynomial degree for all of the affected algorithms in
         pybaselines.
 
+        It should be noted that the optimal ``lam`` value obtained from
+        :meth:`~.Baseline.optimize_extended_range` cannot be directly used for fitting
+        other data using the same ``method`` since the optimal ``lam`` value corresponds
+        to the padded data; since ``lam`` has a dependance on data size, the optimal ``lam``
+        value for fitting non-padded data will be slightly lower than the optimal value
+        obtained from :meth:`~.Baseline.optimize_extended_range`.
+
         References
         ----------
         .. [1] Zhang, F., et al. An Automatic Baseline Correction Method Based on

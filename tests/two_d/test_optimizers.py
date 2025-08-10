@@ -13,7 +13,7 @@ import pytest
 from pybaselines import utils
 from pybaselines.two_d import optimizers, polynomial
 
-from ..conftest import BaseTester2D, InputWeightsMixin
+from ..base_tests import BaseTester2D, InputWeightsMixin
 
 
 class OptimizerInputWeightsMixin(InputWeightsMixin):

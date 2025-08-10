@@ -14,7 +14,9 @@ import pytest
 
 from pybaselines import _banded_utils, morphological
 
-from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation, has_pentapy
+from .base_tests import (
+    BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation, has_pentapy
+)
 
 
 class MorphologicalTester(BaseTester):
@@ -48,7 +50,7 @@ class IterativeMorphologicalTester(MorphologicalTester):
         assert params['tol_history'].size == max_iter + 1
 
 
-class TestMPLS(MorphologicalTester, InputWeightsMixin):
+class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpls baseline."""
 
     func_name = 'mpls'
@@ -88,6 +90,12 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin):
         with pytest.warns(DeprecationWarning):
             self.class_func(self.y, max_iter=20)
 
+    @ensure_deprecation(1, 4)
+    def test_recreation(self):
+        """Ignores the warning emitted by inputting tol within RecreationMixin.test_recreation."""
+        with pytest.warns(DeprecationWarning):
+            super().test_recreation()
+
 
 class TestMor(MorphologicalTester):
     """Class for testing mor baseline."""
@@ -111,6 +119,21 @@ class TestMorMol(IterativeMorphologicalTester):
     """Class for testing mormol baseline."""
 
     func_name = 'mormol'
+
+    def test_smooth_half_windows(self):
+        """Ensures smooth-half-window is correctly processed.
+
+        For mormol, smooth_half_window values of None, 0, and 1 should all produce no smoothing.
+        """
+        half_window = 15
+        no_smooth_output = self.class_func(
+            self.y, half_window=half_window, smooth_half_window=1
+        )[0]
+        for smooth_half_window in (None, 0):
+            output = self.class_func(
+                self.y, half_window=half_window, smooth_half_window=smooth_half_window
+            )[0]
+            assert_allclose(output, no_smooth_output, rtol=1e-12, atol=1e-12)
 
 
 class TestRollingBall(MorphologicalTester):
@@ -154,7 +177,7 @@ class TestTophat(MorphologicalTester):
     func_name = 'tophat'
 
 
-class TestMpspline(MorphologicalTester, InputWeightsMixin):
+class TestMpspline(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpspline baseline."""
 
     func_name = 'mpspline'

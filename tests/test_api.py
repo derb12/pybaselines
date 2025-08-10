@@ -16,7 +16,7 @@ from pybaselines import (
     api, classification, misc, morphological, optimizers, polynomial, smooth, spline, whittaker
 )
 
-from .conftest import get_data, check_param_keys
+from .base_tests import get_data, check_param_keys
 
 
 _ALL_CLASSES = (

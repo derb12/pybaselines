@@ -149,9 +149,6 @@ class _Polynomial(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        x_data : array-like, shape (N,), optional
-            The x-values of the measured data. Default is None, which will create an
-            array from -1 to 1 with N points.
         poly_order : int, optional
             The polynomial order for fitting the baseline. Default is 2.
         tol : float, optional
@@ -784,14 +781,10 @@ class _Polynomial(_Algorithm):
             raise ValueError('quantile must be between 0 and 1.')
 
         y, weight_array = self._setup_polynomial(data, weights, poly_order, calc_vander=True)
-        # estimate first iteration using least squares
         sqrt_w = np.sqrt(weight_array)
-        coef = np.linalg.lstsq(self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None)[0]
-        baseline = self._polynomial.vandermonde @ coef
-        tol_history = np.empty(max_iter)
-        for i in range(max_iter):
-            baseline_old = baseline
-            sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+        baseline_old = y
+        tol_history = np.empty(max_iter + 1)
+        for i in range(max_iter + 1):
             coef = np.linalg.lstsq(
                 self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
             )[0]
@@ -802,6 +795,8 @@ class _Polynomial(_Algorithm):
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
+            sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+            baseline_old = baseline
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
         if return_coef:

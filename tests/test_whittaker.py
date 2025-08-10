@@ -9,14 +9,83 @@ Created on March 20, 2021
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
+from scipy.sparse.linalg import spsolve
 
-from pybaselines import _banded_utils, whittaker
-from pybaselines._compat import diags
+from pybaselines import _banded_utils, _weighting, whittaker
+from pybaselines.utils import relative_difference
+from pybaselines._compat import diags, identity
 
-from .conftest import BaseTester, InputWeightsMixin, ensure_deprecation, has_pentapy
+from .base_tests import (
+    BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation, has_pentapy
+)
 
 
-class WhittakerTester(BaseTester, InputWeightsMixin):
+def sparse_iasls(data, lam, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, diff_order=2):
+    """A sparse version of iasls for testing that the banded version is implemented correctly."""
+    y = np.asarray(data)
+    num_y = len(y)
+    weight_array = np.ones(num_y)
+    d1_penalty = lam_1 * _banded_utils.diff_penalty_matrix(num_y, 1)
+    penalty_matrix = lam * _banded_utils.diff_penalty_matrix(num_y, diff_order) + d1_penalty
+    weight_matrix = diags(weight_array)
+    for _ in range(max_iter + 1):
+        lhs = weight_matrix.T @ weight_matrix + penalty_matrix
+        baseline = spsolve(lhs, (weight_matrix.T @ weight_matrix + d1_penalty) @ y)
+        new_weights = _weighting._asls(y, baseline, p)
+        calc_difference = relative_difference(weight_array, new_weights)
+        if calc_difference < tol:
+            break
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
+
+    return baseline
+
+
+def sparse_drpls(data, lam, eta=0.5, diff_order=2, tol=1e-3, max_iter=50):
+    """A sparse version of drpls for testing that the banded version is implemented correctly."""
+    y = np.asarray(data)
+    num_y = len(y)
+    weight_array = np.ones(num_y)
+    penalty_matrix = lam * _banded_utils.diff_penalty_matrix(num_y, diff_order)
+    d1_penalty = _banded_utils.diff_penalty_matrix(num_y, 1)
+    identity_matrix = identity(num_y)
+    weight_matrix = diags(weight_array)
+    for i in range(max_iter + 1):
+        lhs = weight_matrix + d1_penalty + (identity_matrix - eta * weight_matrix) @ penalty_matrix
+        baseline = spsolve(lhs, weight_array * y)
+        new_weights, _ = _weighting._drpls(y, baseline, i + 1)
+        if relative_difference(weight_array, new_weights) < tol:
+            break
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
+
+    return baseline
+
+
+def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coef=2):
+    """A sparse version of aspls for testing that the banded version is implemented correctly."""
+    y = np.asarray(data)
+    num_y = len(y)
+    weight_array = np.ones(num_y)
+
+    penalty_matrix = lam * _banded_utils.diff_penalty_matrix(num_y, diff_order)
+    alpha_matrix = identity(num_y)
+    weight_matrix = diags(weight_array)
+    for _ in range(max_iter + 1):
+        lhs = weight_matrix + alpha_matrix @ penalty_matrix
+        baseline = spsolve(lhs, weight_array * y)
+        new_weights, residual, _ = _weighting._aspls(y, baseline, asymmetric_coef)
+        if relative_difference(weight_array, new_weights) < tol:
+            break
+        weight_array = new_weights
+        weight_matrix.setdiag(weight_array)
+        abs_d = np.abs(residual)
+        alpha_matrix.setdiag(abs_d / abs_d.max())
+
+    return baseline
+
+
+class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
@@ -53,35 +122,6 @@ class WhittakerTester(BaseTester, InputWeightsMixin):
         _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
-
-    def test_recreation(self):
-        """
-        Ensures inputting weights can recreate the same baseline.
-
-        Optimizers such as `collab_pls` require this functionality, so ensure
-        it works.
-
-        Note that if `max_iter` is set such that the function does not converge,
-        then this will fail; that behavior is fine since exiting before convergence
-        should not be a typical usage.
-        """
-        # TODO this should eventually be incorporated into InputWeightsMixin, but would
-        # need to be generalized first; also most polynomial algorithms currently fail with
-        # it due to their different exit criteria -> intended or not?
-        first_baseline, params = self.class_func(self.y)
-        kwargs = {'weights': params['weights']}
-        if self.func_name in ('aspls', 'pspline_aspls'):
-            kwargs['alpha'] = params['alpha']
-        elif self.func_name in ('brpls', 'pspline_brpls'):
-            kwargs['tol_2'] = np.inf
-        second_baseline, params_2 = self.class_func(self.y, tol=np.inf, **kwargs)
-
-        if self.func_name in ('brpls', 'pspline_brpls'):
-            assert params_2['tol_history'].shape == (2, 1)
-            assert params_2['tol_history'].size == 2
-        else:
-            assert len(params_2['tol_history']) == 1
-        assert_allclose(second_baseline, first_baseline, rtol=1e-12)
 
 
 class TestAsLS(WhittakerTester):
@@ -123,6 +163,28 @@ class TestIAsLS(WhittakerTester):
         """Ensure that a difference order of 1 raises an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, lam=1e2, diff_order=1)
+
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    @pytest.mark.parametrize('lam_1', (1e-3, 1e-1))
+    @pytest.mark.parametrize('p', (0.1, 0.3))
+    def test_sparse_comparison(self, diff_order, lam_1, p):
+        """
+        Ensures the banded version of the implementation is correct.
+
+        Since iasls uses a more involved linear equation, ensure that the banded implementation
+        matches a simpler sparse implementation.
+        """
+        max_iter = 100
+        tol = 1e-3
+        lam = {2: 1e6, 3: 1e10}[diff_order]
+        sparse_output = sparse_iasls(
+            self.y, lam=lam, lam_1=lam_1, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol
+        )
+        banded_output = self.class_func(
+            self.y, lam=lam, lam_1=lam_1, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol
+        )[0]
+
+        assert_allclose(banded_output, sparse_output, rtol=5e-4, atol=1e-8)
 
 
 class TestAirPLS(WhittakerTester):
@@ -243,6 +305,27 @@ class TestDrPLS(WhittakerTester):
         assert np.isfinite(params['tol_history'][-1])
         assert np.isfinite(params['weights']).all()
 
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    @pytest.mark.parametrize('eta', (0.3, 0.5))
+    def test_sparse_comparison(self, diff_order, eta):
+        """
+        Ensures the banded version of the implementation is correct.
+
+        Since drpls uses a more involved linear equation, ensure that the banded implementation
+        matches a simpler sparse implementation.
+        """
+        lam = {2: 1e5, 3: 1e9}[diff_order]
+        max_iter = 100
+        tol = 1e-3
+        banded_output = self.class_func(
+            self.y, lam=lam, eta=eta, diff_order=diff_order, max_iter=max_iter, tol=tol
+        )[0]
+        sparse_output = sparse_drpls(
+            self.y, lam=lam, eta=eta, diff_order=diff_order, max_iter=max_iter, tol=tol
+        )
+
+        assert_allclose(banded_output, sparse_output, rtol=1e-6, atol=1e-10)
+
 
 class TestIArPLS(WhittakerTester):
     """Class for testing iarpls baseline."""
@@ -329,9 +412,7 @@ class TestAsPLS(WhittakerTester):
         )
         penalty_matrix = lam * _banded_utils.diff_penalty_matrix(num_points, diff_order=diff_order)
 
-        expected_result = _banded_utils._sparse_to_banded(
-            diags(alpha) @ penalty_matrix, num_points
-        )[0]
+        expected_result = _banded_utils._sparse_to_banded(diags(alpha) @ penalty_matrix)[0]
 
         result = alpha * penalized_system.penalty
         result = _banded_utils._shift_rows(result, diff_order, diff_order)
@@ -342,6 +423,30 @@ class TestAsPLS(WhittakerTester):
         """Ensures asymmetric_coef values not greater than 0 raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, asymmetric_coef=asymmetric_coef)
+
+    @pytest.mark.parametrize('asymmetric_coef', (1, 2))
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    def test_sparse_comparison(self, diff_order, asymmetric_coef):
+        """
+        Ensures the banded version of the implementation is correct.
+
+        Since aspls uses a more involved linear equation, ensure that the banded implementation
+        matches a simpler sparse implementation.
+        """
+        max_iter = 100
+        tol = 1e-3
+        lam = {2: 1e7, 3: 1e10}[diff_order]
+        sparse_output = sparse_aspls(
+            self.y, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            asymmetric_coef=asymmetric_coef
+        )
+        banded_output = self.class_func(
+            self.y, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            asymmetric_coef=asymmetric_coef
+        )[0]
+
+        rtol = {2: 1e-4, 3: 2e-4}[diff_order]
+        assert_allclose(banded_output, sparse_output, rtol=rtol, atol=1e-8)
 
 
 class TestPsalsa(WhittakerTester):

@@ -15,7 +15,7 @@ from scipy.sparse.linalg import spsolve
 from pybaselines import _banded_utils, _spline_utils, utils
 from pybaselines._compat import dia_object, diags, identity
 
-from .conftest import gaussian
+from .base_tests import gaussian
 
 
 @pytest.fixture(scope='module')
@@ -848,3 +848,48 @@ def test_make_data_invalid_baseline():
     """Ensures an error is raised when an invalid baseline type is specified."""
     with pytest.raises(ValueError):
         utils._make_data(100, 'aaaaa')
+
+
+@pytest.mark.parametrize('half_window', (1, 2, 22))
+def test_mollifier_kernel(half_window):
+    """Ensures the mollification kernel is correctly calculated."""
+    window_size = 2 * half_window + 1
+    x = (np.arange(0, window_size) - half_window) / half_window
+    expected_kernel = np.zeros_like(x)
+    mask = abs(x) < 1
+    expected_kernel[mask] = np.exp(-1 / (1 - (x[mask])**2))
+    expected_kernel /= expected_kernel.sum()
+
+    kernel = utils._mollifier_kernel(half_window)
+
+    assert isinstance(kernel, np.ndarray)
+    assert_allclose(kernel, expected_kernel, rtol=1e-14, atol=1e-14)
+    assert kernel.size == window_size
+    assert kernel.shape == (window_size,)
+    assert_allclose(np.sum(kernel), 1)
+    assert np.all(kernel >= 0)
+
+
+@pytest.mark.parametrize('half_window', (0, 1))
+def test_mollifier_kernel_zero_window(data_fixture, half_window):
+    """
+    Ensures a half-window of 0 or 1 is handled properly by _mollifier_kernel.
+
+    Based on the kernel definition, a half-window of 0 or 1 should both be produce a kernel with
+    only a single non-zero value and should not modify the data when used in convolution.
+    """
+    window_size = 2 * half_window + 1
+    kernel = utils._mollifier_kernel(half_window)
+
+    assert isinstance(kernel, np.ndarray)
+    assert kernel.size == window_size
+    assert kernel.shape == (window_size,)
+    if half_window == 0:
+        assert_array_equal(kernel, 1)
+    else:
+        assert_array_equal(kernel, np.array([0, 1, 0]))
+    assert_allclose(np.sum(kernel), 1)
+
+    x, y = data_fixture
+    out = utils.padded_convolve(y, kernel)
+    assert_array_equal(y, out)

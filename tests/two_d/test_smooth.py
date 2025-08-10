@@ -11,7 +11,7 @@ import pytest
 
 from pybaselines.two_d import smooth
 
-from ..conftest import ensure_deprecation, BaseTester2D
+from ..base_tests import ensure_deprecation, BaseTester2D
 
 
 class SmoothTester(BaseTester2D):

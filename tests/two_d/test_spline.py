@@ -10,41 +10,40 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines.two_d import spline, whittaker
+from pybaselines.two_d import Baseline2D, spline
 
-from ..conftest import BaseTester2D, InputWeightsMixin
+from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin
 
 
-def compare_pspline_whittaker(pspline_class, whittaker_func, data, lam=1e5, tol=1e-2,
-                              test_rtol=1e-6, test_atol=1e-12, uses_eigenvalues=True, **kwargs):
-    """
-    Compares the output of the penalized spline (P-spline) versions of Whittaker functions.
+class WhittakerComparisonMixin:
+    """Mixin for comparing penalized spline versions of Whittaker-smoothing algorithms."""
 
-    The number of knots for the P-splines are set to ``len(data) + 1`` and the spline
-    degree is set to 0; the result is that the spline basis becomes the identity matrix,
-    and the P-spline version should give the same output as the Whittaker version if
-    the weighting and linear systems were correctly set up.
+    def test_whittaker_comparison(self, lam=1e5, tol=1e-2, test_rtol=1e-6, test_atol=1e-12,
+                                  uses_eigenvalues=True, **kwargs):
+        """
+        Compares the output of the penalized spline (P-spline) versions of Whittaker functions.
 
-    """
-    if uses_eigenvalues:
-        added_kwargs = {'num_eigens': None}
-    else:
-        added_kwargs = {}
-    whittaker_output = getattr(
-        whittaker._Whittaker(pspline_class.x, pspline_class.z), whittaker_func
-    )(data, lam=lam, **kwargs, tol=tol, **added_kwargs)[0]
+        The number of knots for the P-splines are set to ``np.array(self.y.shape) + 1`` and the
+        spline degree is set to 0; the result is that the spline basis becomes the identity matrix,
+        and the P-spline version should give the same output as the Whittaker version if
+        the weighting and linear systems were correctly set up.
 
-    num_knots = np.array(data.shape) + 1
-    if hasattr(pspline_class, 'class_func'):
-        spline_output = pspline_class.class_func(
-            data, lam=lam, num_knots=num_knots, spline_degree=0, tol=tol, **kwargs
+        """
+        if uses_eigenvalues:
+            added_kwargs = {'num_eigens': None}
+        else:
+            added_kwargs = {}
+        kwargs['tol'] = tol
+
+        fitter = Baseline2D(self.x, self.z, check_finite=False, assume_sorted=True)
+        whittaker_func = getattr(fitter, self.func_name.split('pspline_')[-1])
+
+        whittaker_output = whittaker_func(self.y, lam=lam, **kwargs, **added_kwargs)[0]
+        spline_output = self.class_func(
+            self.y, lam=lam, num_knots=np.array(self.y.shape) + 1, spline_degree=0, **kwargs
         )[0]
-    else:
-        spline_output = pspline_class._call_func(
-            data, lam=lam, num_knots=num_knots, spline_degree=0, tol=tol, **kwargs
-        )[0]
 
-    assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
+        assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
 
 
 class SplineTester(BaseTester2D):
@@ -54,7 +53,7 @@ class SplineTester(BaseTester2D):
     algorithm_base = spline._Spline
 
 
-class IterativeSplineTester(SplineTester, InputWeightsMixin):
+class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):
     """Base testing class for iterative spline functions."""
 
     checked_keys = ('weights', 'tol_history')
@@ -74,34 +73,6 @@ class IterativeSplineTester(SplineTester, InputWeightsMixin):
         _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
-
-    def test_recreation(self):
-        """
-        Ensures inputting weights can recreate the same baseline.
-
-        Optimizers such as `collab_pls` require this functionality, so ensure
-        it works.
-
-        Note that if `max_iter` is set such that the function does not converge,
-        then this will fail; that behavior is fine since exiting before convergence
-        should not be a typical usage.
-        """
-        # TODO this should eventually be incorporated into InputWeightsMixin
-        first_baseline, params = self.class_func(self.y, **self.kwargs)
-        kwargs = {'weights': params['weights'], **self.kwargs}
-        kwargs['tol'] = np.inf
-        if self.func_name in ('aspls', 'pspline_aspls'):
-            kwargs['alpha'] = params['alpha']
-        elif self.func_name in ('brpls', 'pspline_brpls'):
-            kwargs['tol_2'] = np.inf
-        second_baseline, params_2 = self.class_func(self.y, **kwargs)
-
-        if self.func_name in ('brpls', 'pspline_brpls'):
-            assert params_2['tol_history'].shape == (2, 1)
-            assert params_2['tol_history'].size == 2
-        else:
-            assert len(params_2['tol_history']) == 1
-        assert_allclose(second_baseline, first_baseline, rtol=1e-12)
 
 
 class TestMixtureModel(IterativeSplineTester):
@@ -170,7 +141,7 @@ class TestIRSQR(IterativeSplineTester):
         super().test_no_xz(has_x, has_z, rtol=1e-5, atol=1e-4)
 
 
-class TestPsplineAsLS(IterativeSplineTester):
+class TestPsplineAsLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_asls baseline."""
 
     func_name = 'pspline_asls'
@@ -192,10 +163,10 @@ class TestPsplineAsLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, p, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(self, 'asls', self.y, lam=lam, p=p, diff_order=diff_order)
+        super().test_whittaker_comparison(lam=lam, p=p, diff_order=diff_order)
 
 
-class TestPsplineIAsLS(IterativeSplineTester):
+class TestPsplineIAsLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_iasls baseline."""
 
     func_name = 'pspline_iasls'
@@ -234,13 +205,12 @@ class TestPsplineIAsLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (3, [2, 3]))
     def test_whittaker_comparison(self, lam, lam_1, p, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(
-            self, 'iasls', self.y, lam=lam, lam_1=lam_1, p=p, diff_order=diff_order,
-            uses_eigenvalues=False, test_rtol=1e-5
+        super().test_whittaker_comparison(
+            lam=lam, lam_1=lam_1, p=p, diff_order=diff_order, uses_eigenvalues=False, test_rtol=1e-5
         )
 
 
-class TestPsplineAirPLS(IterativeSplineTester):
+class TestPsplineAirPLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_airpls baseline."""
 
     func_name = 'pspline_airpls'
@@ -255,10 +225,10 @@ class TestPsplineAirPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(self, 'airpls', self.y, lam=lam, diff_order=diff_order)
+        super().test_whittaker_comparison(lam=lam, diff_order=diff_order)
 
 
-class TestPsplineArPLS(IterativeSplineTester):
+class TestPsplineArPLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_arpls baseline."""
 
     func_name = 'pspline_arpls'
@@ -273,10 +243,10 @@ class TestPsplineArPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(self, 'arpls', self.y, lam=lam, diff_order=diff_order)
+        super().test_whittaker_comparison(lam=lam, diff_order=diff_order)
 
 
-class TestPsplineIArPLS(IterativeSplineTester):
+class TestPsplineIArPLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_iarpls baseline."""
 
     func_name = 'pspline_iarpls'
@@ -291,10 +261,10 @@ class TestPsplineIArPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(self, 'iarpls', self.y, lam=lam, diff_order=diff_order)
+        super().test_whittaker_comparison(lam=lam, diff_order=diff_order)
 
 
-class TestPsplinePsalsa(IterativeSplineTester):
+class TestPsplinePsalsa(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_psalsa baseline."""
 
     func_name = 'pspline_psalsa'
@@ -316,9 +286,7 @@ class TestPsplinePsalsa(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (2, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, p, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(
-            self, 'psalsa', self.y, lam=lam, p=p, diff_order=diff_order, test_rtol=1e5
-        )
+        super().test_whittaker_comparison(lam=lam, p=p, diff_order=diff_order, test_rtol=1e5)
 
     @pytest.mark.parametrize('k', (0, -1))
     def test_outside_k_fails(self, k):
@@ -327,7 +295,7 @@ class TestPsplinePsalsa(IterativeSplineTester):
             self.class_func(self.y, k=k)
 
 
-class TestPsplineBrPLS(IterativeSplineTester):
+class TestPsplineBrPLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_brpls baseline."""
 
     func_name = 'pspline_brpls'
@@ -344,9 +312,7 @@ class TestPsplineBrPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(
-            self, 'brpls', self.y, lam=lam, diff_order=diff_order, tol_2=1e-2
-        )
+        super().test_whittaker_comparison(lam=lam, diff_order=diff_order, tol_2=1e-2)
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -360,7 +326,7 @@ class TestPsplineBrPLS(IterativeSplineTester):
         assert params['tol_history'].shape == (max_iter_2 + 2, max_iter + 1)
 
 
-class TestPsplineLSRPLS(IterativeSplineTester):
+class TestPsplineLSRPLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_lsrpls baseline."""
 
     func_name = 'pspline_lsrpls'
@@ -375,4 +341,4 @@ class TestPsplineLSRPLS(IterativeSplineTester):
     @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
-        compare_pspline_whittaker(self, 'lsrpls', self.y, lam=lam, diff_order=diff_order)
+        super().test_whittaker_comparison(lam=lam, diff_order=diff_order)

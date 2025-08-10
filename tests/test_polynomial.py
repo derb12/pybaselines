@@ -15,7 +15,7 @@ import pytest
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
-from .conftest import BasePolyTester, InputWeightsMixin
+from .base_tests import BasePolyTester, InputWeightsMixin, RecreationMixin
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
     STATSMODELS_QUANTILES
@@ -197,7 +197,7 @@ class TestPenalizedPoly(IterativePolynomialTester):
             self.class_func(self.y, alpha_factor=alpha_factor)
 
 
-class TestLoess(IterativePolynomialTester):
+class TestLoess(IterativePolynomialTester, RecreationMixin):
     """Class for testing loess baseline."""
 
     func_name = 'loess'
@@ -381,12 +381,13 @@ class TestLoess(IterativePolynomialTester):
         super().test_threading(conserve_memory=conserve_memory, delta=delta)
 
 
-class TestQuantReg(IterativePolynomialTester):
+class TestQuantReg(IterativePolynomialTester, RecreationMixin):
     """Class for testing quant_reg baseline."""
 
     func_name = 'quant_reg'
     required_kwargs = {'tol': 1e-9}
     required_repeated_kwargs = {'tol': 1e-3}
+    allows_zero_iteration = False
 
     @pytest.mark.parametrize('quantile', (0, 1, -0.1, 1.1))
     def test_outside_quantile_fails(self, quantile):

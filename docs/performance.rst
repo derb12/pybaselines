@@ -42,7 +42,7 @@ third-party libraries works well with pybaselines. A simple usage is shown below
         kwargs = {...}  # any keyword arguments to pass to the method
 
         baseline_fitter = Baseline(x)
-        # bind any needed keyword arguments to the method
+        # bind any needed keyword arguments to the method (arpls in this example)
         partial_func = partial(baseline_fitter.arpls, **kwargs)
         baselines = np.empty_like(dataset)
         with ProcessPoolExecutor() as pool:
@@ -53,8 +53,8 @@ third-party libraries works well with pybaselines. A simple usage is shown below
 In pybaselines versions earlier than 1.2.0, the :meth:`~.Baseline.loess` method could cause issues
 when used with multiprocessing on POSIX systems, since ``loess`` spawned its own internal threads
 and conflicted with the ``fork`` method of spawning processes (the default method of spawning processes
-on POSIX systems prior to Python version 3.14). To work around this, the process start method simply
-needs to be explicitly set to ``spawn`` instead when using ``loess``. The above example would be
+on non-macOS POSIX systems prior to Python version 3.14). To work around this, the process start method
+simply needs to be explicitly set to ``spawn`` instead when using ``loess``. The above example would be
 modified like so:
 
 
@@ -92,7 +92,7 @@ thread-safe, so the same object can be used for all threads. An example use case
         kwargs = {...}  # any keyword arguments to pass to the method
 
         baseline_fitter = Baseline(x)
-        # bind any needed keyword arguments to the method
+        # bind any needed keyword arguments to the method (arpls in this example)
         partial_func = partial(baseline_fitter.arpls, **kwargs)
         baselines = np.empty_like(dataset)
         with ThreadPoolExecutor() as pool:

@@ -23,6 +23,7 @@ modification, are permitted provided that the following conditions are met:
 * Neither the name of IFP Energies nouvelles nor the names of its
   contributors may be used to endorse or promote products derived from this
   software without specific prior written permission.
+
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -90,7 +91,7 @@ class _Misc(_Algorithm):
             The y-values. Not used by this function, but input is allowed for consistency
             with other functions.
         baseline_points : array-like, shape (L, 2)
-            An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
+            An array of ((x_1, y_1), (x_2, y_2), ..., (x_L, y_L)) values for
             each point representing the baseline.
         interp_method : str, optional
             The method to use for interpolation. See :class:`scipy.interpolate.interp1d`
@@ -290,8 +291,8 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear', data=None):
     ----------
     x_data : array-like, shape (N,)
         The x-values of the measured data.
-    baseline_points : array-like, shape (n, 2)
-        An array of ((x_1, y_1), (x_2, y_2), ..., (x_n, y_n)) values for
+    baseline_points : array-like, shape (L, 2)
+        An array of ((x_1, y_1), (x_2, y_2), ..., (x_L, y_L)) values for
         each point representing the baseline.
     interp_method : str, optional
         The method to use for interpolation. See :class:`scipy.interpolate.interp1d`

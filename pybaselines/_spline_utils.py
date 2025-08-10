@@ -42,8 +42,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 """
 
+from functools import lru_cache, partial
+from inspect import signature
+
 import numpy as np
-from scipy.interpolate import BSpline, splev
+from scipy.interpolate import BSpline
 
 from ._banded_utils import PenalizedSystem, _add_diagonals, _lower_to_full, _sparse_to_banded
 from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
@@ -182,11 +185,12 @@ def __make_design_matrix(x, knots, spline_degree):
         _de_boor(knots, x_val, spline_degree, left_knot_idx, work)
 
         next_idx = idx + spline_order
-        basis_data[idx:next_idx] = work[:spline_order]
-        row_ind[idx:next_idx] = i
-        col_ind[idx:next_idx] = np.arange(
-            left_knot_idx - spline_degree, min(left_knot_idx + 1, num_bases)
-        )
+        col_idx = left_knot_idx - spline_degree
+        for j, k in enumerate(range(idx, next_idx)):
+            basis_data[k] = work[j]
+            row_ind[k] = i
+            col_ind[k] = col_idx + j
+
         idx = next_idx
 
     return basis_data, row_ind, col_ind
@@ -250,18 +254,23 @@ def _slow_design_matrix(x, knots, spline_degree):
 
     # evaluate each single basis
     for i in range(num_bases):
-        coeffs[i] = 1  # evaluate the i-th basis within splev
-        basis[i] = splev(x, (knots, coeffs, spline_degree))
+        coeffs[i] = 1  # evaluate the i-th basis
+        # using scipy.interpolate.splev is slightly faster than BSpline.__call__, but splev is
+        # legacy, so better to just use BSpline
+        basis[i] = BSpline(knots, coeffs, spline_degree)(x)
         coeffs[i] = 0  # reset back to zero
 
-    # The last and first coefficients for the first and last bases, respectively,
-    # get values == 0 when doing the above calculation, which causes issues when
-    # using the resulting csr_matrix's data attribute; instead, explicitly set
-    # those values to a very small, non-zero value; if spline_degree==0, it's fine
-    if spline_degree > 0:
-        small_float = np.finfo(float).tiny
-        basis[spline_degree, 0] = small_float
-        basis[-(spline_degree + 1), -1] = small_float
+    # NOTE: The first and last coefficients for some of the bases can get values == 0
+    # when doing the above calculation, which causes issues when using the resulting
+    # csr_matrix's data attribute; it doesn't actually matter since this function is only
+    # called when numba is not installed such that the data attribute isn't used, so
+    # there's no need to address; however, just for posterity, to address this, would need
+    # to explicitly set those values to a very small, non-zero value as shown below; if
+    # spline_degree==0, that issue does not occur
+    #  if spline_degree > 0:
+    #    small_float = np.finfo(float).tiny
+    #    basis[spline_degree, 0] = small_float
+    #    basis[-(spline_degree + 1), -1] = small_float
 
     return csr_object(basis.T)
 
@@ -337,6 +346,28 @@ def _spline_knots(x, num_knots=10, spline_degree=3, penalized=True):
     return knots
 
 
+@lru_cache(maxsize=1)
+def _bspline_has_extrapolate():
+    """
+    Checks if ``scipy.interpolate.BSpline.design_matrix`` has the `extrapolate` keyword.
+
+    Returns
+    -------
+    bool
+        True if `extrapolate` is a keyword argument, otherwise False.
+
+    Notes
+    -----
+    An equivalent function would be checking that the SciPy version is at least 1.10.0.
+
+    The bounds check in ``BSpline.design_matrix`` when ``extrapolate=False``, which is the
+    default, is slow since it uses built-in min and max on x instead of x.min() and x.max(),
+    so want to skip that check if possible.
+
+    """
+    return 'extrapolate' in signature(BSpline.design_matrix).parameters
+
+
 def _spline_basis(x, knots, spline_degree=3):
     """
     Constructs the spline basis matrix.
@@ -360,33 +391,37 @@ def _spline_basis(x, knots, spline_degree=3):
 
     Notes
     -----
-    The numba version is ~70% faster than scipy's BSpline.design_matrix (tested
-    with python 3.9.7 and scipy 1.8.0.dev0+1981 and python 3.8.6 and scipy 1.8.0rc1),
-    so the numba version is preferred.
+    The numba version was originally ~70% faster than SciPy's BSpline.design_matrix (tested
+    with python 3.9.7 and scipy 1.8.0.dev0+1981 and python 3.8.6 and scipy 1.8.0rc1), but newer
+    SciPy versions (tested with python 3.12.9 and all major SciPy versions compatible with python
+    3.12) are now ~2x faster than the numba version, so prefer SciPy's implementation.
 
     Most checks on the inputs are skipped since this is an internal function and the
     proper steps are assumed to be done. For more proper error handling in the inputs,
     see :func:`scipy.interpolate.make_lsq_spline`.
 
     """
-    if _HAS_NUMBA:
-        validate_inputs = True
+    validate_inputs = True
+    if hasattr(BSpline, 'design_matrix'):  # introduced in scipy version 1.8.0
+        if _bspline_has_extrapolate():  # extrapolate keyword added in scipy version 1.10.0
+            # do not want to actually extrapolate, but the bounds check when extrapolate=False,
+            # which is the default, is slow since it uses built-in min and max on x instead
+            # of x.min() and x.max(); as a result, skipping that bounds check and doing it
+            # using x.min() and x.max() below is ~50% faster
+            basis_func = partial(BSpline.design_matrix, extrapolate=True)
+        else:
+            basis_func = BSpline.design_matrix
+            validate_inputs = False
+    elif _HAS_NUMBA:
         basis_func = _make_design_matrix
-    elif hasattr(BSpline, 'design_matrix'):
-        validate_inputs = False
-        # BSpline.design_matrix introduced in scipy version 1.8.0
-        basis_func = BSpline.design_matrix
     else:
-        validate_inputs = True
         basis_func = _slow_design_matrix
 
     # validate inputs only if not using scipy's version
     if validate_inputs:
-        len_knots = len(knots)
-        if np.any(x < knots[spline_degree]) or np.any(x > knots[len_knots - spline_degree - 1]):
+        if x.min() < knots[spline_degree] or x.max() > knots[-spline_degree - 1]:
             raise ValueError((
-                f'x-values are either < {knots[spline_degree]} or '
-                f'> {knots[len_knots - spline_degree - 1]}'
+                f'x-values are either < {knots[spline_degree]} or > {knots[-spline_degree - 1]}'
             ))
 
     return basis_func(x, knots, spline_degree)
@@ -442,30 +477,23 @@ def _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data):
     """
     spline_order = spline_degree + 1
     num_bases = len(knots) - spline_order
-    work = np.zeros(2 * spline_order)
 
     left_knot_idx = spline_degree
     idx = 0
     for i in range(len(x)):
-        x_val = x[i]
         y_val = y[i]
         weight_val = weights[i]
-        left_knot_idx = _find_interval(knots, spline_degree, x_val, left_knot_idx, num_bases)
-
+        left_knot_idx = _find_interval(knots, spline_degree, x[i], left_knot_idx, num_bases)
         next_idx = idx + spline_order
-        work[:] = 0
-        work[:spline_order] = basis_data[idx:next_idx]
+        work = basis_data[idx:next_idx]
         idx = next_idx
+        initial_idx = left_knot_idx - spline_degree
         for j in range(spline_order):
-            work_val = work[j]
-            # B.T @ W @ B
+            work_val = work[j] * weight_val  # B.T @ W
             for k in range(j + 1):
-                column = left_knot_idx - spline_degree + k
-                ab[j - k, column] += work_val * work[k] * weight_val
+                ab[j - k, initial_idx + k] += work_val * work[k]   # B.T @ W @ B
 
-            # B.T @ W @ y
-            row = left_knot_idx - spline_degree + j
-            rhs[row] += work_val * y_val * weight_val
+            rhs[initial_idx + j] += work_val * y_val  # B.T @ W @ y
 
 
 def _basis_midpoints(knots, spline_degree):
@@ -790,7 +818,7 @@ class PSpline(PenalizedSystem):
                 @ self.basis.basis
             )
             rhs = self.basis.basis.T @ (weights * y)
-            ab = _sparse_to_banded(full_matrix, self.basis._num_bases)[0]
+            ab = _sparse_to_banded(full_matrix)[0]
 
             # take only the lower diagonals of the symmetric ab; cannot just do
             # ab[spline_degree:] since some diagonals become fully 0 and are truncated from

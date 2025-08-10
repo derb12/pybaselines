@@ -14,7 +14,7 @@ from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines._compat import dia_object
 from pybaselines.utils import ParameterWarning, SortingWarning, optimize_window
 
-from .conftest import ensure_deprecation, get_data
+from .base_tests import ensure_deprecation, get_data
 
 
 @pytest.fixture

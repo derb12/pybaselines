@@ -11,12 +11,12 @@ from unittest import mock
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.interpolate import BSpline, splev
+from scipy.interpolate import BSpline
 from scipy.sparse import issparse
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
-from pybaselines._compat import dia_object, diags
+from pybaselines._compat import dia_object, diags, _HAS_NUMBA
 
 
 def _nieve_basis_matrix(x, knots, spline_degree):
@@ -26,8 +26,8 @@ def _nieve_basis_matrix(x, knots, spline_degree):
     coeffs = np.zeros(num_bases)
     # evaluate each single basis
     for i in range(num_bases):
-        coeffs[i] = 1  # evaluate the i-th basis within splev
-        basis[i] = splev(x, (knots, coeffs, spline_degree))
+        coeffs[i] = 1  # evaluate the i-th basis
+        basis[i] = BSpline(knots, coeffs, spline_degree)(x)
         coeffs[i] = 0  # reset back to zero
 
     return basis.T
@@ -125,15 +125,65 @@ def test_spline_basis(data_fixture, num_knots, spline_degree, source):
     assert basis.shape == (len(x), len(knots) - spline_degree - 1)
 
     assert issparse(basis)
-    assert_allclose(basis.toarray(), expected_basis, 1e-10, 1e-12)
+    assert_allclose(basis.toarray(), expected_basis, 1e-14, 1e-14)
     # also test the main interface for the spline basis; only test for one
     # source to avoid unnecessary repitition
     if source == 'simple':
         basis_2 = _spline_utils._spline_basis(x, knots, spline_degree)
         assert issparse(basis_2)
 
-        assert_allclose(basis.toarray(), expected_basis, 1e-10, 1e-12)
-        assert_allclose(basis.toarray(), basis_2.toarray(), 1e-10, 1e-12)
+        assert_allclose(basis.toarray(), expected_basis, 1e-14, 1e-14)
+        assert_allclose(basis.toarray(), basis_2.toarray(), 1e-14, 1e-14)
+
+
+def test_spline_basis_x_bounds():
+    """
+    Ensures an exception is raised when x-values are outside of the knots range.
+
+    Hard to test all of the basis creation pathways using mock, so just rely on
+    CI to test all pathways.
+    """
+    num_knots = 20
+    spline_degree = 3
+    x = np.linspace(-1, 1, 50)
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+
+    x[0] = knots[spline_degree] - 1  # lower than the knots bounds
+    with pytest.raises(ValueError):
+        _spline_utils._spline_basis(x, knots, spline_degree)
+    x[0] = -1  # reset the value so that the upper bounds can be checked
+    x[-1] = knots[-(spline_degree + 1)] + 1
+    with pytest.raises(ValueError):
+        _spline_utils._spline_basis(x, knots, spline_degree)
+
+
+def test_bspline_has_extrapolate():
+    """Validates the check for ``BSpline.design_matrix`` having an extrapolate keyword."""
+    if not hasattr(BSpline, 'design_matrix'):
+        # BSpline.design_matrix not available until scipy 1.8.0
+        with pytest.raises(AttributeError):
+            _spline_utils._bspline_has_extrapolate()
+    else:
+        spline_degree = 3
+        x = np.linspace(-1, 1, 100)
+        knots = _spline_utils._spline_knots(
+            x, num_knots=50, spline_degree=spline_degree, penalized=True
+        )
+        # check if extrapolate is actually an allowable keyword argument
+        has_extrapolate = True
+        try:
+            BSpline.design_matrix(x, knots, spline_degree, extrapolate=True)
+        except TypeError:
+            has_extrapolate = False
+
+        assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
+
+        # Also check that the result is cached so that the actual check is only done once. The
+        # cache hits would depend on the test run order, so just check that calling it twice
+        # results in a non-zero hits value and that misses is 1 (the first call counts as a miss)
+        assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
+        assert _spline_utils._bspline_has_extrapolate.cache_info().hits > 0
+        assert _spline_utils._bspline_has_extrapolate.cache_info().misses == 1
 
 
 @pytest.mark.parametrize('num_knots', (2, 20, 1001))
@@ -176,10 +226,10 @@ def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower
     """
     x, y = data_fixture
     # ensure x and y are floats
-    x = x.astype(float, copy=False)
-    y = y.astype(float, copy=False)
+    x = x.astype(float)
+    y = y.astype(float)
     weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
-    weights = np.clip(weights, 0, 1).astype(float, copy=False)
+    weights = np.clip(weights, 0, 1).astype(float)
 
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
@@ -483,3 +533,102 @@ def test_compare_to_whittaker(data_fixture, lam, diff_order):
     whittaker_output = whittaker_system.solve(whittaker_system.penalty, weights.ravel() * y.ravel())
 
     assert_allclose(spline_output, whittaker_output, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4))
+@pytest.mark.parametrize('num_knots', (10, 33, 100))
+def test_numba_btb_bty(data_fixture, spline_degree, num_knots):
+    """Ensures the B.T @ W @ B and B.T @ W @ y Numba implementations are correct."""
+    # if not using the BSpline or Numba spline basis functions and instead creating the design
+    # matrix row-by-row using BSpline.__call__, some basis elements get truncated to 0 and the
+    # resulting csr matrix/array's data attribute will not have the correct number of elements;
+    # this is fine since numba_bty_bty would not be called in that situation anyway, so can
+    # safely skip this test
+    if not (hasattr(BSpline, 'design_matrix') or _HAS_NUMBA):
+        pytest.skip(reason='Code path is unused for this combination of dependencies')
+
+    x, y = data_fixture
+    x = x.astype(float)
+    y = y.astype(float)
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
+
+    weights = np.random.default_rng(1234).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    expected_lhs = spline_basis.basis.T @ diags(weights, format='csr') @ spline_basis.basis
+    expected_rhs = spline_basis.basis.T @ (weights * y)
+
+    basis_data = spline_basis.basis.tocsr().data
+    # sanity check that the data attribute contains the correct amount of points
+    assert len(basis_data) == len(x) * (spline_basis.spline_degree + 1)
+
+    ab_lower = np.zeros((spline_basis.spline_degree + 1, spline_basis._num_bases), order='F')
+    rhs = np.zeros(spline_basis._num_bases)
+    _spline_utils._numba_btb_bty(
+        x, spline_basis.knots, spline_basis.spline_degree, y, weights, ab_lower, rhs,
+        basis_data
+    )
+
+    ab_full = _banded_utils._lower_to_full(ab_lower)
+
+    expected_ab, _ = _banded_utils._sparse_to_banded(expected_lhs)
+    if expected_ab.shape[0] != ab_full.shape[0]:
+        # diagonals became 0 and were truncated from the sparse object's data attritube
+        expected_ab = _banded_utils._pad_diagonals(
+            expected_ab, ab_full.shape[0] - expected_ab.shape[0], lower_only=False
+        )
+    expected_ab_lower = expected_ab[len(expected_ab) // 2:]
+
+    assert_allclose(rhs, expected_rhs, rtol=1e-15, atol=1e-15)
+    assert_allclose(ab_full, expected_ab, rtol=1e-15, atol=1e-15)
+    assert_allclose(ab_lower, expected_ab_lower, rtol=1e-15, atol=1e-15)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('num_knots', (50, 501))
+def test_pspline_lam_extremes(data_fixture, diff_order, allow_lower, spline_degree, num_knots):
+    """
+    Tests the result of P-spline smoothing for high and low limits of ``lam``.
+
+    When ``lam`` is ~infinite, the solution to ``(B.T @ B + lam * D.T @ D) x = B.T @ y`` should
+    approximate a polynomial of degree ``diff_order - 1`` as long as the spline degree is greater
+    than or equal to ``diff_order`` according to [1]_. Likewise, as ``lam`` approaches 0, the
+    solution should be the same as an interpolating spline of the same spline degree.
+
+    References
+    ----------
+    .. [1] Eilers, P., et al. Flexible Smoothing with B-splines and Penalties. Statistical
+           Science, 1996, 11(2), 89-121.
+
+    """
+    x, y = data_fixture
+    weights = np.ones_like(y)
+
+    spline_basis = _spline_utils.SplineBasis(x, num_knots=num_knots, spline_degree=spline_degree)
+    if spline_degree >= diff_order:  # can only approximate a polynomial if the spline allows
+        pspline = _spline_utils.PSpline(
+            spline_basis, lam=1e13, diff_order=diff_order, allow_lower=allow_lower
+        )
+        output = pspline.solve_pspline(y, weights)
+
+        polynomial_fit = np.polynomial.Polynomial.fit(x, y, deg=diff_order - 1)(x)
+        # limited by how close to infinity lam can get before it causes numerical instability,
+        # and both larger num_knots and larger diff_orders need larger lam for it to be a
+        # polynomial, so have to reduce the relative tolerance; num_knots has a larger effect
+        # than diff_order, so base the rtol on it
+        rtol = {50: 5e-4, 501: 5e-3}[num_knots]
+        assert_allclose(output, polynomial_fit, rtol=rtol, atol=1e-10)
+
+    # for lam ~ 0, should just approximate the an interpolating spline
+    pspline2 = _spline_utils.PSpline(
+        spline_basis, lam=1e-10, diff_order=diff_order, allow_lower=allow_lower
+    )
+    output2 = pspline2.solve_pspline(y, weights)
+    # cannot use interpolation from SciPy since the knot arrangement is going to be different
+    expected_coeffs = spsolve(spline_basis.basis.T @ spline_basis.basis, spline_basis.basis.T @ y)
+    expected = spline_basis.basis @ expected_coeffs
+    assert_allclose(output2, expected, rtol=1e-9, atol=1e-10)

@@ -82,10 +82,10 @@ locally, run the following command in the terminal while in the pybaselines dire
     pytest .
 
 
-By default, all tests except those that test threading will run. Threaded tests only run
+By default, all tests except those that test multithreading will run. Threaded tests only run
 by default on free-threaded CPython builds, but they can also be enabled or disabled by
 setting the command line option ``--test_threading`` to 1 or 0, respectively. For example,
-to test threaded tests on a non free-threaded CPython version, run:
+to run threaded tests on a non free-threaded CPython version, run:
 
 .. code-block:: console
 
@@ -143,7 +143,7 @@ Adding New Algorithms
 If adding a new baseline algorithm to pybaselines:
 
 *   Add tests for the method. pybaselines supplies testing classes within the
-    ``pybaselines/tests/conftest.py`` file that should be subclassed to ensure all basic
+    ``pybaselines/tests/base_tests.py`` file that should be subclassed to ensure all basic
     requirements for a new algorithm are met. Additional tests should also be added as needed.
     See existing tests for examples.
 *   Add a short summary of the algorithm to the appropriate place in the

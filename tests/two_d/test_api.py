@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines.two_d import api, morphological, optimizers, polynomial, smooth, spline, whittaker
 
-from ..conftest import get_data2d
+from ..base_tests import get_data2d
 
 
 _ALL_CLASSES = (

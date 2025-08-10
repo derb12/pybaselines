@@ -300,6 +300,11 @@ class PSpline2D(PenalizedSystem2D):
         it is significantly faster and memory efficient when the number of knots is lower,
         which will be the more typical use case.
 
+        References
+        ----------
+        Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+        Statistics and Data Analysis, 2006, 50(1), 61-76.
+
         """
         if penalty is None:
             penalty = self.penalty

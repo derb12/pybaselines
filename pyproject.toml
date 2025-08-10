@@ -15,7 +15,7 @@ exclude = [
 
 [tool.hatch.version]
 source = "vcs"
-fallback-version = "1.2.0.post1.dev0"
+fallback-version = "1.2.1.post1.dev0"
 
 [tool.hatch.version.raw-options]
 version_scheme = "no-guess-dev"
@@ -113,8 +113,6 @@ line_length = 100
 lines_after_imports = 2
 multi_line_output = 5
 src_paths = ["pybaselines", "tests"]
-# example_helpers are locally used in doc examples
-known_local_folder = ["example_helpers"]
 
 [tool.ruff]
 exclude = ["docs/conf.py"]
@@ -164,7 +162,7 @@ convention = "numpy"
 
 
 [tool.bumpversion]
-current_version = "1.2.0"
+current_version = "1.2.1"
 commit = false
 tag = false
 message = "Bump version: {current_version} -> {new_version}"

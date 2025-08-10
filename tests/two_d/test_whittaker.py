@@ -7,15 +7,14 @@ Created on March 20, 2021
 """
 
 import numpy as np
-from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines.two_d import whittaker
 
-from ..conftest import BaseTester2D, InputWeightsMixin
+from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin
 
 
-class WhittakerTester(BaseTester2D, InputWeightsMixin):
+class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
@@ -28,33 +27,6 @@ class WhittakerTester(BaseTester2D, InputWeightsMixin):
         _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
-
-    def test_recreation(self):
-        """
-        Ensures inputting weights can recreate the same baseline.
-
-        Optimizers such as `collab_pls` require this functionality, so ensure
-        it works.
-
-        Note that if `max_iter` is set such that the function does not converge,
-        then this will fail; that behavior is fine since exiting before convergence
-        should not be a typical usage.
-        """
-        # TODO this should eventually be incorporated into InputWeightsMixin
-        first_baseline, params = self.class_func(self.y)
-        kwargs = {'weights': params['weights']}
-        if self.func_name in ('aspls', 'pspline_aspls'):
-            kwargs['alpha'] = params['alpha']
-        elif self.func_name in ('brpls', 'pspline_brpls'):
-            kwargs['tol_2'] = np.inf
-        second_baseline, params_2 = self.class_func(self.y, tol=np.inf, **kwargs)
-
-        if self.func_name in ('brpls', 'pspline_brpls'):
-            assert params_2['tol_history'].shape == (2, 1)
-            assert params_2['tol_history'].size == 2
-        else:
-            assert len(params_2['tol_history']) == 1
-        assert_allclose(second_baseline, first_baseline, rtol=1e-12)
 
 
 class EigenvalueMixin:

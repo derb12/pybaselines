@@ -64,11 +64,11 @@ class _Algorithm2D:
         x_data : array-like, shape (M,), optional
             The x-values of the measured data (independant variable for the rows). Default is
             None, which will create an array from -1 to 1 during the first function call with
-            length equal to the input data length.
+            length equal to the number of rows in the input data.
         z_data : array-like, shape (N,), optional
             The z-values of the measured data (independant variable for the columns). Default is
             None, which will create an array from -1 to 1 during the first function call with
-            length equal to the input data length.
+            length equal to the number of columns in the input data.
         check_finite : bool, optional
             If True (default), will raise an error if any values in input data are not finite.
             Setting to False will skip the check. Note that errors may occur if
@@ -537,7 +537,7 @@ class _Algorithm2D:
 
         return y, weight_array, whittaker_system
 
-    def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=False,
+    def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=True,
                           calc_pinv=False, copy_weights=False, max_cross=None):
         """
         Sets the starting parameters for doing polynomial fitting.
@@ -553,14 +553,14 @@ class _Algorithm2D:
         poly_order : int or Sequence[int, int], optional
             The polynomial orders for the rows and columns, respectively. Default is 2.
         calc_vander : bool, optional
-            If True, will calculate and the Vandermonde matrix. Default is False.
+            If True (default), will calculate and the Vandermonde matrix.
         calc_pinv : bool, optional
             If True, and if `return_vander` is True, will calculate and return the
             pseudo-inverse of the Vandermonde matrix. Default is False.
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
-        max_cross: int, optional
+        max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
             does not limit the cross terms.
@@ -601,17 +601,15 @@ class _Algorithm2D:
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
         weight_array = weight_array.ravel()
-        poly_orders = _check_scalar_variable(
-            poly_order, allow_zero=True, variable_name='polynomial order', two_d=True, dtype=int
-        )
+
         if calc_vander:
             if self._polynomial is None:
                 self._polynomial = _PolyHelper2D(
-                    self.x, self.z, self.x_domain, self.z_domain, poly_orders, max_cross
+                    self.x, self.z, self.x_domain, self.z_domain, poly_order, max_cross
                 )
             else:
                 self._polynomial.recalc_vandermonde(
-                    self.x, self.z, self.x_domain, self.z_domain, poly_orders, max_cross
+                    self.x, self.z, self.x_domain, self.z_domain, poly_order, max_cross
                 )
 
         y = y.ravel()
@@ -1004,7 +1002,7 @@ class _PolyHelper2D:
     max_cross : int
         The maximum degree for the cross terms.
     poly_order : Container[int, int]
-        The last polynomial order used to calculate the Vadermonde matrix.
+        The last polynomial order used to calculate the Vandermonde matrix.
     pseudo_inverse : numpy.ndarray or None
         The pseudo-inverse of the current Vandermonde matrix.
     vandermonde : numpy.ndarray
@@ -1012,7 +1010,7 @@ class _PolyHelper2D:
 
     """
 
-    def __init__(self, x, z, x_domain, z_domain, poly_orders, max_cross):
+    def __init__(self, x, z, x_domain, z_domain, poly_order, max_cross):
         """
         Initializes the object and calculates the Vandermonde matrix.
 
@@ -1026,9 +1024,9 @@ class _PolyHelper2D:
             The minimum and maximum values of `x`.
         z_domain : numpy.ndarray, shape (2,)
             The minimum and maximum values of `z`.
-        poly_orders : Container[int, int]
+        poly_order : int or Container[int, int]
             The polynomial orders for the rows and columns, respectively.
-        max_cross: int
+        max_cross : int
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
 
@@ -1039,9 +1037,9 @@ class _PolyHelper2D:
         self._pseudo_inverse = None
         self.pinv_stale = True
 
-        self.recalc_vandermonde(x, z, x_domain, z_domain, poly_orders, max_cross)
+        self.recalc_vandermonde(x, z, x_domain, z_domain, poly_order, max_cross)
 
-    def recalc_vandermonde(self, x, z, x_domain, z_domain, poly_orders, max_cross):
+    def recalc_vandermonde(self, x, z, x_domain, z_domain, poly_order, max_cross):
         """
         Recalculates the Vandermonde matrix for the polynomial only if necessary.
 
@@ -1057,9 +1055,9 @@ class _PolyHelper2D:
             The minimum and maximum values of `x`.
         z_domain : numpy.ndarray, shape (2,)
             The minimum and maximum values of `z`.
-        poly_orders : Container[int, int]
+        poly_order : int or Container[int, int]
             The polynomial orders for the rows and columns, respectively.
-        max_cross: int
+        max_cross : int
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
             `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0.
 
@@ -1068,6 +1066,9 @@ class _PolyHelper2D:
             max_cross = _check_scalar_variable(
                 max_cross, allow_zero=True, variable_name='max_cross', dtype=int
             )
+        poly_orders = _check_scalar_variable(
+            poly_order, allow_zero=True, variable_name='polynomial order', two_d=True, dtype=int
+        )
 
         # TODO if self.max_cross is None and x- and z- poly_orders are
         # less than self.poly_order, then can just using slicing to reuse
