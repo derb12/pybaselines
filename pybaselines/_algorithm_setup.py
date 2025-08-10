@@ -903,11 +903,14 @@ def _class_wrapper(klass):
 
     """
     def outer(func):
-        func_signature = signature(func)
+        func_signature = None  # delay computing the signature until it is actually needed
         method = func.__name__
 
         @wraps(func)
         def inner(*args, **kwargs):
+            nonlocal func_signature
+            if func_signature is None:
+                func_signature = signature(func)
             total_inputs = func_signature.bind(*args, **kwargs)
             x = total_inputs.arguments.pop('x_data', None)
             return getattr(klass(x_data=x), method)(*total_inputs.args, **total_inputs.kwargs)
