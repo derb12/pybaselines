@@ -26,4 +26,4 @@ repository-artifact: https://pypi.org/project/pybaselines
 repository-code: https://github.com/derb12/pybaselines
 title: "pybaselines: A Python library of algorithms for the baseline correction of experimental data"
 type: software
-version: 1.2.0
+version: 1.2.1

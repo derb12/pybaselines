@@ -373,7 +373,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
         ------
         ValueError
             Raised if the number of eigenvalues is greater than the number of data
-            points.
+            points or less than or equal to the difference order.
 
         Warns
         -----
@@ -393,8 +393,12 @@ class WhittakerSystem2D(PenalizedSystem2D):
         zero, so the system is not guaranteed to be positive definite when solving the
         penalized least squares fit unless all weights are >~ 1e-5 (just a guess, but
         the meaning is that weights must be some magnitude greater than zero), which is
-        not guaranteed for all Whittaker-smoothing-based algorithms. Thus, a clear
-        warning needs to be issued since otherwise this detail can be hidden.
+        not guaranteed for all Whittaker-smoothing-based algorithms.
+
+        Note that when `num_eigens` <= `diff_order`, the penalty becomes 0 due to the above,
+        so it essentially becomes a weighted spline fit; since `lam` is not allowed to be 0,
+        which would also cause this, then to maintain this convention, must not allow
+        `num_eigens` <= `diff_order`.
 
         References
         ----------
@@ -409,9 +413,9 @@ class WhittakerSystem2D(PenalizedSystem2D):
                 'than the number of data points.'
             ))
         elif num_eigens <= diff_order:
-            warnings.warn(
-                ('Setting the number of eigenvalues to be greater than the difference order '
-                 'in order to not cause numerical instability'), ParameterWarning, stacklevel=2
+            raise ValueError(
+                ('The number of eigenvalues must be greater than the difference order '
+                 'or else the penalty is 0, which is not allowed')
             )
         elif num_eigens > 50:
             warnings.warn(
@@ -564,9 +568,14 @@ class WhittakerSystem2D(PenalizedSystem2D):
         Notes
         -----
         Uses the more efficient algorithm from Eilers's paper, although the memory usage
-        is higher than the straigtforward method when the number of knots is high; however,
-        it is significantly faster and memory efficient when the number of knots is lower,
+        is higher than the straigtforward method when the number of eigenvalues is high; however,
+        it is significantly faster and memory efficient when the number of eigenvalues is lower,
         which will be the more typical use case.
+
+        References
+        ----------
+        Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+        Statistics and Data Analysis, 2006, 50(1), 61-76.
 
         """
         if not self._using_svd:

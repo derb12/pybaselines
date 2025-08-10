@@ -2,6 +2,40 @@
 Changelog
 =========
 
+Version 1.2.1 (2025-08-10)
+--------------------------
+
+This is a minor patch with bug fixes, minor changes, and documentation improvements.
+
+Bug Fixes
+~~~~~~~~~
+
+* Allow ``quant_reg`` with ``tol=inf`` to only perform one fit, since it was previously impossible
+  to recreate the output of ``quant_reg`` by inputting weights since it required one inner loop.
+* Allow a ``smooth_half_window`` of 0 for ``mormol`` to skip smoothing rather than raising an
+  exception in order to be consistent with other methods.
+
+Other Changes
+~~~~~~~~~~~~~
+
+* Set the default of ``normalize_weights`` to False for ``airpls`` to match its literature
+  implementation; will deprecate the keyword in version 1.3.
+* For 2D Whittaker-smoothing algorithms, a ValueError is now raised when ``num_eigens`` is
+  less than or equal to ``diff_order``, which has the same effect as inputting ``lam=0`` and
+  is also not allowed. Previously just emitted a warning.
+* Slightly sped up several functions used for setting up and solving penalized splines.
+* Only calculate method signatures when their corresponding functions (eg.
+  pybaselines.polynomial.modpoly) are called rather than immediately upon importing pybaselines.
+  Should slightly improve import timings.
+
+Documentation/Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Added an example for using masking with the various types of algorithms in pybaselines.
+* Made all example programs in the documentation able to be ran without cloning the repository.
+* Added back API documentation which was removed in version 1.2.0 for the functional interface of
+  pybaselines. The functional interface is now marked as legacy rather than pending deprecation.
+
 Version 1.2.0 (2025-03-17)
 --------------------------
 

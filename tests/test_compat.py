@@ -242,7 +242,8 @@ def test_use_sparse_arrays():
     assert _compat._use_sparse_arrays.cache_info().currsize == 0
 
 
-def test_dia_object():
+@pytest.mark.parametrize('dtype', (float, int))
+def test_dia_object(dtype):
     """Ensures the compatibilty for dia_matrix and dia_array works as intended."""
     data = np.array([
         [1, 2, 0],
@@ -250,7 +251,7 @@ def test_dia_object():
         [0, 8, 9]
     ])
     offsets = [-1, 0, 1]
-    output = _compat.dia_object((data, offsets), shape=(3, 3))
+    output = _compat.dia_object((data, offsets), shape=(3, 3), dtype=dtype)
 
     expected_output = np.array([
         [4, 8, 0],
@@ -258,6 +259,7 @@ def test_dia_object():
         [0, 2, 6]
     ])
 
+    assert output.dtype == dtype
     assert sparse.issparse(output)
     assert output.format == 'dia'
     assert_allclose(output.toarray(), expected_output, rtol=0, atol=1e-14)
@@ -267,12 +269,13 @@ def test_dia_object():
         assert not sparse.isspmatrix(output)
 
 
-def test_csr_object():
+@pytest.mark.parametrize('dtype', (float, int))
+def test_csr_object(dtype):
     """Ensures the compatibilty for csr_matrix and csr_array works as intended."""
     row = np.array([0, 1, 1, 2])
     col = np.array([0, 0, 2, 0])
     data = np.array([3, 5, 7, 9])
-    output = _compat.csr_object((data, (row, col)), shape=(3, 3))
+    output = _compat.csr_object((data, (row, col)), shape=(3, 3), dtype=dtype)
 
     expected_output = np.array([
         [3, 0, 0],
@@ -280,6 +283,7 @@ def test_csr_object():
         [9, 0, 0]
     ])
 
+    assert output.dtype == dtype
     assert sparse.issparse(output)
     assert output.format == 'csr'
     assert_allclose(output.toarray(), expected_output, rtol=0, atol=1e-14)
@@ -304,12 +308,15 @@ def test_identity(size, sparse_format):
         assert not sparse.isspmatrix(output)
 
 
+@pytest.mark.parametrize('dtype', (float, int))
 @pytest.mark.parametrize('sparse_format', ('csc', 'csr', 'dia'))
-def test_diags(sparse_format):
+def test_diags(sparse_format, dtype):
     """Ensures the sparse diags function works as intended."""
     data = [-1, 2, 1]
     offsets = [-1, 0, 1]
-    output = _compat.diags(data, offsets=offsets, shape=(3, 3), format=sparse_format)
+    output = _compat.diags(
+        data, offsets=offsets, shape=(3, 3), dtype=dtype, format=sparse_format
+    )
 
     expected_output = np.array([
         [2, 1, 0],
@@ -317,6 +324,7 @@ def test_diags(sparse_format):
         [0, -1, 2]
     ])
 
+    assert output.dtype == dtype
     assert sparse.issparse(output)
     assert output.format == sparse_format
     assert_allclose(output.toarray(), expected_output, rtol=0, atol=1e-14)

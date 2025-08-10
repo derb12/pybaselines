@@ -46,6 +46,7 @@ extensions = [
     'matplotlib.sphinxext.plot_directive',
     'sphinx_gallery.gen_gallery',
     'viewcode_inherit_methods',  # custom extension to allow viewcode with inherited methods
+    'modify_module_docstring',  # custom extension to modify module docstrings
 ]
 
 autosummary_generate = True # enables autosummary extension
@@ -233,7 +234,7 @@ try:
     import sphinx_rtd_theme
     html_theme = 'sphinx_rtd_theme'
     html_theme_options = {
-        'navigation_depth': 4,
+        'navigation_depth': 5,
         'prev_next_buttons_location': 'both',
     }
 except ImportError:

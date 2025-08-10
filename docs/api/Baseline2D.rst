@@ -1,6 +1,9 @@
 2D Baseline Correction
 ======================
 
+For performing baseline correction on two-dimensional data, the :class:`~.Baseline2D` class
+provides all of the various different algorithms under a single interface.
+
 .. currentmodule:: pybaselines
 
 .. autoclass:: Baseline2D

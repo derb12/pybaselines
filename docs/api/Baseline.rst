@@ -1,6 +1,10 @@
 1D Baseline Correction
 ======================
 
+For performing baseline correction on one-dimensional data, the recommended way is
+to use the :class:`~.Baseline` class, which provides all of the various different
+algorithms under a single interface.
+
 .. currentmodule:: pybaselines
 
 .. autoclass:: Baseline

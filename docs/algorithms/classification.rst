@@ -354,7 +354,7 @@ rubberband (Rubberband Method)
 of the data, which are then used to construct the baseline using either
 linear interpolation or Whittaker smoothing. The rubberband method is simple and
 easy to use for convex shaped data, but performs poorly for concave data. To get
-around this, Bruker's OPUS spectroscopy software uses a `patented method
+around this, some commercial spectroscopy software use a `patented method
 <https://patents.google.com/patent/US20060212275A1/en>`_ to coerce
 the data into a convex shape so that the rubberband method still works. pybaselines
 uses an alternate approach of allowing splitting the data in segments, in order

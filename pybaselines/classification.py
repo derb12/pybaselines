@@ -1508,7 +1508,7 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
         in the data. Default is None, which will use half of the value from
         :func:`.optimize_window`, which is not always a good value, but at least scales
         with the number of data points and gives a starting point for tuning the parameter.
-    threshold : float of Callable, optional
+    threshold : float or Callable, optional
         All points in the rolling standard deviation below `threshold` will be considered
         as baseline. Higher values will assign more points as baseline. Default is None,
         which will set the threshold as the 15th percentile of the rolling standard
@@ -1519,7 +1519,7 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
         is greater than the data for `min_fwhm` consecutive points will have an additional
         baseline point added and reinterpolated. Should be set to approximately the
         index-based full-width-at-half-maximum of the smallest peak. Default is None,
-        which uses 2 * `half_window`.
+        which uses ``2 * half_window``.
     interp_half_window : int, optional
         When interpolating between baseline segments, will use the average of
         ``data[i-interp_half_window:i+interp_half_window+1]``, where `i` is

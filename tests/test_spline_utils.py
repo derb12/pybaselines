@@ -11,12 +11,12 @@ from unittest import mock
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.interpolate import BSpline, splev
+from scipy.interpolate import BSpline
 from scipy.sparse import issparse
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
-from pybaselines._compat import dia_object, diags
+from pybaselines._compat import dia_object, diags, _HAS_NUMBA
 
 
 def _nieve_basis_matrix(x, knots, spline_degree):
@@ -26,8 +26,8 @@ def _nieve_basis_matrix(x, knots, spline_degree):
     coeffs = np.zeros(num_bases)
     # evaluate each single basis
     for i in range(num_bases):
-        coeffs[i] = 1  # evaluate the i-th basis within splev
-        basis[i] = splev(x, (knots, coeffs, spline_degree))
+        coeffs[i] = 1  # evaluate the i-th basis
+        basis[i] = BSpline(knots, coeffs, spline_degree)(x)
         coeffs[i] = 0  # reset back to zero
 
     return basis.T
@@ -163,27 +163,27 @@ def test_bspline_has_extrapolate():
         # BSpline.design_matrix not available until scipy 1.8.0
         with pytest.raises(AttributeError):
             _spline_utils._bspline_has_extrapolate()
+    else:
+        spline_degree = 3
+        x = np.linspace(-1, 1, 100)
+        knots = _spline_utils._spline_knots(
+            x, num_knots=50, spline_degree=spline_degree, penalized=True
+        )
+        # check if extrapolate is actually an allowable keyword argument
+        has_extrapolate = True
+        try:
+            BSpline.design_matrix(x, knots, spline_degree, extrapolate=True)
+        except TypeError:
+            has_extrapolate = False
 
-    spline_degree = 3
-    x = np.linspace(-1, 1, 100)
-    knots = _spline_utils._spline_knots(
-        x, num_knots=50, spline_degree=spline_degree, penalized=True
-    )
-    # check if extrapolate is actually an allowable keyword argument
-    has_extrapolate = True
-    try:
-        BSpline.design_matrix(x, knots, spline_degree, extrapolate=True)
-    except TypeError:
-        has_extrapolate = False
+        assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
 
-    assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
-
-    # Also check that the result is cached so that the actual check is only done once. The
-    # cache hits would depend on the test run order, so just check that calling it twice
-    # results in a non-zero hits value and that misses is 1 (the first call counts as a miss)
-    assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
-    assert _spline_utils._bspline_has_extrapolate.cache_info().hits > 0
-    assert _spline_utils._bspline_has_extrapolate.cache_info().misses == 1
+        # Also check that the result is cached so that the actual check is only done once. The
+        # cache hits would depend on the test run order, so just check that calling it twice
+        # results in a non-zero hits value and that misses is 1 (the first call counts as a miss)
+        assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
+        assert _spline_utils._bspline_has_extrapolate.cache_info().hits > 0
+        assert _spline_utils._bspline_has_extrapolate.cache_info().misses == 1
 
 
 @pytest.mark.parametrize('num_knots', (2, 20, 1001))
@@ -539,6 +539,14 @@ def test_compare_to_whittaker(data_fixture, lam, diff_order):
 @pytest.mark.parametrize('num_knots', (10, 33, 100))
 def test_numba_btb_bty(data_fixture, spline_degree, num_knots):
     """Ensures the B.T @ W @ B and B.T @ W @ y Numba implementations are correct."""
+    # if not using the BSpline or Numba spline basis functions and instead creating the design
+    # matrix row-by-row using BSpline.__call__, some basis elements get truncated to 0 and the
+    # resulting csr matrix/array's data attribute will not have the correct number of elements;
+    # this is fine since numba_bty_bty would not be called in that situation anyway, so can
+    # safely skip this test
+    if not (hasattr(BSpline, 'design_matrix') or _HAS_NUMBA):
+        pytest.skip(reason='Code path is unused for this combination of dependencies')
+
     x, y = data_fixture
     x = x.astype(float)
     y = y.astype(float)

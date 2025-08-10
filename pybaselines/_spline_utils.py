@@ -46,7 +46,7 @@ from functools import lru_cache, partial
 from inspect import signature
 
 import numpy as np
-from scipy.interpolate import BSpline, splev
+from scipy.interpolate import BSpline
 
 from ._banded_utils import PenalizedSystem, _add_diagonals, _lower_to_full, _sparse_to_banded
 from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
@@ -254,18 +254,23 @@ def _slow_design_matrix(x, knots, spline_degree):
 
     # evaluate each single basis
     for i in range(num_bases):
-        coeffs[i] = 1  # evaluate the i-th basis within splev
-        basis[i] = splev(x, (knots, coeffs, spline_degree))
+        coeffs[i] = 1  # evaluate the i-th basis
+        # using scipy.interpolate.splev is slightly faster than BSpline.__call__, but splev is
+        # legacy, so better to just use BSpline
+        basis[i] = BSpline(knots, coeffs, spline_degree)(x)
         coeffs[i] = 0  # reset back to zero
 
-    # The last and first coefficients for the first and last bases, respectively,
-    # get values == 0 when doing the above calculation, which causes issues when
-    # using the resulting csr_matrix's data attribute; instead, explicitly set
-    # those values to a very small, non-zero value; if spline_degree==0, it's fine
-    if spline_degree > 0:
-        small_float = np.finfo(float).tiny
-        basis[spline_degree, 0] = small_float
-        basis[-(spline_degree + 1), -1] = small_float
+    # NOTE: The first and last coefficients for some of the bases can get values == 0
+    # when doing the above calculation, which causes issues when using the resulting
+    # csr_matrix's data attribute; it doesn't actually matter since this function is only
+    # called when numba is not installed such that the data attribute isn't used, so
+    # there's no need to address; however, just for posterity, to address this, would need
+    # to explicitly set those values to a very small, non-zero value as shown below; if
+    # spline_degree==0, that issue does not occur
+    #  if spline_degree > 0:
+    #    small_float = np.finfo(float).tiny
+    #    basis[spline_degree, 0] = small_float
+    #    basis[-(spline_degree + 1), -1] = small_float
 
     return csr_object(basis.T)
 

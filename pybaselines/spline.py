@@ -2776,7 +2776,7 @@ def pspline_brpls(data, x_data=None, lam=1e3, num_knots=100, spline_degree=3, di
 
     See Also
     --------
-    Baseline.brpls
+    pybaselines.whittaker.brpls
 
     References
     ----------
@@ -2840,7 +2840,7 @@ def pspline_lsrpls(data, x_data=None, lam=1e3, num_knots=100, spline_degree=3, d
 
     See Also
     --------
-    Baseline.lsrpls
+    pybaselines.whittaker.lsrpls
 
     Notes
     -----

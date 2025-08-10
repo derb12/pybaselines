@@ -120,6 +120,21 @@ class TestMorMol(IterativeMorphologicalTester):
 
     func_name = 'mormol'
 
+    def test_smooth_half_windows(self):
+        """Ensures smooth-half-window is correctly processed.
+
+        For mormol, smooth_half_window values of None, 0, and 1 should all produce no smoothing.
+        """
+        half_window = 15
+        no_smooth_output = self.class_func(
+            self.y, half_window=half_window, smooth_half_window=1
+        )[0]
+        for smooth_half_window in (None, 0):
+            output = self.class_func(
+                self.y, half_window=half_window, smooth_half_window=smooth_half_window
+            )[0]
+            assert_allclose(output, no_smooth_output, rtol=1e-12, atol=1e-12)
+
 
 class TestRollingBall(MorphologicalTester):
     """Class for testing rolling_ball baseline."""
