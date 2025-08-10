@@ -93,7 +93,7 @@ def _use_sparse_arrays():
     return _scipy_version[0] > 1 or (_scipy_version[0] == 1 and _scipy_version[1] >= 12)
 
 
-def dia_object(*args, **kwargs):
+def dia_object(*args, dtype=None, **kwargs):
     """
     Handles creation of a sparse diagonal object.
 
@@ -101,6 +101,8 @@ def dia_object(*args, **kwargs):
     ----------
     *args
         Any arguments to pass to the creation functions.
+    dtype : type or numpy.dtype, optional
+        The desired data type for the matrix or array.
     **kwargs
         Additional keyword arguments to pass to the creation functions.
 
@@ -112,12 +114,12 @@ def dia_object(*args, **kwargs):
 
     """
     if _use_sparse_arrays():
-        return sparse.dia_array(*args, **kwargs)
+        return sparse.dia_array(*args, dtype=dtype, **kwargs)
     else:
-        return sparse.dia_matrix(*args, **kwargs)
+        return sparse.dia_matrix(*args, dtype=dtype, **kwargs)
 
 
-def csr_object(*args, **kwargs):
+def csr_object(*args, dtype=None, **kwargs):
     """
     Handles creation of a sparse csr object.
 
@@ -125,6 +127,8 @@ def csr_object(*args, **kwargs):
     ----------
     *args
         Any arguments to pass to the creation functions.
+    dtype : type or numpy.dtype, optional
+        The desired data type for the matrix or array.
     **kwargs
         Additional keyword arguments to pass to the creation functions.
 
@@ -136,9 +140,9 @@ def csr_object(*args, **kwargs):
 
     """
     if _use_sparse_arrays():
-        return sparse.csr_array(*args, **kwargs)
+        return sparse.csr_array(*args, dtype=dtype, **kwargs)
     else:
-        return sparse.csr_matrix(*args, **kwargs)
+        return sparse.csr_matrix(*args, dtype=dtype, **kwargs)
 
 
 def identity(size, format=None, **kwargs):
@@ -172,7 +176,7 @@ def identity(size, format=None, **kwargs):
         return sparse.identity(size, format=format, **kwargs)
 
 
-def diags(data, offsets=0, **kwargs):
+def diags(data, offsets=0, dtype=None, **kwargs):
     """
     Handles creation of a sparse diagonal matrix.
 
@@ -182,6 +186,8 @@ def diags(data, offsets=0, **kwargs):
         The data to be put in the diagonals.
     offsets : int or Sequence[int], optional
         The offsets for `data`. Default is 0, which is the main diagonal.
+    dtype : type or numpy.dtype, optional
+        The desired data type for the matrix or array.
     **kwargs
         Additional keyword arguments to pass to the creation functions.
 
@@ -197,6 +203,6 @@ def diags(data, offsets=0, **kwargs):
 
     """
     if _use_sparse_arrays():
-        return sparse.diags_array(data, offsets=offsets, **kwargs)
+        return sparse.diags_array(data, offsets=offsets, dtype=dtype, **kwargs)
     else:
-        return sparse.diags(data, offsets=offsets, **kwargs)
+        return sparse.diags(data, offsets=offsets, dtype=dtype, **kwargs)
