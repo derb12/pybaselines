@@ -380,7 +380,7 @@ def test_whittaker_system_negative_lam_fails(small_data2d, lam):
         )
 
 
-@pytest.mark.parametrize('num_eigens', (-2, 0, [-1, 1], [1, -1], [1, 0], [0, 1]))
+@pytest.mark.parametrize('num_eigens', (-2, 0, [-1, 10], [10, -1], [10, 0], [0, 10]))
 def test_whittaker_system_negative_num_eigens_fails(small_data2d, num_eigens):
     """Ensures a num_eigens value less than or equal to 0 fails."""
     with pytest.raises(ValueError):
@@ -407,6 +407,24 @@ def test_whittaker_system_too_many_num_eigens_fails():
         _whittaker_utils.WhittakerSystem2D(data_size, num_eigens=(31, 5))
     with pytest.raises(ValueError):
         _whittaker_utils.WhittakerSystem2D(data_size, num_eigens=(31, 41))
+
+
+def test_whittaker_system_too_few_num_eigens_fails():
+    """Ensures a num_eigens value less than or equal to diff_order fails."""
+    data_size = (30, 40)
+    diff_order = (3, 2)
+    for num_eigens in ((3, 2), (4, 2), (4, 1), (3, 3), (2, 3)):
+        with pytest.raises(ValueError):
+            _whittaker_utils.WhittakerSystem2D(
+                data_size, diff_order=diff_order, num_eigens=num_eigens
+            )
+
+    diff_order = (1, 2)
+    for num_eigens in ((1, 2), (4, 2), (4, 1), (1, 3)):
+        with pytest.raises(ValueError):
+            _whittaker_utils.WhittakerSystem2D(
+                data_size, diff_order=diff_order, num_eigens=num_eigens
+            )
 
 
 def test_whittaker_system_same_basis():

@@ -52,8 +52,8 @@ class _Whittaker(_Algorithm2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
-            using the full analytical solution, which is typically much slower.
-            Default is (10, 10).
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10).
         return_dof : bool, optional
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
@@ -244,8 +244,8 @@ class _Whittaker(_Algorithm2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
-            using the full analytical solution, which is typically much slower.
-            Default is (10, 10).
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10).
         return_dof : bool, optional
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
@@ -343,8 +343,8 @@ class _Whittaker(_Algorithm2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
-            using the full analytical solution, which is typically much slower.
-            Default is (10, 10).
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10).
         return_dof : bool, optional
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
@@ -524,8 +524,8 @@ class _Whittaker(_Algorithm2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
-            using the full analytical solution, which is typically much slower.
-            Default is (10, 10).
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10).
         return_dof : bool, optional
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
@@ -740,8 +740,8 @@ class _Whittaker(_Algorithm2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
-            using the full analytical solution, which is typically much slower.
-            Default is (10, 10).
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10).
         return_dof : bool, optional
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
@@ -856,8 +856,8 @@ class _Whittaker(_Algorithm2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
-            using the full analytical solution, which is typically much slower.
-            Default is (10, 10).
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10).
         return_dof : bool, optional
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
@@ -977,8 +977,8 @@ class _Whittaker(_Algorithm2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for eigendecomposition. Typical values are between 5 and 30, with higher values
             needed for baselines with more curvature. If None, will solve the linear system
-            using the full analytical solution, which is typically much slower.
-            Default is (10, 10).
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10).
         return_dof : bool, optional
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
