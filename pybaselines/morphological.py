@@ -292,7 +292,7 @@ class _Morphological(_Algorithm):
         """
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         window_size = 2 * half_wind + 1
-        kernel = _mollifier_kernel(window_size)
+        kernel = _mollifier_kernel(half_wind)
         data_bounds = slice(window_size, -window_size)
 
         pad_kws = pad_kwargs if pad_kwargs is not None else {}
@@ -376,7 +376,7 @@ class _Morphological(_Algorithm):
         """
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         window_size = 2 * half_wind + 1
-        kernel = _mollifier_kernel(window_size)
+        kernel = _mollifier_kernel(half_wind)
         if smooth_half_window is None:
             smooth_half_window = 1
         else:
