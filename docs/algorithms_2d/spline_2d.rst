@@ -43,7 +43,7 @@ solving the above minimization is:
 
 .. math::
 
-    (B^{\top} W_{diag} B + \lambda_r I_h \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_g) \alpha = B^{\top} W_{diag} y
+    (B^{\mathsf{T}} W_{diag} B + \lambda_r I_h \otimes D_{d_r}^{\mathsf{T}} D_{d_r} + \lambda_c D_{d_c}^{\mathsf{T}} D_{d_c} \otimes I_g) \alpha = B^{\mathsf{T}} W_{diag} y
 
 and the baseline is then:
 
@@ -68,20 +68,20 @@ memory and computation time.
 
 Let :math:`F` be the
 `face-splitting product operator <https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product>`_
-of a matrix with itself such that :math:`F(B_r) = (B_r \otimes 1_{g}^{\top}) \odot (1_{g}^{\top} \otimes B_r)`
-and :math:`F(B_c) = (B_c \otimes 1_{h}^{\top}) \odot (1_{h}^{\top} \otimes B_c)`, where
+of a matrix with itself such that :math:`F(B_r) = (B_r \otimes 1_{g}^{\mathsf{T}}) \odot (1_{g}^{\mathsf{T}} \otimes B_r)`
+and :math:`F(B_c) = (B_c \otimes 1_{h}^{\mathsf{T}}) \odot (1_{h}^{\mathsf{T}} \otimes B_c)`, where
 :math:`1_g` and :math:`1_h` are vectors of ones of length :math:`g` and :math:`h`, respecitvely,
 and :math:`\odot` signifies elementwise multiplication. Then the linear equation can be rewritten as:
 
 .. math::
 
-    (F(B_r)^{\top} W F(B_c) + \lambda_r I_h \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_g) \alpha = B_{r}^{\top} (W \odot Y) B_c
+    (F(B_r)^{\mathsf{T}} W F(B_c) + \lambda_r I_h \otimes D_{d_r}^{\mathsf{T}} D_{d_r} + \lambda_c D_{d_c}^{\mathsf{T}} D_{d_c} \otimes I_g) \alpha = B_{r}^{\mathsf{T}} (W \odot Y) B_c
 
 and the baseline is:
 
 .. math::
 
-    V = B_r \alpha B_{c}^{\top}
+    V = B_r \alpha B_{c}^{\mathsf{T}}
 
 
 Algorithms

@@ -32,7 +32,7 @@ The resulting linear equation for solving the above minimization is:
 
 .. math::
 
-    (W_{diag} + \lambda_r I_M \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_M) v = w y
+    (W_{diag} + \lambda_r I_M \otimes D_{d_r}^{\mathsf{T}} D_{d_r} + \lambda_c D_{d_c}^{\mathsf{T}} D_{d_c} \otimes I_M) v = w y
 
 
 where :math:`W_{diag}` is the diagaonal matrix of the flattened weights, and :math:`D_d` is the matrix
@@ -54,7 +54,7 @@ Eigendecomposition
 
 By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.48550/arXiv.2306.06932>`_,
 the dimensionality of the system can be reduced by using eigendecomposition on each of the two
-penalty matrices, :math:`D_{d_r}^{\top} D_{d_r}` and :math:`D_{d_c}^{\top} D_{d_c}`. (Note that speeding up
+penalty matrices, :math:`D_{d_r}^{\mathsf{T}} D_{d_r}` and :math:`D_{d_c}^{\mathsf{T}} D_{d_c}`. (Note that speeding up
 Whittaker smoothing using `factorization in 1D <https://doi.org/10.1016/j.csda.2006.11.038>`_ and using the
 `analytical eigenvalues in nD (great paper) <https://doi.org/10.1016/j.csda.2009.09.020>`_ are established
 methods, although they require using a fixed difference order, and, in the second case, of using
@@ -63,7 +63,7 @@ The general eigendecomposition of the penalty matrix gives
 
 .. math::
 
-    D_{d}^{\top} D_{d} = U \Sigma U^{\top}
+    D_{d}^{\mathsf{T}} D_{d} = U \Sigma U^{\mathsf{T}}
 
 where :math:`U` is the matrix of eigenvectors and :math:`\Sigma` is a diagonal matrix
 with the eigenvalues along the diagonal. Letting :math:`B = U_c \otimes U_r` denote the Kronecker
@@ -73,7 +73,7 @@ can be rewritten as:
 
 .. math::
 
-    (B^{\top} W_{diag} B + \lambda_r I_h \otimes \Sigma_r + \lambda_c \Sigma_c \otimes I_g) \alpha = B^{\top} W_{diag} y
+    (B^{\mathsf{T}} W_{diag} B + \lambda_r I_h \otimes \Sigma_r + \lambda_c \Sigma_c \otimes I_g) \alpha = B^{\mathsf{T}} W_{diag} y
 
 and the baseline is then:
 

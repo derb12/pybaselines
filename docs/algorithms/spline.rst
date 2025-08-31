@@ -45,7 +45,7 @@ The resulting linear equation for solving the above minimization is:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 where :math:`W` is the diagaonal matrix of the weights, :math:`B` is the matrix
 containing all of the spline basis functions, and :math:`D_d` is the matrix
@@ -263,7 +263,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -312,8 +312,8 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1 B + \lambda D_d^{\top} D_d) c
-    = (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1) y
+    (B^{\mathsf{T}} W^{\mathsf{T}} W B + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B + \lambda D_d^{\mathsf{T}} D_d) c
+    = (B^{\mathsf{T}} W^{\mathsf{T}} W B + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1) y
 
 Weighting:
 
@@ -364,7 +364,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -413,7 +413,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -463,7 +463,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top}W B + D_1^{\top} D_1 + \lambda (I - \eta W_{intp}) D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}}W B + D_1^{\mathsf{T}} D_1 + \lambda (I - \eta W_{intp}) D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 where :math:`I` is the identity matrix.
 
@@ -513,7 +513,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -573,7 +573,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda \alpha_{intp} D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda \alpha_{intp} D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -626,7 +626,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -673,7 +673,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -735,7 +735,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -780,7 +780,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -835,7 +835,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 

@@ -419,11 +419,11 @@ linear equations:
 
 .. math::
 
-    (I + 2 \gamma D_d^{\top} D_d) s^n = y - v^{n-1}
+    (I + 2 \gamma D_d^{\mathsf{T}} D_d) s^n = y - v^{n-1}
 
 .. math::
 
-    (I + 2 \alpha I + 2 \beta D_d^{\top} D_d) v^n = y - s^n + 2 \alpha Op
+    (I + 2 \alpha I + 2 \beta D_d^{\mathsf{T}} D_d) v^n = y - s^n + 2 \alpha Op
 
 where :math:`I` is the identity matrix and :math:`D_d` is the matrix version
 of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.

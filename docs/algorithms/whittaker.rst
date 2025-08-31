@@ -31,7 +31,7 @@ The resulting linear equation for solving the above minimization is:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 .. _difference-matrix-explanation:
 
@@ -94,7 +94,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
@@ -247,8 +247,8 @@ Linear system:
 
 .. math::
 
-    (W^{\top} W + \lambda_1 D_1^{\top} D_1 + \lambda D_d^{\top} D_d) v
-    = (W^{\top} W + \lambda_1 D_1^{\top} D_1) y
+    (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
+    = (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1) y
 
 Weighting:
 
@@ -299,7 +299,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
@@ -342,7 +342,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
@@ -392,7 +392,7 @@ Linear system:
 
 .. math::
 
-    (W + D_1^{\top} D_1 + \lambda (I - \eta W) D_d^{\top} D_d) v = W y
+    (W + D_1^{\mathsf{T}} D_1 + \lambda (I - \eta W) D_d^{\mathsf{T}} D_d) v = W y
 
 where :math:`I` is the identity matrix.
 
@@ -443,7 +443,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
@@ -496,7 +496,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda \alpha D_d^{\top} D_d) v = W y
+    (W + \lambda \alpha D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
@@ -543,7 +543,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
@@ -590,7 +590,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
@@ -652,7 +652,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
@@ -713,7 +713,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda D_d^{\top} D_d) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d) v = W y
 
 Weighting:
 
