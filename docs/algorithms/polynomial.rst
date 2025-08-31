@@ -25,7 +25,7 @@ However, since only the baseline of the data is desired, the least-squares
 approach must be modified. For polynomial-based algorithms, this is done
 by 1) only fitting the data in regions where there is only baseline (termed
 selective masking), 2) modifying the y-values being fit each iteration, termed
-thresholding, or 3) penalyzing outliers.
+thresholding, or 3) penalizing outliers.
 
 .. _selective-masking-explanation:
 
@@ -176,10 +176,10 @@ The figure below illustrates the iterative thresholding.
 The algorithms in pybaselines that use thresholding are :meth:`~.Baseline.modpoly`,
 :meth:`~.Baseline.imodpoly`, and :meth:`~.Baseline.loess` (if ``use_threshold`` is True).
 
-Penalyzing Outliers
+Penalizing Outliers
 ~~~~~~~~~~~~~~~~~~~
 
-The algorithms in pybaselines that penalyze outliers are
+The algorithms in pybaselines that penalize outliers are
 :meth:`~.Baseline.penalized_poly`, which incorporate the penalty directly into the
 minimized cost function, and :meth:`~.Baseline.loess` (if ``use_threshold`` is False),
 which incorporates penalties by applying lower weights to outliers. Refer

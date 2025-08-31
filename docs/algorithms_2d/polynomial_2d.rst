@@ -27,7 +27,7 @@ the polynomial estimate at :math:`x_i`, and :math:`z_j` and :math:`w_{ij}` is th
 However, since only the baseline of the data is desired, the least-squares
 approach must be modified. For polynomial-based algorithms, this is done
 by 1) only fitting the data in regions where there is only baseline, 2)
-modifying the y-values being fit each iteration, or 3) penalyzing outliers.
+modifying the y-values being fit each iteration, or 3) penalizing outliers.
 
 .. note::
    For two dimensional data, polynomial algorithms take a single ``poly_order``
