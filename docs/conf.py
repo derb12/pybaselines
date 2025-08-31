@@ -227,16 +227,23 @@ sphinx_gallery_conf = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
+html_logo = 'images/logo.png'
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
 # documentation.
 try:
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
+    import pydata_sphinx_theme
+    html_theme = 'pydata_sphinx_theme'
     html_theme_options = {
-        'navigation_depth': 5,
-        'prev_next_buttons_location': 'both',
-    }
+    'icon_links': [
+            {
+                'name': 'GitHub',
+                'url': 'https://github.com/derb12/pybaselines',
+                'icon': 'fa-brands fa-github',
+                'type': 'fontawesome',
+            },
+        ],
+   }
 except ImportError:
     html_theme = 'nature'
     html_theme_options = {}

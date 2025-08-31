@@ -87,7 +87,7 @@ docs = [
     "sphinx",
     "sphinx-copybutton",
     "sphinx-gallery>=0.16", # first version allowing strings to specify gallery sorting
-    "sphinx-rtd-theme",
+    "pydata-sphinx-theme",
     "matplotlib",
     "numpydoc",
 ]
