@@ -61,11 +61,110 @@ and :math:`D_2` (second order difference matrix) is:
 Most Whittaker-smoothing-based techniques recommend using the second order difference matrix,
 although some techniques use both the first and second order difference matrices.
 
-The baseline is iteratively calculated using the linear system above by solving for
-the baseline, :math:`v`, updating the weights, solving for the baseline using the new
-weights, and repeating until some exit criteria.
-The difference between Whittaker-smoothing-based algorithms is the selection of weights
-and/or the function that is minimized.
+.. _iterative-reweighting-explanation:
+
+Baseline algorithms based on Whittaker smoothing use
+`iterative reweighting <https://en.wikipedia.org/wiki/Iteratively_reweighted_least_squares>`_,
+in which the baseline, :math:`v`, is calculated by solving the linear equation above, updating the
+weights based on that baseline, solving for a new baseline using the new weights, and repeating
+until some exit criteria. The major difference between Whittaker-smoothing-based algorithms is the
+selection of weights and/or the function that is minimized. An example of this process is shown
+below using the :meth:`~.Baseline.arpls` method.
+
+.. plot::
+   :align: center
+   :context: reset
+   :include-source: False
+   :nofigs:
+
+    from pathlib import Path
+
+    import matplotlib.animation as animation
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from pybaselines import Baseline, utils
+
+    x = np.linspace(1, 1000, 1000)
+    signal = (
+        utils.gaussian(x, 4, 120, 5)
+        + utils.gaussian(x, 5, 220, 12)
+        + utils.gaussian(x, 5, 350, 10)
+        + utils.gaussian(x, 7, 400, 8)
+        + utils.gaussian(x, 4, 550, 6)
+        + utils.gaussian(x, 5, 660, 14)
+        + utils.gaussian(x, 4, 750, 12)
+        + utils.gaussian(x, 5, 880, 8)
+    )
+    true_baseline = 2 + 10 * np.exp(-x / 400)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+
+    y = signal + true_baseline + noise
+
+    baseline_fitter = Baseline(x_data=x)
+    tol = 1e-3
+    lam = 1e5
+
+    # do a complete fit once to figure out how many iterations (ie. frames) are required
+    _, params_complete = baseline_fitter.arpls(y, lam=lam, tol=tol)
+    max_frames = len(params_complete['tol_history'])
+
+    # do an initial fit to get axes set up
+    fit, params = baseline_fitter.arpls(y, lam=lam, max_iter=0, tol=tol)
+    fig, (ax, ax2, ax3) = plt.subplots(nrows=3, tight_layout=True)
+
+    ax.plot(x, y, label='data')
+    baseline_plot = ax.plot(x, fit, label='baseline')[0]
+    weight_plot = ax2.plot(x, np.ones_like(y), 'r.')[0]
+    tol_plot = ax3.plot(1, params['tol_history'], 'o-')[0]
+    ax3.axhline(tol, linestyle='--', color='k', label='Exit tolerance')
+
+    ax.set_xlabel('x')
+    ax.legend()
+    ax2.set(ylim=[-0.1, 1.1], ylabel='Weights', xlabel='x')
+    ax3.set(
+        xlim=[0, max_frames + 1], ylim=[tol / 10, params_complete['tol_history'].max() * 10],
+        ylabel='Tolerance', xlabel='Iteration'
+    )
+    ax3.semilogy()
+    ax3.legend()
+
+    def update_lines(frame):
+        # frame == max number of iterations
+        fit, params = baseline_fitter.arpls(y, lam=lam, max_iter=frame, tol=tol)
+        baseline_plot.set_ydata(fit)
+        # until convergence, output weights actually correspond to iteration `frame + 1`,
+        # so do a second fit using `frame - 1` to get the correct weights for this frame
+        if frame == 0:
+            weight_plot.set_ydata(np.ones_like(y))
+        else:
+            _, params_weights = baseline_fitter.arpls(y, lam=lam, max_iter=frame - 1, tol=tol)
+            weight_plot.set_ydata(params_weights['weights'])
+        changed_lines = [baseline_plot, weight_plot]
+        if len(params['tol_history']) == frame + 1:  # in case tolerance was reached early
+            tol_plot.set_xdata(np.arange(frame + 1) + 1)
+            tol_plot.set_ydata(params['tol_history'])
+            changed_lines.append(tol_plot)
+
+        return changed_lines
+
+    # matplotlib's `plot` directive does not display gifs, so save the generated
+    # gif instead and then embed it below
+    ani = animation.FuncAnimation(
+        fig=fig, func=update_lines, frames=max_frames, blit=True, interval=500
+    )
+    if Path.cwd().stem == 'algorithms':  # within documentation, so just save the gif
+        output_path = Path('../generated/images')
+        output_path.mkdir(exist_ok=True, parents=True)
+        ani.save(output_path.joinpath('iterative_reweighting.gif'))
+        plt.close(fig)
+    else:  # downloaded, so show the plot rather than saving
+        plt.show()
+
+.. image:: ../generated/images/iterative_reweighting.gif
+   :alt: Iterative Reweighting
+   :align: center
+
 
 .. note::
    The :math:`\lambda` (``lam``) value required to fit a particular baseline for all

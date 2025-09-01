@@ -51,8 +51,9 @@ where :math:`W` is the diagaonal matrix of the weights, :math:`B` is the matrix
 containing all of the spline basis functions, and :math:`D_d` is the matrix
 version of :math:`\Delta^d` (same as :ref:`explained <difference-matrix-explanation>`
 for Whittaker-smoothing-based algorithms). P-splines have similarities with Whittaker
-smoothing; in fact, if the number of basis functions, :math:`M`, is set up to be equal
-to the number of data points, :math:`N`, and the spline degree is set to 0, then
+smoothing, including the use of :ref:`iterative reweighting <iterative-reweighting-explanation>`
+to calculate the baseline; in fact, if the number of basis functions, :math:`M`, is set up to
+be equal to the number of data points, :math:`N`, and the spline degree is set to 0, then
 :math:`B` becomes the identity matrix and the above equation becomes identical
 to the equation used for Whittaker smoothing.
 

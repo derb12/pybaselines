@@ -142,9 +142,9 @@ Thresholding
 ~~~~~~~~~~~~
 
 Thresholding is an iterative method that first fits the data using
-traditional least-squares, and then sets the next iteration's fit data
+traditional least-squares and then sets the next iteration's data-to-fit
 as the element-wise minimum between the current data and the current fit.
-The figure below illustrates the iterative thresholding.
+The figure below illustrates this iterative thresholding.
 
 .. plot::
    :align: center
@@ -179,11 +179,12 @@ The algorithms in pybaselines that use thresholding are :meth:`~.Baseline.modpol
 Penalizing Outliers
 ~~~~~~~~~~~~~~~~~~~
 
-The algorithms in pybaselines that penalize outliers are
-:meth:`~.Baseline.penalized_poly`, which incorporate the penalty directly into the
-minimized cost function, and :meth:`~.Baseline.loess` (if ``use_threshold`` is False),
-which incorporates penalties by applying lower weights to outliers. Refer
-to the particular algorithms below for more details.
+The polynomial algorithms in pybaselines that penalize outliers include
+:meth:`~.Baseline.penalized_poly`, which incorporates the penalty directly into the
+minimized cost function, and :meth:`~.Baseline.loess` (if ``use_threshold`` is False)
+and :meth:`~.Baseline.quant_reg`, which use
+:ref:`iterative reweighting <iterative-reweighting-explanation>` to apply lower weights
+to outliers. Refer to the particular algorithms below for more details.
 
 
 Algorithms
