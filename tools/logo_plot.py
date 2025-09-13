@@ -59,8 +59,8 @@ if __name__ == '__main__':
         text_size = 52
         text_border = [patheffects.withStroke(linewidth=1.5, foreground='black')]
 
-        ax.plot(x, y, lw=1.5, color=blue)
-        ax.plot(x, baseline, lw=2, color=pink)
+        ax.plot(x, y, lw=2.5, color=blue)
+        ax.plot(x, baseline, lw=3, color=pink)
 
         x_lims = ax.get_xlim()
         ax.set_xlim(x_lims[0] - 200, x_lims[1] + 200)
