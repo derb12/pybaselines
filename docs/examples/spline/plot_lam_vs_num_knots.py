@@ -72,7 +72,7 @@ def optimize_lam(data, known_baseline, func, previous_min=None, **kwargs):
 # Other baseline types could be examined, similar to the
 # :ref:`Whittaker lam vs data size example <sphx_glr_generated_examples_whittaker_plot_lam_vs_data_size.py>`,
 # which should give similar results.
-plt.plot(utils._make_data(1000, bkg_type='exponential')[1])
+plt.plot(utils.make_data(1000, bkg_type='exponential', signal_type=2)[1])
 
 # %%
 # The number of knots will vary from 20 to 1000 on a logarithmic scale. For each number
@@ -84,10 +84,12 @@ num_points = np.logspace(np.log10(500.1), np.log10(20000), 6, dtype=int)
 symbols = cycle(['o', 's', 'd', 'h', '^', 'x'])
 best_lams = np.empty((len(num_knots), len(num_points)))
 for i, num_knot in enumerate(num_knots):
-    min_lam = 0
+    min_lam = None
     for j, num_x in enumerate(num_points):
         func = partial(Baseline().mixture_model, num_knots=num_knot, diff_order=2)
-        x, y, baseline = utils._make_data(num_x, bkg_type='exponential')
+        x, y, baseline = utils.make_data(
+            num_x, bkg_type='exponential', signal_type=2, noise_std=0.1, return_baseline=True
+        )
         # use a slightly lower tolerance to speed up the calculation
         min_lam = optimize_lam(y, baseline, func, min_lam, tol=1e-2, max_iter=50)
         best_lams[i, j] = min_lam
