@@ -10,7 +10,7 @@ performing some of the computationally heavy setup only once. For example,
 matrix, and potentially its pseudoinverse, once. Likewise,
 :doc:`spline methods <../../../algorithms/spline>` will only have to compute the spline
 basis matrix once. Note that this only applies if the same non-data parameters
-(eg. ``poly_order``, ``lam``, etc.) are used for each fit.
+(eg. ``poly_order``, ``num_knots``, etc.) are used for each fit.
 
 This example will explore the efficiency of reusing the same ``Baseline`` object when fitting
 multiple datasets for different types of algorithms.

@@ -790,7 +790,7 @@ def _identify_loss_method(loss_method):
     """
     prefix, *split_method = loss_method.lower().split('_')
     if prefix not in ('a', 's', 'asymmetric', 'symmetric') or not split_method:
-        raise ValueError('must specify loss function symmetry by appending "a_" or "s_"')
+        raise ValueError('must specify loss function symmetry by prepending "a_" or "s_"')
     if prefix in ('a', 'asymmetric'):
         symmetric = False
     else:

@@ -8,7 +8,7 @@ research:
 
 .. code-block:: text
 
-    @software{pybaselines,
+    @software{erb2021pybaselines,
       author = {Erb, Donald},
       doi = {10.5281/zenodo.5608581},
       title = {{pybaselines}: A {Python} library of algorithms for the baseline correction of experimental data},
