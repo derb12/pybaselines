@@ -16,7 +16,7 @@ from scipy.sparse import vstack
 from pybaselines import _banded_utils, misc
 from pybaselines._compat import dia_object, diags
 
-from .base_tests import BaseTester, get_data
+from .base_tests import BaseTester, ensure_deprecation, get_data
 
 
 class MiscTester(BaseTester):
@@ -26,6 +26,7 @@ class MiscTester(BaseTester):
     algorithm_base = misc._Misc
 
 
+@pytest.mark.filterwarnings('ignore:"interp_pts" is deprecated')
 class TestInterpPts(MiscTester):
     """Class for testing interp_pts baseline."""
 
@@ -69,6 +70,12 @@ class TestInterpPts(MiscTester):
             getattr(self.algorithm_base(), self.func_name)(**self.kwargs)
         with pytest.raises(TypeError):
             self.func(**self.kwargs)
+
+    @ensure_deprecation(1, 5)
+    def test_method_deprecation(self):
+        """Ensures the deprecation warning is emitted if this method is used."""
+        with pytest.warns(DeprecationWarning):
+            self.class_func(data=self.y, **self.kwargs)
 
 
 class TestBeads(MiscTester):

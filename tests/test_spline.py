@@ -585,6 +585,7 @@ class TestPsplineDerpsalsa(IterativeSplineTester, WhittakerComparisonMixin):
                 self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
 
 
+@pytest.mark.filterwarnings('ignore:"pspline_mpls" is deprecated')
 class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin):
     """Class for testing pspline_mpls baseline."""
 
@@ -627,6 +628,12 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin)
         """Ensures a DeprecationWarning is given when max_iter is input."""
         with pytest.warns(DeprecationWarning):
             self.class_func(self.y, max_iter=20)
+
+    @ensure_deprecation(1, 5)
+    def test_method_deprecation(self):
+        """Ensures the deprecation warning is emitted if this method is used."""
+        with pytest.warns(DeprecationWarning):
+            self.class_func(data=self.y)
 
 
 class TestPsplineBrPLS(IterativeSplineTester, WhittakerComparisonMixin):

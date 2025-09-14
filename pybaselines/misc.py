@@ -65,6 +65,8 @@ OF SUCH DAMAGE.
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.linalg import get_blas_funcs, solve_banded, solveh_banded
@@ -84,6 +86,10 @@ class _Misc(_Algorithm):
     def interp_pts(self, data=None, baseline_points=(), interp_method='linear'):
         """
         Creates a baseline by interpolating through input points.
+
+        .. deprecated:: 1.3.0
+            ``interp_pts`` is deprecated and will be removed in version 1.5.0. Use the various
+            interpolation methods from :mod:`scipy.interpolate` instead.
 
         Parameters
         ----------
@@ -121,6 +127,12 @@ class _Misc(_Algorithm):
         values of 0.
 
         """
+        warnings.warn(
+            ('"interp_pts" is deprecated and will be removed in version 1.5.0. Use the various '
+             'interpolation methods from scipy.interpolate instead.'), DeprecationWarning,
+            stacklevel=2
+        )
+
         points = np.atleast_2d(
             _check_array(baseline_points, check_finite=self._check_finite, ensure_1d=False)
         )

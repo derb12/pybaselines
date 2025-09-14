@@ -1272,6 +1272,11 @@ class _Spline(_Algorithm):
         """
         A penalized spline version of the morphological penalized least squares (MPLS) algorithm.
 
+        .. deprecated:: 1.3.0
+            ``pspline_mpls`` is deprecated and will be removed in version 1.5.0. Use
+            :func:`pybaselines.utils.pspline_smooth` with the output weights of
+            :meth:`~Baseline.mpls` instead.
+
         Parameters
         ----------
         data : array-like, shape (N,)
@@ -1348,6 +1353,11 @@ class _Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
+        warnings.warn(
+            ('"pspline_mpls" is deprecated and will be removed in version 1.5.0. Use '
+             'pybaselines.utils.pspline_smooth with the output weights of "mpls" instead.'),
+             DeprecationWarning, stacklevel=2
+        )
         if not 0 <= p <= 1:
             raise ValueError('p must be between 0 and 1')
         if tol is not None or max_iter is not None:
