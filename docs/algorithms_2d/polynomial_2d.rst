@@ -57,6 +57,8 @@ modpoly (Modified Polynomial)
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -117,6 +119,8 @@ imodpoly (Improved Modified Polynomial)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.imodpoly(y, poly_order=(1, 2), max_cross=0)
@@ -132,6 +136,8 @@ penalized_poly (Penalized Polynomial)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.penalized_poly(y, poly_order=(1, 2), max_cross=0)
@@ -147,6 +153,8 @@ quant_reg (Quantile Regression)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.quant_reg(

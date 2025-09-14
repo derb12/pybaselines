@@ -150,6 +150,7 @@ The figure below illustrates this iterative thresholding.
    :align: center
    :context: close-figs
    :include-source: False
+   :show-source-link: True
 
     fig, axes = plt.subplots(
         2, 2, gridspec_kw={'hspace': 0, 'wspace': 0},
@@ -202,6 +203,8 @@ of the data since masking is time-consuming.
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -326,6 +329,8 @@ baseline to data. `modpoly` is also sometimes called "ModPolyFit" in literature,
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -363,6 +368,8 @@ and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterati
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -394,6 +401,8 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
 
 .. plot::
    :align: center
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -475,6 +484,8 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -508,6 +519,8 @@ is reduced by iterative reweighting.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -542,6 +555,8 @@ quant_reg (Quantile Regression)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -568,6 +583,8 @@ based on the input `peak_ratio` value.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     peak_ratios = [0.2, 0.6, 0.2, 0.2, 0.3]
     # to see contents of create_data function, look at the top-most algorithm's code

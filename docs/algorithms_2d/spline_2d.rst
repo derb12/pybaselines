@@ -96,6 +96,8 @@ mixture_model (Mixture Model)
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -157,6 +159,8 @@ irsqr (Iterative Reweighted Spline Quantile Regression)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.irsqr(y, lam=(1e3, 1e2), quantile=0.3)
@@ -172,6 +176,8 @@ pspline_asls (Penalized Spline Version of asls)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_asls(y, lam=(1e3, 1e0), p=0.005)
@@ -187,6 +193,8 @@ pspline_iasls (Penalized Spline Version of iasls)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_iasls(y, lam=(1e2, 1e-2))
@@ -202,6 +210,8 @@ pspline_airpls (Penalized Spline Version of airpls)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_airpls(y, lam=(1e3, 1e-1))
@@ -217,6 +227,8 @@ pspline_arpls (Penalized Spline Version of arpls)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_arpls(y, lam=(1e3, 5e0))
@@ -232,6 +244,8 @@ pspline_iarpls (Penalized Spline Version of iarpls)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_iarpls(y, lam=(1e2, 1e0))
@@ -247,6 +261,8 @@ pspline_psalsa (Penalized Spline Version of psalsa)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_psalsa(y, lam=(1e3, 5e0), k=0.5)
@@ -262,6 +278,8 @@ pspline_brpls (Penalized Spline Version of brpls)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_brpls(y, lam=(1e3, 5e0))
@@ -277,6 +295,8 @@ pspline_lsrpls (Penalized Spline Version of lsrpls)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_lsrpls(y, lam=(1e3, 5e0))

@@ -21,6 +21,8 @@ adaptive_minmax (Adaptive MinMax)
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -90,6 +92,8 @@ baseline correction instead.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.individual_axes(

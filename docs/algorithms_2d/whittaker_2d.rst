@@ -117,6 +117,8 @@ asls (Asymmetric Least Squares)
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -179,6 +181,8 @@ Eigendecomposition is not allowed for this method.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.iasls(y, lam=(1e3, 1e0))
@@ -194,6 +198,8 @@ airpls (Adaptive Iteratively Reweighted Penalized Least Squares)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.airpls(y, lam=(1e3, 1e1))
@@ -209,6 +215,8 @@ arpls (Asymmetrically Reweighted Penalized Least Squares)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.arpls(y, lam=(1e4, 1e2))
@@ -225,6 +233,8 @@ Eigendecomposition is not allowed for this method.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.drpls(y, lam=(1e3, 1e2))
@@ -240,6 +250,8 @@ iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.iarpls(y, lam=(1e3, 1e2))
@@ -256,6 +268,8 @@ Eigendecomposition is not allowed for this method.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.aspls(y, lam=(1e3, 1e2))
@@ -271,6 +285,8 @@ psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.psalsa(y, lam=(1e3, 1e2), k=0.5)
@@ -286,6 +302,8 @@ brpls (Bayesian Reweighted Penalized Least Squares)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.brpls(y, lam=(1e4, 1e2))
@@ -301,6 +319,8 @@ lsrpls (Locally Symmetric Reweighted Penalized Least Squares)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.lsrpls(y, lam=(1e4, 1e2))

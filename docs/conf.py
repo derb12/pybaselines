@@ -156,9 +156,9 @@ suppress_warnings = ['autosectionlabel']
 
 # -- Settings for matplotlib plot_directive extension ----------------------------
 
-plot_include_source = False
+plot_include_source = True  # set default to True so that docstring examples don't show source
 plot_html_show_formats = False
-plot_html_show_source_link = True
+plot_html_show_source_link = False  # set default to False for docstring examples
 
 plot_formats = ['png']
 

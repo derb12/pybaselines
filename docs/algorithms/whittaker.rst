@@ -13,7 +13,7 @@ and penalized least squares (like :meth:`~.Baseline.penalized_poly`).
 
 A great introduction to Whittaker smoothing is Paul Eilers's
 `A Perfect Smoother paper <https://doi.org/10.1021/ac034173t>`_ (note that Whittaker
-smoothing is often also referred to as Whittaker-Henderson smoothing and as Hodrick-Prescott
+smoothing is often also referred to as Whittaker-Henderson smoothing or as Hodrick-Prescott
 filtering in the case of a second order difference). The general idea behind
 Whittaker smoothing algorithms is to make the baseline match the measured
 data as well as it can while also penalizing the roughness of the baseline. The
@@ -75,6 +75,7 @@ below using the :meth:`~.Baseline.arpls` method.
    :align: center
    :context: reset
    :include-source: False
+   :show-source-link: True
    :nofigs:
 
     from pathlib import Path
@@ -208,6 +209,8 @@ Weighting:
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -362,6 +365,8 @@ Weighting:
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -378,7 +383,7 @@ Weighting:
         else:
             lam = 1e3
             p = 0.01
-        baseline, params = baseline_fitter.iasls(y, lam=lam, lam_1=1e-4, p=p)
+        baseline, params = baseline_fitter.iasls(y, lam=lam, p=p)
         ax.plot(baseline, 'g--')
 
 
@@ -409,7 +414,7 @@ Weighting:
         \exp{\left(\frac{\text{abs}(y_i - v_i) t}{|\mathbf{r}^-|}\right)} & y_i < v_i
     \end{array}\right.
 
-where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the l1-norm of the negative
+where :math:`t` is the iteration number and :math:`|\mathbf{r}^-|` is the L1-norm of the negative
 values in the residual vector :math:`\mathbf r`, ie. :math:`\sum\limits_{y_i - v_i < 0} |y_i - v_i|`.
 Note that the absolute value within the weighting was mistakenly omitted in the original
 publication, as `specified by the author <https://github.com/zmzhang/airPLS/issues/8>`_.
@@ -417,6 +422,8 @@ publication, as `specified by the author <https://github.com/zmzhang/airPLS/issu
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -460,6 +467,8 @@ deviation, respectively, of the negative values in the residual vector :math:`\m
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -513,6 +522,8 @@ respectively, of the negative values in the residual vector :math:`\mathbf r`.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -562,6 +573,8 @@ the residual vector :math:`\mathbf r`.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -618,6 +631,8 @@ of the asPLS paper closer than the factor of 2 and fits noisy data much better).
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -660,6 +675,8 @@ be considered a peak.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -723,6 +740,8 @@ respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the roo
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -787,6 +806,8 @@ within :math:`\mathbf r`.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -832,6 +853,8 @@ respectively, of the negative values in the residual vector :math:`\mathbf r`.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)

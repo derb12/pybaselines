@@ -25,6 +25,8 @@ with user interfaces and is not encouraged otherwise.
 
 .. plot::
    :align: center
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -81,6 +83,8 @@ as sparse.
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -205,6 +209,8 @@ of the beads function.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the second-to-top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
