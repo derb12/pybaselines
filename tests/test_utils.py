@@ -831,23 +831,45 @@ def test_optimize_window(small_data2d, two_d):
 
 
 @pytest.mark.parametrize('data_size', (500, 1000, 1001))
-@pytest.mark.parametrize('baseline_type', ('exponential', 'gaussian', 'linear', 'sine'))
-def test_make_data(data_size, baseline_type):
-    """Ensures basic functionality of the _make_data function."""
-    x, y, baseline = utils._make_data(data_size, baseline_type)
+@pytest.mark.parametrize(
+    'baseline_type', ('exponential', 'gaussian', 'linear', 'sine', 'gaussian_small')
+)
+@pytest.mark.parametrize('signal_type', (1, 2))
+@pytest.mark.parametrize('return_baseline', (True, False))
+def test_make_data(data_size, baseline_type, signal_type, return_baseline):
+    """Ensures basic functionality of the make_data function."""
+    output = utils.make_data(
+        data_size, bkg_type=baseline_type, signal_type=signal_type, return_baseline=return_baseline,
+        noise_std=0.2
+    )
+    if return_baseline:
+        assert len(output) == 3
+        x, y, baseline = output
+    else:
+        assert len(output) == 2
+        x, y = output
+        baseline = None
+
     assert isinstance(x, np.ndarray)
     assert isinstance(y, np.ndarray)
-    assert isinstance(baseline, np.ndarray)
-
     assert x.shape == (data_size,)
     assert y.shape == (data_size,)
-    assert baseline.shape == (data_size,)
+
+    if baseline is not None:
+        assert isinstance(baseline, np.ndarray)
+        assert baseline.shape == (data_size,)
 
 
 def test_make_data_invalid_baseline():
     """Ensures an error is raised when an invalid baseline type is specified."""
     with pytest.raises(ValueError):
-        utils._make_data(100, 'aaaaa')
+        utils.make_data(100, bkg_type='aaaaa')
+
+
+def test_make_data_invalid_signal():
+    """Ensures an error is raised when an invalid signal type is specified."""
+    with pytest.raises(ValueError):
+        utils.make_data(100, signal_type=3)
 
 
 @pytest.mark.parametrize('half_window', (1, 2, 22))

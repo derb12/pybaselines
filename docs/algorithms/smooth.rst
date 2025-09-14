@@ -27,6 +27,8 @@ kernel. Note that this method does not perform well for tightly-grouped peaks.
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -157,6 +159,8 @@ index-based width of the largest peak or feature.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -177,6 +181,8 @@ data. The baselines when using decreasing window size and smoothing is shown bel
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -202,6 +208,8 @@ incrementally increased to smooth peaks until convergence is reached.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -219,11 +227,13 @@ ipsa (Iterative Polynomial Smoothing Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.ipsa` iteratively smooths the input data using a second-order
-Savitzky–Golay filter until the exit criteria is reached.
+Savitzky-Golay filter until the exit criteria is reached.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -243,13 +253,15 @@ ria (Range Independent Algorithm)
 right edges of the data and adds Gaussian peaks to these baselines, similar to the
 :ref:`optimize_extended_range <extending-data-explanation>` function, and
 records their initial areas. The data is then iteratively smoothed using a
-zero-order Savitzky–Golay filter (moving average) until the area of the extended
+zero-order Savitzky-Golay filter (moving average) until the area of the extended
 regions after subtracting the smoothed data from the initial data is close to
 their starting areas.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -278,6 +290,8 @@ is then interpolated back into the original data size.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)

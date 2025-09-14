@@ -83,11 +83,15 @@ test = [
     "pytest>=6.0",  # first version to work with pyproject.toml
     "ruff",
 ]
+doctest = [
+    "scipy-doctest",
+    "matplotlib",
+]
 docs = [
     "sphinx",
     "sphinx-copybutton",
     "sphinx-gallery>=0.16", # first version allowing strings to specify gallery sorting
-    "sphinx-rtd-theme",
+    "pydata-sphinx-theme",
     "matplotlib",
     "numpydoc",
 ]
@@ -96,7 +100,7 @@ release = [
     "bump-my-version",
     "twine",
 ]
-dev = ["pybaselines[full, docs, test, release]"]
+dev = ["pybaselines[full, docs, test, release, doctest]"]
 
 
 [tool.pytest.ini_options]

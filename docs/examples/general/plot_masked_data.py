@@ -5,20 +5,21 @@ Working with Masked or Missing Data
 
 There are cases where data needs to be filtered/masked before processing, for example a faulty
 detector can result in problematic regions in measurements. In these cases, baseline correction on
-the raw data could lead to severely incorrect fits. One such use of masking in literature is presented by
-`Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_ for removing downward spikes in
-mid-infrared data collected from the James Webb Space Telescope before performing baseline correction.
-This example will detail  how to handle working with masked data for the various types of baseline
-correction algorithms in pybaselines.
+the raw data could lead to severely incorrect fits. One such use of masking in literature is
+presented by `Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_ for removing
+downward spikes in mid-infrared data collected from the James Webb Space Telescope before
+performing baseline correction. This example will detail  how to handle working with masked data
+for the various types of baseline correction algorithms in pybaselines.
 
 As a preface for this guide, the author of this library acknowledges that masking could potentially
 be handled internally within each individual algorithm to make them "mask-aware". However, it would
-be a large change to the codebase, and there are many edge cases that would make it a non-trivial endeavor.
-Support for masking following the guidelines presented in this example could alternatively be added
-as an :doc:`optimizer-type algorithm <../../../algorithms/optimizers>`, but, in the author's opinion,
-making one single function that is expected to cover 60+ different algorithms would be fiddly at best
-and very prone to bugs. Therefore, this guide is presented as a starting point for users to adapt for
-targeting a spectific baseline correction algorithm or group of algorithms.
+be a large change to the codebase, and there are many edge cases that would make it a non-trivial
+endeavor. Support for masking following the guidelines presented in this example could
+alternatively be added as an :doc:`optimizer-type algorithm <../../../algorithms/optimizers>`,
+but, in the author's opinion, making one single function that is expected to cover 60+ different
+algorithms would be fiddly at best and very prone to bugs. Therefore, this guide is presented as a
+starting point for users to adapt for targeting a specific baseline correction algorithm or group
+of algorithms.
 
 The various algorithms in pybaselines can be broadly grouped into three different categories
 for how they handle masked data:
@@ -47,8 +48,6 @@ from scipy.interpolate import PchipInterpolator
 
 from pybaselines import Baseline
 from pybaselines.utils import gaussian, relative_difference
-from pybaselines._banded_utils import PenalizedSystem
-from pybaselines._weighting import _arpls
 
 
 x = np.linspace(500, 4000, 1000)
@@ -83,8 +82,9 @@ plt.legend()
 # To start, the mask for fitting the data has to be made. This can be done by eye if fitting
 # a few datasets, or can be automated using some metric. Many
 # :doc:`classification methods <../../../algorithms/classification>` use different methods for
-# excluding positive peaks; for excluding negative peaks, see
-# `Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_ for an example. This example
+# excluding positive peaks; for an example of excluding negative peaks, see
+# `Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_, which uses
+# Savitzky-Golay filtering combined with iterative thresholding. This example
 # will simply define the mask region by hand.
 fit_mask = (x < 1900) | (x > 2550)  # 1 in regions to fit, 0 in masked region
 
@@ -160,6 +160,8 @@ plt.legend()
 # "Mask-aware" versions of these algorithms could be implemented, as shown below for
 # the arPLS algorithm. However, the "mask-aware" behavior can be closely approximated
 # simply by using weighted interpolation, to be shown below.
+from pybaselines._banded_utils import PenalizedSystem  # noqa: E402
+from pybaselines._weighting import _arpls  # noqa: E402
 
 
 def masked_arpls(y, mask=None, lam=1e5, diff_order=2, tol=1e-3, max_iter=50, weights=None):

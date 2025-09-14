@@ -17,6 +17,8 @@ method. The plot below shows such an example.
 
 .. plot::
    :align: center
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -75,6 +77,8 @@ points, and then iteratively fitting a polynomial to the interpolated baseline.
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -206,6 +210,8 @@ the noise's standard deviation as belonging to the baseline.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -234,6 +240,8 @@ of the median of the noise's standard deviation distribution.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -263,6 +271,8 @@ threshold, and peak regions are iteratively interpolated until the baseline is b
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -291,6 +301,8 @@ other points have a weight of 0.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     scales = np.arange(2, 40)
     # to see contents of create_data function, look at the top-most algorithm's code
@@ -327,6 +339,8 @@ a weight of 0.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -369,6 +383,8 @@ peak positions.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -397,6 +413,8 @@ slightly reduced, as seen below.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)

@@ -161,9 +161,9 @@ def gaussian_kernel(window_size, sigma=1.0):
 
     Notes
     -----
-    Return gaus/sum(gaus) rather than creating a unit-area gaussian
+    Return ``gaus/sum(gaus)`` rather than creating a unit-area gaussian
     since the unit-area gaussian would have an area smaller than 1
-    for window_size < ~ 6 * sigma.
+    for ``window_size <~ 6 * sigma``.
 
     """
     # centers distribution from -half_window to half_window
@@ -1084,16 +1084,24 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     return y_smooth, pspline.tck
 
 
-def _make_data(data_size=1000, bkg_type='exponential'):
+def make_data(data_size=1000, bkg_type='gaussian_small', signal_type=1, noise_std=0.05,
+              return_baseline=False):
     """
-    Creates simple datasets for use in examples.
+    Creates a simple dataset for use in examples and docstrings.
 
     Parameters
     ----------
     data_size : int, optional
         The number of data points. Default is 1000.
-    bkg_type : {'exponential', 'gaussian', 'linear', 'sine'}, optional
-        A string designating the type of baseline to add to the data. Default is 'exponential'.
+    bkg_type : {'gaussian_small', 'exponential', 'linear', 'sine', 'gaussian'}, optional
+        A string designating the type of baseline to add to the data. Default is 'gaussian_small'.
+    signal_type : {1, 2}, optional
+        The type of signal to produce. In general, examples within the documentation use 2
+        while docstring examples use 1. Default is 1.
+    noise_std : float, optional
+        The standard deviation of the noise. Default is 0.05.
+    return_baseline : bool, optional
+        Whether to include the computed baseline in the output. Default is False.
 
     Returns
     -------
@@ -1102,12 +1110,12 @@ def _make_data(data_size=1000, bkg_type='exponential'):
     y : numpy.ndarray, shape (`data_size`,)
         The y-values for the example data.
     baseline : numpy.ndarray, shape (`data_size`,)
-        The true baseline for the example data.
+        Only returned if ``return_baseline`` is True. The true baseline for the example data.
 
     Raises
     ------
     ValueError
-        Raised if `bkg_type` is not an allowed value.
+        Raised if ``bkg_type`` or ``signal_type`` is not an allowed value.
 
     Notes
     -----
@@ -1117,19 +1125,35 @@ def _make_data(data_size=1000, bkg_type='exponential'):
 
     """
     x = np.linspace(0, 1000, data_size)
-    signal = (
-        gaussian(x, 9, 100, 12)
-        + gaussian(x, 6, 180, 5)
-        + gaussian(x, 8, 350, 11)
-        + gaussian(x, 15, 400, 18)
-        + gaussian(x, 6, 550, 6)
-        + gaussian(x, 13, 700, 8)
-        + gaussian(x, 9, 800, 9)
-        + gaussian(x, 9, 880, 7)
-    )
+
+    if signal_type == 1:
+        signal = (
+            + gaussian(x, 4, 180, 12)
+            + gaussian(x, 15, 400, 10)
+            + gaussian(x, 6, 540, 6)
+            + gaussian(x, 13, 700, 8)
+            + gaussian(x, 9, 880, 7)
+        )
+    elif signal_type == 2:
+        signal = (
+            gaussian(x, 9, 100, 12)
+            + gaussian(x, 6, 180, 5)
+            + gaussian(x, 8, 350, 11)
+            + gaussian(x, 15, 400, 18)
+            + gaussian(x, 6, 550, 6)
+            + gaussian(x, 13, 700, 8)
+            + gaussian(x, 9, 800, 9)
+            + gaussian(x, 9, 880, 7)
+        )
+    else:
+        raise ValueError(f'unknown signal_type {signal_type}')
+
+    bkg_type = bkg_type.lower()
     if bkg_type == 'exponential':
         baseline = 5 + 15 * np.exp(-x / 200)
-    elif bkg_type == 'gaussian':
+    elif bkg_type == 'gaussian_small':
+        baseline = 15 + gaussian(x, 4, 650, 400)
+    elif bkg_type == 'gaussian':  # a more pronounced gaussian than 'gaussian_small'
         baseline = 30 + gaussian(x, 20, 500, 150)
     elif bkg_type == 'linear':
         baseline = 1 + x * 0.005
@@ -1137,8 +1161,10 @@ def _make_data(data_size=1000, bkg_type='exponential'):
         baseline = 70 + 5 * np.sin(x / 50)
     else:
         raise ValueError(f'unknown bkg_type {bkg_type}')
-
-    noise = np.random.default_rng(0).normal(0, 0.1, data_size)
+    noise = np.random.default_rng(0).normal(0, noise_std, data_size)
     y = signal + baseline + noise
 
-    return x, y, baseline
+    if return_baseline:
+        return x, y, baseline
+
+    return x, y

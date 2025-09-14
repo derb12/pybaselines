@@ -378,16 +378,16 @@ class _Polynomial(_Algorithm):
             size equal to N and all values set to 1.
         cost_function : str, optional
             The non-quadratic cost function to minimize. Must indicate symmetry of the
-            method by appending 'a' or 'asymmetric' for asymmetric loss, and 's' or
+            method by prepending 'a' or 'asymmetric' for asymmetric loss, and 's' or
             'symmetric' for symmetric loss. Default is 'asymmetric_truncated_quadratic'.
             Available methods, and their associated reference, are:
 
-                * 'asymmetric_truncated_quadratic'[1]_
-                * 'symmetric_truncated_quadratic'[1]_
-                * 'asymmetric_huber'[1]_
-                * 'symmetric_huber'[1]_
-                * 'asymmetric_indec'[2]_
-                * 'symmetric_indec'[2]_
+            * 'asymmetric_truncated_quadratic'[1]_
+            * 'symmetric_truncated_quadratic'[1]_
+            * 'asymmetric_huber'[1]_
+            * 'symmetric_huber'[1]_
+            * 'asymmetric_indec'[2]_
+            * 'symmetric_indec'[2]_
 
         threshold : float, optional
             The threshold value for the loss method, where the function goes from
@@ -761,7 +761,7 @@ class _Polynomial(_Algorithm):
 
         Notes
         -----
-        Application of quantile regression for baseline fitting ss described in [1]_.
+        Application of quantile regression for baseline fitting as described in [1]_.
 
         Performs quantile regression using iteratively reweighted least squares (IRLS)
         as described in [2]_.
@@ -833,9 +833,9 @@ class _Polynomial(_Algorithm):
             ('a' or 'asymmetric') is optional (eg. 'indec' and 'a_indec' are the same). Default
             is 'asymmetric_indec'. Available methods, and their associated reference, are:
 
-                * 'asymmetric_indec'[1]_
-                * 'asymmetric_truncated_quadratic'[2]_
-                * 'asymmetric_huber'[2]_
+            * 'asymmetric_indec'[1]_
+            * 'asymmetric_truncated_quadratic'[2]_
+            * 'asymmetric_huber'[2]_
 
         peak_ratio : float, optional
             A value between 0 and 1 that designates how many points in the data belong
@@ -1383,7 +1383,7 @@ def _identify_loss_method(loss_method):
     """
     prefix, *split_method = loss_method.lower().split('_')
     if prefix not in ('a', 's', 'asymmetric', 'symmetric') or not split_method:
-        raise ValueError('must specify loss function symmetry by appending "a_" or "s_"')
+        raise ValueError('must specify loss function symmetry by prepending "a_" or "s_"')
     if prefix in ('a', 'asymmetric'):
         symmetric = False
     else:
@@ -1421,16 +1421,16 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
         size equal to N and all values set to 1.
     cost_function : str, optional
         The non-quadratic cost function to minimize. Must indicate symmetry of the
-        method by appending 'a' or 'asymmetric' for asymmetric loss, and 's' or
+        method by prepending 'a' or 'asymmetric' for asymmetric loss, and 's' or
         'symmetric' for symmetric loss. Default is 'asymmetric_truncated_quadratic'.
         Available methods, and their associated reference, are:
 
-            * 'asymmetric_truncated_quadratic'[7]_
-            * 'symmetric_truncated_quadratic'[7]_
-            * 'asymmetric_huber'[7]_
-            * 'symmetric_huber'[7]_
-            * 'asymmetric_indec'[8]_
-            * 'symmetric_indec'[8]_
+        * 'asymmetric_truncated_quadratic'[7]_
+        * 'symmetric_truncated_quadratic'[7]_
+        * 'asymmetric_huber'[7]_
+        * 'symmetric_huber'[7]_
+        * 'asymmetric_indec'[8]_
+        * 'symmetric_indec'[8]_
 
     threshold : float, optional
         The threshold value for the loss method, where the function goes from
@@ -2189,9 +2189,9 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
         ('a' or 'asymmetric') is optional (eg. 'indec' and 'a_indec' are the same). Default
         is 'asymmetric_indec'. Available methods, and their associated reference, are:
 
-            * 'asymmetric_indec'[18]_
-            * 'asymmetric_truncated_quadratic'[19]_
-            * 'asymmetric_huber'[19]_
+        * 'asymmetric_indec'[18]_
+        * 'asymmetric_truncated_quadratic'[19]_
+        * 'asymmetric_huber'[19]_
 
     peak_ratio : float, optional
         A value between 0 and 1 that designates how many points in the data belong

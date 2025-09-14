@@ -103,7 +103,7 @@ if __name__ == '__main__':
     for func_name in functions:
         timings = []
         for num_x in data_sizes:
-            y = utils._make_data(num_x)[1]
+            y = utils.make_data(num_x, bkg_type='exponential', noise_std=0.1, signal_type=2)[1]
             lam = lam_equation(num_x)
             if func_name == 'sparse':
                 func = sparse_asls

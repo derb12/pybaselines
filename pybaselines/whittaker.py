@@ -20,21 +20,35 @@ class _Whittaker(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
-        """
-        Fits the baseline using asymmetric least squares (AsLS) fitting.
+        r"""
+        Fits the baseline using the asymmetric least squares (AsLS) algorithm.
+
+        Iteratively calculates the baseline, v, by solving the linear equation
+        :math:`(W + \lambda D_d^{\mathsf{T}} D_d) v = W y`, where y is the input data,
+        :math:`D_d` is the finite difference matrix of order d, W is the diagonal matrix
+        of the weights, and :math:`\lambda` (``lam``) is the regularization parameter.
+
+        Each iteration, the weights are updated following:
+
+        .. math::
+
+            w_i = \left\{\begin{array}{cr}
+                p & y_i > v_i \\
+                1 - p & y_i \le v_i
+            \end{array}\right.
 
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e6.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
-            than the baseline will be given `p` weight, and values less than the baseline
-            will be given `1 - p` weight. Default is 1e-2.
+            than the baseline will be given ``p`` weight, and values less than the baseline
+            will be given ``1 - p`` weight. Can be considered as analogous to the quantile of
+            the data to fit. Default is 1e-2.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -59,12 +73,17 @@ class _Whittaker(_Algorithm):
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
-                `tol` value, then the function did not converge.
+                ``tol`` value, then the function did not converge.
 
         Raises
         ------
         ValueError
-            Raised if `p` is not between 0 and 1.
+            Raised if ``p`` is not between 0 and 1.
+
+        Notes
+        -----
+        In literature, this algorithm is referred to as either "ALS" or "AsLS",
+        both standing for asymmetric least squares.
 
         References
         ----------
@@ -74,6 +93,47 @@ class _Whittaker(_Algorithm):
         Leiden University Medical Centre Report, 2005, [unpublished].
 
         Eilers, P. Parametric Time Warping. Analytical Chemistry, 2004, 76(2), 404-411.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data(noise_std=0.2)
+        >>> baseline_fitter = Baseline(x)
+
+        The two main parameters to vary are ``lam``, which controls the smoothness of the
+        baseline, and ``p``, which controls the weighting. In general, a higher ``p`` value
+        is needed for noisy data and correspondly requires a slightly higher ``lam`` value.
+
+        >>> fit_1, params_1 = baseline_fitter.asls(y, lam=1e6, p=0.001)
+        >>> fit_2, params_2 = baseline_fitter.asls(y, lam=1e7, p=0.02)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_1, label='lam=1e6, p=0.001')
+        >>> plt.plot(x, fit_2, '--', label='lam=1e7, p=0.02')
+        >>> plt.legend()
+        >>> plt.show()
+
+        The parameter ``p`` should typically be chosen such that the residuals, ``y - baseline``,
+        are centered around 0. In this example, the use of ``p=0.02`` fits the noise better.
+
+        >>> plt.hist(
+        ...     [y - fit_1, y - fit_2], bins=100, density=True, label=['p=0.001', 'p=0.02'],
+        ...     histtype='step'
+        ... )
+        >>> plt.xlabel('Residuals, y - baseline')
+        >>> plt.legend()
+        >>> plt.show()
+
+        An alternative to adjusting ``p`` for noisy data is to simply smooth the data before
+        calling ``asls``, which allows for ignoring ``p`` (ie. selecting a ``p`` value near 0).
+
+        >>> y_smooth = utils.whittaker_smooth(y, lam=1e1)
+        >>> fit_3, params_3 = baseline_fitter.asls(y_smooth, lam=1e6, p=0.001)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, y_smooth, '--', label='smoothed data')
+        >>> plt.plot(x, fit_3, label='smoothed fit')
+        >>> plt.legend()
+        >>> plt.show()
 
         """
         if not 0 < p < 1:
@@ -99,16 +159,36 @@ class _Whittaker(_Algorithm):
     @_Algorithm._register(sort_keys=('weights',))
     def iasls(self, data, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
               weights=None, diff_order=2):
-        """
+        r"""
         Fits the baseline using the improved asymmetric least squares (IAsLS) algorithm.
 
-        The algorithm consideres both the first and second derivatives of the residual.
+        The algorithm penalizes both the smoothness of the baseline as well as the first
+        derivative of the signal, ``y - baseline``. The baseline, v, is iteratively calculated
+        by solving the linear equation
+
+        .. math::
+
+            (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
+            = (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1) y
+
+        where y is the input data, :math:`D_d` is the finite difference matrix of order d,
+        :math:`D_1` is the first-order finite difference matrix, W is the diagonal matrix
+        of the weights, and :math:`\lambda` (``lam``) and :math:`\lambda_1` (``lam_1``) are
+        regularization parameters.
+
+        Each iteration, the weights are updated following:
+
+        .. math::
+
+            w_i = \left\{\begin{array}{cr}
+                p & y_i > v_i \\
+                1 - p & y_i \le v_i
+            \end{array}\right.
 
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with `N` data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e6.
@@ -149,10 +229,78 @@ class _Whittaker(_Algorithm):
         ValueError
             Raised if `p` is not between 0 and 1 or if `diff_order` is less than 2.
 
+        Notes
+        -----
+        Although both ``iasls`` and :meth:`~.Baseline.asls` use ``p`` for defining the weights,
+        the appropriate ``p`` value for ``iasls`` will be approximately equal to the square root
+        of the value used for ``asls`` since ``iasls`` squares the weights within its linear
+        equation.
+
+        Omits the outer loop described by the reference implementation of the IAsLs algorithm,
+        in which the baseline fitting is repeated after subtracting the baseline from the data.
+        The outer loop makes the algorithm's performance difficult to predict and often leads
+        to either peak clipping or no change from the first fit baseline. If this outer loop is
+        desired, this method simply needs to be called repeatedly, as demonstrated in the
+        Examples section below.
+
         References
         ----------
         He, S., et al. Baseline correction for raman spectra using an improved
         asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data(noise_std=0.2)
+        >>> baseline_fitter = Baseline(x)
+
+        The two main parameters to vary are ``lam``, which controls the smoothness of the
+        baseline, and ``p``, which controls the weighting. In general, a higher ``p`` value
+        is needed for noisy data and correspondly requires a slightly higher ``lam`` value.
+
+        >>> fit_1, params_1 = baseline_fitter.iasls(y, lam=1e6, p=0.05)
+        >>> fit_2, params_2 = baseline_fitter.iasls(y, lam=1e7, p=0.15)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_1, label='lam=1e6, p=0.05')
+        >>> plt.plot(x, fit_2, '--', label='lam=1e7, p=0.15')
+        >>> plt.legend()
+        >>> plt.show()
+
+        The parameter ``p`` should typically be chosen such that the residuals, ``y - baseline``,
+        are centered around 0. In this example, the use of ``p=0.15`` fits the noise better.
+
+        >>> plt.hist(
+        ...     [y - fit_1, y - fit_2], bins=100, density=True, label=['p=0.05', 'p=0.15'],
+        ...     histtype='step'
+        ... )
+        >>> plt.xlabel('Residuals, y - baseline')
+        >>> plt.legend()
+        >>> plt.show()
+
+        As stated in the Notes section above, the original IAsLs algorithm used an outer loop
+        which subtracted the fit baseline from the data and then used the result to fit a new
+        baseline. This behavior can be emulated by calling ``iasls`` within a loop as shown below.
+
+        >>> baseline = np.zeros_like(y)
+        >>> data = y
+        >>> tol = 5e-3
+        >>> max_iter = 50
+        >>> for i in range(max_iter):
+        ...     fit, params = baseline_fitter.iasls(data, lam=1e7, p=0.15)
+        ...     residual = data - fit
+        ...     if utils.relative_difference(data, residual) < tol:
+        ...         break
+        ...     data = residual
+        ...     baseline += fit
+        >>> print(f'Performed {i + 1} iterations')
+        Performed 3 iterations
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_2, label='single iteration')
+        >>> plt.plot(x, baseline, '--', label='multiple iterations')
+        >>> plt.legend()
+        >>> plt.show()
 
         """
         if not 0 < p < 1:
@@ -201,14 +349,31 @@ class _Whittaker(_Algorithm):
     @_Algorithm._register(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                normalize_weights=False):
-        """
+        r"""
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
+
+        Iteratively calculates the baseline, v, by solving the linear equation
+        :math:`(W + \lambda D_d^{\mathsf{T}} D_d) v = W y`, where y is the input data,
+        :math:`D_d` is the finite difference matrix of order d, W is the diagonal matrix
+        of the weights, and :math:`\lambda` (``lam``) is the regularization parameter.
+
+        Each iteration, the weights are updated following:
+
+        .. math::
+
+            w_i = \left\{\begin{array}{cr}
+                0 & y_i \ge v_i \\
+                \exp{\left(\frac{\text{abs}(y_i - v_i) t}{|\mathbf{r}^-|}\right)} & y_i < v_i
+            \end{array}\right.
+
+        where t is the iteration number and :math:`|\mathbf{r}^-|` is the L1-norm of the
+        negative values in the residual vector :math:`\mathbf r`, ie.
+        :math:`\sum\limits_{y_i - v_i < 0} |y_i - v_i|`.
 
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e6.
@@ -242,10 +407,48 @@ class _Whittaker(_Algorithm):
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
 
+        Notes
+        -----
+        The original publication for the airPLS algorithm contained a typo in its
+        weighting scheme which omitted the use of absolute values within the exponential,
+        as indicated by the author: https://github.com/zmzhang/airPLS/issues/8.
+
         References
         ----------
         Zhang, Z.M., et al. Baseline correction using adaptive iteratively
         reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data()
+        >>> baseline_fitter = Baseline(x)
+
+        The main parameter to vary is ``lam``, which controls the smoothness of the
+        baseline, with larger values giving smoother baselines.
+
+        >>> fit_1, params_1 = baseline_fitter.airpls(y, lam=1e4)
+        >>> fit_2, params_2 = baseline_fitter.airpls(y, lam=1e6)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_1, label='lam=1e4')
+        >>> plt.plot(x, fit_2, '--', label='lam=1e6')
+        >>> plt.legend()
+        >>> plt.show()
+
+        For noisy data, ``airpls`` underestimates the baseline, which can be mitigated by
+        smoothing the input data before calling the method.
+
+        >>> _, y_noisy = utils.make_data(noise_std=0.3)
+        >>> y_smooth = utils.whittaker_smooth(y_noisy, lam=1e2)
+        >>> fit_3, params_4 = baseline_fitter.airpls(y_noisy, lam=1e6)
+        >>> fit_4, params_4 = baseline_fitter.airpls(y_smooth, lam=1e6)
+        >>> plt.plot(x, y_noisy)
+        >>> plt.plot(x, y_smooth, '--', label='smoothed data')
+        >>> plt.plot(x, fit_3, ':', label='noisy fit')
+        >>> plt.plot(x, fit_4, label='smoothed fit')
+        >>> plt.legend()
+        >>> plt.show()
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
@@ -274,14 +477,33 @@ class _Whittaker(_Algorithm):
 
     @_Algorithm._register(sort_keys=('weights',))
     def arpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
-        """
+        r"""
         Asymmetrically reweighted penalized least squares smoothing (arPLS).
+
+        Iteratively calculates the baseline, v, by solving the linear equation
+        :math:`(W + \lambda D_d^{\mathsf{T}} D_d) v = W y`, where y is the input data,
+        :math:`D_d` is the finite difference matrix of order d, W is the diagonal matrix
+        of the weights, and :math:`\lambda` (``lam``) is the regularization parameter.
+
+        Each iteration, the weights are updated following:
+
+        .. math::
+
+            w_i = \frac
+                {1}
+                {1 + \exp{\left(\frac
+                    {2(r_i - (-\mu^- + 2 \sigma^-))}
+                    {\sigma^-}
+                \right)}}
+
+        where :math:`r_i = y_i - v_i` and :math:`\mu^-` and :math:`\sigma^-` are the mean and
+        standard deviation, respectively, of the negative values in the residual vector,
+        ``y - v``.
 
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e5.
@@ -316,6 +538,24 @@ class _Whittaker(_Algorithm):
         Baek, S.J., et al. Baseline correction using asymmetrically reweighted
         penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data(noise_std=0.2)
+        >>> baseline_fitter = Baseline(x)
+
+        The main parameter to vary is ``lam``, which controls the smoothness of the
+        baseline, with larger values giving smoother baselines.
+
+        >>> fit_1, params_1 = baseline_fitter.arpls(y, lam=1e4)
+        >>> fit_2, params_2 = baseline_fitter.arpls(y, lam=1e6)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_1, label='lam=1e4')
+        >>> plt.plot(x, fit_2, '--', label='lam=1e6')
+        >>> plt.legend()
+        >>> plt.show()
+
         """
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         tol_history = np.empty(max_iter + 1)
@@ -346,8 +586,7 @@ class _Whittaker(_Algorithm):
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e5.
@@ -442,8 +681,7 @@ class _Whittaker(_Algorithm):
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e5.
@@ -510,8 +748,7 @@ class _Whittaker(_Algorithm):
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e5.
@@ -623,8 +860,7 @@ class _Whittaker(_Algorithm):
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e5.
@@ -718,8 +954,7 @@ class _Whittaker(_Algorithm):
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e6.
@@ -842,8 +1077,7 @@ class _Whittaker(_Algorithm):
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e5.
@@ -946,8 +1180,7 @@ class _Whittaker(_Algorithm):
         Parameters
         ----------
         data : array-like, shape (N,)
-            The y-values of the measured data, with N data points. Must not
-            contain missing data (NaN) or Inf.
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e5.

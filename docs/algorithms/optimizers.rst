@@ -26,6 +26,8 @@ An example of data with added baseline and Gaussian peaks is shown below.
 
 .. plot::
    :align: center
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -88,6 +90,8 @@ added linear regions is selected as the optimal parameter.
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -225,6 +229,8 @@ algorithm versus the individual baselines from the mpls method.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     x = np.linspace(1, 1000, 500)
     signal = (
@@ -283,6 +289,8 @@ the name).
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)

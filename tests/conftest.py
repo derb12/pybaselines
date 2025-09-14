@@ -14,6 +14,17 @@ import pytest
 from .base_tests import get_data, get_data2d
 
 
+pytest_plugins = []
+try:
+    # ignore if scipy-doctest is unavailable since it's not required for running non-doctest
+    # tests; if running doctests without scipy-doctest, the doctests will fail due to expecting no
+    # output from matplotlib's plotting routines
+    import scipy_doctest  # noqa: F401
+    pytest_plugins.append('scipy_doctest')
+except ImportError:
+    pass
+
+
 def pytest_addoption(parser):
     """Adds additional pytest command line options."""
     if hasattr(sys, '_is_gil_enabled'):  # sys._is_gil_enabled added in Python 3.13

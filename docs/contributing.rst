@@ -49,7 +49,7 @@ ensure `git <https://git-scm.com>`_ is installed and then run:
 
     git clone https://github.com/derb12/pybaselines.git
     cd pybaselines
-    pip install .[dev]
+    pip install -e .[dev]
 
 All sections below assume the above commands were ran.
 
@@ -136,6 +136,19 @@ please ensure the documentation builds locally by running the following command 
 and ensure that no warnings or errors are raised during building. The built documentation can
 then be viewed in the ``pybaselines/docs/_build/html`` folder.
 
+Running Doctests
+^^^^^^^^^^^^^^^^
+
+If adding new code, it is often good to show an example usage of the class/method/function
+within its docstring using
+`doctest format <https://numpydoc.readthedocs.io/en/latest/format.html#examples>`_. pybaselines
+uses `scipy-doctest <https://github.com/scipy/scipy_doctest>`_ to ensure that these examples are
+correctly formatted and will run without errors. To perform these doctests, run the following
+command in the terminal while in the pybaselines directory:
+
+.. code-block:: console
+
+    pytest pybaselines --doctest-modules
 
 Adding New Algorithms
 ^^^^^^^^^^^^^^^^^^^^^
@@ -146,6 +159,9 @@ If adding a new baseline algorithm to pybaselines:
     ``pybaselines/tests/base_tests.py`` file that should be subclassed to ensure all basic
     requirements for a new algorithm are met. Additional tests should also be added as needed.
     See existing tests for examples.
+*   Try to add example usages of the algorithm within its docstring, showing basic usage and
+    any noteworthy fine-tuning. Ensure these examples run correctly by performing doctests as
+    outlined above.
 *   Add a short summary of the algorithm to the appropriate place in the
     `algorithms section <https://pybaselines.readthedocs.io/en/latest/algorithms/index.html>`_,
     and, if possible, add a plot showing how the algorithm fits different baselines using

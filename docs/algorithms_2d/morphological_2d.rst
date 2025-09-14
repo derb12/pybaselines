@@ -21,6 +21,8 @@ mor (Morphological)
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -82,6 +84,8 @@ imor (Improved Morphological)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.imor(y, half_window=(4, 2), tol=5e-3)
@@ -97,6 +101,8 @@ rolling_ball (Rolling Ball)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.rolling_ball(y, half_window=(8, 5), smooth_half_window=3)
@@ -113,6 +119,8 @@ tophat (Top-hat Transformation)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.tophat(y, half_window=(8, 5))

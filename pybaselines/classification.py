@@ -987,6 +987,8 @@ def _refine_mask(mask, min_length=2):
 
     Examples
     --------
+    >>> import numpy as np
+    >>> from pybaselines.classification import _refine_mask
     >>> mask = np.array([1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1])
     >>> _refine_mask(mask, 3).astype(int)
     array([1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1])

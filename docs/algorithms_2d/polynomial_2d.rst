@@ -27,7 +27,7 @@ the polynomial estimate at :math:`x_i`, and :math:`z_j` and :math:`w_{ij}` is th
 However, since only the baseline of the data is desired, the least-squares
 approach must be modified. For polynomial-based algorithms, this is done
 by 1) only fitting the data in regions where there is only baseline, 2)
-modifying the y-values being fit each iteration, or 3) penalyzing outliers.
+modifying the y-values being fit each iteration, or 3) penalizing outliers.
 
 .. note::
    For two dimensional data, polynomial algorithms take a single ``poly_order``
@@ -57,6 +57,8 @@ modpoly (Modified Polynomial)
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -117,6 +119,8 @@ imodpoly (Improved Modified Polynomial)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.imodpoly(y, poly_order=(1, 2), max_cross=0)
@@ -132,6 +136,8 @@ penalized_poly (Penalized Polynomial)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.penalized_poly(y, poly_order=(1, 2), max_cross=0)
@@ -147,6 +153,8 @@ quant_reg (Quantile Regression)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.quant_reg(
