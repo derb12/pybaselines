@@ -16,7 +16,7 @@ where :math:`\beta` is the array of coefficients for the polynomial.
 For regular polynomial fitting, the polynomial coefficients that best fit data
 are gotten from minimizing the least-squares:
 
-.. math:: \sum\limits_{i}^N w_i^2 (y_i - p(x_i))^2
+.. math:: \sum\limits_{i}^N w_i (y_i - p(x_i))^2
 
 where :math:`y_i` and :math:`x_i` are the measured data, :math:`p(x_i)` is
 the polynomial estimate at :math:`x_i`, and :math:`w_i` is the weighting.
@@ -197,8 +197,8 @@ poly (Regular Polynomial)
 :meth:`~.Baseline.poly` is simple least-squares polynomial fitting. Use selective
 masking, as described above, in order to use it for baseline fitting.
 
-Note that the plots below are just the least-squared polynomial fitting
-of the data since masking is time-consuming.
+Note that the plots below are just the least-squared polynomial fits of the data
+without masking.
 
 .. plot::
    :align: center

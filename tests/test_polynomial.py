@@ -52,6 +52,94 @@ class TestPoly(PolynomialTester):
 
     func_name = 'poly'
 
+    @pytest.mark.parametrize('poly_order', (0, 1, 2, 3, 4))
+    @pytest.mark.parametrize('use_weights', (True, False))
+    def test_implementation(self, poly_order, use_weights):
+        """Ensures expected functionality by comparing to a more basic implementation.
+
+        Note that Numpy polynomials are defined as minimizing ``(w * (y - y_fit))^2`` whereas
+        pybaselines uses ``w * (y - y_fit))^2``.
+        """
+        if use_weights is None:
+            weights = np.ones_like(self.y)
+        else:
+            weights = np.random.default_rng(123).uniform(0, 1, self.y.shape)
+        fit, params = self.class_func(self.y, poly_order=poly_order, weights=weights)
+        numpy_fit = np.polynomial.Polynomial.fit(
+            self.x, self.y, deg=poly_order, w=np.sqrt(weights)
+        )(self.x)
+
+        assert_allclose(fit, numpy_fit, rtol=1e-10, atol=1e-12)
+
+
+def thresholding_polynomial(x, y, poly_order, max_iter, weights=None, use_original=False,
+                            num_std=0.):
+    """
+    A simple implementation of an iteratively thresholding polynomial fit.
+
+    Parameters
+    ----------
+    x : array-like, shape (N,)
+        The x-values for fitting.
+    y : array-like, shape (N,)
+        The y-values for fitting.
+    poly_order : int
+        The degree of the polynomial to fit.
+    max_iter : int
+        The number of iterations to perform thresholding.
+    weights : array-like, shape (N,), optional
+        If supplied, will use the square root of the input weights for fitting, as described
+        in the Notes section below. Default is None, which weighs all points equally.
+    use_original : bool, optional
+        If True, will use the originally input ``y`` during thresholding. If False (default),
+        will use the current iteration's ``y`` value.
+    num_std : float, optional
+        The number of standard deviations of the residual to include during thresholding.
+        Default is 0.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The fit baseline after iterative thresholding.
+
+    Notes
+    -----
+    Does not use an exit criteria so that it can be used for both ``modpoly`` and ``imodpoly``,
+    which use different exit criteria, so must instead be supplied with the number of iterations
+    used by the underlying method to validate.
+
+    Applies a square root to the input weights since Numpy polynomials are defined as minimizing
+    ``(w * (y - y_fit))^2`` whereas pybaselines uses ``w * (y - y_fit)^2``.
+
+    References
+    ----------
+    Gan, F., et al. Baseline correction by improved iterative polynomial
+    fitting with automatic threshold. Chemometrics and Intelligent
+    Laboratory Systems, 2006, 82, 59-65.
+
+    Lieber, C., et al. Automated method for subtraction of fluorescence
+    from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
+    1363-1367.
+
+    Zhao, J., et al. Automated Autofluorescence Background Subtraction
+    Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
+    2007, 61(11), 1225-1232.
+
+    """
+    if weights is None:
+        sqrt_weights = None
+    else:
+        sqrt_weights = np.sqrt(weights)
+    y_original = y.copy()
+    baseline = np.polynomial.Polynomial.fit(x=x, y=y, deg=poly_order, w=sqrt_weights)(x)
+    for _ in range(max_iter):
+        y = np.minimum(
+            baseline + num_std * np.std(y - baseline), y_original if use_original else y
+        )
+        baseline = np.polynomial.Polynomial.fit(x=x, y=y, deg=poly_order, w=sqrt_weights)(x)
+
+    return baseline
+
 
 class TestModPoly(IterativePolynomialTester):
     """Class for testing modpoly baseline."""
@@ -66,6 +154,24 @@ class TestModPoly(IterativePolynomialTester):
         super().test_unchanged_data(
             use_class, use_original=use_original, mask_initial_peaks=mask_initial_peaks
         )
+
+    @pytest.mark.parametrize('poly_order', (0, 1, 2, 3, 4))
+    @pytest.mark.parametrize('use_original', (True, False))
+    @pytest.mark.parametrize('max_iter', (3, None))
+    @pytest.mark.parametrize('use_weights', (True, False))
+    def test_implementation(self, poly_order, use_original, max_iter, use_weights):
+        """Ensures expected functionality by comparing to a more basic implementation."""
+        max_iter = max_iter if max_iter is not None else 500
+        weights = np.random.default_rng(123).uniform(0, 1, self.x.shape) if use_weights else None
+        fit, params = self.class_func(
+            self.y, poly_order=poly_order, use_original=use_original, max_iter=max_iter,
+            weights=weights
+        )
+        simple_fit = thresholding_polynomial(
+            self.x, self.y, poly_order=poly_order, max_iter=len(params['tol_history']),
+            use_original=use_original, weights=weights
+        )
+        assert_allclose(fit, simple_fit, rtol=1e-12, atol=1e-12)
 
 
 class TestIModPoly(IterativePolynomialTester):
@@ -90,6 +196,25 @@ class TestIModPoly(IterativePolynomialTester):
                 self.class_func(self.y, num_std=num_std)
         else:
             self.class_func(self.y, num_std=num_std)
+
+    @pytest.mark.parametrize('poly_order', (0, 1, 2, 3, 4))
+    @pytest.mark.parametrize('use_original', (True, False))
+    @pytest.mark.parametrize('num_std', (0, 0.7, 1))
+    @pytest.mark.parametrize('max_iter', (3, None))
+    @pytest.mark.parametrize('use_weights', (True, False))
+    def test_implementation(self, poly_order, use_original, num_std, max_iter, use_weights):
+        """Ensures expected functionality by comparing to a more basic implementation."""
+        max_iter = max_iter if max_iter is not None else 500
+        weights = np.random.default_rng(123).uniform(0, 1, self.x.shape) if use_weights else None
+        fit, params = self.class_func(
+            self.y, poly_order=poly_order, use_original=use_original, num_std=num_std,
+            max_iter=max_iter, mask_initial_peaks=False, weights=weights
+        )
+        simple_fit = thresholding_polynomial(
+            self.x, self.y, poly_order=poly_order, max_iter=len(params['tol_history']),
+            use_original=use_original, num_std=num_std, weights=weights
+        )
+        assert_allclose(fit, simple_fit, rtol=1e-12, atol=1e-12)
 
 
 class TestPenalizedPoly(IterativePolynomialTester):
@@ -126,7 +251,7 @@ class TestPenalizedPoly(IterativePolynomialTester):
         with pytest.raises(KeyError):
             self.class_func(self.y, cost_function='a_hub')
 
-    @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+    @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3, 4))
     def test_weighting(self, weight_enum):
         """
         Tests that weighting is correctly applied by comparing to other algorithms.
@@ -148,7 +273,7 @@ class TestPenalizedPoly(IterativePolynomialTester):
         ----------
         .. [1] Mazet, V., et al. Background removal from spectra by designing and
                minimising a non-quadratic cost function. Chemometrics and Intelligent
-               Laboratory Systems, 2005, 76(2), 121–133.
+               Laboratory Systems, 2005, 76(2), 121-133.
 
         """
         if weight_enum == 0:
@@ -162,6 +287,9 @@ class TestPenalizedPoly(IterativePolynomialTester):
             # binary mask, only fitting the first half of the data
             weights = np.ones_like(self.y)
             weights[self.x < 0.5 * (np.max(self.x) + np.min(self.x))] = 0
+        elif weight_enum == 3:
+            # random weights
+            weights = np.random.default_rng(123).uniform(0, 1, self.y.shape)
         else:
             # weight array where the two endpoints have weighting >> 1
             weights = np.ones_like(self.y)
@@ -174,11 +302,10 @@ class TestPenalizedPoly(IterativePolynomialTester):
 
         poly_baseline = polynomial.poly(self.y, self.x, poly_order, weights=weights)[0]
         penalized_poly_1 = self.class_func(
-            self.y, poly_order, cost_function='s_huber',
-            threshold=1e10, weights=weights
+            self.y, poly_order, cost_function='s_huber', threshold=1e10, weights=weights
         )[0]
 
-        assert_allclose(poly_baseline, penalized_poly_1, 1e-10)
+        assert_allclose(poly_baseline, penalized_poly_1, rtol=1e-10, atol=1e-12)
 
         modpoly_baseline = polynomial.modpoly(
             self.y, self.x, poly_order, tol=tol, weights=weights, use_original=True
@@ -188,7 +315,7 @@ class TestPenalizedPoly(IterativePolynomialTester):
             threshold=0, weights=weights, alpha_factor=1, tol=tol
         )[0]
 
-        assert_allclose(modpoly_baseline, penalized_poly_2, 1e-10)
+        assert_allclose(modpoly_baseline, penalized_poly_2, rtol=1e-10, atol=1e-12)
 
     @pytest.mark.parametrize('alpha_factor', (-0.1, 0, 1.01))
     def test_wrong_alpha_factor_fails(self, alpha_factor):

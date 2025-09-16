@@ -18,7 +18,7 @@ columns (:math:`z`), respectively.
 For regular polynomial fitting, the polynomial coefficients that best fit data
 are gotten from minimizing the least-squares:
 
-.. math:: \sum\limits_{i}^M \sum\limits_{j}^N w_{ij}^2 (y_{ij} - p(x_i, z_j))^2
+.. math:: \sum\limits_{i}^M \sum\limits_{j}^N w_{ij} (y_{ij} - p(x_i, z_j))^2
 
 where :math:`y_{ij}`, :math:`x_i`, and :math:`z_j` are the measured data, :math:`p(x_i, z_j)` is
 the polynomial estimate at :math:`x_i`, and :math:`z_j` and :math:`w_{ij}` is the weighting.
@@ -44,15 +44,9 @@ poly (Regular Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.poly`:
-:ref:`explanation for the algorithm <algorithms/polynomial:poly (Regular Polynomial)>`. No plot
-will be shown since it is just a simple least-squares polynomial fitting.
-
-
-modpoly (Modified Polynomial)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:meth:`~.Baseline2D.modpoly`:
-:ref:`explanation for the algorithm <algorithms/polynomial:modpoly (Modified Polynomial)>`.
+:ref:`explanation for the algorithm <algorithms/polynomial:poly (Regular Polynomial)>`.
+Note that the plot below is just the least-squared polynomial fit of the data
+without masking.
 
 .. plot::
    :align: center
@@ -107,8 +101,26 @@ modpoly (Modified Polynomial)
     x, z, y, real_baseline = create_data()
     baseline_fitter = Baseline2D(x, z, check_finite=False)
 
+    baseline, params = baseline_fitter.poly(y, poly_order=(1, 2), max_cross=0)
+    create_plots(y, baseline)
+
+
+modpoly (Modified Polynomial)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline2D.modpoly`:
+:ref:`explanation for the algorithm <algorithms/polynomial:modpoly (Modified Polynomial)>`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.modpoly(y, poly_order=(1, 2), max_cross=0)
     create_plots(y, baseline)
+
 
 imodpoly (Improved Modified Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
