@@ -981,6 +981,8 @@ class _Spline(_Algorithm2D):
             the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
             a prefactor term of ``exp(t)``. See the Notes section below for more details.
 
+            .. versionadded:: 1.3.0
+
         Returns
         -------
         baseline : numpy.ndarray, shape (M, N)

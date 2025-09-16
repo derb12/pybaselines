@@ -624,10 +624,15 @@ class _Whittaker(_Algorithm2D):
             Note that a value of 4 results in the weighting scheme used in the NasPLS
             (Non-sensitive-areas adaptive smoothness penalized least squares smoothing) algorithm
             [2]_.
+
+            .. versionadded:: 1.2.0
+
         alternate_weighting : bool, optional
             If True (default), subtracts the mean of the negative residuals within the weighting
             equation. If False, uses the weighting equation as stated within the asPLS paper [1]_.
             See the Notes section below for more details.
+
+            .. versionadded:: 1.3.0
 
         Returns
         -------
@@ -655,13 +660,12 @@ class _Whittaker(_Algorithm2D):
         Notes
         -----
         The weighting scheme as written in the asPLS paper [1]_ does not reproduce the paper's
-        results for noisy data. By subtracting the mean of negative residuals (``data-baseline``)
-        within the weighting scheme, as used by other algorithms such as ``arPLS`` and ``drPLS``,
-        the asPLS paper's results can be correctly replicated (see
-        https://github.com/derb12/pybaselines/issues/40 for more details). Given this discrepancy,
-        the default for ``aspls`` is to also subtract the negative residuals within the weighting.
-        To use the weighting scheme as it is written in the asPLS paper, simply set
-        ``alternate_weighting`` to False.
+        results for noisy data. By subtracting the mean of negative residuals (ie. the negative
+        values of ``data - baseline``) within the weighting scheme, the asPLS paper's results can
+        be correctly replicated (see https://github.com/derb12/pybaselines/issues/40 for more
+        details). Given this discrepancy, the default for ``aspls`` is to also subtract the
+        negative residuals within the weighting. To use the weighting scheme as it is written in
+        the asPLS paper, set ``alternate_weighting`` to False.
 
         References
         ----------
@@ -1003,6 +1007,8 @@ class _Whittaker(_Algorithm2D):
             If False (default), the weighting uses a prefactor term of ``10^t``, where ``t`` is
             the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
             a prefactor term of ``exp(t)``. See the Notes section below for more details.
+
+            .. versionadded:: 1.3.0
 
         Returns
         -------

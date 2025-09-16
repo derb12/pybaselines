@@ -312,7 +312,7 @@ def _iarpls(y, baseline, iteration):
     return weights, exit_early
 
 
-def _aspls(y, baseline, asymmetric_coef, alternate_weighting):
+def _aspls(y, baseline, asymmetric_coef=2., alternate_weighting=True):
     """
     Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
 
@@ -586,7 +586,7 @@ def _brpls(y, baseline, beta):
     return weights, exit_early
 
 
-def _lsrpls(y, baseline, iteration, alternate_weighting):
+def _lsrpls(y, baseline, iteration, alternate_weighting=False):
     """
     The weighting for the locally symmetric reweighted penalized least squares (lsrpls).
 
