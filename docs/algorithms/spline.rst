@@ -607,16 +607,15 @@ Weighting:
     w_i = \frac
         {1}
         {1 + \exp{\left(\frac
-            {k (r_i - \sigma^-)}
+            {k (r_i - \sigma^- + offset)}
             {\sigma^-}
         \right)}}
 
 where :math:`r_i = y_i - v_i`, :math:`\sigma^-` is the standard deviation
-of the negative values in the residual vector :math:`\mathbf r`, and :math:`k`
-is the asymmetric coefficient (Note that the default value of :math:`k` is 0.5 in
-pybaselines rather than 2 in the published version of the asPLS. pybaselines
-uses the factor of 0.5 since it matches the results in Table 2 and Figure 5
-of the asPLS paper closer than the factor of 2 and fits noisy data much better).
+of the negative values in the residual vector :math:`\mathbf r`, :math:`k`
+is the asymmetric coefficient, and `offset` is the mean of the negative values
+in the residual vector, :math:`\mu^-`, if ``alternate_weighting`` is True and
+0 if ``alternate_weighting`` is False.
 
 .. plot::
    :align: center
@@ -879,13 +878,15 @@ Weighting:
     w_i = \frac{1}{2}\left(
         1 -
         \frac
-            {10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
-            {1 + \text{abs}[10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
+            {f(t) (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
+            {1 + \text{abs}[f(t) (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
     \right)
 
-where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number,
 :math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
-respectively, of the negative values in the residual vector :math:`\mathbf r`.
+respectively, of the negative values in the residual vector :math:`\mathbf r`,
+and :math:`f(t)` is :math:`10^t` if ``alternate_weighting`` is False and :math:`\exp(t)`
+if ``alternate_weighting`` is True.
 
 .. plot::
    :align: center

@@ -472,7 +472,8 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
-    def test_whittaker_comparison(self, lam, diff_order):
+    @pytest.mark.parametrize('alternate_weighting', (True, False))
+    def test_whittaker_comparison(self, lam, diff_order, alternate_weighting):
         """
         Ensures the P-spline version is the same as the Whittaker version.
 
@@ -480,10 +481,17 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
         get the alpha values at the coefficients' x-values.
         """
         if diff_order == 2:
-            rtol = 2e-3
+            rtol = 3e-3
         else:
             rtol = 5e-2
-        super().test_whittaker_comparison(lam=lam, diff_order=diff_order, test_rtol=rtol)
+        if alternate_weighting:
+            asymmetric_coef = 2.
+        else:
+            asymmetric_coef = 0.5
+        super().test_whittaker_comparison(
+            lam=lam, diff_order=diff_order, alternate_weighting=alternate_weighting,
+            asymmetric_coef=asymmetric_coef, test_rtol=rtol
+        )
 
     @pytest.mark.parametrize('asymmetric_coef', (0, -1))
     def test_outside_asymmetric_coef_fails(self, asymmetric_coef):
@@ -498,13 +506,15 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
         """
         Runs the numba vs sparse comparison using a non-default asymmetric_coef value.
 
-        The weighting for aspls when asymmetric_coef=0.5 seems to be a bit sensitive, so likely
+        The weighting for aspls when asymmetric_coef=2 seems to be a bit sensitive, so likely
         any small floating point differences in the B.T @ W @ B and B.T @ W @ y calculation after
         several iterations leads to slightly different results (the test needs an rtol of ~1e-5 to
         pass). Increasing asymmetric_coef or setting max_iter to ~20 both fix this, so the
-        divergence arises from the aspls weighting and not within the pspline solver.
+        divergence arises from the aspls weighting and not within the pspline solver. To avoid
+        this, the tolerance for the method is set to 1e-2 to exit early enough that these floating
+        point issues do not influence the output.
         """
-        super().test_numba_implementation(diff_order, spline_degree, asymmetric_coef=1.)
+        super().test_numba_implementation(diff_order, spline_degree, tol=1e-2)
 
 
 class TestPsplinePsalsa(IterativeSplineTester, WhittakerComparisonMixin):

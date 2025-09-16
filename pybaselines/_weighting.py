@@ -312,7 +312,7 @@ def _iarpls(y, baseline, iteration):
     return weights, exit_early
 
 
-def _aspls(y, baseline, asymmetric_coef):
+def _aspls(y, baseline, asymmetric_coef=2., alternate_weighting=True):
     """
     Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
 
@@ -322,9 +322,12 @@ def _aspls(y, baseline, asymmetric_coef):
         The measured data.
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
-    asymmetric_coef : float
+    asymmetric_coef : float, optional
         The asymmetric coefficient for the weighting. Higher values leads to a steeper
-        weighting curve (ie. more step-like).
+        weighting curve (ie. more step-like). Default is 2.
+    alternate_weighting : bool, optional
+        If True (default), subtracts the mean of the negative residuals within the weighting
+        equation. If False, uses the weighting equation as stated within the aspls paper.
 
     Returns
     -------
@@ -363,8 +366,9 @@ def _aspls(y, baseline, asymmetric_coef):
         exit_early = False
     std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
 
+    shifted_residual = residual + neg_residual.mean() if alternate_weighting else residual
     # add a negative sign since expit performs 1/(1+exp(-input))
-    weights = expit(-(asymmetric_coef / std) * (residual - std))
+    weights = expit(-(asymmetric_coef / std) * (shifted_residual - std))
     return weights, residual, exit_early
 
 
@@ -582,7 +586,7 @@ def _brpls(y, baseline, beta):
     return weights, exit_early
 
 
-def _lsrpls(y, baseline, iteration):
+def _lsrpls(y, baseline, iteration, alternate_weighting=False):
     """
     The weighting for the locally symmetric reweighted penalized least squares (lsrpls).
 
@@ -595,6 +599,10 @@ def _lsrpls(y, baseline, iteration):
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
+    alternate_weighting : bool, optional
+        If False (default), the weighting uses a prefactor term of ``10^t``, where ``t`` is
+        the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
+        a prefactor term of ``exp(t)``. See the Notes section below for more details.
 
     Returns
     -------
@@ -604,12 +612,29 @@ def _lsrpls(y, baseline, iteration):
         Designates if there is a potential error with the calculation such that no further
         iterations should be performed.
 
+    Notes
+    -----
+    In the LSRPLS paper [1]_, the weighting equation is written with a prefactor term
+    of ``10^t``, where ``t`` is the iteration number, but the plotted weighting curve in
+    Figure 1 of the paper shows a prefactor term of ``exp(t)`` instead. Since it is ambiguous
+    which prefactor term is actually used for the algorithm, both are permitted by setting
+    `alternate_weighting` to True to use ``10^t`` and False to use ``exp(t)``. In practice,
+    the prefactor determines how quickly the weighting curve converts from a sigmoidal curve
+    to a step curve, and does not heavily influence the result.
+
+    If ``alternate_weighting`` is False, the weighting is the same as the drPLS algorithm [2]_.
+
     References
     ----------
-    Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
-    Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+    .. [1] Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+        Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+    .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
+        penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """
+    if alternate_weighting:
+        return _drpls(y, baseline, iteration)
+
     residual = y - baseline
     neg_residual = residual[residual < 0]
     if neg_residual.size < 2:
