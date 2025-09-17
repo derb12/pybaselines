@@ -8,6 +8,7 @@ Created on June 24, 2021
 
 from functools import lru_cache, wraps
 
+import numpy as np
 import scipy
 from scipy import integrate, sparse
 
@@ -64,7 +65,7 @@ else:
 @lru_cache(maxsize=1)
 def _use_sparse_arrays():
     """
-    Checks that the installed scipy version is new enough to use sparse arrays.
+    Checks that the installed SciPy version is new enough to use sparse arrays.
 
     This check is wrapped into a function just in case it fails so that pybaselines
     can still be imported without error. The result is cached so it only has to
@@ -73,12 +74,12 @@ def _use_sparse_arrays():
     Returns
     -------
     bool
-        True if the installed scipy version is above 1.12; False otherwise.
+        True if the installed SciPy version is above 1.12; False otherwise.
 
     Notes
     -----
     SciPy introduced its sparse arrays in version 1.8, but the interface and helper
-    functions were not stable until version 1.12; a warning will be emitted in scipy
+    functions were not stable until version 1.12; a warning will be emitted in SciPy
     1.13 when using the matrix interface, so want to use the sparse array interface
     as early as possible.
 
@@ -86,11 +87,36 @@ def _use_sparse_arrays():
     try:
         _scipy_version = [int(val) for val in scipy.__version__.lstrip('v').split('.')[:2]]
     except Exception:
-        # in case in the far future scipy stops using semantic versioning; probably
+        # in case in the far future SciPy stops using semantic versioning; probably
         # bigger problems than this check at that point so just return True
         return True
 
     return _scipy_version[0] > 1 or (_scipy_version[0] == 1 and _scipy_version[1] >= 12)
+
+
+@lru_cache(maxsize=1)
+def _np_ge_2():
+    """
+    Checks that the installed NumPy version is version 2.0 or later.
+
+    This check is wrapped into a function just in case it fails so that pybaselines
+    can still be imported without error. The result is cached so it only has to
+    be done once.
+
+    Returns
+    -------
+    bool
+        True if the installed NumPy version is 2.0 or later; False otherwise.
+
+    """
+    try:
+        _numpy_version = int(np.__version__.lstrip('v').split('.')[0])
+    except Exception:
+        # in case in the far future NumPy stops using semantic versioning; probably
+        # bigger problems than this check at that point so just return True
+        return True
+
+    return _numpy_version >= 2
 
 
 def dia_object(*args, dtype=None, **kwargs):

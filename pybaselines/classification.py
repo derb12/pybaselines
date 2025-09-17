@@ -56,6 +56,7 @@ from scipy.spatial import ConvexHull
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit, trapezoid
 from ._validation import _check_scalar, _check_scalar_variable
+from ._weighting import _safe_std_mean
 from .utils import (
     _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
     pad_edges, relative_difference
@@ -1194,7 +1195,8 @@ def _iter_threshold(power, num_std=3.0):
     Two-Dimensional NMR Spectra. Journal of Magnetic Resonance. 1991, 91, 1-11.
 
     """
-    mask = power < np.mean(power) + num_std * np.std(power, ddof=1)
+    std, mean = _safe_std_mean(power, ddof=1)
+    mask = power < mean + num_std * std
     old_mask = np.ones_like(mask)
     while not np.array_equal(mask, old_mask):
         old_mask = mask
@@ -1205,7 +1207,8 @@ def _iter_threshold(power, num_std=3.0):
                 ParameterWarning, stacklevel=2
             )
             break
-        mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
+        std, mean = _safe_std_mean(masked_power, ddof=1)
+        mask = power < mean + num_std * std
 
     return mask
 

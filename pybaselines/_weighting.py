@@ -7,6 +7,7 @@ import numpy as np
 from scipy.special import erf, expit
 
 from .utils import _MIN_FLOAT, ParameterWarning
+from ._compat import _np_ge_2
 
 
 def _asls(y, baseline, p):
@@ -128,11 +129,11 @@ def _airpls(y, baseline, iteration, normalize_weights=False):
     return weights, abs(residual_l1_norm), exit_early
 
 
-def _safe_std(array, **kwargs):
+def _safe_std_mean(array, **kwargs):
     """
-    Calculates the standard deviation and protects against nan and 0.
+    Calculates the standard deviation and mean and protects against nan and 0.
 
-    Used to prevent propogating nan or dividing by 0.
+    Used to prevent propogating nan or dividing by 0 when using the standard deviation.
 
     Parameters
     ----------
@@ -146,6 +147,8 @@ def _safe_std(array, **kwargs):
     std : float
         The standard deviation of the array, or `_MIN_FLOAT` if the
         calculated standard deviation was 0 or if `array` was empty.
+    float
+        The calculated mean of the array.
 
     Notes
     -----
@@ -153,17 +156,25 @@ def _safe_std(array, **kwargs):
     array being nan because that would indicate that nan or inf was within the
     array, which should not be protected.
 
+    Using the mean to compute the standard deviation with NumPy >= v2.0 reduces time by
+    ~10% compared to making two separate calculations for the mean and standard deviation.
+
     """
+    mean = np.mean(array, keepdims=True)  # must use keepdims=True if using to calc the std
     # std would be 0 for an array with size of 1 and inf if size <= ddof; only
     # internally use ddof=1, so the second condition is already covered
     if array.size < 2:
         std = _MIN_FLOAT
     else:
-        std = array.std(**kwargs)
+        if _np_ge_2():
+            kwargs['mean'] = mean
+        std = np.std(array, **kwargs)
         if std == 0:
             std = _MIN_FLOAT
 
-    return std
+    # since mean is computed with keepdims=True for use with np.std, need to get
+    # the scalar value back out using flattening and indexing to work for 1D and 2D
+    return std, mean.ravel()[0]
 
 
 def _arpls(y, baseline):
@@ -203,9 +214,9 @@ def _arpls(y, baseline):
         return np.zeros_like(y), exit_early
     else:
         exit_early = False
-    std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+    std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since sampling subset
     # add a negative sign since expit performs 1/(1+exp(-input))
-    weights = expit(-(2 / std) * (residual - (2 * std - np.mean(neg_residual))))
+    weights = expit(-(2 / std) * (residual - (2 * std - mean)))
     return weights, exit_early
 
 
@@ -250,12 +261,12 @@ def _drpls(y, baseline, iteration):
     else:
         exit_early = False
 
-    std = _safe_std(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
+    std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since sampling subset
     # the exponential term is used to change the shape of the weighting from a logistic curve
     # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
     # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
     # overflow for high iterations
-    inner = (np.exp(min(iteration, 100)) / std) * (residual - (2 * std - np.mean(neg_residual)))
+    inner = (np.exp(min(iteration, 100)) / std) * (residual - (2 * std - mean))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
     return weights, exit_early
 
@@ -302,7 +313,7 @@ def _iarpls(y, baseline, iteration):
     else:
         exit_early = False
 
-    std = _safe_std(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
+    std = _safe_std_mean(neg_residual, ddof=1)[0]  # use dof=1 since only sampling a subset
     # the exponential term is used to change the shape of the weighting from a logistic curve
     # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
     # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
@@ -339,13 +350,6 @@ def _aspls(y, baseline, asymmetric_coef=2., alternate_weighting=True):
         Designates if there is a potential error with the calculation such that no further
         iterations should be performed.
 
-    Notes
-    -----
-    The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
-    of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
-    matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
-    factor of 2 and fits noisy data much better.
-
     References
     ----------
     Zhang, F., et al. Baseline correction for infrared spectra using adaptive smoothness
@@ -364,11 +368,10 @@ def _aspls(y, baseline, asymmetric_coef=2., alternate_weighting=True):
         return np.zeros_like(y), residual, exit_early
     else:
         exit_early = False
-    std = _safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
-
-    shifted_residual = residual + neg_residual.mean() if alternate_weighting else residual
+    std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since sampling subset
+    offset = std - mean if alternate_weighting else std
     # add a negative sign since expit performs 1/(1+exp(-input))
-    weights = expit(-(asymmetric_coef / std) * (shifted_residual - std))
+    weights = expit(-(asymmetric_coef / std) * (residual - offset))
     return weights, residual, exit_early
 
 
@@ -648,11 +651,11 @@ def _lsrpls(y, baseline, iteration, alternate_weighting=False):
     else:
         exit_early = False
 
-    std = _safe_std(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
+    std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
     # the exponential term is used to change the shape of the weighting from a logistic curve
     # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
     # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
     # overflow for high iterations
-    inner = (10**(min(iteration, 100)) / std) * (residual - (2 * std - np.mean(neg_residual)))
+    inner = (10**(min(iteration, 100)) / std) * (residual - (2 * std - mean))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
     return weights, exit_early

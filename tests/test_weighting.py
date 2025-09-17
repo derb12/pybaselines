@@ -69,44 +69,76 @@ def baseline_2d_all_below():
     return y_data, baseline
 
 
-def test_safe_std():
-    """Checks that the calculated standard deviation is correct."""
+def test_safe_std_mean():
+    """Checks that the calculated mean and standard deviation is correct."""
+    array = np.arange(60, dtype=float)
+    expected_std = np.std(array)
+    expected_mean = np.mean(array)
+
+    calc_std, calc_mean = _weighting._safe_std_mean(array)
+
+    assert_allclose(calc_std, expected_std, rtol=1e-12, atol=1e-12)
+    assert_allclose(calc_mean, expected_mean, rtol=1e-12, atol=1e-12)
+
+    # also ensure it works for 2D and 3D inputs; mean and std should remain the same
+    calc_std, calc_mean = _weighting._safe_std_mean(array.reshape(10, -1))
+
+    assert_allclose(calc_std, expected_std, rtol=1e-12, atol=1e-12)
+    assert_allclose(calc_mean, expected_mean, rtol=1e-12, atol=1e-12)
+
+    calc_std, calc_mean = _weighting._safe_std_mean(array.reshape(5, 3, -1))
+
+    assert_allclose(calc_std, expected_std, rtol=1e-12, atol=1e-12)
+    assert_allclose(calc_mean, expected_mean, rtol=1e-12, atol=1e-12)
+
+
+def test_safe_std_mean_kwargs():
+    """Checks that kwargs given to _safe_std_mean are passed to numpy.std."""
     array = np.array((1, 2, 3))
-    calc_std = _weighting._safe_std(array)
+    expected_std = np.std(array, ddof=1)
+    expected_mean = np.mean(array)
 
-    assert_allclose(calc_std, np.std(array))
+    calc_std, calc_mean = _weighting._safe_std_mean(array, ddof=1)
 
-
-def test_safe_std_kwargs():
-    """Checks that kwargs given to _safe_std are passed to numpy.std."""
-    array = np.array((1, 2, 3))
-    calc_std = _weighting._safe_std(array, ddof=1)
-
-    assert_allclose(calc_std, np.std(array, ddof=1))
+    assert_allclose(calc_std, expected_std, rtol=1e-12, atol=1e-12)
+    assert_allclose(calc_mean, expected_mean, rtol=1e-12, atol=1e-12)
 
 
-def test_safe_std_empty():
-    """Checks that the returned standard deviation of an empty array is not nan."""
-    calc_std = _weighting._safe_std(np.array(()))
-    assert_allclose(calc_std, utils._MIN_FLOAT)
+def test_safe_std_mean_empty():
+    """Checks that the returned standard deviation of an empty array is not nan.
+
+    # TODO is this needed any longer? It should not be called if the array is empty.
+    """
+    with pytest.warns(RuntimeWarning):
+        calc_std, calc_mean = _weighting._safe_std_mean(np.array(()))
+    assert_allclose(calc_std, utils._MIN_FLOAT, rtol=1e-12, atol=1e-12)
+    assert np.isnan(calc_mean)
 
 
-def test_safe_std_single():
+def test_safe_std_mean_single():
     """Checks that the returned standard deviation of an array with a single value is not 0."""
-    calc_std = _weighting._safe_std(np.array((1,)))
-    assert_allclose(calc_std, utils._MIN_FLOAT)
+    array = np.array([1])
+
+    calc_std, calc_mean = _weighting._safe_std_mean(array)
+
+    assert_allclose(calc_std, utils._MIN_FLOAT, rtol=1e-12, atol=1e-12)
+    assert_allclose(calc_mean, np.mean(array), rtol=1e-12, atol=1e-12)
 
 
-def test_safe_std_zero():
+def test_safe_std_mean_zero():
     """Checks that the returned standard deviation is not 0."""
-    calc_std = _weighting._safe_std(np.array((1, 1, 1)))
-    assert_allclose(calc_std, utils._MIN_FLOAT)
+    array = np.array((1, 1, 1))
+
+    calc_std, calc_mean = _weighting._safe_std_mean(array)
+
+    assert_allclose(calc_std, utils._MIN_FLOAT, rtol=1e-12, atol=1e-12)
+    assert_allclose(calc_mean, np.mean(array), rtol=1e-12, atol=1e-12)
 
 
 # ignore the RuntimeWarning when using inf
 @pytest.mark.filterwarnings('ignore::RuntimeWarning')
 @pytest.mark.parametrize('run_enum', (0, 1))
-def test_safe_std_allow_nan(run_enum):
+def test_safe_std_mean_allow_nan(run_enum):
     """
     Ensures that the standard deviation is allowed to be nan under certain conditions.
 
@@ -120,7 +152,10 @@ def test_safe_std_allow_nan(run_enum):
     else:
         array = np.array((1, 2, np.inf))
 
-    assert np.isnan(_weighting._safe_std(array))
+    calc_std, calc_mean = _weighting._safe_std_mean(array)
+
+    assert_allclose(calc_mean, np.mean(array), rtol=1e-12, atol=1e-12)
+    assert np.isnan(calc_std)
 
 
 @pytest.mark.parametrize('quantile', np.linspace(0, 1, 21))
@@ -387,7 +422,7 @@ def expected_arpls(y, baseline):
     """
     residual = y - baseline
     neg_residual = residual[residual < 0]
-    std = _weighting._safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+    std = np.std(neg_residual, ddof=1)  # use dof=1 since sampling subset
     weights = 1 / (1 + np.exp((2 / std) * (residual - (2 * std - np.mean(neg_residual)))))
     return weights
 
@@ -521,7 +556,7 @@ def expected_drpls(y, baseline, iteration):
     """
     residual = y - baseline
     neg_residual = residual[residual < 0]
-    std = _weighting._safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+    std = np.std(neg_residual, ddof=1)  # use dof=1 since sampling subset
     inner = (np.exp(iteration) / std) * (residual - (2 * std - np.mean(neg_residual)))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
     return weights
@@ -1403,7 +1438,7 @@ def expected_lsrpls(y, baseline, iteration, alternate_weighting):
     residual = y - baseline
     neg_residual = residual[residual < 0]
 
-    std = _weighting._safe_std(neg_residual, ddof=1)  # use dof=1 since sampling subset
+    std = np.std(neg_residual, ddof=1)  # use dof=1 since sampling subset
     if alternate_weighting:
         prefactor = np.exp(iteration)
     else:
