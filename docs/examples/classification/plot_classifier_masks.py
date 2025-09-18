@@ -7,7 +7,7 @@ Classification masks
 by classifying each point as belonging to either the baseline or the peaks. When
 first using a function, the correct parameters may not be known. To make the effects
 of input parameters on the classification process more easily understood, all functions
-in the classification module provide a 'mask' item in the output parameter dictionary.
+in the classification module provide a ``mask`` item in the output parameter dictionary.
 The mask parameter is a Boolean numpy array that is True for any point classified as
 belonging to the baseline and False otherwise.
 
@@ -41,9 +41,9 @@ baseline_fitter = Baseline(x_data=x)
 
 # %%
 # When first fitting a new dataset, it may be difficult to estimate the correct
-# parameters. For this example, the main parameter for the baseline function is
-# the `half_window` used for the rolling standard deviation calculation. Try a low
-# and high value to see the difference.
+# parameters. For the :meth:`~pybaselines.Baseline.std_distribution` method used in
+# this example, the main parameter is the `half_window` used for the rolling standard
+# deviation calculation. Try a low and high value to see the difference.
 
 half_window_1 = 15
 half_window_2 = 45

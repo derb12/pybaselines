@@ -4,7 +4,8 @@ Eigendecomposition for 2D Whittaker Baselines
 ---------------------------------------------
 
 This example will examine using eigendecomposition to solve Whittaker-smoothing-based
-baselines for two dimensional data.
+baselines for two dimensional data, demonstrated with the
+:meth:`~pybaselines.Baseline2D.arpls` method.
 
 As explained in the
 :ref:`2D Algorithms section <algorithms_2d/whittaker_2d:eigendecomposition>`, solving

@@ -219,6 +219,14 @@ sphinx_gallery_conf = {
     'capture_repr': (),
     # ignore the example_helpers.py files that contain setup code for the examples
     'ignore_pattern': r'(example_helpers)',
+    # the modules to use for generating backreferences within examples to make
+    # mini-galleries, aka my package
+    'doc_module': ('pybaselines',),
+    # directory to place all references within the examples to objects from "doc_module"
+    # to then link back to
+    'backreferences_dir': 'generated/backreferences',
+    # includes intersphinx links for internal objects within examples
+    'reference_url': {'pybaselines': None},
 }
 
 
@@ -243,6 +251,7 @@ try:
                 'type': 'fontawesome',
             },
         ],
+    'secondary_sidebar_items': ['page-toc', 'sourcelink', 'sg_download_links'],
    }
 except ImportError:
     html_theme = 'nature'

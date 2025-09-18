@@ -5,7 +5,8 @@
 
 This example will examine the effects of `lam` for fitting a penalized spline baseline
 while varying both the number of knots for the spline, `num_knots`, and the number of
-data points. The function :meth:`~.Baseline.mixture_model` is used for all calculations.
+data points. The function :meth:`~pybaselines.Baseline.mixture_model` is used for all
+calculations.
 
 Note that the exact optimal `lam` values reported in this example are not of significant
 use since they depend on many other factors such as the baseline curvature, noise, peaks,

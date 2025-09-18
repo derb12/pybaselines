@@ -4,7 +4,7 @@ Customized Baseline Correction
 ------------------------------
 
 This example looks at the ingenious baseline correction method created
-by Liland et al., :meth:`~.Baseline.custom_bc`.
+by Liland et al., :meth:`~pybaselines.Baseline.custom_bc`.
 
 The :meth:`.custom_bc` method works exceedingly well for morphological
 and smoothing baselines, since those methods typically depend directly
@@ -13,8 +13,8 @@ since the `lam` value is :ref:`heavily dependant on the number of data
 points <sphx_glr_generated_examples_whittaker_plot_lam_vs_data_size.py>`.
 
 This example will examine the use of the optimizer method
-:meth:`~.Baseline.custom_bc` paired with the Whittaker-smoothing-based
-method :meth:`~.Baseline.arpls`
+:meth:`~pybaselines.Baseline.custom_bc` paired with the Whittaker-smoothing-based
+method :meth:`~pybaselines.Baseline.arpls`
 
 """
 # sphinx_gallery_thumbnail_number = 1

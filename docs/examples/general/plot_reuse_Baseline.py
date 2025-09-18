@@ -44,10 +44,10 @@ noise = np.random.default_rng(0).normal(0, 0.1, len(x))
 y = signal + baseline + noise
 
 # %%
-# Six different methods will be timed. The polynomial method :meth:`~.Baseline.penalized_poly`,
-# the spline method :meth:`~.Baseline.mixture_model`, the Whittaker smoothing method
-# :meth:`~.Baseline.iarpls`, the morphological method :meth:`~.Baseline.mor`, the smoothing
-# method :meth:`~.Baseline.ria`, and the classification method :meth:`~.Baseline.std_distribution`.
+# Six different methods will be timed. The polynomial method :meth:`~pybaselines.Baseline.penalized_poly`,
+# the spline method :meth:`~pybaselines.Baseline.mixture_model`, the Whittaker smoothing method
+# :meth:`~pybaselines.Baseline.iarpls`, the morphological method :meth:`~pybaselines.Baseline.mor`, the smoothing
+# method :meth:`~pybaselines.Baseline.ria`, and the classification method :meth:`~pybaselines.Baseline.std_distribution`.
 
 methods = (
     ('penalized_poly', {'poly_order': 4}),

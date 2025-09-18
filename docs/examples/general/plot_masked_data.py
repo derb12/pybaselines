@@ -93,6 +93,8 @@ fit_mask = (x < 1900) | (x > 2550)  # 1 in regions to fit, 0 in masked region
 # First, the algorithms that are already mask-aware to a certain extent will be covered.
 # For these algorithms, the mask needs to simply be input as ``weights``, and any NaN values
 # need to be replaced (with zeros, through interpolation, or using :func:`numpy.nan_to_num`).
+# Two mask-aware methods will be used: :meth:`~pybaselines.Baseline.std_distribution` and
+# :meth:`~pybaselines.Baseline.imodpoly`.
 non_masked_std_distributionc = baseline_fitter.std_distribution(
     y_bad, half_window=20, num_std=3
 )[0]
@@ -158,8 +160,8 @@ plt.legend()
 # methods allow inputting weights, the input weights are just used for the first
 # iteration to jump-start the calculation and are ignored in subsequent calculations.
 # "Mask-aware" versions of these algorithms could be implemented, as shown below for
-# the arPLS algorithm. However, the "mask-aware" behavior can be closely approximated
-# simply by using weighted interpolation, to be shown below.
+# the :meth:`~pybaselines.Baseline.arpls` algorithm. However, the "mask-aware" behavior
+# can be closely approximated simply by using weighted interpolation, to be shown below.
 from pybaselines._banded_utils import PenalizedSystem  # noqa: E402
 from pybaselines._weighting import _arpls  # noqa: E402
 
@@ -225,7 +227,8 @@ plt.legend()
 # %%
 # For all other algorithms, the performance is directly tied to the interpolation since
 # information about the mask cannot be integrated into the method. For example, the difference
-# between using linear interpolation and PCHIP interpolation is shown below.
+# between using linear interpolation and PCHIP interpolation is shown below using the
+# :meth:`~pybaselines.Baseline.mor` method.
 y_pchip = PchipInterpolator(x[fit_mask], y[fit_mask])(x)
 _, (ax1, ax2) = plt.subplots(2, layout='constrained')
 ax1.set_title('Interpolated Data')

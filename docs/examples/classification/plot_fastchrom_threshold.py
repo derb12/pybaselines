@@ -3,8 +3,8 @@
 fastchrom threshold
 -------------------
 
-:meth:`~.Baseline.fastchrom` classifies baseline points based on their rolling standard
-deviation value.
+:meth:`~pybaselines.Baseline.fastchrom` classifies baseline points based on their
+rolling standard deviation value.
 The default threshold for fastchrom is set to the fifteenth percentile of the rolling
 standard deviation distribution. This default is rather conservative in assigning
 baseline points, but was selected since it provides good results for many different
