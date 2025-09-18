@@ -97,7 +97,7 @@ To install the current version of pybaselines from GitHub, run:
 Dependencies
 ~~~~~~~~~~~~
 
-pybaselines requires `Python <https://python.org>`_ version 3.9 or later
+pybaselines requires `Python <https://www.python.org>`_ version 3.9 or later
 and the following libraries:
 
 * `NumPy <https://numpy.org>`_
@@ -194,7 +194,7 @@ Contributions are welcomed and greatly appreciated. For information on
 submitting bug reports, pull requests, or general feedback, please refer
 to the `contributing guide`_.
 
-.. _contributing guide: https://github.com/derb12/pybaselines/tree/main/docs/contributing.rst
+.. _contributing guide: https://github.com/derb12/pybaselines/blob/main/docs/contributing.rst
 
 
 Changelog
@@ -202,7 +202,7 @@ Changelog
 
 Refer to the changelog_ for information on pybaselines's changes.
 
-.. _changelog: https://github.com/derb12/pybaselines/tree/main/CHANGELOG.rst
+.. _changelog: https://github.com/derb12/pybaselines/blob/main/CHANGELOG.rst
 
 
 License
@@ -211,7 +211,7 @@ License
 pybaselines is open source and freely available under the BSD-3-Clause license.
 For more information, refer to the license_.
 
-.. _license: https://github.com/derb12/pybaselines/tree/main/LICENSE.txt
+.. _license: https://github.com/derb12/pybaselines/blob/main/LICENSE.txt
 
 
 Citing

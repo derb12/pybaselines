@@ -8,7 +8,7 @@ Installation
 Dependencies
 ~~~~~~~~~~~~
 
-pybaselines requires `Python <https://python.org>`_ version 3.9 or later and the following libraries:
+pybaselines requires `Python <https://www.python.org>`_ version 3.9 or later and the following libraries:
 
 * `NumPy <https://numpy.org>`_ (>= 1.20)
 * `SciPy <https://scipy.org>`_ (>= 1.6)
