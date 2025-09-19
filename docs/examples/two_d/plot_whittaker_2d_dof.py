@@ -18,6 +18,7 @@ curvature, respectively.
 
 """
 # sphinx_gallery_thumbnail_number = 10
+# sphinx_gallery_multi_image = "single"
 
 from time import perf_counter
 

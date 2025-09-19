@@ -21,6 +21,7 @@ of the rolling standard deviation distribution.
 
 """
 # sphinx_gallery_thumbnail_number = 2
+# sphinx_gallery_multi_image = "single"
 
 import matplotlib.pyplot as plt
 import numpy as np

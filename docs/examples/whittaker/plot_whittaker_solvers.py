@@ -27,6 +27,7 @@ the sparse Cholesky decomposition solver
 Python bindings provided by `scikit-sparse <https://github.com/scikit-sparse/scikit-sparse>`_.
 
 """
+# sphinx_gallery_multi_image = "single"
 
 import time
 import warnings

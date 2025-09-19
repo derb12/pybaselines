@@ -90,7 +90,7 @@ doctest = [
 docs = [
     "sphinx",
     "sphinx-copybutton",
-    "sphinx-gallery>=0.16", # first version allowing strings to specify gallery sorting
+    "sphinx-gallery>=0.19", # allows strings to specify gallery sorting, sphinx-gallery issue#1389
     "pydata-sphinx-theme",
     "matplotlib",
     "numpydoc",

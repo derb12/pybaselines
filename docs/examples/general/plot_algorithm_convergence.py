@@ -19,6 +19,7 @@ parameter each iteration that controls the local stiffness of the baseline.
 
 """
 # sphinx_gallery_thumbnail_number = 4
+# sphinx_gallery_multi_image = "single"
 
 import matplotlib.pyplot as plt
 import numpy as np

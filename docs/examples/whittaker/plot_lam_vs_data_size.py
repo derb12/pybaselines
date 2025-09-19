@@ -18,6 +18,7 @@ values for fitting new datasets.
 
 """
 # sphinx_gallery_thumbnail_number = 2
+# sphinx_gallery_multi_image = "single"
 
 from itertools import cycle
 import warnings
