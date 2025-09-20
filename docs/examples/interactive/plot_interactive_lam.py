@@ -19,9 +19,6 @@ import os
 import tkinter as tk
 from tkinter import ttk
 
-# use Agg backend so that tkinter does not raise an error when building on readthedocs
-import matplotlib
-matplotlib.use('Agg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
@@ -53,10 +50,16 @@ class LamFitter:
         self.x = x
         self.y = y
         self.baseline_fitter = Baseline(self.x, check_finite=False)
-        self.baseline_fitter.banded_solver = 3
-        self.root = tk.Tk()
         self.line = None
         self.wt_line = None
+        self.default_method = 'arpls'
+
+        # skip creating the full tkinter GUI if this program is ran during
+        # the documentation build since it raises a tkinter error on readthedocs
+        if os.environ.get('PB_BUILDING_DOCS', '0') != '1':
+            self.root = tk.Tk()
+        else:
+            self.root = None
 
         self.make_gui()
 
@@ -71,33 +74,42 @@ class LamFitter:
         # add an empty line as a placeholder
         self.line = self.ax.plot(self.x, np.full_like(self.x, np.nan), label='baseline')[0]
         self.ax.legend()
-
         self.wt_ax.set_ylabel('Weights')
 
-        self.canvas = FigureCanvasTkAgg(self.fig, self.root)
-        self.canvas.draw()
-        self.toolbar = NavigationToolbar2Tk(self.canvas, self.root, pack_toolbar=False)
-        self.toolbar.update()
+        if self.root is not None:
+            self.canvas = FigureCanvasTkAgg(self.fig, self.root)
+            self.canvas.draw()
+            self.toolbar = NavigationToolbar2Tk(self.canvas, self.root, pack_toolbar=False)
+            self.toolbar.update()
+        else:
+            self.canvas = self.fig.canvas
 
         # add the interactive widgets
         self.slider = Slider(
             self.ax_variable, label='log$_{10}$(lam)', valmin=-4, valmax=12, valinit=6
         )
-        self.selected_method = tk.StringVar(value='arpls')
-        self.method_selector = ttk.Combobox(
-            self.root, values=get_methods(), textvariable=self.selected_method, state='readonly'
-        )
-
-        # bind events to all of the widgets
         self.slider.on_changed(self.update_fit)
-        self.method_selector.bind('<<ComboboxSelected>>', self.update_fit)
+        if self.root is not None:
+            self.selected_method = tk.StringVar(value=self.default_method)
+            self.method_selector = ttk.Combobox(
+                self.root, values=get_methods(), textvariable=self.selected_method, state='readonly'
+            )
+            self.method_selector.bind('<<ComboboxSelected>>', self.update_fit)
 
-        # add everything into the gui
-        self.method_selector.pack(side='bottom')
-        self.toolbar.pack(side='top', fill='x')
-        self.canvas.get_tk_widget().pack(side='top', fill='both', expand=True)
+            # add everything into the gui
+            self.method_selector.pack(side='bottom')
+            self.toolbar.pack(side='top', fill='x')
+            self.canvas.get_tk_widget().pack(side='top', fill='both', expand=True)
 
         self.update_fit()
+
+    @property
+    def baseline_method(self):
+        """The method to use for baseline correction."""
+        if self.root is None:
+            return self.default_method
+        else:
+            return self.selected_method.get()
 
     def update_fit(self, *args):
         """Updates the baseline fit with the selected method and value.
@@ -107,7 +119,7 @@ class LamFitter:
         If adapting this for personal use, will have to take care to modify these
         default parameters for the data being fit.
         """
-        method = self.selected_method.get()
+        method = self.baseline_method
         baseline_func = getattr(self.baseline_fitter, method)
         lam = 10.0**self.slider.val
         kwargs = {}
@@ -163,9 +175,8 @@ noise = np.random.default_rng(0).normal(0, 0.1, len(x))
 y = signal + baseline + noise
 
 gui = LamFitter(x, y)
-# have to ensure GUI is automatically closed if building documentation, so the
-# environmental variable PB_BUILDING_DOCS is set to '1' when invoking sphinx-build
-if os.environ.get('PB_BUILDING_DOCS', '0') == '1':
-    gui.root.destroy()
-else:
+# When building documentation on readthedocs, the environment is headless and raises an
+# error when trying to use tkinter, so just skip making the GUI when building documentation
+# -> set environmental variable PB_BUILDING_DOCS to '1' when invoking sphinx-build
+if os.environ.get('PB_BUILDING_DOCS', '0') != '1':
     tk.mainloop()
