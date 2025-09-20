@@ -10,8 +10,9 @@ reuse the same :class:`~.Baseline` object rather than creating a new ``Baseline`
 method call since much of the setup only needs to be done once and can be reused otherwise, as
 shown in :ref:`this example <sphx_glr_generated_examples_general_plot_reuse_baseline.py>`.
 
-For methods that require a ``half_window`` parameter, such as :doc:`morphological <algorithms/morphological>`
-and :doc:`smoothing <algorithms/smooth>` algorithms, the ``half_window`` is estimated using
+For methods that require a ``half_window`` parameter, such as
+:doc:`morphological <algorithms/algorithms_1d/morphological>` and
+:doc:`smoothing <algorithms/algorithms_1d/smooth>` algorithms, the ``half_window`` is estimated using
 the :func:`~.optimize_window` function if no ``half_window`` value is given, which can significantly increase
 computation time when fitting multiple datasets. If all data have similar peak widths, it would be much
 faster to either specify the ``half_window`` value or use :func:`~.optimize_window` on a single set of data

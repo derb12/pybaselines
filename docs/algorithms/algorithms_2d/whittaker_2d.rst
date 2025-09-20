@@ -7,7 +7,7 @@ Introduction
 
 Excellent introductory papers on two dimensional penalized least squares are
 `[1] <https://doi.org/10.1016/j.csda.2004.07.008>`_ and
-`[2] <https://doi.org/10.48550/arXiv.2306.06932>`_. Whittaker-smoothing-based
+`[2] <https://doi.org/10.1017/asb.2025.10061>`_. Whittaker-smoothing-based
 algorithms are extended to two dimensional data as follows:
 
 Let the number of rows be :math:`M` and the number of columns :math:`N` within the matrix
@@ -112,7 +112,7 @@ asls (Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.asls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:asls (Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:asls (Asymmetric Least Squares)>`.
 
 .. plot::
    :align: center
@@ -175,7 +175,7 @@ iasls (Improved Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.iasls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:iasls (Improved Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:iasls (Improved Asymmetric Least Squares)>`.
 Eigendecomposition is not allowed for this method.
 
 .. plot::
@@ -193,7 +193,7 @@ airpls (Adaptive Iteratively Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.airpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:airpls (Adaptive Iteratively Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:airpls (Adaptive Iteratively Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
@@ -210,7 +210,7 @@ arpls (Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.arpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:arpls (Asymmetrically Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:arpls (Asymmetrically Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
@@ -227,7 +227,7 @@ drpls (Doubly Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.drpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:drpls (Doubly Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:drpls (Doubly Reweighted Penalized Least Squares)>`.
 Eigendecomposition is not allowed for this method.
 
 .. plot::
@@ -245,7 +245,7 @@ iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.iarpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
@@ -262,7 +262,7 @@ aspls (Adaptive Smoothness Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.aspls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:aspls (Adaptive Smoothness Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:aspls (Adaptive Smoothness Penalized Least Squares)>`.
 Eigendecomposition is not allowed for this method.
 
 .. plot::
@@ -280,7 +280,7 @@ psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.psalsa`:
-:ref:`explanation for the algorithm <algorithms/whittaker:psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)>`.
 
 .. plot::
    :align: center
@@ -297,7 +297,7 @@ brpls (Bayesian Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.brpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:brpls (Bayesian Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:brpls (Bayesian Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
@@ -314,7 +314,7 @@ lsrpls (Locally Symmetric Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.lsrpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:lsrpls (Locally Symmetric Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:lsrpls (Locally Symmetric Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center

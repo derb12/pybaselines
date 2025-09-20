@@ -8,7 +8,7 @@ baselines for two dimensional data, demonstrated with the
 :meth:`~pybaselines.Baseline2D.arpls` method.
 
 As explained in the
-:ref:`2D Algorithms section <algorithms_2d/whittaker_2d:eigendecomposition>`, solving
+:ref:`2D Algorithms section <algorithms/algorithms_2d/whittaker_2d:eigendecomposition>`, solving
 the analytical solution for Whittaker-smoothing-based algorithms is computationally
 demanding. Through the use of eigendecomposition, the effective dimension of the system
 can be reduced and allow solving much faster. The number of eigenvalues required to represent

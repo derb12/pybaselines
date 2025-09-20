@@ -9,14 +9,14 @@ collab_pls (Collaborative Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.collab_pls`:
-:ref:`explanation for the algorithm <algorithms/optimizers:collab_pls (Collaborative Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/optimizers:collab_pls (Collaborative Penalized Least Squares)>`.
 There is no figure showing a fit for for this method since it requires multiple sets of data.
 
 adaptive_minmax (Adaptive MinMax)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.adaptive_minmax`:
-:ref:`explanation for the algorithm <algorithms/optimizers:adaptive_minmax (Adaptive MinMax)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/optimizers:adaptive_minmax (Adaptive MinMax)>`.
 
 .. plot::
    :align: center

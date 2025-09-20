@@ -16,7 +16,7 @@ mor (Morphological)
 ~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.mor`:
-:ref:`explanation for the algorithm <algorithms/morphological:mor (Morphological)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/morphological:mor (Morphological)>`.
 
 .. plot::
    :align: center
@@ -79,7 +79,7 @@ imor (Improved Morphological)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.imor`:
-:ref:`explanation for the algorithm <algorithms/morphological:imor (Improved Morphological)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/morphological:imor (Improved Morphological)>`.
 
 .. plot::
    :align: center
@@ -96,7 +96,7 @@ rolling_ball (Rolling Ball)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.rolling_ball`:
-:ref:`explanation for the algorithm <algorithms/morphological:rolling_ball (Rolling Ball)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/morphological:rolling_ball (Rolling Ball)>`.
 
 .. plot::
    :align: center
@@ -113,7 +113,7 @@ tophat (Top-hat Transformation)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.tophat`:
-:ref:`explanation for the algorithm <algorithms/morphological:tophat (Top-hat Transformation)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/morphological:tophat (Top-hat Transformation)>`.
 
 
 .. plot::

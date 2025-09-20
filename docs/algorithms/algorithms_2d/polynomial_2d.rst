@@ -44,7 +44,7 @@ poly (Regular Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.poly`:
-:ref:`explanation for the algorithm <algorithms/polynomial:poly (Regular Polynomial)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/polynomial:poly (Regular Polynomial)>`.
 Note that the plot below is just the least-squared polynomial fit of the data
 without masking.
 
@@ -109,7 +109,7 @@ modpoly (Modified Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.modpoly`:
-:ref:`explanation for the algorithm <algorithms/polynomial:modpoly (Modified Polynomial)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/polynomial:modpoly (Modified Polynomial)>`.
 
 .. plot::
    :align: center
@@ -126,7 +126,7 @@ imodpoly (Improved Modified Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.imodpoly`:
-:ref:`explanation for the algorithm <algorithms/polynomial:imodpoly (Improved Modified Polynomial)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/polynomial:imodpoly (Improved Modified Polynomial)>`.
 
 .. plot::
    :align: center
@@ -143,7 +143,7 @@ penalized_poly (Penalized Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.penalized_poly`:
-:ref:`explanation for the algorithm <algorithms/polynomial:penalized_poly (Penalized Polynomial)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/polynomial:penalized_poly (Penalized Polynomial)>`.
 
 .. plot::
    :align: center
@@ -160,7 +160,7 @@ quant_reg (Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.quant_reg`:
-:ref:`explanation for the algorithm <algorithms/polynomial:quant_reg (Quantile Regression)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/polynomial:quant_reg (Quantile Regression)>`.
 
 .. plot::
    :align: center

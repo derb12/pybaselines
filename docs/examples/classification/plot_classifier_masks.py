@@ -3,8 +3,8 @@
 Classification masks
 --------------------
 
-:doc:`Classification algorithms <../../../algorithms/classification>` estimate the baseline
-by classifying each point as belonging to either the baseline or the peaks. When
+:doc:`Classification algorithms <../../../algorithms/algorithms_1d/classification>` estimate the
+baseline by classifying each point as belonging to either the baseline or the peaks. When
 first using a function, the correct parameters may not be known. To make the effects
 of input parameters on the classification process more easily understood, all functions
 in the classification module provide a ``mask`` item in the output parameter dictionary.

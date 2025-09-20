@@ -91,7 +91,7 @@ mixture_model (Mixture Model)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.mixture_model`:
-:ref:`explanation for the algorithm <algorithms/spline:mixture_model (Mixture Model)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:mixture_model (Mixture Model)>`.
 
 .. plot::
    :align: center
@@ -154,7 +154,7 @@ irsqr (Iterative Reweighted Spline Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.irsqr`:
-:ref:`explanation for the algorithm <algorithms/spline:irsqr (Iterative Reweighted Spline Quantile Regression)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:irsqr (Iterative Reweighted Spline Quantile Regression)>`.
 
 .. plot::
    :align: center
@@ -171,7 +171,7 @@ pspline_asls (Penalized Spline Version of asls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_asls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_asls (Penalized Spline Version of asls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_asls (Penalized Spline Version of asls)>`.
 
 .. plot::
    :align: center
@@ -188,7 +188,7 @@ pspline_iasls (Penalized Spline Version of iasls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_iasls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_iasls (Penalized Spline Version of iasls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_iasls (Penalized Spline Version of iasls)>`.
 
 .. plot::
    :align: center
@@ -205,7 +205,7 @@ pspline_airpls (Penalized Spline Version of airpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_airpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_airpls (Penalized Spline Version of airpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_airpls (Penalized Spline Version of airpls)>`.
 
 .. plot::
    :align: center
@@ -222,7 +222,7 @@ pspline_arpls (Penalized Spline Version of arpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_arpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_arpls (Penalized Spline Version of arpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_arpls (Penalized Spline Version of arpls)>`.
 
 .. plot::
    :align: center
@@ -239,7 +239,7 @@ pspline_iarpls (Penalized Spline Version of iarpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_iarpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_iarpls (Penalized Spline Version of iarpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_iarpls (Penalized Spline Version of iarpls)>`.
 
 .. plot::
    :align: center
@@ -256,7 +256,7 @@ pspline_psalsa (Penalized Spline Version of psalsa)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_psalsa`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_psalsa (Penalized Spline Version of psalsa)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_psalsa (Penalized Spline Version of psalsa)>`.
 
 .. plot::
    :align: center
@@ -273,7 +273,7 @@ pspline_brpls (Penalized Spline Version of brpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_brpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_brpls (Penalized Spline Version of brpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_brpls (Penalized Spline Version of brpls)>`.
 
 .. plot::
    :align: center
@@ -290,7 +290,7 @@ pspline_lsrpls (Penalized Spline Version of lsrpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_lsrpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_lsrpls (Penalized Spline Version of lsrpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_lsrpls (Penalized Spline Version of lsrpls)>`.
 
 .. plot::
    :align: center

@@ -15,7 +15,7 @@ As a preface for this guide, the author of this library acknowledges that maskin
 be handled internally within each individual algorithm to make them "mask-aware". However, it would
 be a large change to the codebase, and there are many edge cases that would make it a non-trivial
 endeavor. Support for masking following the guidelines presented in this example could
-alternatively be added as an :doc:`optimizer-type algorithm <../../../algorithms/optimizers>`,
+alternatively be added as an :doc:`optimizer-type algorithm <../../../algorithms/algorithms_1d/optimizers>`,
 but, in the author's opinion, making one single function that is expected to cover 60+ different
 algorithms would be fiddly at best and very prone to bugs. Therefore, this guide is presented as a
 starting point for users to adapt for targeting a specific baseline correction algorithm or group
@@ -25,13 +25,13 @@ The various algorithms in pybaselines can be broadly grouped into three differen
 for how they handle masked data:
 
 1. Methods that directly support masking by inputting the mask as weights, which includes
-   all :doc:`classification <../../../algorithms/classification>` and
-   :doc:`polynomial <../../../algorithms/polynomial>` methods except for :meth:`~.Baseline.loess`
+   all :doc:`classification <../../../algorithms/algorithms_1d/classification>` and
+   :doc:`polynomial <../../../algorithms/algorithms_1d/polynomial>` methods except for :meth:`~.Baseline.loess`
    and :meth:`~.Baseline.quant_reg`. They are not NaN-aware, however, so if working with missing
    data, that has to be accounted for.
 2. Methods that do iterative reweighting, such as
-   :doc:`Whittaker smoothing methods <../../../algorithms/whittaker>`, most
-   :doc:`spline methods <../../../algorithms/spline>`, :meth:`~.Baseline.loess` and
+   :doc:`Whittaker smoothing methods <../../../algorithms/algorithms_1d/whittaker>`, most
+   :doc:`spline methods <../../../algorithms/algorithms_1d/spline>`, :meth:`~.Baseline.loess` and
    :meth:`~.Baseline.quant_reg`. As to be covered later in this guide, it is relatively
    easy to emulate a "mask-aware" implementation of these algorithms by making use of the
    output weights in the parameter dictionary to perform weighted interpolation in masked regions.
@@ -81,8 +81,8 @@ plt.legend()
 # %%
 # To start, the mask for fitting the data has to be made. This can be done by eye if fitting
 # a few datasets, or can be automated using some metric. Many
-# :doc:`classification methods <../../../algorithms/classification>` use different methods for
-# excluding positive peaks; for an example of excluding negative peaks, see
+# :doc:`classification methods <../../../algorithms/algorithms_1d/classification>` use different
+# methods for excluding positive peaks; for an example of excluding negative peaks, see
 # `Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_, which uses
 # Savitzky-Golay filtering combined with iterative thresholding. This example
 # will simply define the mask region by hand.

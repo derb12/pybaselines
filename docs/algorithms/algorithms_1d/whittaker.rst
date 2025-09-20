@@ -154,15 +154,15 @@ below using the :meth:`~.Baseline.arpls` method.
     ani = animation.FuncAnimation(
         fig=fig, func=update_lines, frames=max_frames, blit=True, interval=500
     )
-    if Path.cwd().stem == 'algorithms':  # within documentation, so just save the gif
-        output_path = Path('../generated/images')
+    if Path.cwd().stem == 'algorithms_1d':  # within documentation, so just save the gif
+        output_path = Path('../../generated/images')
         output_path.mkdir(exist_ok=True, parents=True)
         ani.save(output_path.joinpath('iterative_reweighting.gif'))
         plt.close(fig)
     else:  # downloaded, so show the plot rather than saving
         plt.show()
 
-.. image:: ../generated/images/iterative_reweighting.gif
+.. image:: ../../generated/images/iterative_reweighting.gif
    :alt: Iterative Reweighting
    :align: center
 
