@@ -51,3 +51,13 @@ adjusting for each family of algorithms within pybaselines:
 * Miscellaneous methods
 
   * Algorithm dependent
+
+
+.. note::
+
+  In order to make this parameter selection easier, the Examples section of the documentation
+  includes code for creating simple interactive GUIs for varying
+  :ref:`poly_order <sphx_glr_generated_examples_interactive_plot_interactive_poly.py>`,
+  :ref:`lam <sphx_glr_generated_examples_interactive_plot_interactive_lam.py>`, and
+  :ref:`half_window <sphx_glr_generated_examples_interactive_plot_interactive_hw.py>`
+  for all relevant baseline correction methods.

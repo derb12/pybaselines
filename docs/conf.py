@@ -23,6 +23,10 @@ import sys
 
 sys.path.insert(0, os.path.abspath('..'))
 
+# set environmental variable so I can detect if Sphinx is building docs; some example
+# programs would otherwise create a GUI that would impede the docs build
+os.environ['PB_BUILDING_DOCS'] = '1'
+
 # -- General configuration ---------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
@@ -196,6 +200,7 @@ gallery_section_order = [
     'examples/misc',
     'examples/optimizers',
     'examples/two_d',
+    'examples/interactive',
 ]
 
 sphinx_gallery_conf = {
