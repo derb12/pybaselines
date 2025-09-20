@@ -246,8 +246,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
     Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
     Statistics and Data Analysis, 2006, 50(1), 61-76.
 
-    Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-    (Preprint), 2023.
+    Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+    practical use. ASTIN Bulletin, 2025, 1-31.
 
     """
 
@@ -402,8 +402,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         References
         ----------
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         penalty_bands = diff_penalty_diagonals(data_points, diff_order, lower_only=True)
@@ -646,8 +646,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         References
         ----------
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         if not self._using_svd:

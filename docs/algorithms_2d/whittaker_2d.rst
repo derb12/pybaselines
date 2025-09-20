@@ -52,7 +52,7 @@ up but still does not scale well above ~500x500 sized matrices). However...
 Eigendecomposition
 ~~~~~~~~~~~~~~~~~~
 
-By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.48550/arXiv.2306.06932>`_,
+By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.1017/asb.2025.10061>`_,
 the dimensionality of the system can be reduced by using eigendecomposition on each of the two
 penalty matrices, :math:`D_{d_r}^{\mathsf{T}} D_{d_r}` and :math:`D_{d_c}^{\mathsf{T}} D_{d_c}`. (Note that speeding up
 Whittaker smoothing using `factorization in 1D <https://doi.org/10.1016/j.csda.2006.11.038>`_ and using the

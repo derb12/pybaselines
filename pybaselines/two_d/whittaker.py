@@ -90,8 +90,8 @@ class _Whittaker(_Algorithm2D):
         Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
         Leiden University Medical Centre Report, 2005, 1(1).
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         if not 0 < p < 1:
@@ -279,8 +279,8 @@ class _Whittaker(_Algorithm2D):
         Zhang, Z.M., et al. Baseline correction using adaptive iteratively
         reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -374,8 +374,8 @@ class _Whittaker(_Algorithm2D):
         Baek, S.J., et al. Baseline correction using asymmetrically reweighted
         penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -556,8 +556,8 @@ class _Whittaker(_Algorithm2D):
         reweighted penalized least squares for Raman spectrum. Applied Optics, 2020,
         59, 10933-10943.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -805,8 +805,8 @@ class _Whittaker(_Algorithm2D):
         for analytical instruments. 2014 IEEE 11th International Multi-Conference on
         Systems, Signals, and Devices, 2014, 1-5.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         if not 0 < p < 1:
@@ -912,8 +912,8 @@ class _Whittaker(_Algorithm2D):
         with weights derived from the Bayesian method. Nuclear Science and Techniques,
         2022, 140, 250-257.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -1047,8 +1047,8 @@ class _Whittaker(_Algorithm2D):
             Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
         .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
             penalized least squares, Applied Optics, 2019, 58, 3913-3920.
-        .. [3] Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-            (Preprint), 2023.
+        .. [3] Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+            practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
