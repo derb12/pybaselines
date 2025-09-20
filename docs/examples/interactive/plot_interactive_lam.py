@@ -19,6 +19,9 @@ import os
 import tkinter as tk
 from tkinter import ttk
 
+# use Agg backend so that tkinter does not raise an error when building on readthedocs
+import matplotlib
+matplotlib.use('Agg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
