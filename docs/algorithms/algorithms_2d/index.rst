@@ -10,14 +10,12 @@ use the 1D algorithms on each individual row and/or column in the data, which ca
 
 This section of the documentation is to help provide some context for how the algorithms
 were extended to work with 2D data. It will not be as comprehensive as the
-:doc:`1D Algorithms section <../algorithms/index>`, so to help understand any algorithm,
-it is suggested to start there. Refer to the :doc:`API section <../api/index>` of the
-documentation for the full parameter and reference listing for any algorithm.
+:doc:`1D Algorithms section <../algorithms_1d/index>`, so to help understand any algorithm,
+it is suggested to start there.
 
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
    polynomial_2d
    whittaker_2d

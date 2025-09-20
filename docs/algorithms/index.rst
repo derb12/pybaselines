@@ -11,12 +11,11 @@ and there are numerous different methods not implemented in pybaselines that do 
 any of those categories, which is why baseline correction in general is such an absolutely
 fascinating field!
 
-This section of the documentation is to help provide some context for each algorithm.
-In addition, most algorithms will have a figure that shows how well the algorithm fits
-various datasets to help choose the correct algorithm for a particular baseline. These datasets
-include noisy data, data with both positive and negative peaks, data with overlapping peaks,
-and concave data, and they serve as a way to quickly filter out algorithms that would not
-work for a particular dataset.
+The goal of this section of the documentation is to help provide some context for each algorithm
+and show how each fits various different types of data for a quick, albeit shallow, comparison among
+all algorithms. The two dimensional (2D) section only explains how 1D algorithms were adapted to
+fit 2D data and is thus overall more sparse on details, so it is suggested to start with reading
+through the 1D section to provide a complete understanding.
 
 Refer to the :doc:`API section <../api/index>` of the documentation for the full parameter and
 reference listing for any algorithm.
@@ -24,13 +23,6 @@ reference listing for any algorithm.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
-   polynomial
-   whittaker
-   morphological
-   spline
-   smooth
-   classification
-   optimizers
-   misc
+   algorithms_1d/index
+   algorithms_2d/index
