@@ -148,7 +148,7 @@ y = signal + baseline + noise
 gui = WindowFitter(x, y)
 # have to ensure GUI is automatically closed if building documentation, so the
 # environmental variable PB_BUILDING_DOCS is set to '1' when invoking sphinx-build
-if os.getenv('PB_BUILDING_DOCS', '0') == '1':
+if os.environ.get('PB_BUILDING_DOCS', '0') == '1':
     gui.root.destroy()
 else:
     tk.mainloop()

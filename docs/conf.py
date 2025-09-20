@@ -26,6 +26,12 @@ sys.path.insert(0, os.path.abspath('..'))
 # set environmental variable so I can detect if Sphinx is building docs; some example
 # programs would otherwise create a GUI that would impede the docs build
 os.environ['PB_BUILDING_DOCS'] = '1'
+# When building on readthedocs, it uses a headless environment which raises the tkinter error
+# "_tkinter.TclError: no display name and no $DISPLAY environment variable"
+# when making the GUIs for the interactive example. To fix this, need to set
+# the display environmental variable to ':0.0'
+if os.environ.get('DISPLAY', '') == '':
+    os.environ['DISPLAY'] = ':0.0'
 
 # -- General configuration ---------------------------------------------
 
