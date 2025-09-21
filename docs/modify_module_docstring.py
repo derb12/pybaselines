@@ -38,7 +38,15 @@ def condense_module_docstring(app, what, name, obj, options, lines):
 
 
 def setup(app):
-    """Connects the condense_module_docstring to the autodoc-process-docstring event."""
+    """Connects the condense_module_docstring to the autodoc-process-docstring event.
+
+    Returns
+    -------
+    dict
+        Relevant information about the extension to pass to Sphinx. See
+        https://www.sphinx-doc.org/en/master/extdev/index.html for metadata fields.
+
+    """
     app.connect('autodoc-process-docstring', condense_module_docstring)
     # since this modifies the docstrings in-place, safer to say that it is not parallel-safe
     return {

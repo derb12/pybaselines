@@ -272,6 +272,11 @@ class WhittakerSystem2D(PenalizedSystem2D):
             for the eigendecomposition. If None, will solve the linear system using the full
             analytical solution, which is typically much slower.
 
+        Raises
+        ------
+        ValueError
+            Raised if `num_eigens` has a mixture of None and an integer.
+
         """
         # TODO should figure out a way to better merge PenalizedSystem2D, PSpline2D, and this class
         self.coef = None
@@ -515,6 +520,11 @@ class WhittakerSystem2D(PenalizedSystem2D):
     def _make_btwb(self, weights):
         """Computes ``Basis.T @ Weights @ Basis`` using a more efficient method.
 
+        Returns
+        -------
+        F : numpy.ndarray
+            The computed result of ``B.T @ W @ B``.
+
         References
         ----------
         Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
@@ -610,6 +620,12 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         This is a lazy implementation since the full basis is typically not needed for
         computations.
+
+        Raises
+        ------
+        ValueError
+            Raised if the object is not using eigendecomposition to solve the linear
+            equation, in which case the basis matrix is the identity matrix.
 
         """
         if not self._using_svd:

@@ -389,6 +389,11 @@ def _spline_basis(x, knots, spline_degree=3):
     scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
         The matrix of basis functions for the spline.
 
+    Raises
+    ------
+    ValueError
+        Raised if `knots` are outside of the range of `x`.
+
     Notes
     -----
     The numba version was originally ~70% faster than SciPy's BSpline.design_matrix (tested

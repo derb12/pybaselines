@@ -343,9 +343,9 @@ def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
         The banded matrix.
     x : array-like, shape (N,)
         The vector.
-    ab_lu : Container(int, int)
+    ab_lu : Container[int, int]
         The number of lower (`n_lower`) and upper (`n_upper`) diagonals in `ab`.
-    a_full_shape : Container(int, int)
+    a_full_shape : Container[int, int]
         The number of rows and columns in the full `a` matrix.
 
     Returns
@@ -474,14 +474,14 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
         A banded matrix.
     b : array-like, shape (`b_lu[0]` + `b_lu[1]` + 1, N)
         The second banded matrix.
-    a_lu : Container(int, int)
+    a_lu : Container[int, int]
         A container of intergers designating the number lower and upper diagonals of `a`.
-    b_lu : Container(int, int)
+    b_lu : Container[int, int]
         A container of intergers designating the number lower and upper diagonals of `b`.
-    a_full_shape : Container(int, int)
+    a_full_shape : Container[int, int]
         A container of intergers designating the number of rows and columns in the full
         matrix representation of `a`.
-    b_full_shape : Container(int, int)
+    b_full_shape : Container[int, int]
         A container of intergers designating the number of rows and columns in the full
         matrix representation of `b`.
     symmetric_output : bool, optional
@@ -603,7 +603,7 @@ def _parabola(data):
 # adapted from MATLAB beads version; see license above
 def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=False):
     """
-    Creates the banded matrices A and B such that B(A^-1) is a high pass filter.
+    Creates the banded matrices A and B such that ``B @ (A^-1)`` is a high pass filter.
 
     Parameters
     ----------
@@ -618,6 +618,15 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     full_matrix : bool, optional
         If True, will return the full sparse diagonal matrices of A and B. If False
         (default), will return the banded matrix versions of A and B.
+
+    Returns
+    -------
+    A : scipy.sparse.csr_matrix or scipy.sparse.csr_array or numpy.ndarray
+        The banded matrix A. If ``full_matrix`` is True, the output is a sparse
+        matrix or array; otherwise, it is an array of the bands themselves.
+    B : scipy.sparse.csr_matrix or scipy.sparse.csr_array or numpy.ndarray
+        The banded matrix B. If ``full_matrix`` is True, the output is a sparse
+        matrix or array; otherwise, it is an array of the bands themselves.
 
     Raises
     ------

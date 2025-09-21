@@ -1047,8 +1047,8 @@ class _Whittaker(_Algorithm2D):
             Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
         .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
             penalized least squares, Applied Optics, 2019, 58, 3913-3920.
-        .. [3] Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
-            practical use. ASTIN Bulletin, 2025, 1-31.
+        .. [3] Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework
+            for practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(

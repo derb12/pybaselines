@@ -506,6 +506,11 @@ def pad_edges2d(data, pad_length, mode='edge', extrapolate_window=None, **pad_kw
     padded_data : numpy.ndarray
         The data with padding on the top, bottom, left, and right edges.
 
+    Raises
+    ------
+    ValueError
+        Raised if the input data is not two dimensional.
+
     Notes
     -----
     If mode is 'extrapolate', then each edge will be extended by linear fits along each
@@ -514,7 +519,7 @@ def pad_edges2d(data, pad_length, mode='edge', extrapolate_window=None, **pad_kw
     """
     y = np.asarray(data)
     if y.ndim != 2:
-        raise ValueError('input data must be two dimensional')
+        raise ValueError(f'input data must be two dimensional, instead had {y.ndim} dimensions')
     total_padding = _get_row_col_values(pad_length).reshape((2, 2))
 
     if isinstance(mode, str):

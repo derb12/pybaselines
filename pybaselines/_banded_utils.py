@@ -618,6 +618,11 @@ def _pentapy_solver(ab, y, check_output=False, pentapy_solver=2):
     numpy.ndarray, shape (N,)
         The solution to the linear system.
 
+    Raises
+    ------
+    LinAlgError
+        Raised if non-finite result from the solution and `check_output` is True.
+
     """
     output = _pentapy_solve(ab, y, is_flat=True, index_row_wise=True, solver=pentapy_solver)
     if check_output and not np.isfinite(output.dot(output)):
@@ -849,7 +854,7 @@ class PenalizedSystem:
             Whether to check if the inputs are finite when using
             :func:`scipy.linalg.solveh_banded` or :func:`scipy.linalg.solve_banded`.
             Default is False.
-        l_and_u : Container(int, int), optional
+        l_and_u : Container[int, int], optional
             The number of lower and upper bands in `lhs` when using
             :func:`scipy.linalg.solve_banded`. Default is None, which uses
             (``len(lhs) // 2``, ``len(lhs) // 2``).

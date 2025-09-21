@@ -110,14 +110,6 @@ markers = [
 ]
 
 
-[tool.isort]
-skip_glob = ["docs/*", "*__init__.py"]
-force_sort_within_sections = true
-line_length = 100
-lines_after_imports = 2
-multi_line_output = 5
-src_paths = ["pybaselines", "tests"]
-
 [tool.ruff]
 exclude = ["docs/conf.py"]
 line-length = 100
@@ -129,6 +121,7 @@ preview = true  # for using experimental rules
 select = [
     "B",  # flake8-bugbear
     "D",  # pydocstyle
+    "DOC",  # pydoclint
     "E",  # pycodestyle errors
     "F",  # pyflakes
     #"I",  # isort
@@ -139,8 +132,13 @@ select = [
 ignore = [
     "D401",  # D401 first line should be in imperative mood; try rephrasing
     "E731",  # E731 do not assign a lambda expression, use a def
+    "DOC502",  # DOC502 documented exception is not raised in function -> raised in underlying calls so ignore
 ]
 task-tags = ["TODO"]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+lines-after-imports = 2
 
 [tool.ruff.lint.pycodestyle]
 ignore-overlong-task-comments = true
@@ -149,19 +147,27 @@ ignore-overlong-task-comments = true
 convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = [
+"pybaselines/*__init__.py" = [
     "F401",  # F401: module imported but unused
     "D205",  # D205: 1 blank line required between summary line and description
-
+    "I001",  # I001: Import block is un-sorted or un-formatted; don't sort imports within init
+]
+"pybaselines/_compat.py" = [
+    "DOC201",  # DOC201 `return` is not documented in docstring; don't care for internal compatibility functions
 ]
 "docs/examples/*" = [
     "B007",  # B007: Loop control variable `name` not used within loop body; want to be explicit in examples
     "D205",  # D205: 1 blank line required between summary line and description
     "D400",  # D400: first line should end with a period
     "E501",  # E501: line too long; reference links can be very long so ignore the limit
+    "DOC201",  # DOC201 `return` is not documented in docstring; don't care for examples
+    "DOC501",  # DOC501: assertions are not documented in the docstring; don't care for examples
 ]
 "tests/*" = [
     "F841",  # F841: Local variable 'name' is assigned to but never used; want to be explicit within tests
+    "DOC201",  # DOC201 `return` is not documented in docstring; don't care for tests
+    "DOC402",  # DOC402 `yield` is not documented in docstring; don't care for tests
+    "DOC501",  # DOC501: assertions are not documented in the docstring; don't care for tests
 ]
 
 

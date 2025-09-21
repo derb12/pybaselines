@@ -95,7 +95,7 @@ class _Smooth(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        max_half_window : int or Sequence(int, int), optional
+        max_half_window : int or Sequence[int, int], optional
             The maximum number of iterations. Should be set such that
             `max_half_window` is approxiamtely ``(w-1)/2``, where ``w`` is the index-based
             width of a feature or peak. `max_half_window` can also be a sequence of
@@ -663,7 +663,7 @@ class _Smooth(_Algorithm):
 
         Raises
         ------
-        TypeError
+        ValueError
             Raised if `sections` is an integer not between 1 and ``N``, or if `sections`
             is a sequence with any value not between 0 and ``N - 1``.
 
@@ -816,7 +816,7 @@ def snip(data, max_half_window=None, decreasing=False, smooth_half_window=None,
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
-    max_half_window : int or Sequence(int, int), optional
+    max_half_window : int or Sequence[int, int], optional
         The maximum number of iterations. Should be set such that
         `max_half_window` is approxiamtely ``(w-1)/2``, where ``w`` is the index-based
         width of a feature or peak. `max_half_window` can also be a sequence of

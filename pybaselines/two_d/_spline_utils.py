@@ -146,6 +146,11 @@ class SplineBasis2D:
     def _make_btwb(self, weights):
         """Computes ``Basis.T @ Weights @ Basis`` using a more efficient method.
 
+        Returns
+        -------
+        F : scipy.sparse.csr_matrix or scipy.sparse.csr_array
+            The computed result of ``B.T @ W @ B``.
+
         References
         ----------
         Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational

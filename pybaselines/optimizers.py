@@ -66,6 +66,11 @@ class _Optimizers(_Algorithm):
                 Keys will depend on the selected method and will have a list of values,
                 with each item corresponding to a fit.
 
+        Raises
+        ------
+        ValueError
+            Raised if the input data is not two dimensional.
+
         Notes
         -----
         If `method` is 'aspls' or 'pspline_aspls', `collab_pls` will also calculate
@@ -412,7 +417,7 @@ class _Optimizers(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        poly_order : int or Sequence(int, int) or None, optional
+        poly_order : int or Sequence[int, int] or None, optional
             The two polynomial orders to use for fitting. If a single integer is given,
             then will use the input value and one plus the input value. Default is None,
             which will do a preliminary fit using a polynomial of order `estimation_poly_order`
@@ -422,12 +427,12 @@ class _Optimizers(_Algorithm):
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
-        constrained_fraction : float or Sequence(float, float), optional
+        constrained_fraction : float or Sequence[float, float], optional
             The fraction of points at the left and right edges to use for the
             constrained fit. Default is 0.01. If `constrained_fraction` is a sequence,
             the first item is the fraction for the left edge and the second is the
             fraction for the right edge.
-        constrained_weight : float or Sequence(float, float), optional
+        constrained_weight : float or Sequence[float, float], optional
             The weighting to give to the endpoints. Higher values ensure that the
             end points are fit, but can cause large fluctuations in the other sections
             of the polynomial. Default is 1e5. If `constrained_weight` is a sequence,
@@ -459,6 +464,11 @@ class _Optimizers(_Algorithm):
                 A dictionary containing the output parameters for each individual fit.
                 Keys will depend on the selected method and will have a list of values,
                 with each item corresponding to a fit.
+
+        Raises
+        ------
+        ValueError
+            Raised if ``constrained_fraction`` is outside of the range [0, 1].
 
         References
         ----------
@@ -913,7 +923,7 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
-    poly_order : int or Sequence(int, int) or None, optional
+    poly_order : int or Sequence[int, int] or None, optional
         The two polynomial orders to use for fitting. If a single integer is given,
         then will use the input value and one plus the input value. Default is None,
         which will do a preliminary fit using a polynomial of order `estimation_poly_order`
@@ -923,12 +933,12 @@ def adaptive_minmax(data, x_data=None, poly_order=None, method='modpoly',
     weights : array-like, shape (N,), optional
         The weighting array. If None (default), then will be an array with
         size equal to N and all values set to 1.
-    constrained_fraction : float or Sequence(float, float), optional
+    constrained_fraction : float or Sequence[float, float], optional
         The fraction of points at the left and right edges to use for the
         constrained fit. Default is 0.01. If `constrained_fraction` is a sequence,
         the first item is the fraction for the left edge and the second is the
         fraction for the right edge.
-    constrained_weight : float or Sequence(float, float), optional
+    constrained_weight : float or Sequence[float, float], optional
         The weighting to give to the endpoints. Higher values ensure that the
         end points are fit, but can cause large fluctuations in the other sections
         of the polynomial. Default is 1e5. If `constrained_weight` is a sequence,

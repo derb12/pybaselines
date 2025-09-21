@@ -159,7 +159,7 @@ class _Algorithm2D:
 
         Parameters
         ----------
-        value : Sequence(int, int) or None
+        value : Sequence[int, int] or None
             The shape of the dataset.
 
         Notes

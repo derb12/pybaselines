@@ -832,7 +832,7 @@ class _Algorithm:
             array by :meth:`~._Algorithm._register`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
-        modules : Sequence(module, ...)
+        modules : Sequence[module, ...]
             The modules to search for the indicated `method` function.
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the fitting function. Default
@@ -853,6 +853,11 @@ class _Algorithm:
             A dictionary of keyword arguments to pass to `fit_func`.
         class_object : pybaselines._algorithm_setup._Algorithm
             The `_Algorithm` object which will be used for fitting.
+
+        Raises
+        ------
+        KeyError
+            Raised if method_kwargs has the 'x_data' key.
 
         """
         baseline_func, func_module, class_object = self._get_function(method, modules)
@@ -900,6 +905,11 @@ def _class_wrapper(klass):
     ----------
     klass : _Algorithm
         The class being wrapped.
+
+    Returns
+    -------
+    Callable
+        The wrapped function.
 
     """
     def outer(func):
