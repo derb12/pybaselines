@@ -706,7 +706,7 @@ def _convert_coef2d(coef, poly_degree_x, poly_degree_z, original_x_domain, origi
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
-    Creates an n-order finite-difference matrix.
+    Creates an n-th order finite-difference matrix.
 
     Parameters
     ----------
@@ -733,13 +733,27 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     The resulting matrices are sparse versions of::
 
         import numpy as np
-        np.diff(np.eye(data_size), diff_order, axis=0)
+        D = np.diff(np.eye(data_size), diff_order, axis=0)
 
     This implementation allows using the differential matrices are they
     are written in various publications, ie. ``D.T @ D``.
 
     Most baseline algorithms use 2nd order differential matrices when
     doing penalized least squared fitting or Whittaker-smoothing-based fitting.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from pybaselines.utils import difference_matrix
+    >>> diff_order = 2
+    >>> x = np.random.default_rng(123).normal(50, 1, 100)
+    >>> D = difference_matrix(len(x), diff_order=diff_order)
+
+    The matrix multiplication of ``D @ x`` is the same as performing the n-th order
+    derivative of x.
+
+    >>> np.allclose(D @ x, np.diff(x, diff_order))
+    True
 
     """
     # difference_matrix moved to pybaselines._banded_utils in version 1.0.0 in order to more

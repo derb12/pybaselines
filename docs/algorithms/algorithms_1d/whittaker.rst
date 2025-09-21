@@ -35,8 +35,9 @@ The resulting linear equation for solving the above minimization is:
 
 .. _difference-matrix-explanation:
 
-where :math:`W` is the diagaonal matrix of the weights, and :math:`D_d` is the matrix
-version of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.
+where :math:`W` is the diagaonal matrix of the weights, and :math:`D_d` is the
+:func:`~.difference_matrix` (ie. the matrix version of :math:`\Delta^d`), which is also
+the d-th derivative of the identity matrix.
 For example, for an array of length 5, :math:`D_1` (first order difference matrix) is:
 
 .. math::

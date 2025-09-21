@@ -433,17 +433,17 @@ and :math:`\alpha`, :math:`\beta`, and :math:`\gamma` are regularization paramet
 Linear systems:
 
 The initial signal, :math:`s^0`, and baseline, :math:`v^0`, are set equal to :math:`y`,
-and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`n`, :math:`s^n`
-and :math:`v^n`, are solved for sequentially using the following two
+and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`t`, :math:`s^t`
+and :math:`v^t`, are solved for sequentially using the following two
 linear equations:
 
 .. math::
 
-    (I + 2 \gamma D_d^{\mathsf{T}} D_d) s^n = y - v^{n-1}
+    (I + 2 \gamma D_d^{\mathsf{T}} D_d) s^t = y - v^{t-1}
 
 .. math::
 
-    (I + 2 \alpha I + 2 \beta D_d^{\mathsf{T}} D_d) v^n = y - s^n + 2 \alpha Op
+    (I + 2 \alpha I + 2 \beta D_d^{\mathsf{T}} D_d) v^t = y - s^t + 2 \alpha Op
 
 where :math:`I` is the identity matrix and :math:`D_d` is the matrix version
 of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.
