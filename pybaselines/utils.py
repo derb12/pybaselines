@@ -747,10 +747,13 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     return _difference_matrix(data_size, diff_order=diff_order, diff_format=diff_format)
 
 
-def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
+def estimate_window(data, increment=1, max_hits=3, window_tol=1e-6,
                     max_half_window=None, min_half_window=None):
     """
-    Optimizes the morphological half-window size.
+    Estimates the appropriate morphological half-window size.
+
+    .. versionadded:: 1.3.0
+        Was named "optimize_window" in prior versions.
 
     Parameters
     ----------
@@ -774,7 +777,7 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
     Returns
     -------
     half_window : int or numpy.ndarray[int, int]
-        The optimized half window size(s). If `data` is one dimensional, the
+        The estimated half window size(s). If `data` is one dimensional, the
         output is a single integer, and if `data` is two dimensional, the output
         is an array of two integers.
 
@@ -820,6 +823,33 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
     else:
         output = max(half_window, 1)  # ensure half window is at least 1
     return output
+
+
+# maintain optimize_window for backwards compatibilty; may or may not deprecate
+# since it is very little maintenance burden to keep the name
+def optimize_window(*args, **kwargs):
+    """
+    Estimates the appropriate morphological half-window size.
+
+    New code should use :func:`~.estimate_window` rather than this function, since
+    ``optimize_window`` will likely be deprecated and removed in a later version.
+
+    Parameters
+    ----------
+    *args
+        Positional arguments to pass to :func:`~.estimate_window`.
+    **kwargs
+        Keyword arguments to pass to :func:`~.estimate_window`.
+
+    Returns
+    -------
+    half_window : int or numpy.ndarray[int, int]
+        The estimated half window size(s). If `data` is one dimensional, the
+        output is a single integer, and if `data` is two dimensional, the output
+        is an array of two integers.
+
+    """
+    return estimate_window(*args, **kwargs)
 
 
 def _inverted_sort(sort_order):

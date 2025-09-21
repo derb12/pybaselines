@@ -13,9 +13,9 @@ shown in :ref:`this example <sphx_glr_generated_examples_general_plot_reuse_base
 For methods that require a ``half_window`` parameter, such as
 :doc:`morphological <algorithms/algorithms_1d/morphological>` and
 :doc:`smoothing <algorithms/algorithms_1d/smooth>` algorithms, the ``half_window`` is estimated using
-the :func:`~.optimize_window` function if no ``half_window`` value is given, which can significantly increase
+the :func:`~.estimate_window` function if no ``half_window`` value is given, which can significantly increase
 computation time when fitting multiple datasets. If all data have similar peak widths, it would be much
-faster to either specify the ``half_window`` value or use :func:`~.optimize_window` on a single set of data
+faster to either specify the ``half_window`` value or use :func:`~.estimate_window` on a single set of data
 and then use the output ``half_window`` value for all subsequent baseline fits for the dataset.
 
 For fitting datasets that are quite large (>~ 5,000 individual spectra/diffractograms), users

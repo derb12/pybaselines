@@ -13,7 +13,7 @@ from scipy.sparse import kron
 
 from pybaselines._compat import identity
 from pybaselines.two_d import _algorithm_setup, optimizers, polynomial, whittaker
-from pybaselines.utils import ParameterWarning, SortingWarning, difference_matrix, optimize_window
+from pybaselines.utils import ParameterWarning, SortingWarning, difference_matrix, estimate_window
 from pybaselines._validation import _check_scalar
 
 from ..base_tests import ensure_deprecation, get_2dspline_inputs, get_data2d
@@ -287,17 +287,17 @@ def test_setup_morphology(data_fixture2d, algorithm, half_window):
     Ensures setup_morphology works as expected.
 
     Note that a half window of 2 was selected since it should not be the output
-    of optimize_window; setup_morphology should just pass the half window back
+    of estimate_window; setup_morphology should just pass the half window back
     out if it was not None.
     """
     x, z, y = data_fixture2d
     y_out, half_window_out = algorithm._setup_morphology(y, half_window)
     if half_window is None:
-        half_window_expected = optimize_window(y)
+        half_window_expected = estimate_window(y)
     else:
         half_window_expected = _check_scalar(half_window, 2, fill_scalar=True, dtype=int)[0]
         # sanity check that the calculated half window does not match the test case one
-        assert not np.array_equal(half_window, optimize_window(y))
+        assert not np.array_equal(half_window, estimate_window(y))
 
     assert np.array_equal(half_window_out, half_window_expected)
     assert y is y_out  # should not be modified by setup_morphology
@@ -316,7 +316,7 @@ def test_setup_morphology_kwargs_warns(small_data2d, algorithm):
     with pytest.warns(DeprecationWarning):
         algorithm._setup_morphology(small_data2d, min_half_window=2)
 
-    # also ensure both window_kwargs and **kwargs are passed to optimize_window
+    # also ensure both window_kwargs and **kwargs are passed to estimate_window
     with pytest.raises(TypeError):
         with pytest.warns(DeprecationWarning):
             algorithm._setup_morphology(

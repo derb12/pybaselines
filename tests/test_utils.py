@@ -816,18 +816,27 @@ def test_pspline_smooth(data_fixture, diff_order, num_knots, spline_degree):
 
 
 @pytest.mark.parametrize('two_d', (True, False))
-def test_optimize_window(small_data2d, two_d):
-    """Ensures optimize_window has the correct outputs for the dimesions of the input."""
+def test_estimate_window(small_data2d, two_d):
+    """Ensures estimate_window has the correct outputs for the dimesions of the input."""
     data = small_data2d
     if not two_d:
         data = data.flatten()
 
-    output = utils.optimize_window(data)
+    output = utils.estimate_window(data)
     if two_d:
         assert output.shape == (2,)
         assert isinstance(output, np.ndarray)
     else:
         assert isinstance(output, int)
+
+    # also ensure that the old optimize_window also works the same
+    output_opt = utils.optimize_window(data)
+    if two_d:
+        assert output.shape == (2,)
+        assert isinstance(output, np.ndarray)
+    else:
+        assert isinstance(output, int)
+    assert_allclose(output_opt, output, rtol=1e-12, atol=0)
 
 
 @pytest.mark.parametrize('data_size', (500, 1000, 1001))

@@ -16,7 +16,7 @@ from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit, trapezoid
 from ._validation import _check_half_window, _check_scalar
 from .utils import (
-    ParameterWarning, _get_edges, gaussian, gaussian_kernel, optimize_window,
+    ParameterWarning, _get_edges, gaussian, gaussian_kernel, estimate_window,
     pad_edges, padded_convolve, relative_difference
 )
 
@@ -41,7 +41,7 @@ class _Smooth(_Algorithm):
             The index-based size to use for the median window. The total window
             size will range from [-half_window, ..., half_window] with size
             2 * half_window + 1. Default is None, which will use twice the output from
-            :func:`.optimize_window`, which is an okay starting value.
+            :func:`.estimate_window`, which is an okay starting value.
         smooth_half_window : int, optional
             The half window to use for smoothing. Default is None, which will use
             the same value as `half_window`.
@@ -102,7 +102,7 @@ class _Smooth(_Algorithm):
             two integers for asymmetric peaks, with the first item corresponding to
             the `max_half_window` of the peak's left edge, and the second item
             for the peak's right edge [3]_. Default is None, which will use the output
-            from :func:`.optimize_window`, which is an okay starting value.
+            from :func:`.estimate_window`, which is an okay starting value.
         decreasing : bool, optional
             If False (default), will iterate through window sizes from 1 to
             `max_half_window`. If True, will reverse the order and iterate from
@@ -181,7 +181,7 @@ class _Smooth(_Algorithm):
             raise ValueError('filter_order must be 2, 4, 6, or 8')
 
         if max_half_window is None:
-            max_half_window = optimize_window(data)
+            max_half_window = estimate_window(data)
         half_windows = _check_half_window(max_half_window, two_d=True)
         for i, half_window in enumerate(half_windows):
             if half_window > (self._size - 1) // 2:
@@ -386,7 +386,7 @@ class _Smooth(_Algorithm):
             The half-window to use for the smoothing each iteration. Should be
             approximately equal to the full-width-at-half-maximum of the peaks or features
             in the data. Default is None, which will use 4 times the output of
-            :func:`.optimize_window`, which is not always a good value, but at least scales
+            :func:`.estimate_window`, which is not always a good value, but at least scales
             with the number of data points and gives a starting point for tuning the parameter.
         max_iter : int, optional
             The maximum number of iterations. Default is 500.
@@ -486,7 +486,7 @@ class _Smooth(_Algorithm):
         half_window : int, optional
             The half-window to use for the smoothing each iteration. Should be
             approximately equal to the full-width-at-half-maximum of the peaks or features
-            in the data. Default is None, which will use the output of :func:`.optimize_window`,
+            in the data. Default is None, which will use the output of :func:`.estimate_window`,
             which is not always a good value, but at least scales with the number of data points
             and gives a starting point for tuning the parameter.
         max_iter : int, optional
@@ -632,7 +632,7 @@ class _Smooth(_Algorithm):
             The index-based size to use for the moving average window. The total window
             size will range from [-half_window, ..., half_window] with size
             ``2 * half_window + 1``. Default is None, which will use two or three times the
-            output from func:`.optimize_window`, which is an okay starting value.
+            output from func:`.estimate_window`, which is an okay starting value.
         sections : int or Sequence[int, ...], optional
             If the input is an integer, it sets the number of equally sized
             segments the data will be split into. If the input is a sequence, each integer
@@ -772,7 +772,7 @@ def noise_median(data, half_window=None, smooth_half_window=None, sigma=None, x_
         The index-based size to use for the median window. The total window
         size will range from [-half_window, ..., half_window] with size
         2 * half_window + 1. Default is None, which will use twice the output from
-        :func:`.optimize_window`, which is an okay starting value.
+        :func:`.estimate_window`, which is an okay starting value.
     smooth_half_window : int, optional
         The half window to use for smoothing. Default is None, which will use
         the same value as `half_window`.
@@ -823,7 +823,7 @@ def snip(data, max_half_window=None, decreasing=False, smooth_half_window=None,
         two integers for asymmetric peaks, with the first item corresponding to
         the `max_half_window` of the peak's left edge, and the second item
         for the peak's right edge [3]_. Default is None, which will use the output
-        from :func:`.optimize_window`, which is an okay starting value.
+        from :func:`.estimate_window`, which is an okay starting value.
     decreasing : bool, optional
         If False (default), will iterate through window sizes from 1 to
         `max_half_window`. If True, will reverse the order and iterate from
@@ -1076,7 +1076,7 @@ def ipsa(data, half_window=None, max_iter=500, tol=None, roi=None,
         The half-window to use for the smoothing each iteration. Should be
         approximately equal to the full-width-at-half-maximum of the peaks or features
         in the data. Default is None, which will use 4 times the output of
-        :func:`.optimize_window`, which is not always a good value, but at least scales
+        :func:`.estimate_window`, which is not always a good value, but at least scales
         with the number of data points and gives a starting point for tuning the parameter.
     max_iter : int, optional
         The maximum number of iterations. Default is 500.
@@ -1145,7 +1145,7 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
     half_window : int, optional
         The half-window to use for the smoothing each iteration. Should be
         approximately equal to the full-width-at-half-maximum of the peaks or features
-        in the data. Default is None, which will use the output of :func:`.optimize_window`,
+        in the data. Default is None, which will use the output of :func:`.estimate_window`,
         which is not always a good value, but at least scales with the number of data points
         and gives a starting point for tuning the parameter.
     max_iter : int, optional
@@ -1311,7 +1311,7 @@ def peak_filling(data, x_data=None, half_window=None, sections=None, max_iter=5,
         The index-based size to use for the moving average window. The total window
         size will range from [-half_window, ..., half_window] with size
         ``2 * half_window + 1``. Default is None, which will use two or three times the
-        output from func:`.optimize_window`, which is an okay starting value.
+        output from func:`.estimate_window`, which is an okay starting value.
     sections : int, optional
         The number of sections to divide the input data into for subsampling. The
         minimum of each section will be used to represent the input data for determining

@@ -27,7 +27,7 @@ from ._validation import (
 )
 from .utils import (
     ParameterWarning, SortingWarning, _determine_sorts, _inverted_sort, _sort_array,
-    optimize_window, pad_edges
+    estimate_window, pad_edges
 )
 
 
@@ -620,9 +620,9 @@ class _Algorithm:
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using pybaselines.morphological.optimize_window.
+            half-window size using :func:`pybaselines.utils.estimate_window`.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -658,7 +658,7 @@ class _Algorithm:
                     DeprecationWarning, stacklevel=2
                 )
 
-            output_half_window = optimize_window(y, **window_kwargs, **kwargs)
+            output_half_window = estimate_window(y, **window_kwargs, **kwargs)
 
         return y, output_half_window
 
@@ -676,12 +676,12 @@ class _Algorithm:
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
             effects. Default is is None, which sets the half window as the output of
-            :func:`pybaselines.utils.optimize_window` multiplied by `window_multiplier`.
+            :func:`pybaselines.utils.estimate_window` multiplied by `window_multiplier`.
         pad_type : {'half', 'full', None}
             If True (default), will pad the input `y` with `half_window` on each side
             before returning. If False, will return the unmodified `y`.
         window_multiplier : int or float, optional
-            The multiplier by which the output of :func:`pybaselines.utils.optimize_window`
+            The multiplier by which the output of :func:`pybaselines.utils.estimate_window`
             will be multiplied if `half_window` is None.
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
@@ -703,7 +703,7 @@ class _Algorithm:
 
         """
         if half_window is None:
-            output_half_window = max(1, int(window_multiplier * optimize_window(y)))
+            output_half_window = max(1, int(window_multiplier * estimate_window(y)))
         else:
             output_half_window = _check_half_window(half_window, allow_zero=False)
 

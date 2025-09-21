@@ -32,7 +32,7 @@ class _Smooth(_Algorithm2D):
             The index-based size to use for the median window on the rows and columns,
             respectively. The total window size in each dimension will range from
             [-half_window, ..., half_window] with size 2 * half_window + 1. Default is
-            None, which will use twice the output from :func:`.optimize_window`,
+            None, which will use twice the output from :func:`.estimate_window`,
             which is an okay starting value.
         smooth_half_window : int, optional
             The half window to use for smoothing. Default is None, which will use

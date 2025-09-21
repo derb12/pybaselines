@@ -17,7 +17,7 @@ from .._validation import (
     _check_sized_array, _yxz_arrays
 )
 from ..utils import (
-    ParameterWarning, SortingWarning, _determine_sorts, _sort_array2d, optimize_window, pad_edges2d
+    ParameterWarning, SortingWarning, _determine_sorts, _sort_array2d, estimate_window, pad_edges2d
 )
 from ._spline_utils import PSpline2D, SplineBasis2D
 from ._whittaker_utils import WhittakerSystem2D
@@ -731,13 +731,13 @@ class _Algorithm2D:
         half_window : int or Sequence[int, int], optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using pybaselines.morphological.optimize_window.
+            half-window size using :func:`pybaselines.utils.estimate_window`.
         window_kwargs : dict, optional
             A dictionary of keyword arguments to pass to
-            :func:`pybaselines.utils.optimize_window`.
+            :func:`pybaselines.utils.estimate_window`.
         **kwargs
             Deprecated in version 1.2.0 and will be removed in version 1.4.0. Pass keyword
-            arguments for :func:`.optimize_window` using `window_kwargs`.
+            arguments for :func:`.estimate_window` using `window_kwargs`.
 
         Returns
         -------
@@ -767,7 +767,7 @@ class _Algorithm2D:
                     DeprecationWarning, stacklevel=2
                 )
 
-            output_half_window = optimize_window(y, **window_kwargs, **kwargs)
+            output_half_window = estimate_window(y, **window_kwargs, **kwargs)
 
         return y, output_half_window
 
@@ -784,9 +784,9 @@ class _Algorithm2D:
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
             effects. Default is is None, which sets the half window as the output of
-            :func:`pybaselines.utils.optimize_window` multiplied by `window_multiplier`.
+            :func:`pybaselines.utils.estimate_window` multiplied by `window_multiplier`.
         window_multiplier : int, optional
-            The value to multiply the output of :func:`.optimize_window` if half_window
+            The value to multiply the output of :func:`.estimate_window` if half_window
             is None. Default is 1.
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges2d` for padding
@@ -808,7 +808,7 @@ class _Algorithm2D:
         if half_window is not None:
             output_hw = _check_half_window(half_window, allow_zero=False, two_d=True)
         else:
-            output_hw = window_multiplier * optimize_window(y)
+            output_hw = window_multiplier * estimate_window(y)
 
         pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
         if kwargs:

@@ -1304,7 +1304,7 @@ class _Spline(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e3.
@@ -1335,7 +1335,7 @@ class _Spline(_Algorithm):
             The weighting array. If None (default), then the weights will be
             calculated following the procedure in [1]_.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -2666,7 +2666,7 @@ def pspline_mpls(data, x_data=None, half_window=None, lam=1e3, p=0.0, num_knots=
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e3.
@@ -2697,7 +2697,7 @@ def pspline_mpls(data, x_data=None, half_window=None, lam=1e3, p=0.0, num_knots=
         The weighting array. If None (default), then the weights will be
         calculated following the procedure in [1]_.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
