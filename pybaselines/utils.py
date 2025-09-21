@@ -12,6 +12,7 @@ import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.special import binom
+from scipy.stats import skew
 
 from ._banded_utils import PenalizedSystem
 from ._banded_utils import difference_matrix as _difference_matrix
@@ -1198,3 +1199,87 @@ def make_data(data_size=1000, bkg_type='gaussian_small', signal_type=1, noise_st
         return x, y, baseline
 
     return x, y
+
+
+def estimate_polyorder(data, x_data=None, min_value=1, max_value=10):
+    """
+    Estimates the optimal polynomial order to use for baseline correction of the data.
+
+    The optimal polynomial order is identified as the one which produces the highest skew
+    in the residual when fitting the data with a polynomial using least-squares, allowing
+    enough flexibility to fit the data but not too much to cause peak clipping.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    min_value : int, optional
+        The minimum polynomial order to fit. Default is 1.
+    max_value : int, optional
+        The maximum polynomial order to fit. Default is 10.
+
+    Returns
+    -------
+    best_order : int
+        The estimated optimal polynomial order to use for baseline correction.
+
+    Raises
+    ------
+    ValueError
+        Raised if either `min_value` or `max_value` is not an integer or negative. Also
+        raised if `max_value` is not greater than `min_value`.
+
+    Notes
+    -----
+    Generally works well, even with noisy data, for estimating the polynomial order for any
+    polynomial-based baseline correction method within pybaselines except for
+    :meth:`~.Baseline.loess` since it uses localized moving windows.
+
+    An alternative approach for estimating the optimal polynomial order for fitting the baseline,
+    also proposed by Komsta, is to call the baseline correction method with each polynomial order
+    and then select the order which produced the lowest Akaike information criterion (AIC) value.
+
+    References
+    ----------
+    Komsta, Ł. Comparison of Several Methods of Chromatographic
+    Baseline Removal with a New Approach Based on Quantile Regression.
+    Chromatographia, 2011, 73, 721-731.
+
+    Examples
+    --------
+    >>> import matplotlib.pyplot as plt
+    >>> from pybaselines import Baseline, utils
+    >>> x, y, true_baseline = utils.make_data(return_baseline=True)
+    >>> estimated_order = utils.estimate_polyorder(y, x)
+    >>> print(estimated_order)
+    3
+    >>> fit, params = Baseline(x).quant_reg(y, poly_order=estimated_order)
+    >>> plt.plot(x, y)
+    >>> plt.plot(x, true_baseline, label='true baseline')
+    >>> plt.plot(x, fit, '--', label='fit baseline')
+    >>> plt.legend()
+    >>> plt.show()
+
+    """
+    # TODO can this also work for 2D data, and if it can, are the results good?
+    if not isinstance(min_value, int) or min_value < 0:
+        raise ValueError('min_value must be a non-negative integer')
+    if not isinstance(max_value, int) or max_value < 0:
+        raise ValueError('min_value must be a non-negative integer')
+    elif max_value <= min_value:
+        raise ValueError('max_value must be greater than min_value')
+
+    y, x = _yx_arrays(data, x_data)
+    best_order = min_value
+    max_skew = -np.inf
+    for poly_order in range(min_value, max_value + 1):
+        fit = np.polynomial.Polynomial.fit(x, y, deg=poly_order)(x)
+        residual_skew = skew(y - fit)
+        if residual_skew > max_skew:
+            best_order = poly_order
+            max_skew = residual_skew
+
+    return best_order

@@ -924,3 +924,37 @@ def test_mollifier_kernel_zero_window(data_fixture, half_window):
     x, y = data_fixture
     out = utils.padded_convolve(y, kernel)
     assert_array_equal(y, out)
+
+
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('input_x', (True, False))
+def test_estimate_polyorder(list_input, input_x):
+    """Ensures basic functionality of estimate_polyorder."""
+    x, y = utils.make_data(bkg_type='gaussian_small')
+    if list_input:
+        x = list(x)
+        y = list(y)
+    if input_x:
+        estimated_order = utils.estimate_polyorder(y, x)
+    else:
+        estimated_order = utils.estimate_polyorder(y)
+
+    assert isinstance(estimated_order, int)
+    assert estimated_order == 3  # integration test; need to change if y changes for this test
+
+
+def test_estimate_polyorder_failures(data_fixture):
+    """Ensures expected exceptions are raised within estimate_polyorder."""
+    x, y = data_fixture
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, min_value=-1)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, min_value=1.0)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, max_value=-1)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, max_value=1.0)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, min_value=5, max_value=5)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, min_value=5, max_value=4)
