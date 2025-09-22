@@ -587,69 +587,73 @@ def test_beads_ATb(beads_data, filter_type, freq_cutoff):
     assert_allclose(lam_ATb_actual, lam_ATb_banded, rtol=1.5e-7)
 
 
-def test_process_lams(data_fixture):
+@pytest.mark.parametrize('alpha', (1, 5.5))
+def test_process_lams(data_fixture, alpha):
     """Ensures _process_lams correctly calculates lam values according to the L1 norms."""
     x, y = data_fixture
-    lam_0_factor = 1 / np.linalg.norm(y, 1)
-    lam_1_factor = 1 / np.linalg.norm(np.diff(y, 1), 1)
-    lam_2_factor = 1 / np.linalg.norm(np.diff(y, 2), 1)
-    alpha = 5
+    lam_0_factor = alpha / np.linalg.norm(y, 1)
+    lam_1_factor = alpha / np.linalg.norm(np.diff(y, 1), 1)
+    lam_2_factor = alpha / np.linalg.norm(np.diff(y, 2), 1)
+    lam_factors = [lam_0_factor, lam_1_factor, lam_2_factor]
 
-    # if no lam values are given, the default alpha is 1
-    output = misc._process_lams(y, None, None, None)
-    assert_allclose(output[0], lam_0_factor)
-    assert_allclose(output[1], lam_1_factor)
-    assert_allclose(output[2], lam_2_factor)
+    output = misc._process_lams(y, alpha, None, None, None)
+    assert_allclose(output[0], lam_0_factor, rtol=1e-14, atol=1e-14)
+    assert_allclose(output[1], lam_1_factor, rtol=1e-14, atol=1e-14)
+    assert_allclose(output[2], lam_2_factor, rtol=1e-14, atol=1e-14)
 
-    # only input lam_0
-    output2 = misc._process_lams(y, alpha * lam_0_factor, None, None)
-    assert_allclose(output2[0], alpha * lam_0_factor)
-    assert_allclose(output2[1], alpha * lam_1_factor)
-    assert_allclose(output2[2], alpha * lam_2_factor)
+    # only certain lam values missing
+    for index in range(3):
+        lams = [1, 1, 1]
+        lams[index] = None
+        output2 = misc._process_lams(y, alpha=alpha, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
+        for idx in range(3):
+            if idx == index:
+                assert_allclose(output2[idx], lam_factors[idx], rtol=1e-14, atol=1e-14)
+            else:
+                assert_allclose(output2[idx], lams[idx], rtol=1e-14, atol=1e-14)
 
-    # only input lam_1
-    output3 = misc._process_lams(y, None, alpha * lam_1_factor, None)
-    assert_allclose(output3[0], alpha * lam_0_factor)
-    assert_allclose(output3[1], alpha * lam_1_factor)
-    assert_allclose(output3[2], alpha * lam_2_factor)
-
-    # only input lam_2
-    output4 = misc._process_lams(y, None, None, alpha * lam_2_factor)
-    assert_allclose(output4[0], alpha * lam_0_factor)
-    assert_allclose(output4[1], alpha * lam_1_factor)
-    assert_allclose(output4[2], alpha * lam_2_factor)
-
-    # test inputting both lam_0 and lam_1; alpha should be determined by lam_0; since lam_1 is
-    # given, its value should be output as well
-    lam_0 = alpha * lam_0_factor
-    lam_1 = alpha * 2 * lam_1_factor
-    output5 = misc._process_lams(y, lam_0, lam_1, None)
-    assert_allclose(output5[0], lam_0)
-    assert_allclose(output5[1], lam_1)
-    assert_allclose(output5[2], alpha * lam_2_factor)
-
-    # test inputting both lam_0 and lam_1; since lam_0 is 0, alpha should be calculated
-    # from lam_1
-    lam_0 = 0
-    lam_1 = alpha * 2 * lam_1_factor
-    output5 = misc._process_lams(y, lam_0, lam_1, None)
-    assert_allclose(output5[0], lam_0)
-    assert_allclose(output5[1], lam_1)
-    assert_allclose(output5[2], alpha * 2 * lam_2_factor)
-
-    # test inputting both lam_0 and lam_1; since lam_0 and lam_1 are 0, alpha should be 1
-    lam_0 = 0
-    lam_1 = 0
-    output5 = misc._process_lams(y, lam_0, lam_1, None)
-    assert_allclose(output5[0], lam_0)
-    assert_allclose(output5[1], lam_1)
-    assert_allclose(output5[2], 1 * lam_2_factor)
+    # ensure it respects when lam values are 0
+    for index in range(3):
+        lams = [1, 1, 1]
+        lams[index] = 0
+        output2 = misc._process_lams(y, alpha=alpha, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
+        for idx in range(3):
+            if idx == index:
+                assert_allclose(output2[idx], 0, rtol=1e-14, atol=1e-14)
+            else:
+                assert_allclose(output2[idx], lams[idx], rtol=1e-14, atol=1e-14)
 
     # all lams given, so they should just be checked and then output
     lam_0 = 5
     lam_1 = 10
     lam_2 = 3
-    output6 = misc._process_lams(y, lam_0, lam_1, lam_2)
-    assert_allclose(output6[0], lam_0)
-    assert_allclose(output6[1], lam_1)
-    assert_allclose(output6[2], lam_2)
+    output3 = misc._process_lams(y, alpha, lam_0, lam_1, lam_2)
+    assert_allclose(output3[0], lam_0, rtol=1e-14, atol=1e-14)
+    assert_allclose(output3[1], lam_1, rtol=1e-14, atol=1e-14)
+    assert_allclose(output3[2], lam_2, rtol=1e-14, atol=1e-14)
+
+
+def test_process_lams_non_positive_alpha(data_fixture):
+    """Ensures non-positive alpha values raise an error."""
+    x, y = data_fixture
+    with pytest.raises(ValueError):
+        misc._process_lams(y, alpha=0, lam_0=1, lam_1=1, lam_2=1)
+    with pytest.raises(ValueError):
+        misc._process_lams(y, alpha=-1., lam_0=1, lam_1=1, lam_2=1)
+
+
+def test_process_lams_all_zero(data_fixture):
+    """Ensures an error is raised if all three lam values are zero."""
+    x, y = data_fixture
+    with pytest.raises(ValueError):
+        misc._process_lams(y, alpha=0, lam_0=0, lam_1=0, lam_2=0)
+
+
+@pytest.mark.parametrize('negative_lam', [0, 1, 2])
+def test_process_lams_negative_lam_fails(data_fixture, negative_lam):
+    """Ensures that a negative regularization parameter fails."""
+    x, y = data_fixture
+    lams = [1, 1, 1]
+    lams[negative_lam] *= -1
+    with pytest.raises(ValueError):
+        misc._process_lams(y, alpha=1, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
