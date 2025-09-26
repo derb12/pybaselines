@@ -821,7 +821,7 @@ class PenalizedSystem:
         self._update_bands()
 
     def solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False,
-              check_finite=False, l_and_u=None, check_output=False):
+              check_finite=False, l_and_u=None):
         """
         Solves the equation ``A @ x = rhs``, given `A` in banded format as `lhs`.
 

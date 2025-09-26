@@ -252,7 +252,7 @@ class _Whittaker(_Algorithm):
         for i in range(1, max_iter + 2):
             baseline = whittaker_system.solve(
                 whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True, check_output=True
+                overwrite_b=True
             )
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
                 y, baseline, i, normalize_weights
