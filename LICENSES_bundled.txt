@@ -166,8 +166,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-Source: pentapy (https://github.com/GeoStat-Framework/pentapy, last accessed March 25, 2025)
-Functions: pybaselines._banded_solvers.ptrans_1 and pybaselines._banded_solvers.ptrans_2
+Source: pentapy (https://github.com/GeoStat-Framework/pentapy, last accessed September 26, 2025)
+Files: pybaselines._banded_solvers.py and tests/test_banded_solvers.py
 License: MIT
 
 The MIT License (MIT)

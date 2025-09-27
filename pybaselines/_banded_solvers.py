@@ -49,10 +49,10 @@ def _ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     Parameters
     ----------
-    lhs : numpy.ndarray, shape (5, N)
+    lhs : numpy.ndarray, shape (5, M)
         The pentadiagonal matrix `A` in LAPACK banded format banded format (see
         :func:`scipy.linalg.solve_banded`).
-    rhs : numpy.ndarray, shape (N,)
+    rhs : numpy.ndarray, shape (M,) or (M, N)
         The right-hand side of the equation.
     overwrite_ab : bool, optional
         Whether to overwrite `lhs` when solving. Default is False.
@@ -61,7 +61,7 @@ def _ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     Returns
     -------
-    out : numpy.ndarray, shape (N,)
+    out : numpy.ndarray, shape (M,) or (M, N)
         The solution to the linear system, `x`.
     int
         If the matrix is singular, the returned integer is the row index plus one of where
@@ -97,7 +97,7 @@ def _ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     if overwrite_b:
         out = rhs
     else:
-        out = np.zeros(num_rows)
+        out = np.zeros(rhs.shape)
 
     # First row
     mu_i = lhs[2, 0]
@@ -213,10 +213,10 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     Parameters
     ----------
-    lhs : numpy.ndarray, shape (5, N)
+    lhs : numpy.ndarray, shape (5, M)
         The pentadiagonal matrix `A` in LAPACK banded format banded format (see
         :func:`scipy.linalg.solve_banded`).
-    rhs : numpy.ndarray, shape (N,)
+    rhs : numpy.ndarray, shape (M,) or (M, N)
         The right-hand side of the equation.
     overwrite_ab : bool, optional
         Whether to overwrite `lhs` when solving. Default is False.
@@ -225,7 +225,7 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     Returns
     -------
-    out : numpy.ndarray, shape (N,)
+    out : numpy.ndarray, shape (M,) or (M, N)
         The solution to the linear system, `x`.
     int
         If the matrix is singular, the returned integer is the row index plus one of where
@@ -261,7 +261,7 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     if overwrite_b:
         out = rhs
     else:
-        out = np.zeros(num_rows)
+        out = np.zeros(rhs.shape)
 
     # First row
     row = num_rows - 1
@@ -373,10 +373,10 @@ def solve_banded_penta(ab, b, solver=1, overwrite_ab=False, overwrite_b=False):
 
     Parameters
     ----------
-    ab : numpy.ndarray, shape (5, N)
+    ab : numpy.ndarray, shape (5, M)
         The pentadiagonal matrix `A` in LAPACK banded format banded format (see
         :func:`scipy.linalg.solve_banded`).
-    b : numpy.ndarray, shape (N,)
+    b : numpy.ndarray, shape (M,) or (M, N)
         The right-hand side of the equation.
     solver : {1, 2}
         The solver to use. 1 designates the PTRANS-I algorithm from [1]_, and 2 designates
@@ -388,7 +388,7 @@ def solve_banded_penta(ab, b, solver=1, overwrite_ab=False, overwrite_b=False):
 
     Returns
     -------
-    result : numpy.ndarray, shape (N,)
+    result : numpy.ndarray, shape (M,) or (M, N)
         The solution to the linear system, `x`.
 
     Raises
