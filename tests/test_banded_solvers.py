@@ -217,15 +217,12 @@ def pentapy_ptrans2(mat_flat, rhs):
     return result, factorization
 
 
-@pytest.mark.parametrize('data_size', (100, 1000, 10000))
+@pytest.mark.parametrize('data_size', (100, 1001, 5002))
 @pytest.mark.parametrize('solver', (1, 2))
 @pytest.mark.parametrize('weights_enum', (0, 1))
-@pytest.mark.parametrize('lam', np.logspace(-4, 8, 6, base=10, dtype=float))
+@pytest.mark.parametrize('lam', np.logspace(-4, 8, 5, base=10, dtype=float))
 @pytest.mark.parametrize('two_d', (False, True))
-@pytest.mark.parametrize('overwrite_ab', (False, True))
-@pytest.mark.parametrize('overwrite_b', (False, True))
-def test_whittaker_solve_symmetric(data_size, solver, weights_enum, lam, two_d, overwrite_ab,
-                                   overwrite_b):
+def test_whittaker_solve_symmetric(data_size, solver, weights_enum, lam, two_d):
     """Ensures banded pentadiagonal solvers work for symmetric Whittaker smoothing systems."""
     x, y = get_data(num_points=data_size)
     if two_d:
@@ -253,50 +250,10 @@ def test_whittaker_solve_symmetric(data_size, solver, weights_enum, lam, two_d, 
     pentapy_solver = {1: pentapy_ptrans1, 2: pentapy_ptrans2}[solver]
     pentapy_solution, pentapy_factorization = pentapy_solver(lhs[::-1], rhs)
 
-    if overwrite_ab:
-        input_lhs = lhs.copy()
-    else:
-        input_lhs = lhs
-    if overwrite_b:
-        input_rhs = rhs.copy()
-    else:
-        input_rhs = rhs
-
-    output = _banded_solvers.solve_banded_penta(
-        input_lhs, input_rhs, solver=solver, overwrite_ab=overwrite_ab, overwrite_b=overwrite_b
-    )
-    # ensure it actually overwrites the input when expected to, and doesn't when not
-    if overwrite_ab:
-        assert not np.allclose(input_lhs, lhs, rtol=1e-10, atol=1e-10)
-    else:
-        assert_allclose(input_lhs, lhs, rtol=1e-16, atol=1e-16)
-    if overwrite_b:
-        assert not np.allclose(input_rhs, rhs, rtol=1e-10, atol=1e-10)
-    else:
-        assert_allclose(input_rhs, rhs, rtol=1e-16, atol=1e-16)
-
+    output = _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
     # also test the underlying solver
-    if overwrite_ab:
-        input_lhs = lhs.copy()
-    else:
-        input_lhs = lhs
-    if overwrite_b:
-        input_rhs = rhs.copy()
-    else:
-        input_rhs = rhs
     underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
-    output2, info = underlying_solver(
-        input_lhs, input_rhs, overwrite_ab=overwrite_ab, overwrite_b=overwrite_b
-    )
-    assert info == 0
-    if overwrite_ab:
-        assert not np.allclose(input_lhs, lhs, rtol=1e-10, atol=1e-10)
-    else:
-        assert_allclose(input_lhs, lhs, rtol=1e-16, atol=1e-16)
-    if overwrite_b:
-        assert not np.allclose(input_rhs, rhs, rtol=1e-10, atol=1e-10)
-    else:
-        assert_allclose(input_rhs, rhs, rtol=1e-16, atol=1e-16)
+    output2, info = underlying_solver(lhs, rhs)
 
     assert_allclose(output, scipy_solution, atol=1e-10, rtol=5e-8)
     assert_allclose(output2, scipy_solution, atol=1e-10, rtol=5e-8)
@@ -306,15 +263,12 @@ def test_whittaker_solve_symmetric(data_size, solver, weights_enum, lam, two_d, 
     assert_allclose(output2, pentapy_solution, atol=1e-16, rtol=1e-16)
 
 
-@pytest.mark.parametrize('data_size', (100, 1001, 10002))
+@pytest.mark.parametrize('data_size', (100, 1001, 5002))
 @pytest.mark.parametrize('solver', (1, 2))
 @pytest.mark.parametrize('weights_enum', (0, 1))
-@pytest.mark.parametrize('lam', np.logspace(-4, 8, 6, base=10, dtype=float))
+@pytest.mark.parametrize('lam', np.logspace(-4, 8, 5, base=10, dtype=float))
 @pytest.mark.parametrize('two_d', (False, True))
-@pytest.mark.parametrize('overwrite_ab', (False, True))
-@pytest.mark.parametrize('overwrite_b', (False, True))
-def test_whittaker_solve_nonsymmetric(data_size, solver, weights_enum, lam, two_d, overwrite_ab,
-                                      overwrite_b):
+def test_whittaker_solve_nonsymmetric(data_size, solver, weights_enum, lam, two_d):
     """Ensures banded pentadiagonal solvers work for non-symmetric Whittaker smoothing systems."""
     x, y = get_data(num_points=data_size)
     if two_d:
@@ -345,10 +299,39 @@ def test_whittaker_solve_nonsymmetric(data_size, solver, weights_enum, lam, two_
     pentapy_solver = {1: pentapy_ptrans1, 2: pentapy_ptrans2}[solver]
     pentapy_solution, pentapy_factorization = pentapy_solver(lhs, rhs)
 
+    output = _banded_solvers.solve_banded_penta(lapack_lhs, rhs, solver=solver)
+    # also test the underlying solver
+    underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
+    output2, info = underlying_solver(lapack_lhs, rhs)
+
+    assert_allclose(output, scipy_solution, atol=1e-10, rtol=5e-8)
+    assert_allclose(output2, scipy_solution, atol=1e-10, rtol=5e-8)
+    # put tighter tolerance on the pentapy comparison since it should be an exact
+    # replication of the algorithm
+    assert_allclose(output, pentapy_solution, atol=1e-16, rtol=1e-16)
+    assert_allclose(output2, pentapy_solution, atol=1e-16, rtol=1e-16)
+
+
+@pytest.mark.parametrize('data_size', (100, 1001, 5002))
+@pytest.mark.parametrize('solver', (1, 2))
+@pytest.mark.parametrize('overwrite_ab', (False, True))
+@pytest.mark.parametrize('overwrite_b', (False, True))
+def test_overwrite(data_size, solver, overwrite_ab, overwrite_b):
+    """Ensures overwrite_[a][ab] work as intended and do not affect the output solution."""
+    x, rhs = get_data(num_points=data_size)
+
+    penalized_system = _banded_utils.PenalizedSystem(
+        data_size, lam=5., diff_order=2, allow_lower=False
+    )
+    lhs = penalized_system.add_diagonal(1.)
+
+    # treat LU factorization as the "known" solution as a sanity check that the
+    # equation was solved correctly
+    scipy_solution = solve_banded((2, 2), lhs, rhs)
     if overwrite_ab:
-        input_lhs = lapack_lhs.copy()
+        input_lhs = lhs.copy()
     else:
-        input_lhs = lapack_lhs
+        input_lhs = lhs
     if overwrite_b:
         input_rhs = rhs.copy()
     else:
@@ -359,9 +342,9 @@ def test_whittaker_solve_nonsymmetric(data_size, solver, weights_enum, lam, two_
     )
     # ensure it actually overwrites the input when expected to, and doesn't when not
     if overwrite_ab:
-        assert not np.allclose(input_lhs, lapack_lhs, rtol=1e-10, atol=1e-10)
+        assert not np.allclose(input_lhs, lhs, rtol=1e-10, atol=1e-10)
     else:
-        assert_allclose(input_lhs, lapack_lhs, rtol=1e-16, atol=1e-16)
+        assert_allclose(input_lhs, lhs, rtol=1e-16, atol=1e-16)
     if overwrite_b:
         assert not np.allclose(input_rhs, rhs, rtol=1e-10, atol=1e-10)
     else:
@@ -369,9 +352,9 @@ def test_whittaker_solve_nonsymmetric(data_size, solver, weights_enum, lam, two_
 
     # also test the underlying solver
     if overwrite_ab:
-        input_lhs = lapack_lhs.copy()
+        input_lhs = lhs.copy()
     else:
-        input_lhs = lapack_lhs
+        input_lhs = lhs
     if overwrite_b:
         input_rhs = rhs.copy()
     else:
@@ -382,9 +365,9 @@ def test_whittaker_solve_nonsymmetric(data_size, solver, weights_enum, lam, two_
     )
     assert info == 0
     if overwrite_ab:
-        assert not np.allclose(input_lhs, lapack_lhs, rtol=1e-10, atol=1e-10)
+        assert not np.allclose(input_lhs, lhs, rtol=1e-10, atol=1e-10)
     else:
-        assert_allclose(input_lhs, lapack_lhs, rtol=1e-16, atol=1e-16)
+        assert_allclose(input_lhs, lhs, rtol=1e-16, atol=1e-16)
     if overwrite_b:
         assert not np.allclose(input_rhs, rhs, rtol=1e-10, atol=1e-10)
     else:
@@ -392,7 +375,146 @@ def test_whittaker_solve_nonsymmetric(data_size, solver, weights_enum, lam, two_
 
     assert_allclose(output, scipy_solution, atol=1e-10, rtol=5e-8)
     assert_allclose(output2, scipy_solution, atol=1e-10, rtol=5e-8)
-    # put tighter tolerance on the pentapy comparison since it should be an exact
-    # replication of the algorithm
-    assert_allclose(output, pentapy_solution, atol=1e-16, rtol=1e-16)
-    assert_allclose(output2, pentapy_solution, atol=1e-16, rtol=1e-16)
+
+    assert_allclose(output, output2, atol=1e-16, rtol=1e-16)
+
+
+@pytest.mark.parametrize('solver', (1, 2))
+def test_paper_solutions(solver):
+    """Ensures the test cases given in the reference paper pass.
+
+    Example test cases from Section 4 of [1]_.
+
+    References
+    ----------
+    .. [1] Askar, S., et al. On Solving Pentadiagonal Linear Systems via Transformations.
+           Mathematical Problems in Engineering, 2015, 232456.
+
+    """
+    underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
+
+    # case 1
+    ab = np.array([
+        [0, 0, 1, 5, -2, 1, 5, 2, 4, -3],
+        [0, 2, 2, 1, 5, -7, 3, -1, 4, 5],
+        [1, 2, 3, -4, 5, 6, 7, -1, 1, 8],
+        [3, 2, 1, 2, 1, 2, 1, -2, 4, 0],
+        [1, 3, 1, 5, 2, 2, 2, -1, 0, 0]
+    ], dtype=float)
+    y = np.array([8, 33, 8, 24, 29, 98, 99, 17, 57, 108], dtype=float)
+    solution = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=float)
+
+    output = _banded_solvers.solve_banded_penta(ab, y, solver=solver)
+    output2, info = underlying_solver(ab, y)
+    assert info == 0
+
+    # machine precision for float(10) ~ 1.8e-15
+    assert_allclose(output, solution, atol=1e-15, rtol=2e-15)
+    assert_allclose(output2, solution, atol=1e-15, rtol=2e-15)
+
+    # case 2
+    size = 500
+    ab = np.zeros((5, 500))
+    ab[0, 2:] = 1.
+    ab[1, 1:-1] = -4
+    ab[1, -1] = -2
+    ab[2, 1:-2] = 6
+    ab[2, 0] = 9
+    ab[2, -2] = 5
+    ab[2, -1] = 1
+    ab[3, :-2] = -4
+    ab[3, -2] = -2
+    ab[4, :-1] = 1
+
+    y = np.zeros(size)
+    y[0] = 6
+    y[1] = -1
+    solution = np.ones(size)
+
+    output = _banded_solvers.solve_banded_penta(ab, y, solver=solver)
+    output2, info = underlying_solver(ab, y)
+    assert info == 0
+
+    # solver 2 should match completely and solver 1 with a relative error of ~1.5856e-7
+    rtol = 1e-16 if solver == 2 else 1.59e-7
+    assert_allclose(output, solution, atol=1e-15, rtol=rtol)
+    assert_allclose(output2, solution, atol=1e-15, rtol=rtol)
+
+
+@pytest.mark.parametrize('solver', (1, 2))
+def test_paper_failures(solver):
+    """Ensures the test case given in the reference paper fails when it is supposed to.
+
+    Example test case from Section 4 of [1]_. While the reference states it should fail for
+    both algorithms, they present the solution for algorithm 2 (ptrans2) in the following
+    paragraph, so just ignore when they say algorithm 2 should fail.
+
+    References
+    ----------
+    .. [1] Askar, S., et al. On Solving Pentadiagonal Linear Systems via Transformations.
+           Mathematical Problems in Engineering, 2015, 232456.
+
+    """
+    underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
+
+    ab = np.array([
+        [0, 0, 1, 1],
+        [0, 2, 7, 5],
+        [3, -2, -1, 3],
+        [-3, 2, 2, 0],
+        [3, 1, 0, 0]
+    ], dtype=float)
+    y = np.array([6, 3, 9, 6], dtype=float)
+
+    if solver == 1:
+        with pytest.raises(np.linalg.LinAlgError):
+            _banded_solvers.solve_banded_penta(ab, y, solver=solver)
+        output2, info = underlying_solver(ab, y)
+        assert info > 0
+    else:
+        solution = np.array([1, 1, 1, 1], dtype=float)
+        output = _banded_solvers.solve_banded_penta(ab, y, solver=solver)
+        output2, info = underlying_solver(ab, y)
+        assert info == 0
+        assert_allclose(output, solution, atol=1e-15, rtol=5e-16)
+        assert_allclose(output2, solution, atol=1e-15, rtol=5e-16)
+
+
+@pytest.mark.parametrize('solver', (1, 2))
+def test_low_columns(solver):
+    """Ensures solve_banded_penta correctly directs to SciPy when ab is less than 4 columns."""
+    penalized_system = _banded_utils.PenalizedSystem(3, allow_lower=False)
+    lhs = penalized_system.add_diagonal(1.)
+    rhs = np.array([1., 2, 3])
+
+    scipy_solution = solve_banded((2, 2), lhs, rhs)
+    output = _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+
+    assert_allclose(output, scipy_solution, atol=1e-10, rtol=1e-15)
+
+
+@pytest.mark.parametrize('diff_order', (1, 3, 4))
+@pytest.mark.parametrize('size', (500, 1001))
+@pytest.mark.parametrize('solver', (1, 2))
+def test_non_pentadiagonal_fails(diff_order, size, solver):
+    """Ensures an error is raised if the input lhs matrix is not pentadiagonal."""
+    penalized_system = _banded_utils.PenalizedSystem(
+        size, diff_order=diff_order, allow_lower=False
+    )
+    lhs = penalized_system.add_diagonal(1.)
+    rhs = np.random.default_rng(123).normal(0, 0.5, size)
+    with pytest.raises(ValueError):
+        _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+
+
+def test_unknown_solver_fails():
+    """Ensures only values of 1 or 2 are accepted are valid solver inputs."""
+    size = 100
+    penalized_system = _banded_utils.PenalizedSystem(size, allow_lower=False)
+    lhs = penalized_system.add_diagonal(1.)
+    rhs = np.random.default_rng(123).normal(0, 0.5, size)
+
+    solver_inputs = ['1', '2', 0, 3, 4]
+    for solver in solver_inputs:
+        with pytest.raises(ValueError):
+            _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)

@@ -378,9 +378,9 @@ def solve_banded_penta(ab, b, solver=1, overwrite_ab=False, overwrite_b=False):
         :func:`scipy.linalg.solve_banded`).
     b : numpy.ndarray, shape (M,) or (M, N)
         The right-hand side of the equation.
-    solver : {1, 2}
-        The solver to use. 1 designates the PTRANS-I algorithm from [1]_, and 2 designates
-        the PTRANS-II algorithm from [1]_.
+    solver : {1, 2}, optional
+        The solver to use. 1 (default) designates the PTRANS-I algorithm from [1]_, and 2
+        designates the PTRANS-II algorithm from [1]_.
     overwrite_ab : bool, optional
         Whether to overwrite `ab` when solving. Default is False.
     overwrite_b : bool, optional
@@ -394,7 +394,8 @@ def solve_banded_penta(ab, b, solver=1, overwrite_ab=False, overwrite_b=False):
     Raises
     ------
     ValueError
-        Raised if `ab` has less than 3 columns or if `ab` does not have 5 rows.
+        Raised if `ab` has less than 3 columns or if `ab` does not have 5 rows. Also
+        raised if `solver` is not 1 or 2.
     numpy.linalg.LinAlgError
         Raised if `ab` is singular.
 
@@ -412,7 +413,9 @@ def solve_banded_penta(ab, b, solver=1, overwrite_ab=False, overwrite_b=False):
     rows, columns = ab.shape
     if rows != 5:
         raise ValueError('ab matrix must have 5 rows')
-    if columns < 4:
+    elif solver not in (1, 2):
+        raise ValueError(f'solver must be 1 or 2, but instead was {solver}')
+    elif columns < 4:
         # solvers always directly access first 4 columns, so use solve_banded instead
         return solve_banded(
             (2, 2), lhs, rhs, overwrite_ab=overwrite_ab, overwrite_b=overwrite_b,
