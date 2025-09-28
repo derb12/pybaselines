@@ -58,3 +58,21 @@ A simple example is shown below.
 
     plt.legend()
     plt.show()
+
+
+As noted above, in addition to returning the calculated baseline, all methods also
+output a dictionary of potentially useful parameters from within the method, somewhat
+similar to the :class:`~scipy.optimize.OptimizeResult` provided by the various functions
+in SciPy's :mod:`~scipy.optimize` module. Examples of items within the output parameters include
+the final calculated weights for iteratively reweighted methods, the calculated tolerance
+at each iteration for iterative methods, and internally calculated values like the denoised
+signal in the case of the :meth:`~.Baseline.beads` method.
+:ref:`Several <sphx_glr_generated_examples_general_plot_algorithm_convergence.py>`
+:ref:`examples <sphx_glr_generated_examples_general_plot_masked_data.py>`
+:ref:`are <sphx_glr_generated_examples_general_plot_warm_start.py>`
+:ref:`given <sphx_glr_generated_examples_classification_plot_classifier_masks.py>`
+to show how to make use of these various output parameters.
+
+Having these parameters available also allows extending the underlying baseline correction
+algorithm for new functionality or optimization, and is the basis of most
+:doc:`optimizer-type methods <algorithms/algorithms_1d/optimizers>` in pybaselines.

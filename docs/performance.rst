@@ -10,13 +10,22 @@ reuse the same :class:`~.Baseline` object rather than creating a new ``Baseline`
 method call since much of the setup only needs to be done once and can be reused otherwise, as
 shown in :ref:`this example <sphx_glr_generated_examples_general_plot_reuse_baseline.py>`.
 
+For methods that perform iterative reweighting, which includes
+:doc:`Whittaker smoothing methods <algorithms/algorithms_1d/whittaker>`, most
+:doc:`spline methods <algorithms/algorithms_1d/spline>`, :meth:`~.Baseline.loess` and
+:meth:`~.Baseline.quant_reg`, if the peaks within a dataset have the same general position,
+then the weights from a previous fit can be used to provide a warm-start for the next
+calculation, which improves the convergence rate as shown in
+:ref:`this example <sphx_glr_generated_examples_general_plot_warm_start.py>`.
+
 For methods that require a ``half_window`` parameter, such as
 :doc:`morphological <algorithms/algorithms_1d/morphological>` and
 :doc:`smoothing <algorithms/algorithms_1d/smooth>` algorithms, the ``half_window`` is estimated using
 the :func:`~.estimate_window` function if no ``half_window`` value is given, which can significantly increase
 computation time when fitting multiple datasets. If all data have similar peak widths, it would be much
 faster to either specify the ``half_window`` value or use :func:`~.estimate_window` on a single set of data
-and then use the output ``half_window`` value for all subsequent baseline fits for the dataset.
+and then use the output ``half_window`` value in the parameter dictionary for all subsequent
+baseline fits for the dataset.
 
 For fitting datasets that are quite large (>~ 5,000 individual spectra/diffractograms), users
 can opt to use multiprocessing or, potentially, threading to reduce the computation time. These
@@ -55,7 +64,7 @@ In pybaselines versions earlier than 1.2.0, the :meth:`~.Baseline.loess` method 
 when used with multiprocessing on POSIX systems, since ``loess`` spawned its own internal threads
 and conflicted with the ``fork`` method of spawning processes (the default method of spawning processes
 on non-macOS POSIX systems prior to Python version 3.14). To work around this, the process start method
-simply needs to be explicitly set to ``spawn`` instead when using ``loess``. The above example would be
+needs to be explicitly set to ``spawn`` instead when using ``loess``. The above example would be
 modified like so:
 
 
@@ -75,7 +84,7 @@ build of CPython (see https://py-free-threading.github.io/ for more information)
 multithreading through the standard library `threading <https://docs.python.org/3/library/threading.html>`_
 module to decrease computation time. In CPython versions earlier than 3.13, or for non-free-threaded
 CPython builds, it is not recommended to use multithreading with pybaselines since most operations
-within pybaselines do not release the GIL.
+within pybaselines do not release the global interpreter lock (GIL).
 
 If using pybaselines version 1.2.0 or later, :class:`~.Baseline` and :class:`~.Baseline2D` objects are
 thread-safe, so the same object can be used for all threads. An example use case is shown below.
@@ -101,8 +110,8 @@ thread-safe, so the same object can be used for all threads. An example use case
                 baselines[i] = baseline
 
 
-Note that thread-safety is only guaranteed if non-data inputs (eg. ``lam``, ``poly_order``,
-``half_window``, etc.) are the same for all method calls. Otherwise, race conditions are likely
+Note that thread-safety is only guaranteed if non-data inputs (eg. ``poly_order``, ``spline_degree``,
+``num_knots``, etc.) are the same for all method calls. Otherwise, race conditions are likely
 (and threading is likely not a good choice for the user in the first place...).
 
 In pybaselines versions earlier than 1.2.0, several methods of :class:`~.Baseline` and :class:`~.Baseline2D`
