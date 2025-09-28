@@ -132,7 +132,7 @@ The only algorithm in pybaselines that requires using selective masking is
 above. However, all other polynomial techniques allow inputting custom weights
 in order to get better fits or to reduce the number of iterations.
 
-The use of selective masking is generally not encouraged since it is time consuming
+The use of manual selective masking is generally not encouraged since it is time consuming
 to select the peak and non-peak regions in each set of data, and can lead to hard
 to reproduce results.
 

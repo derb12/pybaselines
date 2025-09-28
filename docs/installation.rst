@@ -74,7 +74,7 @@ Development Version
 ~~~~~~~~~~~~~~~~~~~
 
 The sources for pybaselines can be downloaded from the
-`GitHub repo <https://github.com/derb12/pybaselines>`_.
+`GitHub repository <https://github.com/derb12/pybaselines>`_.
 
 To directly install the current version of pybaselines from GitHub,
 ensure `git <https://git-scm.com>`_ is installed and then run:

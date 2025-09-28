@@ -30,7 +30,7 @@ Pull Requests
 Pull requests are welcomed for this project. Generally, it is preferred to file an issue first,
 so that details can be discussed/finalized before a pull request is created.
 
-Any new code or documentation must be able to be covered by the BSD-3-clause license
+Any new code or documentation must be able to be covered by the BSD-3-Clause license
 used by pybaselines.
 
 When submitting a pull request, follow similar procedures for a feature request, namely:

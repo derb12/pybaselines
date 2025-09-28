@@ -14,7 +14,7 @@ adjusting for each family of algorithms within pybaselines:
 
   * ``poly_order`` controls the curvature of the baseline.
 
-* Whittaker-smoothing-based methods
+* Whittaker-smoothing methods
 
   * ``lam`` controls the curvature of the baseline. See
     :ref:`this example <sphx_glr_generated_examples_whittaker_plot_lam_effects.py>`
@@ -34,7 +34,7 @@ adjusting for each family of algorithms within pybaselines:
     :ref:`Whittaker example <sphx_glr_generated_examples_whittaker_plot_lam_effects.py>`
     also generally applies to spline methods.
 
-* Smoothing-based methods
+* Smoothing methods
 
   * ``half_window`` controls the general fit of the baseline. The
     :ref:`Morphological example <sphx_glr_generated_examples_morphological_plot_half_window_effects.py>`

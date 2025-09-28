@@ -183,7 +183,8 @@ asls (Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The :meth:`~.Baseline.asls` (sometimes called "ALS" in literature) function is the
-original implementation of Whittaker smoothing for baseline fitting.
+original implementation of Whittaker smoothing for baseline fitting. It uses a binary
+weighting scheme to classify points as either peaks or baseline.
 
 Minimized function:
 

@@ -3,9 +3,9 @@ Algorithms
 ==========
 
 The currently available baseline correction algorithms in pybaselines can broadly be categorized
-as polynomial, Whittaker, morphological, smooth, spline, classification, optimizers,
-and miscellaneous (misc) methods. Note that this is simply for grouping code and helping to
-explain the internals of this library and **NOT** meant as a hard-classification of the
+as polynomial, Whittaker smoothing, morphological, (moving window) smoothing, spline, classification,
+optimizer, and miscellaneous (misc) methods. Note that this categorization is simply for grouping code
+and helping to explain the internals of this library and **NOT** meant as a hard-classification of the
 field of baseline correction. In reality, many algorithms overlap into several categories,
 and there are numerous different methods not implemented in pybaselines that do not fit in
 any of those categories, which is why baseline correction in general is such an absolutely
