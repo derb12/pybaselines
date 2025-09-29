@@ -17,16 +17,6 @@ import pytest
 import pybaselines
 
 
-try:
-    import pentapy  # noqa
-except ImportError:
-    _HAS_PENTAPY = False
-else:
-    _HAS_PENTAPY = True
-
-has_pentapy = pytest.mark.skipif(not _HAS_PENTAPY, reason='pentapy is not installed')
-
-
 def ensure_deprecation(deprecation_major, deprecation_minor):
     """Decorator to ensure deprecations are performed as scheduled.
 

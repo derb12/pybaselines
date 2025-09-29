@@ -16,8 +16,6 @@ from scipy.sparse.linalg import spsolve
 from pybaselines import _banded_utils, _spline_utils
 from pybaselines._compat import dia_object, diags, identity
 
-from .base_tests import has_pentapy
-
 
 @pytest.mark.parametrize('data_size', (10, 1001))
 @pytest.mark.parametrize('lower_only', (True, False))
@@ -448,7 +446,7 @@ def test_difference_matrix_formats(form):
 
 
 def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
-                           allow_lower, reverse_diags, padding, using_pentapy, data_size):
+                           allow_lower, reverse_diags, padding, using_penta, data_size):
     """Tests a PenalizedSystem object with the expected values."""
     expected_padded_penalty = lam * _banded_utils._pad_diagonals(
         expected_penalty, padding, lower_only=allow_lower
@@ -461,7 +459,7 @@ def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.lower == allow_lower
     assert penalized_system.diff_order == diff_order
     assert penalized_system.num_bands == diff_order + max(0, padding)
-    assert penalized_system.using_pentapy == using_pentapy
+    assert penalized_system.using_penta == using_penta
     assert_allclose(
         penalized_system.main_diagonal,
         penalized_system.penalty[penalized_system.main_diagonal_index], rtol=1e-12, atol=1e-12
@@ -490,7 +488,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
     Also tests the `reset_diagonals` method of the object, which should try to
     reuse the diagonals whenever possible but will otherwise re-setup the object.
 
-    Since `allow_pentapy` is set to False, the `lower` attribute of the
+    Since `allow_penta` is set to False, the `lower` attribute of the
     PenalizedSystem will always equal the input `allow_lower`.
 
     """
@@ -502,7 +500,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         with pytest.raises(ValueError):
             _banded_utils.PenalizedSystem(
                 data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-                reverse_diags=reverse_diags, allow_pentapy=False
+                reverse_diags=reverse_diags, allow_penta=False
             )
         return
 
@@ -513,14 +511,14 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         expected_penalty = expected_penalty[::-1]
 
     initial_system = _banded_utils.PenalizedSystem(
-        data_size, lam=1, diff_order=0, allow_pentapy=False
+        data_size, lam=1, diff_order=0, allow_penta=False
     )
     assert initial_system._num_bases == data_size
 
     for padding in range(-1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
             data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-            reverse_diags=reverse_diags, allow_pentapy=False, padding=padding
+            reverse_diags=reverse_diags, allow_penta=False, padding=padding
         )
         check_penalized_system(
             penalized_system, expected_penalty, lam, diff_order, allow_lower,
@@ -529,7 +527,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         # also check that the reset_diagonal method performs similarly
         initial_system.reset_diagonals(
             lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-            reverse_diags=reverse_diags, allow_pentapy=False, padding=padding
+            reverse_diags=reverse_diags, allow_penta=False, padding=padding
         )
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, allow_lower,
@@ -540,7 +538,7 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         for new_lam in (2.5, 12):
             initial_system.reset_diagonals(
                 lam=new_lam, diff_order=diff_order, allow_lower=allow_lower,
-                reverse_diags=reverse_diags, allow_pentapy=False, padding=padding
+                reverse_diags=reverse_diags, allow_penta=False, padding=padding
             )
             check_penalized_system(
                 initial_system, expected_penalty, new_lam, diff_order, allow_lower,
@@ -553,12 +551,12 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
 @pytest.mark.parametrize('reverse_diags', (True, False))
 def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_diags):
     """
-    Tests the setup of a PenalizedSystem object when `allow_pentapy` is True.
+    Tests the setup of a PenalizedSystem object when `allow_penta` is True.
 
     Also tests the `reset_diagonals` method of the object, which should try to
     reuse the diagonals whenever possible but will otherwise re-setup the object.
 
-    Since `allow_pentapy` is set to True, the `lower` attribute of the
+    Since `allow_penta` is set to True, the `lower` attribute of the
     PenalizedSystem will equal the input `allow_lower` if `diff_order` is not 2, otherwise
     it will be False.
 
@@ -575,7 +573,7 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
         with pytest.raises(ValueError):
             _banded_utils.PenalizedSystem(
                 data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-                reverse_diags=reverse_diags, allow_pentapy=True
+                reverse_diags=reverse_diags, allow_penta=True
             )
         return
 
@@ -586,38 +584,38 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
         expected_penalty = expected_penalty[::-1]
 
     initial_system = _banded_utils.PenalizedSystem(
-        data_size, lam=1, diff_order=0, allow_pentapy=True
+        data_size, lam=1, diff_order=0, allow_penta=True
     )
     assert initial_system._num_bases == data_size
 
     for padding in range(-1, 3):
-        # mock having numba so the solver is used if allow_pentapy is True even if numba is not
+        # mock having numba so the solver is used if allow_penta is True even if numba is not
         # installed
         with mock.patch.object(_banded_utils, '_HAS_NUMBA', True):
             penalized_system = _banded_utils.PenalizedSystem(
                 data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-                reverse_diags=reverse_diags, allow_pentapy=True, padding=padding
+                reverse_diags=reverse_diags, allow_penta=True, padding=padding
             )
         check_penalized_system(
             penalized_system, expected_penalty, lam, diff_order, actual_lower,
-            reverse_diags, padding, using_pentapy=diff_order == 2, data_size=data_size
+            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size
         )
         # also check that the reset_diagonal method performs similarly
         with mock.patch.object(_banded_utils, '_HAS_NUMBA', True):
             initial_system.reset_diagonals(
                 lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-                reverse_diags=reverse_diags, allow_pentapy=True, padding=padding
+                reverse_diags=reverse_diags, allow_penta=True, padding=padding
             )
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, actual_lower,
-            reverse_diags, padding, using_pentapy=diff_order == 2, data_size=data_size
+            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size
         )
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('allow_pentapy', (True, False))
-def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_pentapy):
+@pytest.mark.parametrize('allow_penta', (True, False))
+def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_penta):
     """
     Tests the solve method of a PenalizedSystem object.
 
@@ -639,7 +637,7 @@ def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_pen
 
     penalized_system = _banded_utils.PenalizedSystem(
         data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-        reverse_diags=False, allow_pentapy=allow_pentapy
+        reverse_diags=False, allow_penta=allow_penta
     )
     penalized_system.penalty[penalized_system.main_diagonal_index] += 1
     output = penalized_system.solve(penalized_system.penalty, y)
@@ -649,8 +647,8 @@ def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_pen
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('allow_pentapy', (True, False))
-def test_whittaker_lam_extremes(data_fixture, diff_order, allow_lower, allow_pentapy):
+@pytest.mark.parametrize('allow_penta', (True, False))
+def test_whittaker_lam_extremes(data_fixture, diff_order, allow_lower, allow_penta):
     """
     Tests the result of Whittaker smoothing for high and low limits of ``lam``.
 
@@ -669,7 +667,7 @@ def test_whittaker_lam_extremes(data_fixture, diff_order, allow_lower, allow_pen
 
     penalized_system = _banded_utils.PenalizedSystem(
         data_size, lam=1e13, diff_order=diff_order, allow_lower=allow_lower,
-        allow_pentapy=allow_pentapy
+        allow_penta=allow_penta
     )
     output = penalized_system.solve(penalized_system.add_diagonal(1.), y)
 
@@ -683,7 +681,7 @@ def test_whittaker_lam_extremes(data_fixture, diff_order, allow_lower, allow_pen
     # for lam ~ 0, should just approximate the input
     penalized_system2 = _banded_utils.PenalizedSystem(
         data_size, lam=1e-8, diff_order=diff_order, allow_lower=allow_lower,
-        reverse_diags=None, allow_pentapy=allow_pentapy
+        reverse_diags=None, allow_penta=allow_penta
     )
     output2 = penalized_system.solve(penalized_system2.add_diagonal(1.), y)
     assert_allclose(output2, y, rtol=1e-8, atol=1e-10)
@@ -695,7 +693,7 @@ def test_penalized_system_add_penalty(diff_order, allow_lower):
     """
     Tests adding a penalty to a PenalizedSystem.
 
-    Sets `allow_pentapy` to False so that the input `allow_lower` is always equal
+    Sets `allow_penta` to False so that the input `allow_lower` is always equal
     to the resulting `lower` attribute of the PenalizedSystem.
 
     """
@@ -709,7 +707,7 @@ def test_penalized_system_add_penalty(diff_order, allow_lower):
     for penalty_size in range(diff_order, diff_order + 5, 2):
         penalized_system = _banded_utils.PenalizedSystem(
             data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-            allow_pentapy=False
+            allow_penta=False
         )
         if allow_lower:
             additional_penalty = np.ones((penalty_size, data_size))
@@ -740,7 +738,7 @@ def test_penalized_system_reverse_penalty(allow_lower, reverse_diags):
     Ensures the reverse_penalty method performs as expected.
 
     Should raise an exception if the penalty is lower only, otherwise should
-    work as expected. Using pentapy is set to False so that the penalized
+    work as expected. Using penta is set to False so that the penalized
     system's lower attribute is the same as the input allow_lower value.
 
     """
@@ -748,12 +746,12 @@ def test_penalized_system_reverse_penalty(allow_lower, reverse_diags):
         # this configuration should never be used
         with pytest.raises(ValueError):
             _banded_utils.PenalizedSystem(
-                10, allow_lower=allow_lower, reverse_diags=reverse_diags, allow_pentapy=False
+                10, allow_lower=allow_lower, reverse_diags=reverse_diags, allow_penta=False
             )
         return
 
     penalized_system = _banded_utils.PenalizedSystem(
-        10, allow_lower=allow_lower, reverse_diags=reverse_diags, allow_pentapy=False
+        10, allow_lower=allow_lower, reverse_diags=reverse_diags, allow_penta=False
     )
     if allow_lower:
         with pytest.raises(ValueError):
@@ -773,8 +771,8 @@ def test_penalized_system_reverse_penalty(allow_lower, reverse_diags):
 @pytest.mark.parametrize('data_size', (100, 501))
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('allow_pentapy', (True, False))
-def test_penalized_system_add_diagonal(data_size, diff_order, allow_lower, allow_pentapy):
+@pytest.mark.parametrize('allow_penta', (True, False))
+def test_penalized_system_add_diagonal(data_size, diff_order, allow_lower, allow_penta):
     """Tests adding a diagonal to a PenalizedSystem."""
     lam = 5
     diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
@@ -782,7 +780,7 @@ def test_penalized_system_add_diagonal(data_size, diff_order, allow_lower, allow
 
     penalized_system = _banded_utils.PenalizedSystem(
         data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-        allow_pentapy=allow_pentapy
+        allow_penta=allow_penta
     )
 
     # do two repetitions to ensure main diagonal attribute is not changed
@@ -806,9 +804,9 @@ def test_penalized_system_add_diagonal(data_size, diff_order, allow_lower, allow
 @pytest.mark.parametrize('data_size', (100, 501))
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('allow_pentapy', (True, False))
+@pytest.mark.parametrize('allow_penta', (True, False))
 def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allow_lower,
-                                                     allow_pentapy):
+                                                     allow_penta):
     """Tests adding a diagonal after adding a penalty to a PenalizedSystem."""
     lam = 5
     diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
@@ -817,7 +815,7 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
     for penalty_order in range(1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
             data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-            allow_pentapy=allow_pentapy
+            allow_penta=allow_penta
         )
 
         additional_penalty = _banded_utils.diff_penalty_diagonals(

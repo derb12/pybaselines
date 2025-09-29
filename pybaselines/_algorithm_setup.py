@@ -183,9 +183,9 @@ class _Algorithm:
             raise ValueError('banded_solver must be an integer with a value in (1, 2, 3, 4)')
         self._banded_solver = solver
         if solver < 3:
-            self._pentapy_solver = solver
+            self._penta_solver = solver
         else:
-            self._pentapy_solver = 1  # default value
+            self._penta_solver = 2  # default value
 
     @property
     def pentapy_solver(self):
@@ -202,7 +202,7 @@ class _Algorithm:
              'version 1.4; use the `banded_solver` attribute instead'),
             DeprecationWarning, stacklevel=2
         )
-        return self._pentapy_solver
+        return self._penta_solver
 
     @pentapy_solver.setter
     def pentapy_solver(self, value):
@@ -434,11 +434,11 @@ class _Algorithm:
             weight_array = weight_array[self._sort_order]
 
         allow_lower = allow_lower and self.banded_solver < 4
-        allow_pentapy = self.banded_solver < 3
+        allow_penta = self.banded_solver < 3
 
         whittaker_system = PenalizedSystem(
-            self._size, lam, diff_order, allow_lower, reverse_diags, allow_pentapy=allow_pentapy,
-            pentapy_solver=self._pentapy_solver
+            self._size, lam, diff_order, allow_lower, reverse_diags, allow_penta=allow_penta,
+            penta_solver=self._penta_solver
         )
 
         return y, weight_array, whittaker_system

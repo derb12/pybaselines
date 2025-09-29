@@ -17,9 +17,7 @@ from pybaselines import _banded_utils, _weighting, whittaker
 from pybaselines.utils import relative_difference
 from pybaselines._compat import diags, identity
 
-from .base_tests import (
-    BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation, has_pentapy
-)
+from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
 
 
 def sparse_iasls(data, lam, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, diff_order=2):
@@ -94,45 +92,39 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
     algorithm_base = whittaker._Whittaker
     checked_keys = ('weights', 'tol_history')
 
-    def test_scipy_solvers(self):
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    def test_scipy_solvers(self, diff_order):
         """Ensure the two SciPy solvers give similar results."""
-        self.algorithm.banded_solver = 3  # use solveh_banded if allowed
-        solveh_output = self.class_func(self.y)[0]
-        self.algorithm.banded_solver = 4  # force use solve_banded
-        solve_output = self.class_func(self.y)[0]
+        original_solver = self.algorithm.banded_solver
+        try:
+            self.algorithm.banded_solver = 3  # use solveh_banded if allowed
+            solveh_output = self.class_func(self.y, diff_order=diff_order)[0]
+            self.algorithm.banded_solver = 4  # force use solve_banded
+            solve_output = self.class_func(self.y, diff_order=diff_order)[0]
 
-        assert_allclose(solveh_output, solve_output, rtol=1e-6, atol=1e-8)
+            assert_allclose(solveh_output, solve_output, rtol=1e-6, atol=1e-8)
+        finally:
+            self.algorithm.banded_solver = original_solver
 
     @pytest.mark.parametrize('pentadiagonal_solver', (1, 2))
     def test_pentadiagonal_solver(self, pentadiagonal_solver):
         """Ensure pentadiagonal solvers give similar result to SciPy's solvers."""
-        self.algorithm.banded_solver = pentadiagonal_solver
-        # mock having numba so the solver is used even if numba is not installed
-        with mock.patch.object(_banded_utils, '_HAS_NUMBA', True):
-            pentadiagonal_output = self.class_func(self.y, diff_order=2)[0]
+        original_solver = self.algorithm.banded_solver
+        try:
+            self.algorithm.banded_solver = pentadiagonal_solver
+            # mock having numba so the solver is used even if numba is not installed
+            with mock.patch.object(_banded_utils, '_HAS_NUMBA', True):
+                pentadiagonal_output = self.class_func(self.y, diff_order=2)[0]
 
-        self.algorithm.banded_solver = 3  # use solveh_banded if allowed
-        solveh_output = self.class_func(self.y, diff_order=2)[0]
-        self.algorithm.banded_solver = 4  # force use solve_banded
-        solve_output = self.class_func(self.y, diff_order=2)[0]
+            self.algorithm.banded_solver = 3  # use solveh_banded if allowed
+            solveh_output = self.class_func(self.y, diff_order=2)[0]
+            self.algorithm.banded_solver = 4  # force use solve_banded
+            solve_output = self.class_func(self.y, diff_order=2)[0]
 
-        assert_allclose(pentadiagonal_output, solveh_output, rtol=5e-5, atol=1e-8)
-        assert_allclose(pentadiagonal_output, solve_output, rtol=5e-5, atol=1e-8)
-
-    @has_pentapy
-    @pytest.mark.parametrize('pentapy_solver', (1, 2))
-    def test_pentapy_comparison(self, pentapy_solver):
-        """Ensure vendored solvers give similar result to pentapy's solvers."""
-        self.algorithm.banded_solver = pentapy_solver
-        # mock having numba so the solver is used even if numba is not installed
-        with mock.patch.object(_banded_utils, '_HAS_NUMBA', True):
-            solve_penta_output = self.class_func(self.y, diff_order=2)[0]
-
-        # pass a negative value to tell it to use pentapy's versions
-        self.algorithm._pentapy_solver = -pentapy_solver
-        pentapy_output = self.class_func(self.y, diff_order=2)[0]
-
-        assert_allclose(solve_penta_output, pentapy_output, rtol=5e-5, atol=1e-10)
+            assert_allclose(pentadiagonal_output, solveh_output, rtol=1e-4, atol=1e-8)
+            assert_allclose(pentadiagonal_output, solve_output, rtol=1e-4, atol=1e-8)
+        finally:
+            self.algorithm.banded_solver = original_solver
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""

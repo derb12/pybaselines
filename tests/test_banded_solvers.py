@@ -616,9 +616,9 @@ def test_low_columns(solver):
     assert_allclose(output, scipy_solution, atol=1e-10, rtol=1e-15)
 
     # the factorization should fail however
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='penta_factorize requires at least 4 columns'):
         _banded_solvers.penta_factorize(lhs, solver=solver)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='penta_factorize_solve requires at least 4 columns'):
         _banded_solvers.penta_factorize_solve(lhs, rhs, solver=solver)
 
 
@@ -632,11 +632,25 @@ def test_non_pentadiagonal_fails(diff_order, size, solver):
     )
     lhs = penalized_system.add_diagonal(1.)
     rhs = np.random.default_rng(123).normal(0, 0.5, size)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='ab matrix must have 5 rows'):
         _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='ab matrix must have 5 rows'):
         _banded_solvers.penta_factorize(lhs, solver=solver)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='ab_factorization matrix must have 5 rows'):
+        _banded_solvers.penta_factorize_solve(lhs, rhs, solver=solver)
+
+
+@pytest.mark.parametrize('solver', (1, 2))
+@pytest.mark.parametrize('size', (100, 1001))
+def test_mismatch_ab_b_fails(size, solver):
+    """Ensures an error is raised if the dimensions of the lhs and rhs do not match for solvers."""
+    penalized_system = _banded_utils.PenalizedSystem(size, allow_lower=False)
+    lhs = penalized_system.add_diagonal(1.)
+    rhs = np.random.default_rng(123).normal(0, 0.5, size - 1)
+
+    with pytest.raises(ValueError, match='shape mismatch between ab and b'):
+        _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+    with pytest.raises(ValueError, match='shape mismatch between ab_factorization and b'):
         _banded_solvers.penta_factorize_solve(lhs, rhs, solver=solver)
 
 
@@ -649,11 +663,11 @@ def test_unknown_solver_fails():
 
     solver_inputs = ['1', '2', 0, 3, 4]
     for solver in solver_inputs:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='solver must be 1 or 2'):
             _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='solver must be 1 or 2'):
             _banded_solvers.penta_factorize(lhs, solver=solver)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='solver must be 1 or 2'):
             _banded_solvers.penta_factorize_solve(lhs, rhs, solver=solver)
 
 

@@ -307,7 +307,7 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.basis.knots.shape == (num_knots + 2 * spline_degree,)
     assert isinstance(penalized_system.basis.x, np.ndarray)
     assert penalized_system.basis._x_len == len(penalized_system.basis.x)
-    assert not penalized_system.using_pentapy
+    assert not penalized_system.using_penta
     if allow_lower:
         assert penalized_system.main_diagonal_index == 0
     else:
@@ -336,7 +336,7 @@ def test_pspline_setup(data_fixture, num_knots, spline_degree, diff_order,
     """
     Ensure the PSpline setup is correct.
 
-    Since `allow_pentapy` is always False for PSpline, the `lower` attribute of the
+    Since `allow_penta` is always False for PSpline, the `lower` attribute of the
     PenalizedSystem will always equal the input `allow_lower` and the `reversed`
     attribute will be equal to the bool of the input `reverse_diags` input (ie. None
     will also be False).

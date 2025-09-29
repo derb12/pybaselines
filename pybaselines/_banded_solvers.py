@@ -863,7 +863,7 @@ def solve_banded_penta(ab, b, solver=1, overwrite_ab=False, overwrite_b=False):
     # so copies will never be made and the overwrites will always match their input
     rows, columns = ab.shape
     if rows != 5:
-        raise ValueError('ab matrix must have 5 rows')
+        raise ValueError(f'ab matrix must have 5 rows, instead had {rows} rows')
     elif solver not in (1, 2):
         raise ValueError(f'solver must be 1 or 2, but instead was {solver}')
     elif columns < 4:
@@ -920,12 +920,14 @@ def penta_factorize(ab, solver=1, overwrite_ab=False):
     lhs = np.asarray(ab, dtype=float)
     rows, columns = ab.shape
     if rows != 5:
-        raise ValueError('ab matrix must have 5 rows')
+        raise ValueError(f'ab matrix must have 5 rows, instead had {rows} rows')
     elif solver not in (1, 2):
         raise ValueError(f'solver must be 1 or 2, but instead was {solver}')
     elif columns < 4:
         # not worth doing by hand, should never come up in the context of baseline correction
-        raise ValueError('penta_factorize requires at least 4 columns to create the factorization')
+        raise ValueError(
+            f'penta_factorize requires at least 4 columns, instead had {columns} columns'
+        )
 
     func = {1: _ptrans_1_factorize, 2: _ptrans_2_factorize}[solver]
     factorization, info = func(lhs, overwrite_ab)
@@ -977,12 +979,14 @@ def penta_factorize_solve(ab_factorization, b, solver=1, overwrite_b=False):
     rhs = np.asarray(b, dtype=float)
     rows, columns = ab_factorization.shape
     if rows != 5:
-        raise ValueError('ab_factorization matrix must have 5 rows')
+        raise ValueError(f'ab_factorization matrix must have 5 rows, instead had {rows} rows')
     elif solver not in (1, 2):
         raise ValueError(f'solver must be 1 or 2, but instead was {solver}')
     elif columns < 4:
         # cannot support since penta_factorize does not allow
-        raise ValueError('penta_factorize_solve requires at least 4 columns')
+        raise ValueError(
+            f'penta_factorize_solve requires at least 4 columns, instead had {columns} columns'
+        )
     elif columns != rhs.shape[0]:
         raise ValueError(
             f'shape mismatch between ab_factorization and b, {ab_factorization.shape} vs {b.shape}'
