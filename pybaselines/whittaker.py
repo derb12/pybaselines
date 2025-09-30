@@ -318,8 +318,6 @@ class _Whittaker(_Algorithm):
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
         diff_1_diags = diff_penalty_diagonals(self._size, 1, whittaker_system.lower, 1)
-        if whittaker_system.using_pentapy:
-            diff_1_diags = diff_1_diags[::-1]
         whittaker_system.add_penalty(lambda_1 * diff_1_diags)
 
         # fast calculation of lam_1 * (D_1.T @ D_1) @ y
@@ -457,7 +455,7 @@ class _Whittaker(_Algorithm):
         for i in range(1, max_iter + 2):
             baseline = whittaker_system.solve(
                 whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True, check_output=True
+                overwrite_b=True
             )
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
                 y, baseline, i, normalize_weights
@@ -645,15 +643,13 @@ class _Whittaker(_Algorithm):
 
         diff_1_diagonals = diff_penalty_diagonals(self._size, 1, False, padding=diff_order - 1)
         whittaker_system.add_penalty(diff_1_diagonals)
-        if whittaker_system.using_pentapy:
-            whittaker_system.reverse_penalty()
 
         tol_history = np.empty(max_iter + 1)
         lower_upper_bands = (diff_order, diff_order)
         for i in range(1, max_iter + 2):
-            penalty_with_weights = diff_n_diagonals * weight_array
-            if not whittaker_system.using_pentapy:
-                penalty_with_weights = _shift_rows(penalty_with_weights, diff_order, diff_order)
+            penalty_with_weights = _shift_rows(
+                diff_n_diagonals * weight_array, diff_order, diff_order
+            )
             baseline = whittaker_system.solve(
                 whittaker_system.penalty + penalty_with_weights, weight_array * y,
                 overwrite_ab=True, overwrite_b=True, l_and_u=lower_upper_bands
@@ -841,8 +837,7 @@ class _Whittaker(_Algorithm):
         for i in range(max_iter + 1):
             lhs = whittaker_system.penalty * alpha_array
             lhs[main_diag_idx] = lhs[main_diag_idx] + weight_array
-            if not whittaker_system.using_pentapy:
-                lhs = _shift_rows(lhs, diff_order, diff_order)
+            lhs = _shift_rows(lhs, diff_order, diff_order)
             baseline = whittaker_system.solve(
                 lhs, weight_array * y, overwrite_ab=True, overwrite_b=True,
                 l_and_u=lower_upper_bands

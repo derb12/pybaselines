@@ -35,7 +35,7 @@ def algorithm():
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lam', (1, 20))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('reverse_diags', (True, False, None))
+@pytest.mark.parametrize('reverse_diags', (True, False))
 def test_setup_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
                                      allow_lower, reverse_diags):
     """Ensures output difference matrix diagonal data is in desired format."""
@@ -49,13 +49,13 @@ def test_setup_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
 
     numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
     desired_diagonals = dia_object(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
-    if allow_lower and not whittaker_system.using_pentapy:
+    if allow_lower and not whittaker_system.using_penta:
         # only include the lower diagonals
         desired_diagonals = desired_diagonals[diff_order:]
 
     # the diagonals should be in the opposite order as the diagonal matrix's data
     # if reverse_diags is False
-    if reverse_diags or (whittaker_system.using_pentapy and reverse_diags is not False):
+    if reverse_diags or (whittaker_system.using_penta and reverse_diags is not False):
         desired_diagonals = desired_diagonals[::-1]
 
     assert_allclose(whittaker_system.penalty, desired_diagonals, 1e-10)
@@ -129,12 +129,16 @@ def test_setup_whittaker_array_lam(small_data):
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('reverse_diags', (True, False, None))
+@pytest.mark.parametrize('reverse_diags', (True, False))
 def test_setup_whittaker_reset_penalized_system(small_data, algorithm, diff_order, allow_lower,
                                                 reverse_diags):
     """Ensures the whittaker_system is correctly updated when reusing."""
     if reverse_diags and allow_lower:
-        # this configuration is never used
+        # this configuration should never be used
+        with pytest.raises(ValueError):
+            _, _, whittaker_system = algorithm._setup_whittaker(
+                small_data, 1, diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
+            )
         return
 
     lam = 20.5
@@ -147,14 +151,14 @@ def test_setup_whittaker_reset_penalized_system(small_data, algorithm, diff_orde
     numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
     original_diagonals = dia_object(numpy_diff.T @ numpy_diff).data[::-1]
     desired_diagonals = lam * original_diagonals
-    if allow_lower and not whittaker_system.using_pentapy:
+    if allow_lower and not whittaker_system.using_penta:
         # only include the lower diagonals
         desired_diagonals = desired_diagonals[diff_order:]
         original_diagonals = original_diagonals[diff_order:]
 
     # the diagonals should be in the opposite order as the diagonal matrix's data
     # if reverse_diags is False
-    if reverse_diags or (whittaker_system.using_pentapy and reverse_diags is not False):
+    if reverse_diags or (whittaker_system.using_penta and reverse_diags is not False):
         desired_diagonals = desired_diagonals[::-1]
         original_diagonals = original_diagonals[::-1]
 
@@ -675,7 +679,7 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
     assert algorithm._check_finite == check_finite
     assert algorithm._dtype == output_dtype
     assert algorithm.banded_solver == 2
-    assert algorithm._pentapy_solver == 2
+    assert algorithm._penta_solver == 2
 
     if input_x:
         assert algorithm._size == len(x)
@@ -1018,14 +1022,14 @@ def test_override_x_whittaker(algorithm):
     banded_solver = 1
 
     default_banded_solver = algorithm.banded_solver
-    # sanity check that the tested pentapy_solver is not the default
+    # sanity check that the tested banded_solver is not the default
     assert banded_solver != default_banded_solver
 
     _, _, whittaker_system = algorithm._setup_whittaker(np.arange(old_len), diff_order=diff_order)
-    # whittaker_system's pentapy solver should be the default (2) since it is not coupled with
+    # whittaker_system's penta_solver should be the default (2) since it is not coupled with
     # the algorithm object
     algorithm.banded_solver = banded_solver
-    assert whittaker_system.pentapy_solver == default_banded_solver
+    assert whittaker_system.penta_solver == default_banded_solver
     # sanity check
     assert whittaker_system.diff_order == diff_order
 
@@ -1033,12 +1037,12 @@ def test_override_x_whittaker(algorithm):
     new_x = np.arange(new_len)
     new_algorithm = algorithm._override_x(new_x)
     assert new_algorithm.banded_solver == banded_solver
-    assert new_algorithm._pentapy_solver == banded_solver
+    assert new_algorithm._penta_solver == banded_solver
     _, _, new_whittaker_system = new_algorithm._setup_whittaker(
         np.arange(new_len), diff_order=new_diff_order
     )
     assert new_whittaker_system.diff_order == new_diff_order
-    assert new_whittaker_system.pentapy_solver == banded_solver
+    assert new_whittaker_system.penta_solver == banded_solver
 
 
 def test_override_x_spline(algorithm):
@@ -1077,14 +1081,14 @@ def test_deprecated_pentapy_solver(algorithm):
 
 @pytest.mark.parametrize('banded_solver', (1, 2, 3, 4))
 def test_banded_solver(algorithm, banded_solver):
-    """Ensures setting banded_solver also sets the correct pentapy_solver."""
+    """Ensures setting banded_solver also sets the correct _penta_solver."""
     if banded_solver < 3:
-        expected_pentapy_solver = banded_solver
+        expected_penta_solver = banded_solver
     else:
-        expected_pentapy_solver = 1
+        expected_penta_solver = 2
 
     algorithm.banded_solver = banded_solver
-    assert algorithm._pentapy_solver == expected_pentapy_solver
+    assert algorithm._penta_solver == expected_penta_solver
     assert algorithm.banded_solver == banded_solver
 
 

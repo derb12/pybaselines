@@ -7,19 +7,19 @@ The Whittaker-smoothing-based algorithms in pybaselines make use of
 the banded structure of the linear system to reduce the computation time.
 
 This example shows the difference in computation times of the asymmetic least squares
-(:meth:`~pybaselines.Baseline.asls`) algorithm when using the banded solver from SciPy,
-:func:`scipy.linalg.solve_banded`, and the banded solver from the optional dependency
-`pentapy <https://github.com/GeoStat-Framework/pentapy>`_. In addition, the time
-it takes when solving the system using sparse matrices rather than the banded matrices
-is compared, since direct adaptation from literature usually uses the sparse solution.
+(:meth:`~.pybaselines.Baseline.asls`) algorithm when using the banded solver from SciPy,
+:func:`scipy.linalg.solve_banded`, and a dedicated pentadiagonal banded solver derived
+from the excellent `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ package. In
+addition, the time it takes when solving the system using sparse matrices rather than the banded
+matrices is compared, since direct adaptations from literature usually use the sparse solution.
 All three of these solvers are based on LU decomposition. Since the asls algorithm results
-in a symmetric, positive-definite left-hand side of the normal equation, it can additionally
-be solved using Cholesky decomposition through the dedicated SciPy solver
+in a symmetric, positive-definite left hand side of the normal equation, it can additionally
+be solved using Thomas' algorithm through the dedicated SciPy solver
 :func:`scipy.linalg.solveh_banded`.
 
 Compared to the time required to solve using sparse matrices, SciPy's banded solvers
-are ~50-80% faster and pentapy's banded solver is ~70-90% faster, ultimately reducing
-the computation time by about an order of magnitude.
+are ~50-80% faster and the dedicated pentadiagonal banded solver is ~70-90% faster, ultimately
+reducing the computation time by about an order of magnitude.
 
 Note that the performance of solving this particular sparse system can be improved by using
 the sparse Cholesky decomposition solver
@@ -80,10 +80,10 @@ def sparse_asls(data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weig
 if __name__ == '__main__':
 
     try:
-        import pentapy  # noqa
+        import numba  # noqa
     except ImportError:
         warnings.warn(
-            'pentapy is not installed so pentapy and solveh_banded timings will be identical',
+            'numba is not installed so pentadiagonal and solveh_banded timings will be identical',
             stacklevel=2
         )
 
@@ -94,11 +94,11 @@ if __name__ == '__main__':
         'sparse',
         'solve_banded',
         'solveh_banded',
-        'pentapy',
+        'pentadiagonal'
     )
     # solver_numbers corresponds to the settings for the `banded_solver` attribute of
-    # Baseline objects for each of the solvers; pentapy could be 1 or 2
-    solver_numbers = {'solve_banded': 4, 'solveh_banded': 3, 'pentapy': 2}
+    # Baseline objects for each of the solvers; pentadiagonal could be 1 or 2
+    solver_numbers = {'solve_banded': 4, 'solveh_banded': 3, 'pentadiagonal': 2}
     func_timings = {}
     data_sizes = np.logspace(np.log10(500), np.log10(40000), 8, dtype=int)
     for func_name in functions:
@@ -132,9 +132,10 @@ if __name__ == '__main__':
     plt.ylabel('Median Time (seconds)')
     plt.legend()
 
-    # The relative time reduced by using pentapy can be compared for each of the other methods
+    # The relative time reduced by using the pentadiagonal solver can be compared for each
+    # of the other methods
     plt.figure()
-    reference_key = 'pentapy'
+    reference_key = 'pentadiagonal'
     reference_times = func_timings[reference_key]
     for key, values in func_timings.items():
         if key == reference_key:

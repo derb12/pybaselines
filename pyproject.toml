@@ -76,7 +76,6 @@ Documentation = "https://pybaselines.readthedocs.io"
 
 [project.optional-dependencies]
 full = [
-    "pentapy>=1.1",  # 1.1.1 is first version with wheels for python 3.9; don't pin patch versions
     "numba>=0.53",  # first to allow usage with python 3.9
 ]
 test = [

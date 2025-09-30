@@ -660,11 +660,9 @@ class PSpline(PenalizedSystem):
             If True (default), will allow only using the lower bands of the penalty matrix,
             which allows using :func:`scipy.linalg.solveh_banded` instead of the slightly
             slower :func:`scipy.linalg.solve_banded`.
-        reverse_diags : {False, True, None}, optional
+        reverse_diags : bool, optional
             If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False (default), will never reverse the diagonals. If None, will
-            only reverse the diagonals if using pentapy's solver (which is set to False
-            for PSpline).
+            matrix. Default is False.
 
         Raises
         ------
@@ -687,7 +685,7 @@ class PSpline(PenalizedSystem):
 
         super().__init__(
             self.basis._num_bases, lam, diff_order, allow_lower, reverse_diags,
-            allow_pentapy=False, padding=self.basis.spline_degree - diff_order
+            allow_penta=False, padding=self.basis.spline_degree - diff_order
         )
         self.coef = None
 
@@ -748,9 +746,10 @@ class PSpline(PenalizedSystem):
 
         Notes
         -----
-        `allow_pentapy` is always set to False since the time needed to go from a lower to full
-        banded matrix and shifting the rows removes any speedup from using pentapy's solver. It
-        also reduces the complexity of setting up the equations.
+        `allow_penta` is always set to False since the time needed to go from a lower to full
+        banded matrix removes any speedup from using the pentadiagonal solver. Besides, the most
+        common setup, cubic splines, have a bandwidth of 3 and would not use the
+        pentadiagonal solvers anyway.
 
         Adds padding to the penalty diagonals to accomodate the different shapes of the spline
         basis and the penalty to speed up calculations when the two are added.
@@ -758,7 +757,7 @@ class PSpline(PenalizedSystem):
         """
         self.reset_diagonals(
             lam=lam, diff_order=diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags,
-            allow_pentapy=False, padding=self.basis.spline_degree - diff_order
+            allow_penta=False, padding=self.basis.spline_degree - diff_order
         )
 
     # adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above

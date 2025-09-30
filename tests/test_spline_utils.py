@@ -307,7 +307,7 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.basis.knots.shape == (num_knots + 2 * spline_degree,)
     assert isinstance(penalized_system.basis.x, np.ndarray)
     assert penalized_system.basis._x_len == len(penalized_system.basis.x)
-    assert not penalized_system.using_pentapy
+    assert not penalized_system.using_penta
     if allow_lower:
         assert penalized_system.main_diagonal_index == 0
     else:
@@ -330,13 +330,13 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
 @pytest.mark.parametrize('num_knots', (10, 100))
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('reverse_diags', (None, True, False))
+@pytest.mark.parametrize('reverse_diags', (True, False))
 def test_pspline_setup(data_fixture, num_knots, spline_degree, diff_order,
                        allow_lower, reverse_diags):
     """
     Ensure the PSpline setup is correct.
 
-    Since `allow_pentapy` is always False for PSpline, the `lower` attribute of the
+    Since `allow_penta` is always False for PSpline, the `lower` attribute of the
     PenalizedSystem will always equal the input `allow_lower` and the `reversed`
     attribute will be equal to the bool of the input `reverse_diags` input (ie. None
     will also be False).
@@ -355,23 +355,30 @@ def test_pspline_setup(data_fixture, num_knots, spline_degree, diff_order,
     spline_basis = _spline_utils.SplineBasis(
         x, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
     )
-    pspline = _spline_utils.PSpline(
-        spline_basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
-        reverse_diags=reverse_diags
-    )
-
-    check_penalized_spline(
-        pspline, expected_penalty, lam, diff_order, allow_lower,
-        bool(reverse_diags), spline_degree, num_knots, data_size
-    )
-    # also check that the reset_diagonal method performs similarly
-    pspline.reset_penalty_diagonals(
-        lam=lam, diff_order=diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
-    )
-    check_penalized_spline(
-        pspline, expected_penalty, lam, diff_order, allow_lower,
-        bool(reverse_diags), spline_degree, num_knots, data_size
-    )
+    if reverse_diags and allow_lower:
+        # this configuration should never be used
+        with pytest.raises(ValueError):
+            pspline = _spline_utils.PSpline(
+                spline_basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+                reverse_diags=reverse_diags
+            )
+    else:
+        pspline = _spline_utils.PSpline(
+            spline_basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+            reverse_diags=reverse_diags
+        )
+        check_penalized_spline(
+            pspline, expected_penalty, lam, diff_order, allow_lower,
+            bool(reverse_diags), spline_degree, num_knots, data_size
+        )
+        # also check that the reset_diagonal method performs similarly
+        pspline.reset_penalty_diagonals(
+            lam=lam, diff_order=diff_order, allow_lower=allow_lower, reverse_diags=reverse_diags
+        )
+        check_penalized_spline(
+            pspline, expected_penalty, lam, diff_order, allow_lower,
+            bool(reverse_diags), spline_degree, num_knots, data_size
+        )
 
 
 def test_spline_basis_non_finite_fails():

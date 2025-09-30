@@ -140,17 +140,26 @@ class _Algorithm:
 
         .. versionadded:: 1.2.0
 
-        An integer between 1 and 4 designating the solver to prefer for solving banded
-        linear systems. Setting to 1 or 2 will use the ``PTRANS-I``
-        and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
-        ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
-        it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
-        else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
-        will only use the SciPy solvers following the same logic, and 4 will
-        force usage of :func:`scipy.linalg.solve_banded`. Default is 2.
+        An integer designating the solver. Setting to 1 or 2 will use the ``PTRANS-I``
+        and ``PTRANS-II`` solvers, respectively, from [1]_ if ``numba`` is installed
+        and the linear system is pentadiagonal. Otherwise, it will use
+        :func:`scipy.linalg.solveh_banded` if the system is symmetric, else
+        :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3 will only
+        use the SciPy solvers following the same logic, and 4 will force usage of
+        :func:`scipy.linalg.solve_banded`. Default is 2
 
-        This typically does not need to be modified since all solvers have relatively
-        the same numerical stability and is mostly for internal testing.
+        PTRANS-I and PTRANS-II are the fastest, and solve_banded is the slowest. In terms
+        of numerical stability, solveh_banded is the least stable, PTRANS-I and PTRANS-II
+        are slightly more stable (LU factorization without pivoting), and solve_banded (LU
+        factorization with partial pivoting) is the most stable. In practice, however,
+        instability rarely occurs during baseline correction and should be avoided through
+        other means (eg. switching from Whittaker-smoothing methods to penalized spline
+        methods in order to lower the required `lam` parameter).
+
+        References
+        ----------
+        .. [1] Askar, S., et al. On Solving Pentadiagonal Linear Systems via
+            Transformations. Mathematical Problems in Engineering, 2015, 232456.
 
         """
         return self._banded_solver
@@ -158,39 +167,44 @@ class _Algorithm:
     @banded_solver.setter
     def banded_solver(self, solver):
         """
-        Sets the solver for banded systems and the solver for the optional dependency pentapy.
+        Sets the solver to use for banded linear systems.
 
         Parameters
         ----------
         solver : {1, 2, 3, 4}
             An integer designating the solver. Setting to 1 or 2 will use the ``PTRANS-I``
-            and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
-            ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
-            it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
-            else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
-            will only use the SciPy solvers following the same logic, and 4 will
-            force usage of :func:`scipy.linalg.solve_banded`.
+            and ``PTRANS-II`` solvers, respectively, from [1]_ if ``numba`` is installed
+            and the linear system is pentadiagonal. Otherwise, it will use
+            :func:`scipy.linalg.solveh_banded` if the system is symmetric, else
+            :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3 will only
+            use the SciPy solvers following the same logic, and 4 will force usage of
+            :func:`scipy.linalg.solve_banded`.
 
         Raises
         ------
         ValueError
             Raised if `solver` is not an integer between 1 and 4.
 
+        References
+        ----------
+        .. [1] Askar, S., et al. On Solving Pentadiagonal Linear Systems via
+            Transformations. Mathematical Problems in Engineering, 2015, 232456.
+
         """
         if isinstance(solver, bool) or solver not in {1, 2, 3, 4}:
             # catch True since it can be interpreted as in {1, 2, 3, 4}; would likely
-            # not cause issues downsteam, but just eliminate that possibility
+            # not cause issues downstream, but just eliminate that possibility
             raise ValueError('banded_solver must be an integer with a value in (1, 2, 3, 4)')
         self._banded_solver = solver
         if solver < 3:
-            self._pentapy_solver = solver
+            self._penta_solver = solver
         else:
-            self._pentapy_solver = 1  # default value
+            self._penta_solver = 2  # default value
 
     @property
     def pentapy_solver(self):
         """
-        The solver if using ``pentapy`` to solve banded equations.
+        The solver if using the dedicated pentadiagonal solvers to solve banded equations.
 
         .. deprecated:: 1.2
             The `pentapy_solver` property is deprecated and will be removed in
@@ -202,7 +216,7 @@ class _Algorithm:
              'version 1.4; use the `banded_solver` attribute instead'),
             DeprecationWarning, stacklevel=2
         )
-        return self._pentapy_solver
+        return self._penta_solver
 
     @pentapy_solver.setter
     def pentapy_solver(self, value):
@@ -369,7 +383,7 @@ class _Algorithm:
         return new_object
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
-                         allow_lower=True, reverse_diags=None):
+                         allow_lower=True, reverse_diags=False):
         """
         Sets the starting parameters for doing penalized least squares.
 
@@ -393,10 +407,9 @@ class _Algorithm:
         allow_lower : boolean, optional
             If True (default), will allow using only the lower non-zero diagonals of
             the squared difference matrix. If False, will include all non-zero diagonals.
-        reverse_diags : {None, False, True}, optional
+        reverse_diags : bool, optional
             If True, will reverse the order of the diagonals of the squared difference
-            matrix. If False, will never reverse the diagonals. If None (default), will
-            only reverse the diagonals if using pentapy's solver.
+            matrix. Default is False.
 
         Returns
         -------
@@ -435,11 +448,11 @@ class _Algorithm:
             weight_array = weight_array[self._sort_order]
 
         allow_lower = allow_lower and self.banded_solver < 4
-        allow_pentapy = self.banded_solver < 3
+        allow_penta = self.banded_solver < 3
 
         whittaker_system = PenalizedSystem(
-            self._size, lam, diff_order, allow_lower, reverse_diags, allow_pentapy=allow_pentapy,
-            pentapy_solver=self._pentapy_solver
+            self._size, lam, diff_order, allow_lower, reverse_diags, allow_penta=allow_penta,
+            penta_solver=self._penta_solver
         )
 
         return y, weight_array, whittaker_system
