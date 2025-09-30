@@ -74,9 +74,9 @@ def _ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     handling.
 
     Uses `lhs` in LAPACK banded format rather than the row-wise banded format used by ``pentapy``.
-    The additional indexing should require approximately ``4 * (N - 4) = 4N - 4`` additional
-    operations compared to using row-wise banded format, which theoretically requires
-    ``19N - 29`` operations. In practice, however, the additional time is negligible.
+    The additional indexing should require approximately ``2N + 1`` more additions compared
+    to using row-wise banded format, which theoretically requires ``19N - 29`` operations.
+    In practice, however, the additional time is negligible.
 
     References
     ----------
@@ -105,27 +105,29 @@ def _ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
         return out, 1
     alpha_i_minus_2 = lhs[1, 1] / mu_i
     beta_i_minus_2 = lhs[0, 2] / mu_i
+    gamma_i = lhs[3, 0]
+    e_i = lhs[4, 0]
     z_i_minus_2 = rhs[0] / mu_i
     alpha[0] = alpha_i_minus_2
     beta[0] = beta_i_minus_2
     out[0] = z_i_minus_2
 
     # Second row
-    gamma_i = lhs[3, 0]
     mu_i = lhs[2, 1] - alpha_i_minus_2 * gamma_i
     if mu_i == 0.0:
         return out, 2
     alpha_i_minus_1 = (lhs[1, 2] - beta_i_minus_2 * gamma_i) / mu_i
     beta_i_minus_1 = lhs[0, 3] / mu_i
     z_i_minus_1 = (rhs[1] - z_i_minus_2 * gamma_i) / mu_i
+    c_i = lhs[3, 1]
+    e_i_plus_1 = lhs[4, 1]
     alpha[1] = alpha_i_minus_1
     beta[1] = beta_i_minus_1
     out[1] = z_i_minus_1
 
     # Central rows
     for i in range(2, num_rows - 2):
-        e_i = lhs[4, i - 2]
-        gamma_i = lhs[3, i - 1] - alpha_i_minus_2 * e_i
+        gamma_i = c_i - alpha_i_minus_2 * e_i
         mu_i = lhs[2, i] - beta_i_minus_2 * e_i - alpha_i_minus_1 * gamma_i
         if mu_i == 0.0:
             return out, i + 1
@@ -143,10 +145,15 @@ def _ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
         z_i_minus_1 = z_i
         out[i] = z_i
 
+        c_i = lhs[3, i]
+
+        e_i_plus_2 = lhs[4, i]
+        e_i = e_i_plus_1
+        e_i_plus_1 = e_i_plus_2
+
     # Second to last row
     row = num_rows - 2
-    e_i = lhs[4, row - 2]
-    gamma_i = lhs[3, row - 1] - alpha_i_minus_2 * e_i
+    gamma_i = c_i - alpha_i_minus_2 * e_i
     mu_i = lhs[2, row] - beta_i_minus_2 * e_i - alpha_i_minus_1 * gamma_i
     if mu_i == 0.0:
         return out, num_rows - 1
@@ -172,11 +179,12 @@ def _ptrans_1(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     x_i_plus_1 = (rhs[row] - z_i_minus_2 * e_i - z_i_minus_1 * gamma_i) / mu_i
     z_i_minus_2 = z_i_minus_1
     z_i_minus_1 = x_i_plus_1
+    c_i = lhs[3, row]
+    e_i = e_i_plus_1
 
     # Last Row
     row = num_rows - 1
-    e_i = lhs[4, row - 2]
-    gamma_i = lhs[3, row - 1] - alpha_i_minus_2 * e_i
+    gamma_i = c_i - alpha_i_minus_2 * e_i
     mu_i = lhs[2, row] - beta_i_minus_2 * e_i - alpha_i_minus_1 * gamma_i
     if mu_i == 0.0:
         return out, num_rows
@@ -232,9 +240,9 @@ def _ptrans_1_factorize(lhs, overwrite_ab=False):
     handling.
 
     Uses `lhs` in LAPACK banded format rather than the row-wise banded format used by ``pentapy``.
-    The additional indexing should require approximately ``2N`` additional
-    operations compared to using row-wise banded format, which theoretically requires
-    ``19N - 29`` operations. In practice, however, the additional time is negligible.
+    The additional indexing should require approximately ``2N + 1`` more additions compared
+    to using row-wise banded format, which theoretically requires ``19N - 29`` operations.
+    In practice, however, the additional time is negligible.
 
     References
     ----------
@@ -465,9 +473,9 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     handling.
 
     Uses `lhs` in LAPACK banded format rather than the row-wise banded format used by ``pentapy``.
-    The additional indexing should require approximately ``4 * (N - 4) = 4N - 4`` additional
-    operations compared to using row-wise banded format, which theoretically requires
-    ``19N - 29`` operations. In practice, however, the additional time is negligible.
+    The additional indexing should require approximately ``2N + 4`` more additions compared
+    to using row-wise banded format, which theoretically requires ``19N - 29`` operations.
+    In practice, however, the additional time is negligible.
 
     References
     ----------
@@ -499,6 +507,8 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     sigma_i_plus_2 = lhs[3, row - 1] / psi_i
     phi_i_plus_2 = lhs[4, row - 2] / psi_i
     w_i_plus_2 = rhs[row] / psi_i
+    b_i = lhs[0, row]
+    rho_i = lhs[1, row]
 
     sigma[row] = sigma_i_plus_2
     phi[row] = phi_i_plus_2
@@ -506,7 +516,6 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     # Second row
     row = num_rows - 2
-    rho_i = lhs[1, row + 1]
     psi_i = lhs[2, row] - sigma_i_plus_2 * rho_i
     if psi_i == 0.0:
         return out, num_rows - 1
@@ -514,6 +523,8 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     sigma_i_plus_1 = (lhs[3, row - 1] - phi_i_plus_2 * rho_i) / psi_i
     phi_i_plus_1 = lhs[4, row - 2] / psi_i
     w_i_plus_1 = (rhs[row] - w_i_plus_2 * rho_i) / psi_i
+    b_i_minus_1 = lhs[0, row]
+    a_i = lhs[1, row]
 
     sigma[row] = sigma_i_plus_1
     phi[row] = phi_i_plus_1
@@ -521,8 +532,7 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
 
     # Central rows
     for i in range(num_rows - 3, 1, -1):
-        b_i = lhs[0, i + 2]
-        rho_i = lhs[1, i + 1] - sigma_i_plus_2 * b_i
+        rho_i = a_i - sigma_i_plus_2 * b_i
         psi_i = lhs[2, i] - phi_i_plus_2 * b_i - sigma_i_plus_1 * rho_i
         if psi_i == 0.0:
             return out, i + 1
@@ -540,9 +550,14 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
         w_i_plus_1 = w_i
         out[i] = w_i
 
+        a_i = lhs[1, i]
+
+        b_i_minus_2 = lhs[0, i]
+        b_i = b_i_minus_1
+        b_i_minus_1 = b_i_minus_2
+
     # Second to last row
-    b_i = lhs[0, 3]
-    rho_i = lhs[1, 2] - sigma_i_plus_2 * b_i
+    rho_i = a_i - sigma_i_plus_2 * b_i
     psi_i = lhs[2, 1] - phi_i_plus_2 * b_i - sigma_i_plus_1 * rho_i
     if psi_i == 0.0:
         return out, 2
@@ -554,6 +569,9 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     x_i_minus_1 = (rhs[1] - w_i_plus_2 * b_i - w_i_plus_1 * rho_i) / psi_i
     w_i_plus_2 = w_i_plus_1
     w_i_plus_1 = x_i_minus_1
+
+    a_i = lhs[1, 1]
+    b_i = b_i_minus_1
 
     # Note that none of the below section is needed since only sigma[2:] and phi[2:] is required
     # for the forward substitution (would be needed if the factorization was desired), but still
@@ -567,8 +585,7 @@ def _ptrans_2(lhs, rhs, overwrite_ab=False, overwrite_b=False):
     # End of unneeded section
 
     # Last row
-    b_i = lhs[0, 2]
-    rho_i = lhs[1, 1] - sigma_i_plus_2 * b_i
+    rho_i = a_i - sigma_i_plus_2 * b_i
     psi_i = lhs[2, 0] - phi_i_plus_2 * b_i - sigma_i_plus_1 * rho_i
     if psi_i == 0.0:
         return out, 1
@@ -621,9 +638,9 @@ def _ptrans_2_factorize(lhs, overwrite_ab=False):
     handling.
 
     Uses `lhs` in LAPACK banded format rather than the row-wise banded format used by ``pentapy``.
-    The additional indexing should require approximately ``2N`` additional
-    operations compared to using row-wise banded format, which theoretically requires
-    ``19N - 29`` operations. In practice, however, the additional time is negligible.
+    The additional indexing should require approximately ``2N + 4`` more additions compared
+    to using row-wise banded format, which theoretically requires ``19N - 29`` operations.
+    In practice, however, the additional time is negligible.
 
     References
     ----------
