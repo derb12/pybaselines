@@ -5,27 +5,27 @@ Improving Performance
 pybaselines was designed for performant single-threaded, single-process usage. This page
 gives tips for improving the performance when fitting multiple datasets.
 
-When fitting multiple datasets that share the same independant variables, it is more efficient to
-reuse the same :class:`~.Baseline` object rather than creating a new ``Baseline`` object for each
-method call since much of the setup only needs to be done once and can be reused otherwise, as
-shown in :ref:`this example <sphx_glr_generated_examples_general_plot_reuse_baseline.py>`.
+* For datasets that share the same independant variable, it is more efficient to reuse the
+  same :class:`~.Baseline` or :class:`~.Baseline2D` object rather than creating a new object for
+  each method call since much of the setup only needs to be done once and can be reused otherwise,
+  as shown in :ref:`this example <sphx_glr_generated_examples_general_plot_reuse_baseline.py>`.
 
-For methods that perform iterative reweighting, which includes
-:doc:`Whittaker smoothing methods <algorithms/algorithms_1d/whittaker>`, most
-:doc:`spline methods <algorithms/algorithms_1d/spline>`, :meth:`~.Baseline.loess` and
-:meth:`~.Baseline.quant_reg`, if the peaks within a dataset have the same general position,
-then the weights from a previous fit can be used to provide a warm-start for the next
-calculation, which improves the convergence rate as shown in
-:ref:`this example <sphx_glr_generated_examples_general_plot_warm_start.py>`.
+* For methods that perform iterative reweighting, which includes
+  :doc:`Whittaker smoothing methods <algorithms/algorithms_1d/whittaker>`, most
+  :doc:`spline methods <algorithms/algorithms_1d/spline>`, :meth:`~.Baseline.loess` and
+  :meth:`~.Baseline.quant_reg`, if the peaks within a dataset have the same general position,
+  then the weights from a previous fit can be used to provide a warm-start for the next
+  calculation, which improves the convergence rate as shown in
+  :ref:`this example <sphx_glr_generated_examples_general_plot_warm_start.py>`.
 
-For methods that require a ``half_window`` parameter, such as
-:doc:`morphological <algorithms/algorithms_1d/morphological>` and
-:doc:`smoothing <algorithms/algorithms_1d/smooth>` algorithms, the ``half_window`` is estimated using
-the :func:`~.estimate_window` function if no ``half_window`` value is given, which can significantly increase
-computation time when fitting multiple datasets. If all data have similar peak widths, it would be much
-faster to either specify the ``half_window`` value or use :func:`~.estimate_window` on a single set of data
-and then use the output ``half_window`` value in the parameter dictionary for all subsequent
-baseline fits for the dataset.
+* For methods that require a ``half_window`` parameter, such as
+  :doc:`morphological <algorithms/algorithms_1d/morphological>` and
+  :doc:`smoothing <algorithms/algorithms_1d/smooth>` algorithms, the ``half_window`` is
+  estimated using the :func:`~.estimate_window` function if no ``half_window`` value is
+  given, which can significantly increase computation time when fitting multiple datasets.
+  If all data have similar peak widths, it would be much faster to either specify the
+  ``half_window`` value or use the output ``half_window`` value in the parameter dictionary
+  after one fit for all subsequent baseline fits for the dataset.
 
 For fitting datasets that are quite large (>~ 5,000 individual spectra/diffractograms), users
 can opt to use multiprocessing or, potentially, threading to reduce the computation time. These
@@ -80,11 +80,26 @@ Threading
 ---------
 
 Starting with pybaselines version 1.2.0, pybaselines has experimental support for the free-threaded
-build of CPython (see https://py-free-threading.github.io/ for more information) to allow the use of
+builds of CPython (see https://py-free-threading.github.io/ for more information) to allow the use of
 multithreading through the standard library `threading <https://docs.python.org/3/library/threading.html>`_
-module to decrease computation time. In CPython versions earlier than 3.13, or for non-free-threaded
-CPython builds, it is not recommended to use multithreading with pybaselines since most operations
-within pybaselines do not release the global interpreter lock (GIL).
+module to decrease computation time.
+
+.. warning::
+    If not using a free-threaded Python build (first made available in CPython version 3.13),
+    it is **NOT** recommended to use multithreading with pybaselines. Most operations within
+    pybaselines do not release the global interpreter lock (GIL), so using threading will
+    result in much worse performance than just performing each calculation in sequence. The
+    following code, using the built-in function :func:`sys._is_gil_enabled` introduced in
+    Python 3.13, can be used to determine if threading can be used with pybaselines:
+
+    .. code-block:: python
+
+            import sys
+            print(hasattr(sys, '_is_gil_enabled') and sys._is_gil_enabled())
+
+    If the above code prints :code:`False`, then you are using non-free-threaded Python
+    and should not use threading with pybaselines.
+
 
 If using pybaselines version 1.2.0 or later, :class:`~.Baseline` and :class:`~.Baseline2D` objects are
 thread-safe, so the same object can be used for all threads. An example use case is shown below.

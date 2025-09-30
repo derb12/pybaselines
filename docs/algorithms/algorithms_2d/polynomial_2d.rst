@@ -24,10 +24,10 @@ where :math:`y_{ij}`, :math:`x_i`, and :math:`z_j` are the measured data, :math:
 the polynomial estimate at :math:`x_i`, and :math:`z_j` and :math:`w_{ij}` is the weighting.
 
 
-However, since only the baseline of the data is desired, the least-squares
-approach must be modified. For polynomial-based algorithms, this is done
-by 1) only fitting the data in regions where there is only baseline, 2)
-modifying the y-values being fit each iteration, or 3) penalizing outliers.
+Much like for the one dimensional case, the least-squares approach must be modified to
+fit two dimensional polynomials to the baseline by 1) only fitting the data in regions
+where there is only baseline (selective masking), 2) modifying the y-values being fit
+each iteration (thresholding), or 3) penalizing outliers.
 
 .. note::
    For two dimensional data, polynomial algorithms take a single ``poly_order``

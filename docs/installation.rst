@@ -25,18 +25,18 @@ pybaselines has the following optional dependencies:
 * `Numba <https://github.com/numba/numba>`_ (>= 0.53):
   speeds up calculations used by the following methods:
 
-    * :meth:`~.Baseline.loess`
-    * :meth:`~.Baseline.dietrich`
-    * :meth:`~.Baseline.golotvin`
-    * :meth:`~.Baseline.std_distribution`
-    * :meth:`~.Baseline.fastchrom`
-    * :meth:`~.Baseline.beads`
-    * :meth:`~.Baseline.mpspline`
-    * :meth:`~.Baseline.mpls`
-    * :meth:`~.Baseline.jbcd`
-    * :meth:`~.Baseline.fabc`
-    * all :ref:`spline <api/Baseline:Spline Algorithms>` methods
-    * all :ref:`Whittaker smoothing <api/Baseline:Whittaker Smoothing Algorithms>` methods
+  * :meth:`~.Baseline.loess`
+  * :meth:`~.Baseline.dietrich`
+  * :meth:`~.Baseline.golotvin`
+  * :meth:`~.Baseline.std_distribution`
+  * :meth:`~.Baseline.fastchrom`
+  * :meth:`~.Baseline.beads`
+  * :meth:`~.Baseline.mpspline`
+  * :meth:`~.Baseline.mpls`
+  * :meth:`~.Baseline.jbcd`
+  * :meth:`~.Baseline.fabc`
+  * all :ref:`spline <api/Baseline:Spline Algorithms>` methods
+  * all :ref:`Whittaker smoothing <api/Baseline:Whittaker Smoothing Algorithms>` methods
 
 
 Stable Release
