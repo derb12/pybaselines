@@ -283,6 +283,7 @@ class _Misc(_Algorithm):
         Examples
         --------
         >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
         >>> from pybaselines import Baseline, utils
         >>> x, y = utils.make_data(noise_std=0.2)
         >>> baseline_fitter = Baseline(x)
