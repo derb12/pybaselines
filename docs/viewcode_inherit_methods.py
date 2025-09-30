@@ -93,7 +93,15 @@ def find_super_method(app, modname):
 
 
 def setup(app):
-    """Connects the find_super_method to the viewcode-find-source event."""
+    """Connects the find_super_method to the viewcode-find-source event.
+
+    Returns
+    -------
+    dict
+        Relevant information about the extension to pass to Sphinx. See
+        https://www.sphinx-doc.org/en/master/extdev/index.html for metadata fields.
+
+    """
     app.connect('viewcode-find-source', find_super_method)
     # according to https://www.sphinx-doc.org/en/master/extdev/index.html, since this
     # extension does not store data in the Sphinx environment, and it is not doing anything

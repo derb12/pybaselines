@@ -246,8 +246,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
     Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
     Statistics and Data Analysis, 2006, 50(1), 61-76.
 
-    Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-    (Preprint), 2023.
+    Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+    practical use. ASTIN Bulletin, 2025, 1-31.
 
     """
 
@@ -271,6 +271,11 @@ class WhittakerSystem2D(PenalizedSystem2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for the eigendecomposition. If None, will solve the linear system using the full
             analytical solution, which is typically much slower.
+
+        Raises
+        ------
+        ValueError
+            Raised if `num_eigens` has a mixture of None and an integer.
 
         """
         # TODO should figure out a way to better merge PenalizedSystem2D, PSpline2D, and this class
@@ -402,8 +407,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         References
         ----------
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         penalty_bands = diff_penalty_diagonals(data_points, diff_order, lower_only=True)
@@ -515,6 +520,11 @@ class WhittakerSystem2D(PenalizedSystem2D):
     def _make_btwb(self, weights):
         """Computes ``Basis.T @ Weights @ Basis`` using a more efficient method.
 
+        Returns
+        -------
+        F : numpy.ndarray
+            The computed result of ``B.T @ W @ B``.
+
         References
         ----------
         Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
@@ -611,6 +621,12 @@ class WhittakerSystem2D(PenalizedSystem2D):
         This is a lazy implementation since the full basis is typically not needed for
         computations.
 
+        Raises
+        ------
+        ValueError
+            Raised if the object is not using eigendecomposition to solve the linear
+            equation, in which case the basis matrix is the identity matrix.
+
         """
         if not self._using_svd:
             # Could maybe just make a basis using identities? But this should not be called
@@ -646,8 +662,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         References
         ----------
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         if not self._using_svd:

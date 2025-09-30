@@ -12,6 +12,7 @@ import numpy as np
 from scipy.ndimage import grey_opening
 from scipy.signal import convolve
 from scipy.special import binom
+from scipy.stats import skew
 
 from ._banded_utils import PenalizedSystem
 from ._banded_utils import difference_matrix as _difference_matrix
@@ -161,9 +162,9 @@ def gaussian_kernel(window_size, sigma=1.0):
 
     Notes
     -----
-    Return gaus/sum(gaus) rather than creating a unit-area gaussian
+    Return ``gaus/sum(gaus)`` rather than creating a unit-area gaussian
     since the unit-area gaussian would have an area smaller than 1
-    for window_size < ~ 6 * sigma.
+    for ``window_size <~ 6 * sigma``.
 
     """
     # centers distribution from -half_window to half_window
@@ -505,6 +506,11 @@ def pad_edges2d(data, pad_length, mode='edge', extrapolate_window=None, **pad_kw
     padded_data : numpy.ndarray
         The data with padding on the top, bottom, left, and right edges.
 
+    Raises
+    ------
+    ValueError
+        Raised if the input data is not two dimensional.
+
     Notes
     -----
     If mode is 'extrapolate', then each edge will be extended by linear fits along each
@@ -513,7 +519,7 @@ def pad_edges2d(data, pad_length, mode='edge', extrapolate_window=None, **pad_kw
     """
     y = np.asarray(data)
     if y.ndim != 2:
-        raise ValueError('input data must be two dimensional')
+        raise ValueError(f'input data must be two dimensional, instead had {y.ndim} dimensions')
     total_padding = _get_row_col_values(pad_length).reshape((2, 2))
 
     if isinstance(mode, str):
@@ -705,7 +711,7 @@ def _convert_coef2d(coef, poly_degree_x, poly_degree_z, original_x_domain, origi
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
-    Creates an n-order finite-difference matrix.
+    Creates an n-th order finite-difference matrix.
 
     Parameters
     ----------
@@ -732,13 +738,27 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     The resulting matrices are sparse versions of::
 
         import numpy as np
-        np.diff(np.eye(data_size), diff_order, axis=0)
+        D = np.diff(np.eye(data_size), diff_order, axis=0)
 
     This implementation allows using the differential matrices are they
     are written in various publications, ie. ``D.T @ D``.
 
     Most baseline algorithms use 2nd order differential matrices when
     doing penalized least squared fitting or Whittaker-smoothing-based fitting.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from pybaselines.utils import difference_matrix
+    >>> diff_order = 2
+    >>> x = np.random.default_rng(123).normal(50, 1, 100)
+    >>> D = difference_matrix(len(x), diff_order=diff_order)
+
+    The matrix multiplication of ``D @ x`` is the same as performing the n-th order
+    derivative of x.
+
+    >>> np.allclose(D @ x, np.diff(x, diff_order))
+    True
 
     """
     # difference_matrix moved to pybaselines._banded_utils in version 1.0.0 in order to more
@@ -747,10 +767,13 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     return _difference_matrix(data_size, diff_order=diff_order, diff_format=diff_format)
 
 
-def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
+def estimate_window(data, increment=1, max_hits=3, window_tol=1e-6,
                     max_half_window=None, min_half_window=None):
     """
-    Optimizes the morphological half-window size.
+    Estimates the appropriate morphological half-window size.
+
+    .. versionadded:: 1.3.0
+        Was named "optimize_window" in prior versions.
 
     Parameters
     ----------
@@ -774,7 +797,7 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
     Returns
     -------
     half_window : int or numpy.ndarray[int, int]
-        The optimized half window size(s). If `data` is one dimensional, the
+        The estimated half window size(s). If `data` is one dimensional, the
         output is a single integer, and if `data` is two dimensional, the output
         is an array of two integers.
 
@@ -820,6 +843,33 @@ def optimize_window(data, increment=1, max_hits=3, window_tol=1e-6,
     else:
         output = max(half_window, 1)  # ensure half window is at least 1
     return output
+
+
+# maintain optimize_window for backwards compatibilty; may or may not deprecate
+# since it is very little maintenance burden to keep the name
+def optimize_window(*args, **kwargs):
+    """
+    Estimates the appropriate morphological half-window size.
+
+    New code should use :func:`~.estimate_window` rather than this function, since
+    ``optimize_window`` will likely be deprecated and removed in a later version.
+
+    Parameters
+    ----------
+    *args
+        Positional arguments to pass to :func:`~.estimate_window`.
+    **kwargs
+        Keyword arguments to pass to :func:`~.estimate_window`.
+
+    Returns
+    -------
+    half_window : int or numpy.ndarray[int, int]
+        The estimated half window size(s). If `data` is one dimensional, the
+        output is a single integer, and if `data` is two dimensional, the output
+        is an array of two integers.
+
+    """
+    return estimate_window(*args, **kwargs)
 
 
 def _inverted_sort(sort_order):
@@ -1084,16 +1134,24 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     return y_smooth, pspline.tck
 
 
-def _make_data(data_size=1000, bkg_type='exponential'):
+def make_data(data_size=1000, bkg_type='gaussian_small', signal_type=1, noise_std=0.05,
+              return_baseline=False):
     """
-    Creates simple datasets for use in examples.
+    Creates a simple dataset for use in examples and docstrings.
 
     Parameters
     ----------
     data_size : int, optional
         The number of data points. Default is 1000.
-    bkg_type : {'exponential', 'gaussian', 'linear', 'sine'}, optional
-        A string designating the type of baseline to add to the data. Default is 'exponential'.
+    bkg_type : {'gaussian_small', 'exponential', 'linear', 'sine', 'gaussian'}, optional
+        A string designating the type of baseline to add to the data. Default is 'gaussian_small'.
+    signal_type : {1, 2}, optional
+        The type of signal to produce. In general, examples within the documentation use 2
+        while docstring examples use 1. Default is 1.
+    noise_std : float, optional
+        The standard deviation of the noise. Default is 0.05.
+    return_baseline : bool, optional
+        Whether to include the computed baseline in the output. Default is False.
 
     Returns
     -------
@@ -1102,12 +1160,12 @@ def _make_data(data_size=1000, bkg_type='exponential'):
     y : numpy.ndarray, shape (`data_size`,)
         The y-values for the example data.
     baseline : numpy.ndarray, shape (`data_size`,)
-        The true baseline for the example data.
+        Only returned if ``return_baseline`` is True. The true baseline for the example data.
 
     Raises
     ------
     ValueError
-        Raised if `bkg_type` is not an allowed value.
+        Raised if ``bkg_type`` or ``signal_type`` is not an allowed value.
 
     Notes
     -----
@@ -1117,19 +1175,35 @@ def _make_data(data_size=1000, bkg_type='exponential'):
 
     """
     x = np.linspace(0, 1000, data_size)
-    signal = (
-        gaussian(x, 9, 100, 12)
-        + gaussian(x, 6, 180, 5)
-        + gaussian(x, 8, 350, 11)
-        + gaussian(x, 15, 400, 18)
-        + gaussian(x, 6, 550, 6)
-        + gaussian(x, 13, 700, 8)
-        + gaussian(x, 9, 800, 9)
-        + gaussian(x, 9, 880, 7)
-    )
+
+    if signal_type == 1:
+        signal = (
+            + gaussian(x, 4, 180, 12)
+            + gaussian(x, 15, 400, 10)
+            + gaussian(x, 6, 540, 6)
+            + gaussian(x, 13, 700, 8)
+            + gaussian(x, 9, 880, 7)
+        )
+    elif signal_type == 2:
+        signal = (
+            gaussian(x, 9, 100, 12)
+            + gaussian(x, 6, 180, 5)
+            + gaussian(x, 8, 350, 11)
+            + gaussian(x, 15, 400, 18)
+            + gaussian(x, 6, 550, 6)
+            + gaussian(x, 13, 700, 8)
+            + gaussian(x, 9, 800, 9)
+            + gaussian(x, 9, 880, 7)
+        )
+    else:
+        raise ValueError(f'unknown signal_type {signal_type}')
+
+    bkg_type = bkg_type.lower()
     if bkg_type == 'exponential':
         baseline = 5 + 15 * np.exp(-x / 200)
-    elif bkg_type == 'gaussian':
+    elif bkg_type == 'gaussian_small':
+        baseline = 15 + gaussian(x, 4, 650, 400)
+    elif bkg_type == 'gaussian':  # a more pronounced gaussian than 'gaussian_small'
         baseline = 30 + gaussian(x, 20, 500, 150)
     elif bkg_type == 'linear':
         baseline = 1 + x * 0.005
@@ -1137,8 +1211,94 @@ def _make_data(data_size=1000, bkg_type='exponential'):
         baseline = 70 + 5 * np.sin(x / 50)
     else:
         raise ValueError(f'unknown bkg_type {bkg_type}')
-
-    noise = np.random.default_rng(0).normal(0, 0.1, data_size)
+    noise = np.random.default_rng(0).normal(0, noise_std, data_size)
     y = signal + baseline + noise
 
-    return x, y, baseline
+    if return_baseline:
+        return x, y, baseline
+
+    return x, y
+
+
+def estimate_polyorder(data, x_data=None, min_value=1, max_value=10):
+    """
+    Estimates the optimal polynomial order to use for baseline correction of the data.
+
+    The optimal polynomial order is identified as the one which produces the highest skew
+    in the residual when fitting the data with a polynomial using least-squares, allowing
+    enough flexibility to fit the data but not too much to cause peak clipping.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+    min_value : int, optional
+        The minimum polynomial order to fit. Default is 1.
+    max_value : int, optional
+        The maximum polynomial order to fit. Default is 10.
+
+    Returns
+    -------
+    best_order : int
+        The estimated optimal polynomial order to use for baseline correction.
+
+    Raises
+    ------
+    ValueError
+        Raised if either `min_value` or `max_value` is not an integer or negative. Also
+        raised if `max_value` is not greater than `min_value`.
+
+    Notes
+    -----
+    Generally works well, even with noisy data, for estimating the polynomial order for any
+    polynomial-based baseline correction method within pybaselines except for
+    :meth:`~.Baseline.loess` since it uses localized moving windows.
+
+    An alternative approach for estimating the optimal polynomial order for fitting the baseline,
+    also proposed by Komsta, is to call the baseline correction method with each polynomial order
+    and then select the order which produced the lowest Akaike information criterion (AIC) value.
+
+    References
+    ----------
+    Komsta, Ł. Comparison of Several Methods of Chromatographic
+    Baseline Removal with a New Approach Based on Quantile Regression.
+    Chromatographia, 2011, 73, 721-731.
+
+    Examples
+    --------
+    >>> import matplotlib.pyplot as plt
+    >>> from pybaselines import Baseline, utils
+    >>> x, y, true_baseline = utils.make_data(return_baseline=True)
+    >>> estimated_order = utils.estimate_polyorder(y, x)
+    >>> print(estimated_order)
+    3
+    >>> fit, params = Baseline(x).quant_reg(y, poly_order=estimated_order)
+    >>> plt.plot(x, y)
+    >>> plt.plot(x, true_baseline, label='true baseline')
+    >>> plt.plot(x, fit, '--', label='fit baseline')
+    >>> plt.legend()
+    >>> plt.show()
+
+    """
+    # TODO can this also work for 2D data, and if it can, are the results good?
+    if not isinstance(min_value, int) or min_value < 0:
+        raise ValueError('min_value must be a non-negative integer')
+    if not isinstance(max_value, int) or max_value < 0:
+        raise ValueError('min_value must be a non-negative integer')
+    elif max_value <= min_value:
+        raise ValueError('max_value must be greater than min_value')
+
+    y, x = _yx_arrays(data, x_data)
+    best_order = min_value
+    max_skew = -np.inf
+    for poly_order in range(min_value, max_value + 1):
+        fit = np.polynomial.Polynomial.fit(x, y, deg=poly_order)(x)
+        residual_skew = skew(y - fit)
+        if residual_skew > max_skew:
+            best_order = poly_order
+            max_skew = residual_skew
+
+    return best_order

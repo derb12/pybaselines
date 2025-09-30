@@ -22,8 +22,17 @@ class _Morphological(_Algorithm):
     @_Algorithm._register(sort_keys=('weights',))
     def mpls(self, data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_iter=None,
              weights=None, window_kwargs=None, **kwargs):
-        """
-        The Morphological penalized least squares (MPLS) baseline algorithm.
+        r"""
+        The morphological penalized least squares (MPLS) baseline algorithm.
+
+        Performs a morphological opening on the input data and then classifies the minimum
+        point within each flat region of the opening as a baseline point. Baseline points
+        are assigned a weight of ``p``, and all other points get weights of ``1 - p``.
+
+        The baseline, v, is then calculated through Whittaker smoothing, using the equation
+        :math:`(W + \lambda D_d^{\mathsf{T}} D_d) v = W y`, where y is the input data,
+        :math:`D_d` is the finite difference matrix of order d, W is the diagonal matrix
+        of the weights, and :math:`\lambda` (``lam``) is the regularization parameter.
 
         Parameters
         ----------
@@ -32,14 +41,14 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         lam : float, optional
             The smoothing parameter. Larger values will create smoother baselines.
             Default is 1e6.
         p : float, optional
-            The penalizing weighting factor. Must be between 0 and 1. Anchor points
-            identified by the procedure in [1]_ are given a weight of `1 - p`, and all
-            other points have a weight of `p`. Default is 0.0.
+            The penalizing weighting factor. Must be between 0 and 1. Anchor points, identified
+            as the minimum within flat regions of the morphological opening, are given a
+            weight of `1 - p`, and all other points have a weight of `p`. Default is 0.0.
         diff_order : int, optional
             The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 1.
@@ -56,10 +65,11 @@ class _Morphological(_Algorithm):
                 and will be removed in pybaselines version 1.4.0.
 
         weights : array-like, shape (N,), optional
-            The weighting array. If None (default), then the weights will be
-            calculated following the procedure in [1]_.
+            The weighting array. If None (default), then the weights will be calculated
+            using the morphological opening of the data. If weights are input, they are
+            used to directly calculate the baseline.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -86,8 +96,47 @@ class _Morphological(_Algorithm):
 
         References
         ----------
-        .. [1] Li, Zhong, et al. Morphological weighted penalized least squares for
-            background correction. Analyst, 2013, 138, 4483-4492.
+        Li, Zhong, et al. Morphological weighted penalized least squares for background
+        correction. Analyst, 2013, 138, 4483-4492.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data()
+        >>> baseline_fitter = Baseline(x)
+
+        ``half_window`` which controls the size of the morphological opening performed on
+        the data.
+
+        >>> fit_1, params_1 = baseline_fitter.mpls(y, half_window=15)
+        >>> fit_2, params_2 = baseline_fitter.mpls(y, half_window=45)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_1, label='half_window=15')
+        >>> plt.plot(x, fit_2, '--', label='half_window=45')
+        >>> plt.legend()
+        >>> plt.show()
+
+        The points that were identified as belonging to the baseline can be found by
+        examining the output weights. In this example, the use of a small window resulted
+        in some points within peaks being misidentified as baseline.
+
+        >>> plt.plot(x, params_1['weights'], 'bo', label='half_window=15')
+        >>> plt.plot(x, params_2['weights'], 'r.', label='half_window=45')
+        >>> plt.ylabel('Weights')
+        >>> plt.legend()
+        >>> plt.show()
+
+        ``lam`` controls the smoothness of the fit through the baseline points. Too low
+        of a value causes excess curvature in the identified peak regions.
+
+        >>> fit_3, params_3 = baseline_fitter.mpls(y, half_window=45, lam=1e1)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_2, label='lam=1e6')
+        >>> plt.plot(x, fit_3, '--', label='lam=1e1')
+        >>> plt.legend()
+        >>> plt.show()
 
         """
         if not 0 <= p <= 1:
@@ -145,9 +194,9 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -170,6 +219,38 @@ class _Morphological(_Algorithm):
         Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
         Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
 
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data()
+        >>> baseline_fitter = Baseline(x)
+
+        The main parameter to vary is ``half_window``, which controls the size of the
+        morphological operations that are performed on the data.
+
+        >>> fit_1, params_1 = baseline_fitter.mor(y, half_window=15)
+        >>> fit_2, params_2 = baseline_fitter.mor(y, half_window=30)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_1, label='half_window=15')
+        >>> plt.plot(x, fit_2, '--', label='half_window=30')
+        >>> plt.legend()
+        >>> plt.show()
+
+        For noisy data, ``mor`` underestimates the baseline, which can be mitigated by
+        smoothing the input data before calling the method.
+
+        >>> _, y_noisy = utils.make_data(noise_std=0.3)
+        >>> y_smooth = utils.whittaker_smooth(y_noisy, lam=1e2)
+        >>> fit_3, params_4 = baseline_fitter.mor(y_noisy, half_window=30)
+        >>> fit_4, params_4 = baseline_fitter.mor(y_smooth, half_window=30)
+        >>> plt.plot(x, y_noisy)
+        >>> plt.plot(x, y_smooth, '--', label='smoothed data')
+        >>> plt.plot(x, fit_3, ':', label='noisy fit')
+        >>> plt.plot(x, fit_4, label='smoothed fit')
+        >>> plt.legend()
+        >>> plt.show()
+
         """
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         opening = grey_opening(y, [2 * half_wind + 1])
@@ -189,13 +270,13 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
             The maximum number of iterations. Default is 200.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -251,7 +332,7 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -260,7 +341,7 @@ class _Morphological(_Algorithm):
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from convolution.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -292,7 +373,7 @@ class _Morphological(_Algorithm):
         """
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         window_size = 2 * half_wind + 1
-        kernel = _mollifier_kernel(window_size)
+        kernel = _mollifier_kernel(half_wind)
         data_bounds = slice(window_size, -window_size)
 
         pad_kws = pad_kwargs if pad_kwargs is not None else {}
@@ -332,7 +413,7 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -345,7 +426,7 @@ class _Morphological(_Algorithm):
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from convolution.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -376,7 +457,7 @@ class _Morphological(_Algorithm):
         """
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         window_size = 2 * half_wind + 1
-        kernel = _mollifier_kernel(window_size)
+        kernel = _mollifier_kernel(half_wind)
         if smooth_half_window is None:
             smooth_half_window = 1
         else:
@@ -421,7 +502,7 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         smooth_half_window : int, optional
             The half-window to use for smoothing the data after performing the
             morphological operation. Default is None, which will use the same
@@ -430,7 +511,7 @@ class _Morphological(_Algorithm):
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from the moving average.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -484,7 +565,7 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         smooth_half_window : int, optional
             The half-window to use for smoothing the data after performing the
             morphological operation. Default is None, which will use the same
@@ -493,7 +574,7 @@ class _Morphological(_Algorithm):
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from the moving average.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -547,9 +628,9 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphological opening. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -601,7 +682,7 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         lam : float, optional
             The smoothing parameter for the penalized spline when fitting the baseline.
             Larger values will create smoother baselines. Default is 1e4. Larger values
@@ -625,7 +706,7 @@ class _Morphological(_Algorithm):
             The weighting array. If None (default), then the weights will be
             calculated following the procedure in the reference.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -725,7 +806,7 @@ class _Morphological(_Algorithm):
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
-            half-window size using :func:`.optimize_window` and `window_kwargs`.
+            half-window size using :func:`.estimate_window` and `window_kwargs`.
         alpha : float, optional
             The regularization parameter that controls how close the baseline must fit the
             calculated morphological opening. Larger values make the fit more constrained to
@@ -756,7 +837,7 @@ class _Morphological(_Algorithm):
             False, the opening is just the morphological opening, as used in the reference.
             The robust opening typically represents the baseline better.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -878,7 +959,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_ite
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     lam : float, optional
         The smoothing parameter. Larger values will create smoother baselines.
         Default is 1e6.
@@ -908,7 +989,7 @@ def mpls(data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_ite
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -953,12 +1034,12 @@ def mor(data, half_window=None, x_data=None, window_kwargs=None, **kwargs):
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -996,7 +1077,7 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, x_data=None, window_kwa
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     max_iter : int, optional
@@ -1005,7 +1086,7 @@ def imor(data, half_window=None, tol=1e-3, max_iter=200, x_data=None, window_kwa
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -1049,7 +1130,7 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, x_d
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     max_iter : int, optional
@@ -1061,7 +1142,7 @@ def amormol(data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None, x_d
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -1106,7 +1187,7 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     tol : float, optional
         The exit criteria. Default is 1e-3.
     max_iter : int, optional
@@ -1122,7 +1203,7 @@ def mormol(data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=No
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -1169,7 +1250,7 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     smooth_half_window : int, optional
         The half-window to use for smoothing the data after performing the
         morphological operation. Default is None, which will use the same
@@ -1181,7 +1262,7 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -1224,7 +1305,7 @@ def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     smooth_half_window : int, optional
         The half-window to use for smoothing the data after performing the
         morphological operation. Default is None, which will use the same
@@ -1236,7 +1317,7 @@ def mwmv(data, half_window=None, smooth_half_window=None, pad_kwargs=None,
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -1279,12 +1360,12 @@ def tophat(data, half_window=None, x_data=None, window_kwargs=None, **kwargs):
     half_window : int, optional
         The half-window used for the morphological opening. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -1333,7 +1414,7 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     lam : float, optional
         The smoothing parameter for the penalized spline when fitting the baseline.
         Larger values will create smoother baselines. Default is 1e4. Larger values
@@ -1360,7 +1441,7 @@ def mpspline(data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0, num_knots=
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 
@@ -1422,7 +1503,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
     half_window : int, optional
         The half-window used for the morphology functions. If a value is input,
         then that value will be used. Default is None, which will optimize the
-        half-window size using :func:`.optimize_window` and `window_kwargs`.
+        half-window size using :func:`.estimate_window` and `window_kwargs`.
     alpha : float, optional
         The regularization parameter that controls how close the baseline must fit the
         calculated morphological opening. Larger values make the fit more constrained to
@@ -1456,7 +1537,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
     window_kwargs : dict, optional
-        A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+        A dictionary of keyword arguments to pass to :func:`.estimate_window` for
         estimating the half window if `half_window` is None. Default is None.
     **kwargs
 

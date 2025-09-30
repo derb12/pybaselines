@@ -65,6 +65,8 @@ OF SUCH DAMAGE.
 
 """
 
+import warnings
+
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.linalg import get_blas_funcs, solve_banded, solveh_banded
@@ -84,6 +86,10 @@ class _Misc(_Algorithm):
     def interp_pts(self, data=None, baseline_points=(), interp_method='linear'):
         """
         Creates a baseline by interpolating through input points.
+
+        .. deprecated:: 1.3.0
+            ``interp_pts`` is deprecated and will be removed in version 1.5.0. Use the various
+            interpolation methods from :mod:`scipy.interpolate` instead.
 
         Parameters
         ----------
@@ -121,6 +127,12 @@ class _Misc(_Algorithm):
         values of 0.
 
         """
+        warnings.warn(
+            ('"interp_pts" is deprecated and will be removed in version 1.5.0. Use the various '
+             'interpolation methods from scipy.interpolate instead.'), DeprecationWarning,
+            stacklevel=2
+        )
+
         points = np.atleast_2d(
             _check_array(baseline_points, check_finite=self._check_finite, ensure_1d=False)
         )
@@ -137,9 +149,9 @@ class _Misc(_Algorithm):
         return baseline, {}
 
     @_Algorithm._register(sort_keys=('signal',))
-    def beads(self, data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.0,
+    def beads(self, data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry=6.0,
               filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
-              eps_1=1e-6, fit_parabola=True, smooth_half_window=None):
+              eps_1=1e-6, fit_parabola=True, smooth_half_window=None, alpha=1.):
         r"""
         Baseline estimation and denoising with sparsity (BEADS).
 
@@ -155,14 +167,29 @@ class _Misc(_Algorithm):
             The cutoff frequency of the high pass filter, normalized such that
             0 < `freq_cutoff` < 0.5. Default is 0.005.
         lam_0 : float, optional
-            The regularization parameter for the signal values. Default is 1.0. Higher
-            values give a higher penalty.
+            The regularization parameter for the signal values. Larger values give a higher
+            penalty. Default is None, which will calculate its value based on the L1 norm
+            of `data`. See notes below for more details.
+
+            .. versionchanged:: 1.3.0
+                Default value changed from 1.0 to None.
+
         lam_1 : float, optional
-            The regularization parameter for the first derivative of the signal. Default
-            is 1.0. Higher values give a higher penalty.
+            The regularization parameter for the first derivative of the signal. Larger values
+            give a higher penalty. Default is None, which will calculate its value based on the
+            L1 norm of the first derivative of `data`. See notes below for more details.
+
+            .. versionchanged:: 1.3.0
+                Default value changed from 1.0 to None.
+
         lam_2 : float, optional
-            The regularization parameter for the second derivative of the signal. Default
-            is 1.0. Higher values give a higher penalty.
+            The regularization parameter for the second derivative of the signal. Larger values
+            give a higher penalty. Default is None, which will calculate its value based on the
+            L1 norm of the second derivative of `data`. See notes below for more details.
+
+            .. versionchanged:: 1.3.0
+                Default value changed from 1.0 to None.
+
         asymmetry : float, optional
             A number greater than 0 that determines the weighting of negative values
             compared to positive values in the cost function. Default is 6.0, which gives
@@ -198,6 +225,12 @@ class _Misc(_Algorithm):
             improve the convergence of the calculation, and make the calculation less sensitive
             to small changes in `lam_1` and `lam_2`, as noted in the `pybeads` package [3]_.
             Default is None, which will not perform any smoothing.
+        alpha : float, optional
+            If `lam_0`, `lam_1`, or `lam_2` are None, this value is used to calculate them
+            using the L1 norm of the zeroth, first, or second derivative of `data`, respectively.
+            See notes below for more details. Must be positive. Default is 1.
+
+            .. versionadded:: 1.3.0
 
         Returns
         -------
@@ -216,18 +249,28 @@ class _Misc(_Algorithm):
 
         Notes
         -----
-        The default `lam_0`, `lam_1`, and `lam_2` values are good starting points for a
-        dataset with 1000 points. Typically, smaller values are needed for larger datasets
-        and larger values for smaller datasets.
+        If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the proceedure recommended in [1]_
+        to base the `lam_d` values on the inverse of the L1 norm values of the `d'th` derivative
+        of `data`. In detail, it is assumed that `lam_0`, `lam_1`, and `lam_2` are related by
+        some constant `alpha` such that ``lam_0 = alpha / ||data||_1``,
+        ``lam_1 = alpha / ||data'||_1``, and ``lam_2 = alpha / ||data''||_1``.
 
         When finding the best parameters for fitting, it is usually best to find the optimal
         `freq_cutoff` for the noise in the data before adjusting any other parameters since
         it has the largest effect [2]_.
 
+        The regularization parameters `lam_0`, `lam_1`, are `lam_2`, are used to penalize the
+        computed signal and its derivatives, as opposed to Whittaker and penalized spline
+        smoothing where the regularization parameters penalize the baseline. Thus, while increasing
+        any of the regularization parameters within beads seems to increase the curvature of the
+        baseline, the actual effect is due to the increased penalty on the signal. This can be
+        readily observed by looking at the 'signal' key within the output parameter dictionary
+        with varying `lam_0`, `lam_1`, are `lam_2` values.
+
         Raises
         ------
         ValueError
-            Raised if `asymmetry` is less than 0.
+            Raised if `asymmetry`, `lam_0`, `lam_1`, or `lam_2` is less than 0.
 
         References
         ----------
@@ -236,6 +279,36 @@ class _Misc(_Algorithm):
         .. [2] Navarro-Huerta, J.A., et al. Assisted baseline subtraction in complex chromatograms
             using the BEADS algorithm. Journal of Chromatography A, 2017, 1507, 1-10.
         .. [3] https://github.com/skotaro/pybeads.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data(noise_std=0.2)
+        >>> baseline_fitter = Baseline(x)
+
+        If appropriate values of ``lam_0``, ``lam_1``, and ``lam_2`` are unknown, it is easiest
+        to begin by varying ``alpha`` instead, which sets all three lam values based on the
+        L1 norm of the data. Typically, ``alpha`` needs to vary on a log-scale to see
+        significant differences.
+
+        >>> _, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        >>> ax1.plot(x, y)
+        >>> # plot empty data to ax2 so colors for ax1 and ax2 match
+        >>> ax2.plot(x, np.full_like(y, np.nan))
+        >>> for i, alpha in enumerate((0.1, 1, 10, 100, 1000)):
+        ...     fit, params = baseline_fitter.beads(y, alpha=alpha)
+        ...     ax1.plot(x, fit, label=f'alpha={alpha}')
+        ...     ax2.plot(x, params['signal'], label=f'alpha={alpha}')
+        >>> ax1.legend()
+        >>> ax2.legend()
+        >>> ax2.set_ylabel('Calculated signal')
+        >>> plt.show()
+
+        In this example, an ``alpha`` value of 10 or 100 seems to work well. The difference
+        between the calculated baselines for the two is subtle, but by looking at the calculated
+        signal, it can be seen that an ``alpha`` of 100 reduces the overall noise within the
+        computed signal compared to 10.
 
         """
         # TODO maybe add the log-transform from Navarro-Huerta to improve fit for data spanning
@@ -259,9 +332,7 @@ class _Misc(_Algorithm):
         if smooth_half_window is None:
             smooth_half_window = 0
 
-        lam_0 = _check_lam(lam_0, True)
-        lam_1 = _check_lam(lam_1, True)
-        lam_2 = _check_lam(lam_2, True)
+        lam_0, lam_1, lam_2 = _process_lams(y, alpha, lam_0, lam_1, lam_2)
         if _HAS_NUMBA:
             baseline, params = _banded_beads(
                 y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
@@ -331,9 +402,9 @@ def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
         The banded matrix.
     x : array-like, shape (N,)
         The vector.
-    ab_lu : Container(int, int)
+    ab_lu : Container[int, int]
         The number of lower (`n_lower`) and upper (`n_upper`) diagonals in `ab`.
-    a_full_shape : Container(int, int)
+    a_full_shape : Container[int, int]
         The number of rows and columns in the full `a` matrix.
 
     Returns
@@ -462,14 +533,14 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
         A banded matrix.
     b : array-like, shape (`b_lu[0]` + `b_lu[1]` + 1, N)
         The second banded matrix.
-    a_lu : Container(int, int)
+    a_lu : Container[int, int]
         A container of intergers designating the number lower and upper diagonals of `a`.
-    b_lu : Container(int, int)
+    b_lu : Container[int, int]
         A container of intergers designating the number lower and upper diagonals of `b`.
-    a_full_shape : Container(int, int)
+    a_full_shape : Container[int, int]
         A container of intergers designating the number of rows and columns in the full
         matrix representation of `a`.
-    b_full_shape : Container(int, int)
+    b_full_shape : Container[int, int]
         A container of intergers designating the number of rows and columns in the full
         matrix representation of `b`.
     symmetric_output : bool, optional
@@ -591,7 +662,7 @@ def _parabola(data):
 # adapted from MATLAB beads version; see license above
 def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=False):
     """
-    Creates the banded matrices A and B such that B(A^-1) is a high pass filter.
+    Creates the banded matrices A and B such that ``B @ (A^-1)`` is a high pass filter.
 
     Parameters
     ----------
@@ -606,6 +677,15 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     full_matrix : bool, optional
         If True, will return the full sparse diagonal matrices of A and B. If False
         (default), will return the banded matrix versions of A and B.
+
+    Returns
+    -------
+    A : scipy.sparse.csr_matrix or scipy.sparse.csr_array or numpy.ndarray
+        The banded matrix A. If ``full_matrix`` is True, the output is a sparse
+        matrix or array; otherwise, it is an array of the bands themselves.
+    B : scipy.sparse.csr_matrix or scipy.sparse.csr_array or numpy.ndarray
+        The banded matrix B. If ``full_matrix`` is True, the output is a sparse
+        matrix or array; otherwise, it is an array of the bands themselves.
 
     Raises
     ------
@@ -973,6 +1053,68 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     return baseline, {'signal': x, 'tol_history': tol_history[:i + 1]}
 
 
+def _process_lams(y, alpha, lam_0, lam_1, lam_2):
+    """
+    Allows computing lam values based on the L1 norm of the 0th, 1st, and 2nd derivatives.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured values.
+    alpha : float
+        The parameter to used for estimating any lam_d values which are None. Must be positive.
+    lam_0 : float or None
+        The regularization parameter for the signal values.
+    lam_1 : float or None
+        The regularization parameter for the first derivative of the signal.
+    lam_2 : float or None
+        The regularization parameter for the second derivative of the signal.
+
+    Returns
+    -------
+    output_lams : list[float, float, float]
+        The `lam_0`, `lam_1`, and `lam_2` values.
+
+    Notes
+    -----
+    Follows the proceedure recommended in [1]_ to base the `lam_d` values on the inverse of
+    the L1 norm values of the `d'th` derivative of `y`. In detail, it is assumed that
+    `lam_0`, `lam_1`, and `lam_2` are related by some constant `alpha` such that
+    ``lam_0 = alpha / ||y||_1``, ``lam_1 = alpha / ||y'||_1``, and
+    ``lam_2 = alpha / ||y''||_1``. If `lam_0`, `lam_1`, and `lam_2` are all None, then all
+    values are calculated assuming `alpha` is 1. If only `lam_0` is not None, the
+    corresponding `alpha` value is calculated and `lam_1` and `lam_2` are set accordingly.
+
+    Raises
+    ------
+    ValueError
+        Raised if `alpha` is not positive or if all three of `lam_0`, `lam_1`, and `lam_2`
+        are 0.
+
+    References
+    ----------
+    .. [1] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
+        (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
+
+    """
+    if alpha <= 0:
+        raise ValueError('alpha must be greater than 0')
+    input_lams = [lam_0, lam_1, lam_2]
+    if None not in input_lams:
+        output_lams = [_check_lam(lam, allow_zero=True) for lam in input_lams]
+        if all(val == 0 for val in output_lams):
+            raise ValueError('at least one lam value must be non-zero')
+    else:
+        output_lams = []
+        for i, lam in enumerate(input_lams):
+            if lam is None:
+                output_lams.append(alpha / np.linalg.norm(np.diff(y, i), 1))
+            else:
+                output_lams.append(_check_lam(lam, allow_zero=True))
+
+    return output_lams
+
+
 # adapted from MATLAB beads version; see license above
 def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
                   filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
@@ -1156,9 +1298,9 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
 
 
 @_misc_wrapper
-def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.0,
+def beads(data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry=6.0,
           filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
-          eps_1=1e-6, fit_parabola=True, smooth_half_window=None, x_data=None):
+          eps_1=1e-6, fit_parabola=True, smooth_half_window=None, x_data=None, alpha=1.):
     r"""
     Baseline estimation and denoising with sparsity (BEADS).
 
@@ -1174,14 +1316,17 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
         The cutoff frequency of the high pass filter, normalized such that
         0 < `freq_cutoff` < 0.5. Default is 0.005.
     lam_0 : float, optional
-        The regularization parameter for the signal values. Default is 1.0. Higher
-        values give a higher penalty.
+        The regularization parameter for the signal values. Larger values give a higher
+        penalty. Default is None, which will calculate its value based on the L1 norm
+        of `data`. See notes below for more details.
     lam_1 : float, optional
-        The regularization parameter for the first derivative of the signal. Default
-        is 1.0. Higher values give a higher penalty.
+        The regularization parameter for the first derivative of the signal. Larger values
+        give a higher penalty. Default is None, which will calculate its value based on the
+        L1 norm of the first derivative of `data`. See notes below for more details.
     lam_2 : float, optional
-        The regularization parameter for the second derivative of the signal. Default
-        is 1.0. Higher values give a higher penalty.
+        The regularization parameter for the second derivative of the signal. Larger values
+        give a higher penalty. Default is None, which will calculate its value based on the
+        L1 norm of the second derivative of `data`. See notes below for more details.
     asymmetry : float, optional
         A number greater than 0 that determines the weighting of negative values
         compared to positive values in the cost function. Default is 6.0, which gives
@@ -1220,6 +1365,12 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
     x_data : array-like, optional
         The x-values. Not used by this function, but input is allowed for consistency
         with other functions.
+    alpha : float, optional
+        If `lam_0`, `lam_1`, or `lam_2` are None, this value is used to calculate them
+        using the L1 norm of the zeroth, first, or second derivative of `data`, respectively.
+        See notes below for more details. Must be positive. Default is 1.
+
+        .. versionadded:: 1.3.0
 
     Returns
     -------
@@ -1238,9 +1389,11 @@ def beads(data, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6.
 
     Notes
     -----
-    The default `lam_0`, `lam_1`, and `lam_2` values are good starting points for a
-    dataset with 1000 points. Typically, smaller values are needed for larger datasets
-    and larger values for smaller datasets.
+    If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the proceedure recommended in [4]_
+    to base the `lam_d` values on the inverse of the L1 norm values of the `d'th` derivative
+    of `data`. In detail, it is assumed that `lam_0`, `lam_1`, and `lam_2` are related by
+    some constant `alpha` such that ``lam_0 = alpha / ||data||_1``,
+    ``lam_1 = alpha / ||data'||_1``, and ``lam_2 = alpha / ||data''||_1``.
 
     When finding the best parameters for fitting, it is usually best to find the optimal
     `freq_cutoff` for the noise in the data before adjusting any other parameters since

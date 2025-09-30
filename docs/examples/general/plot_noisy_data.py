@@ -6,11 +6,12 @@ Fitting noisy data
 Many baseline correction algorithms were created without considering noise
 in the experimental data, which can lead to an underestimation of the baseline.
 This example will show how to reduce this issue by simply smoothing the data
-before performing baseline correction.
+before performing baseline correction, a strategy that can be broadly applied
+to most algorithms in pybaselines.
 
-Two algorithms will be compared: :meth:`~.Baseline.modpoly`, which is not suited for noisy
-data, and :meth:`~.Baseline.imodpoly`, which is a modification of the modpoly algorithm
-created specifically to address noise.
+Two algorithms will be compared: :meth:`~pybaselines.Baseline.modpoly`, which is not suited for
+noisy data, and :meth:`~pybaselines.Baseline.imodpoly`, which is a modification of the modpoly
+algorithm created specifically to address noise.
 
 """
 # sphinx_gallery_thumbnail_number = 2
@@ -54,7 +55,10 @@ plt.legend()
 # The modpoly fits of both the original data and the smoothed data are
 # shown below. It is clear that the fit for the original data underestimates
 # the baseline due to noise, while the modpoly fit of the smoothed data is
-# much closer to the true baseline.
+# much closer to the true baseline. This strategy of smoothing data to improve
+# the baseline fit for noisy data can also be applied to any of the various baseline
+# correction methods in pybaselines that do not inherently account for noise, including
+# :meth:`~pybaselines.Baseline.airpls` and :meth:`~pybaselines.Baseline.mor`.
 regular_modpoly = baseline_fitter.modpoly(y, poly_order=3)[0]
 smoothed_modpoly = baseline_fitter.modpoly(smooth_y, poly_order=3)[0]
 plt.figure()

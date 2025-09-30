@@ -23,6 +23,11 @@ import sys
 
 sys.path.insert(0, os.path.abspath('..'))
 
+# set environmental variable so I can detect if Sphinx is building docs; some example
+# programs would otherwise create a GUI that would impede the docs build or, if building
+# on readthedocs, raise a tkinter error
+os.environ['PB_BUILDING_DOCS'] = '1'
+
 # -- General configuration ---------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
@@ -155,9 +160,9 @@ suppress_warnings = ['autosectionlabel']
 
 # -- Settings for matplotlib plot_directive extension ----------------------------
 
-plot_include_source = False
+plot_include_source = True  # set default to True so that docstring examples don't show source
 plot_html_show_formats = False
-plot_html_show_source_link = True
+plot_html_show_source_link = False  # set default to False for docstring examples
 
 plot_formats = ['png']
 
@@ -195,6 +200,7 @@ gallery_section_order = [
     'examples/misc',
     'examples/optimizers',
     'examples/two_d',
+    'examples/interactive',
 ]
 
 sphinx_gallery_conf = {
@@ -218,6 +224,14 @@ sphinx_gallery_conf = {
     'capture_repr': (),
     # ignore the example_helpers.py files that contain setup code for the examples
     'ignore_pattern': r'(example_helpers)',
+    # the modules to use for generating backreferences within examples to make
+    # mini-galleries, aka my package
+    'doc_module': ('pybaselines',),
+    # directory to place all references within the examples to objects from "doc_module"
+    # to then link back to
+    'backreferences_dir': 'generated/backreferences',
+    # includes intersphinx links for internal objects within examples
+    'reference_url': {'pybaselines': None},
 }
 
 
@@ -226,16 +240,24 @@ sphinx_gallery_conf = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
+html_logo = 'images/logo.png'
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
 # documentation.
 try:
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
+    import pydata_sphinx_theme
+    html_theme = 'pydata_sphinx_theme'
     html_theme_options = {
-        'navigation_depth': 5,
-        'prev_next_buttons_location': 'both',
-    }
+    'icon_links': [
+            {
+                'name': 'GitHub',
+                'url': 'https://github.com/derb12/pybaselines',
+                'icon': 'fa-brands fa-github',
+                'type': 'fontawesome',
+            },
+        ],
+    'secondary_sidebar_items': ['page-toc', 'sourcelink', 'sg_download_links'],
+   }
 except ImportError:
     html_theme = 'nature'
     html_theme_options = {}

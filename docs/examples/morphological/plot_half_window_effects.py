@@ -6,8 +6,8 @@
 This example shows the influence of the `half_window` parameter that is used when
 fitting any morphological algorithm.
 
-For this example, the :meth:`~.Baseline.mor` algorithm will be used, which is a relatively
-robust baseline algorithm.
+For this example, the :meth:`~pybaselines.Baseline.mor` algorithm will be used, which is
+a relatively robust baseline algorithm.
 
 """
 # sphinx_gallery_thumbnail_number = 4

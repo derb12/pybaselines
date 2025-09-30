@@ -8,8 +8,8 @@ Whittaker-smoothing-based algorithms implemented in pybaselines. The reason
 for doing so was that P-splines offer additional user flexibility when choosing
 parameters for fitting and more easily work for unequally spaced data. This example
 will examine the relationship of `lam` versus the number of data points when fitting
-a baseline with the :meth:`~.Baseline.arpls` function and its P-spline version,
-:meth:`~.Baseline.pspline_arpls`.
+a baseline with the :meth:`~pybaselines.Baseline.arpls` function and its P-spline version,
+:meth:`~pybaselines.Baseline.pspline_arpls`.
 
 Note that the exact optimal `lam` values reported in this example are not of significant
 use since they depend on many other factors such as the baseline curvature, noise, peaks,
@@ -75,7 +75,7 @@ def optimize_lam(data, known_baseline, func, previous_min=None, **kwargs):
 # Other baseline types could be examined, similar to the
 # :ref:`Whittaker lam vs data size example <sphx_glr_generated_examples_whittaker_plot_lam_vs_data_size.py>`,
 # which should give similar results.
-plt.plot(utils._make_data(1000, bkg_type='exponential')[1])
+plt.plot(utils.make_data(1000, bkg_type='exponential', signal_type=2)[1])
 
 # %%
 # For each function, the optimal `lam` value will be calculated for data sizes
@@ -97,7 +97,9 @@ for i, func_name in enumerate(('arpls', 'pspline_arpls')):
     min_lam = None
     for j, num_x in enumerate(num_points):
         func = getattr(Baseline(), func_name)
-        x, y, baseline = utils._make_data(num_x, bkg_type='exponential')
+        x, y, baseline = utils.make_data(
+            num_x, bkg_type='exponential', signal_type=2, return_baseline=True
+        )
         # use a slightly lower tolerance to speed up the calculation
         min_lam = optimize_lam(y, baseline, func, min_lam, tol=1e-2, max_iter=50)
         best_lams[j] = min_lam

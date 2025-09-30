@@ -8,8 +8,8 @@ fitting any algorithm that is based on Whittaker-smoothing. Note that the
 exact `lam` values used in this example are unimportant, just the changes
 in their scale.
 
-For this example, the :meth:`~.Baseline.arpls` algorithm will be used, which performs
-well in the presence of noise.
+For this example, the :meth:`~pybaselines.Baseline.arpls` algorithm will be used,
+which performs well in the presence of noise.
 
 """
 # sphinx_gallery_thumbnail_number = 5

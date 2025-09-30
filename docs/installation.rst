@@ -8,7 +8,7 @@ Installation
 Dependencies
 ~~~~~~~~~~~~
 
-pybaselines requires `Python <https://python.org>`_ version 3.9 or later and the following libraries:
+pybaselines requires `Python <https://www.python.org>`_ version 3.9 or later and the following libraries:
 
 * `NumPy <https://numpy.org>`_ (>= 1.20)
 * `SciPy <https://scipy.org>`_ (>= 1.6)
@@ -69,7 +69,7 @@ Development Version
 ~~~~~~~~~~~~~~~~~~~
 
 The sources for pybaselines can be downloaded from the
-`GitHub repo <https://github.com/derb12/pybaselines>`_.
+`GitHub repository <https://github.com/derb12/pybaselines>`_.
 
 To directly install the current version of pybaselines from GitHub,
 ensure `git <https://git-scm.com>`_ is installed and then run:

@@ -7,7 +7,6 @@ Created on March 22, 2021
 """
 
 from contextlib import contextmanager
-import warnings
 
 import numpy as np
 from numpy.testing import assert_allclose
@@ -585,7 +584,7 @@ class TestBaseTesterFailures(BaseTester):
         Ensures failure when output is different when using threading.
 
         Test is not completely deterministic and will certainly fail if only 1 thread is made
-        available, so just warn if no AssertionError is raised since it's not critical and was
+        available, so just xfail if no AssertionError is raised since it's not critical and was
         already confirmed to work as intended on a 6-core CPU.
 
         """
@@ -595,9 +594,8 @@ class TestBaseTesterFailures(BaseTester):
             except AssertionError:
                 pass  # worked as expected
             else:
-                warnings.warn(
-                    'Expected exception in TestBaseTesterFailures.test_threading did not occur',
-                    stacklevel=2
+                pytest.xfail(
+                    'Expected exception in TestBaseTesterFailures.test_threading did not occur'
                 )
 
     def test_non_unique_x(self):
@@ -959,7 +957,7 @@ class TestBaseTester2DFailures(BaseTester2D):
         Ensures failure when output is different when using threading.
 
         Test is not completely deterministic and will certainly fail if only 1 thread is made
-        available, so just warn if no AssertionError is raised since it's not critical and was
+        available, so just xfail if no AssertionError is raised since it's not critical and was
         already confirmed to work as intended on a 6-core CPU.
 
         """
@@ -969,9 +967,8 @@ class TestBaseTester2DFailures(BaseTester2D):
             except AssertionError:
                 pass  # worked as expected
             else:
-                warnings.warn(
-                    'Expected exception in TestBaseTesterFailures.test_threading did not occur',
-                    stacklevel=2
+                pytest.xfail(
+                    'Expected exception in TestBaseTester2DFailures.test_threading did not occur'
                 )
 
     def test_non_unique_xz(self):

@@ -16,7 +16,7 @@ from scipy.sparse import vstack
 from pybaselines import _banded_utils, misc
 from pybaselines._compat import dia_object, diags
 
-from .base_tests import BaseTester, get_data
+from .base_tests import BaseTester, ensure_deprecation, get_data
 
 
 class MiscTester(BaseTester):
@@ -26,6 +26,7 @@ class MiscTester(BaseTester):
     algorithm_base = misc._Misc
 
 
+@pytest.mark.filterwarnings('ignore:"interp_pts" is deprecated')
 class TestInterpPts(MiscTester):
     """Class for testing interp_pts baseline."""
 
@@ -69,6 +70,12 @@ class TestInterpPts(MiscTester):
             getattr(self.algorithm_base(), self.func_name)(**self.kwargs)
         with pytest.raises(TypeError):
             self.func(**self.kwargs)
+
+    @ensure_deprecation(1, 5)
+    def test_method_deprecation(self):
+        """Ensures the deprecation warning is emitted if this method is used."""
+        with pytest.warns(DeprecationWarning):
+            self.class_func(data=self.y, **self.kwargs)
 
 
 class TestBeads(MiscTester):
@@ -578,3 +585,75 @@ def test_beads_ATb(beads_data, filter_type, freq_cutoff):
 
     # use rtol=1.5e-7 since values are very small for d=2 and small freq_cutoff
     assert_allclose(lam_ATb_actual, lam_ATb_banded, rtol=1.5e-7)
+
+
+@pytest.mark.parametrize('alpha', (1, 5.5))
+def test_process_lams(data_fixture, alpha):
+    """Ensures _process_lams correctly calculates lam values according to the L1 norms."""
+    x, y = data_fixture
+    lam_0_factor = alpha / np.linalg.norm(y, 1)
+    lam_1_factor = alpha / np.linalg.norm(np.diff(y, 1), 1)
+    lam_2_factor = alpha / np.linalg.norm(np.diff(y, 2), 1)
+    lam_factors = [lam_0_factor, lam_1_factor, lam_2_factor]
+
+    output = misc._process_lams(y, alpha, None, None, None)
+    assert_allclose(output[0], lam_0_factor, rtol=1e-14, atol=1e-14)
+    assert_allclose(output[1], lam_1_factor, rtol=1e-14, atol=1e-14)
+    assert_allclose(output[2], lam_2_factor, rtol=1e-14, atol=1e-14)
+
+    # only certain lam values missing
+    for index in range(3):
+        lams = [1, 1, 1]
+        lams[index] = None
+        output2 = misc._process_lams(y, alpha=alpha, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
+        for idx in range(3):
+            if idx == index:
+                assert_allclose(output2[idx], lam_factors[idx], rtol=1e-14, atol=1e-14)
+            else:
+                assert_allclose(output2[idx], lams[idx], rtol=1e-14, atol=1e-14)
+
+    # ensure it respects when lam values are 0
+    for index in range(3):
+        lams = [1, 1, 1]
+        lams[index] = 0
+        output2 = misc._process_lams(y, alpha=alpha, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])
+        for idx in range(3):
+            if idx == index:
+                assert_allclose(output2[idx], 0, rtol=1e-14, atol=1e-14)
+            else:
+                assert_allclose(output2[idx], lams[idx], rtol=1e-14, atol=1e-14)
+
+    # all lams given, so they should just be checked and then output
+    lam_0 = 5
+    lam_1 = 10
+    lam_2 = 3
+    output3 = misc._process_lams(y, alpha, lam_0, lam_1, lam_2)
+    assert_allclose(output3[0], lam_0, rtol=1e-14, atol=1e-14)
+    assert_allclose(output3[1], lam_1, rtol=1e-14, atol=1e-14)
+    assert_allclose(output3[2], lam_2, rtol=1e-14, atol=1e-14)
+
+
+def test_process_lams_non_positive_alpha(data_fixture):
+    """Ensures non-positive alpha values raise an error."""
+    x, y = data_fixture
+    with pytest.raises(ValueError):
+        misc._process_lams(y, alpha=0, lam_0=1, lam_1=1, lam_2=1)
+    with pytest.raises(ValueError):
+        misc._process_lams(y, alpha=-1., lam_0=1, lam_1=1, lam_2=1)
+
+
+def test_process_lams_all_zero(data_fixture):
+    """Ensures an error is raised if all three lam values are zero."""
+    x, y = data_fixture
+    with pytest.raises(ValueError):
+        misc._process_lams(y, alpha=0, lam_0=0, lam_1=0, lam_2=0)
+
+
+@pytest.mark.parametrize('negative_lam', [0, 1, 2])
+def test_process_lams_negative_lam_fails(data_fixture, negative_lam):
+    """Ensures that a negative regularization parameter fails."""
+    x, y = data_fixture
+    lams = [1, 1, 1]
+    lams[negative_lam] *= -1
+    with pytest.raises(ValueError):
+        misc._process_lams(y, alpha=1, lam_0=lams[0], lam_1=lams[1], lam_2=lams[2])

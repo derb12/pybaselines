@@ -6,11 +6,11 @@ Fitting Multiple Datasets
 When fitting multiple datasets that all share the same independant variable, pybaselines
 allows saving time by reusing the same :class:`~.Baseline` object to allow only
 performing some of the computationally heavy setup only once. For example,
-:doc:`polynomial methods <../../../algorithms/polynomial>` will only compute the Vandermonde
-matrix, and potentially its pseudoinverse, once. Likewise,
-:doc:`spline methods <../../../algorithms/spline>` will only have to compute the spline
-basis matrix once. Note that this only applies if the same non-data parameters
-(eg. ``poly_order``, ``lam``, etc.) are used for each fit.
+:doc:`polynomial methods <../../../algorithms/algorithms_1d/polynomial>` will only compute the
+Vandermonde matrix, and potentially its pseudoinverse, once. Likewise,
+:doc:`spline methods <../../../algorithms/algorithms_1d/spline>` will only have to compute the
+spline basis matrix once. Note that this only applies if the same non-data parameters
+(eg. ``poly_order``, ``num_knots``, etc.) are used for each fit.
 
 This example will explore the efficiency of reusing the same ``Baseline`` object when fitting
 multiple datasets for different types of algorithms.
@@ -44,10 +44,10 @@ noise = np.random.default_rng(0).normal(0, 0.1, len(x))
 y = signal + baseline + noise
 
 # %%
-# Six different methods will be timed. The polynomial method :meth:`~.Baseline.penalized_poly`,
-# the spline method :meth:`~.Baseline.mixture_model`, the Whittaker smoothing method
-# :meth:`~.Baseline.iarpls`, the morphological method :meth:`~.Baseline.mor`, the smoothing
-# method :meth:`~.Baseline.ria`, and the classification method :meth:`~.Baseline.std_distribution`.
+# Six different methods will be timed. The polynomial method :meth:`~pybaselines.Baseline.penalized_poly`,
+# the spline method :meth:`~pybaselines.Baseline.mixture_model`, the Whittaker smoothing method
+# :meth:`~pybaselines.Baseline.iarpls`, the morphological method :meth:`~pybaselines.Baseline.mor`, the smoothing
+# method :meth:`~pybaselines.Baseline.ria`, and the classification method :meth:`~pybaselines.Baseline.std_distribution`.
 
 methods = (
     ('penalized_poly', {'poly_order': 4}),

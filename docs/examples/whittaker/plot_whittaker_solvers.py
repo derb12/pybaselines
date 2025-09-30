@@ -7,7 +7,7 @@ The Whittaker-smoothing-based algorithms in pybaselines make use of
 the banded structure of the linear system to reduce the computation time.
 
 This example shows the difference in computation times of the asymmetic least squares
-(:meth:`~.Baseline.asls`) algorithm when using the banded solver from SciPy,
+(:meth:`~.pybaselines.Baseline.asls`) algorithm when using the banded solver from SciPy,
 :func:`scipy.linalg.solve_banded`, and a dedicated pentadiagonal banded solver derived
 from the excellent `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ package. In
 addition, the time it takes when solving the system using sparse matrices rather than the banded
@@ -27,6 +27,7 @@ the sparse Cholesky decomposition solver
 Python bindings provided by `scikit-sparse <https://github.com/scikit-sparse/scikit-sparse>`_.
 
 """
+# sphinx_gallery_multi_image = "single"
 
 import time
 import warnings
@@ -103,7 +104,7 @@ if __name__ == '__main__':
     for func_name in functions:
         timings = []
         for num_x in data_sizes:
-            y = utils._make_data(num_x)[1]
+            y = utils.make_data(num_x, bkg_type='exponential', noise_std=0.1, signal_type=2)[1]
             lam = lam_equation(num_x)
             if func_name == 'sparse':
                 func = sparse_asls

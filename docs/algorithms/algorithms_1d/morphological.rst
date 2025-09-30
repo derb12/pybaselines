@@ -13,6 +13,8 @@ below. The algorithms in this section use these operations to estimate the basel
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -80,6 +82,8 @@ method.
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -212,6 +216,8 @@ erosion and dilation of the opening to create the baseline.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -235,6 +241,8 @@ create the baseline.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -252,6 +260,8 @@ kernel, to produce a smooth baseline.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -276,11 +286,13 @@ and opening of either the data (first iteration) or previous iteration's baselin
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
     for i, (ax, y) in enumerate(zip(axes, data)):
-        baseline, params = baseline_fitter.amormol(y, 10)
+        baseline, params = baseline_fitter.amormol(y, 20)
         ax.plot(baseline, 'g--')
 
 
@@ -294,6 +306,8 @@ resembles rolling a ball across the data.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -315,6 +329,8 @@ then smooths the result with a moving average.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -340,6 +356,8 @@ tophat (Top-hat Transformation)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -367,6 +385,8 @@ Finally, a penalized spline is fit to the smoothed data with the assigned weight
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -413,17 +433,17 @@ and :math:`\alpha`, :math:`\beta`, and :math:`\gamma` are regularization paramet
 Linear systems:
 
 The initial signal, :math:`s^0`, and baseline, :math:`v^0`, are set equal to :math:`y`,
-and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`n`, :math:`s^n`
-and :math:`v^n`, are solved for sequentially using the following two
+and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`t`, :math:`s^t`
+and :math:`v^t`, are solved for sequentially using the following two
 linear equations:
 
 .. math::
 
-    (I + 2 \gamma D_d^{\top} D_d) s^n = y - v^{n-1}
+    (I + 2 \gamma D_d^{\mathsf{T}} D_d) s^t = y - v^{t-1}
 
 .. math::
 
-    (I + 2 \alpha I + 2 \beta D_d^{\top} D_d) v^n = y - s^n + 2 \alpha Op
+    (I + 2 \alpha I + 2 \beta D_d^{\mathsf{T}} D_d) v^t = y - s^t + 2 \alpha Op
 
 where :math:`I` is the identity matrix and :math:`D_d` is the matrix version
 of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.
@@ -433,6 +453,8 @@ multipliers.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -452,6 +474,8 @@ of the jbcd function.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the second-to-top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)

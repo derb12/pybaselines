@@ -90,8 +90,8 @@ class _Whittaker(_Algorithm2D):
         Eilers, P., et al. Baseline correction with asymmetric least squares smoothing.
         Leiden University Medical Centre Report, 2005, 1(1).
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         if not 0 < p < 1:
@@ -279,8 +279,8 @@ class _Whittaker(_Algorithm2D):
         Zhang, Z.M., et al. Baseline correction using adaptive iteratively
         reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -374,8 +374,8 @@ class _Whittaker(_Algorithm2D):
         Baek, S.J., et al. Baseline correction using asymmetrically reweighted
         penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -556,8 +556,8 @@ class _Whittaker(_Algorithm2D):
         reweighted penalized least squares for Raman spectrum. Applied Optics, 2020,
         59, 10933-10943.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -591,7 +591,7 @@ class _Whittaker(_Algorithm2D):
         sort_keys=('weights', 'alpha'), reshape_keys=('weights', 'alpha'), reshape_baseline=True
     )
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
-              weights=None, alpha=None, asymmetric_coef=0.5):
+              weights=None, alpha=None, asymmetric_coef=2., alternate_weighting=True):
         """
         Adaptive smoothness penalized least squares smoothing (asPLS).
 
@@ -618,9 +618,21 @@ class _Whittaker(_Algorithm2D):
             An array of values that control the local value of `lam` to better
             fit peak and non-peak regions. If None (default), then the initial values
             will be an array with shape equal to (M, N) and all values set to 1.
-        asymmetric_coef : float
+        asymmetric_coef : float, optional
             The asymmetric coefficient for the weighting. Higher values leads to a steeper
-            weighting curve (ie. more step-like). Default is 0.5.
+            weighting curve (ie. more step-like). Default is 2, as used in the asPLS paper [1]_.
+            Note that a value of 4 results in the weighting scheme used in the NasPLS
+            (Non-sensitive-areas adaptive smoothness penalized least squares smoothing) algorithm
+            [2]_.
+
+            .. versionadded:: 1.2.0
+
+        alternate_weighting : bool, optional
+            If True (default), subtracts the mean of the negative residuals within the weighting
+            equation. If False, uses the weighting equation as stated within the asPLS paper [1]_.
+            See the Notes section below for more details.
+
+            .. versionadded:: 1.3.0
 
         Returns
         -------
@@ -647,16 +659,22 @@ class _Whittaker(_Algorithm2D):
 
         Notes
         -----
-        The default asymmetric coefficient (`k` in the asPLS paper) is 0.5 instead
-        of the 2 listed in the asPLS paper. pybaselines uses the factor of 0.5 since it
-        matches the results in Table 2 and Figure 5 of the asPLS paper closer than the
-        factor of 2 and fits noisy data much better.
+        The weighting scheme as written in the asPLS paper [1]_ does not reproduce the paper's
+        results for noisy data. By subtracting the mean of negative residuals (ie. the negative
+        values of ``data - baseline``) within the weighting scheme, the asPLS paper's results can
+        be correctly replicated (see https://github.com/derb12/pybaselines/issues/40 for more
+        details). Given this discrepancy, the default for ``aspls`` is to also subtract the
+        negative residuals within the weighting. To use the weighting scheme as it is written in
+        the asPLS paper, set ``alternate_weighting`` to False.
 
         References
         ----------
-        Zhang, F., et al. Baseline correction for infrared spectra using
-        adaptive smoothness parameter penalized least squares method.
-        Spectroscopy Letters, 2020, 53(3), 222-233.
+        .. [1] Zhang, F., et al. Baseline correction for infrared spectra using
+            adaptive smoothness parameter penalized least squares method.
+            Spectroscopy Letters, 2020, 53(3), 222-233.
+        .. [2] Zhang, F., et al. An automatic baseline correction method based on reweighted
+            penalized least squares method for non-sensitive areas. Vibrational Spectroscopy,
+            2025, 138, 103806.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
@@ -676,7 +694,9 @@ class _Whittaker(_Algorithm2D):
         for i in range(max_iter + 1):
             penalty = alpha_matrix @ whittaker_system.penalty
             baseline = whittaker_system.solve(y, weight_array, penalty=penalty)
-            new_weights, residual, exit_early = _weighting._aspls(y, baseline, asymmetric_coef)
+            new_weights, residual, exit_early = _weighting._aspls(
+                y, baseline, asymmetric_coef, alternate_weighting
+            )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -785,8 +805,8 @@ class _Whittaker(_Algorithm2D):
         for analytical instruments. 2014 IEEE 11th International Multi-Conference on
         Systems, Signals, and Devices, 2014, 1-5.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         if not 0 < p < 1:
@@ -892,8 +912,8 @@ class _Whittaker(_Algorithm2D):
         with weights derived from the Bayesian method. Nuclear Science and Techniques,
         2022, 140, 250-257.
 
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -950,7 +970,7 @@ class _Whittaker(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def lsrpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-              num_eigens=(10, 10), return_dof=False):
+              num_eigens=(10, 10), return_dof=False, alternate_weighting=False):
         """
         Locally Symmetric Reweighted Penalized Least Squares (LSRPLS).
 
@@ -983,6 +1003,12 @@ class _Whittaker(_Algorithm2D):
             If True and `num_eigens` is not None, then the effective degrees of freedom for
             each eigenvector will be calculated and returned in the parameter dictionary.
             Default is False since the calculation takes time.
+        alternate_weighting : bool, optional
+            If False (default), the weighting uses a prefactor term of ``10^t``, where ``t`` is
+            the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
+            a prefactor term of ``exp(t)``. See the Notes section below for more details.
+
+            .. versionadded:: 1.3.0
 
         Returns
         -------
@@ -1003,13 +1029,26 @@ class _Whittaker(_Algorithm2D):
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
 
+        Notes
+        -----
+        In the LSRPLS paper [1]_, the weighting equation is written with a prefactor term
+        of ``10^t``, where ``t`` is the iteration number, but the plotted weighting curve in
+        Figure 1 of the paper shows a prefactor term of ``exp(t)`` instead. Since it is ambiguous
+        which prefactor term is actually used for the algorithm, both are permitted by setting
+        `alternate_weighting` to True to use ``10^t`` and False to use ``exp(t)``. In practice,
+        the prefactor determines how quickly the weighting curve converts from a sigmoidal curve
+        to a step curve, and does not heavily influence the result.
+
+        If ``alternate_weighting`` is False, the weighting is the same as the drPLS algorithm [2]_.
+
         References
         ----------
-        Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
-        Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
-
-        Biessy, G. Revisiting Whittaker-Henderson Smoothing. https://hal.science/hal-04124043
-        (Preprint), 2023.
+        .. [1] Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+            Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+        .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
+            penalized least squares, Applied Optics, 2019, 58, 3913-3920.
+        .. [3] Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework
+            for practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
         y, weight_array, whittaker_system = self._setup_whittaker(
@@ -1018,7 +1057,7 @@ class _Whittaker(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = whittaker_system.solve(y, weight_array)
-            new_weights, exit_early = _weighting._lsrpls(y, baseline, i)
+            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break

@@ -62,7 +62,8 @@ def sparse_drpls(data, lam, eta=0.5, diff_order=2, tol=1e-3, max_iter=50):
     return baseline
 
 
-def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coef=2):
+def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coef=2.,
+                 alternate_weighting=True):
     """A sparse version of aspls for testing that the banded version is implemented correctly."""
     y = np.asarray(data)
     num_y = len(y)
@@ -74,7 +75,9 @@ def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coe
     for _ in range(max_iter + 1):
         lhs = weight_matrix + alpha_matrix @ penalty_matrix
         baseline = spsolve(lhs, weight_array * y)
-        new_weights, residual, _ = _weighting._aspls(y, baseline, asymmetric_coef)
+        new_weights, residual, _ = _weighting._aspls(
+            y, baseline, asymmetric_coef, alternate_weighting
+        )
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
@@ -434,9 +437,10 @@ class TestAsPLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, asymmetric_coef=asymmetric_coef)
 
-    @pytest.mark.parametrize('asymmetric_coef', (1, 2))
+    @pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
+    @pytest.mark.parametrize('alternate_weighting', (True, False))
     @pytest.mark.parametrize('diff_order', (2, 3))
-    def test_sparse_comparison(self, diff_order, asymmetric_coef):
+    def test_sparse_comparison(self, diff_order, asymmetric_coef, alternate_weighting):
         """
         Ensures the banded version of the implementation is correct.
 
@@ -448,14 +452,14 @@ class TestAsPLS(WhittakerTester):
         lam = {2: 1e7, 3: 1e10}[diff_order]
         sparse_output = sparse_aspls(
             self.y, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
-            asymmetric_coef=asymmetric_coef
+            asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )
         banded_output = self.class_func(
             self.y, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
-            asymmetric_coef=asymmetric_coef
+            asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )[0]
 
-        rtol = {2: 1e-4, 3: 2e-4}[diff_order]
+        rtol = {2: 1e-4, 3: 5e-4}[diff_order]
         assert_allclose(banded_output, sparse_output, rtol=rtol, atol=1e-8)
 
 

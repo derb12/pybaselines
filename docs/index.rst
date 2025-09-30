@@ -4,6 +4,7 @@ pybaselines Documentation
 .. image:: images/logo.png
    :alt: Logo
    :align: center
+   :class: dark-light
 
 
 pybaselines is a library of algorithms for the baseline correction of experimental data.
@@ -21,14 +22,13 @@ pybaselines is a library of algorithms for the baseline correction of experiment
    introduction
    installation
    quickstart
+   algorithms/index
    parameter_selection
    performance
-   algorithms/index
-   algorithms_2d/index
    generated/examples/index
    api/index
-   contributing
    changes
-   license
+   contributing
    citing
+   license
    authors

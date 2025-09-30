@@ -18,6 +18,7 @@ values for fitting new datasets.
 
 """
 # sphinx_gallery_thumbnail_number = 2
+# sphinx_gallery_multi_image = "single"
 
 from itertools import cycle
 import warnings
@@ -88,7 +89,7 @@ bkg_dict = {}
 bkg_types = ('exponential', 'gaussian', 'sine')
 for bkg_type in bkg_types:
     bkg_dict[bkg_type] = {}
-    plt.plot(utils._make_data(1000, bkg_type)[1], label=bkg_type)
+    plt.plot(utils.make_data(1000, bkg_type, signal_type=2, noise_std=0.1)[1], label=bkg_type)
 plt.legend()
 
 # %%
@@ -115,7 +116,9 @@ for i, func_name in enumerate((
                 func = iasls
             else:
                 func = getattr(Baseline(), func_name)
-            x, y, baseline = utils._make_data(num_x, bkg_type)
+            x, y, baseline = utils.make_data(
+                num_x, bkg_type, signal_type=2, noise_std=0.1, return_baseline=True
+            )
             # use a slightly lower tolerance to speed up the calculation
             min_lam = optimize_lam(y, baseline, func, min_lam, tol=1e-2, max_iter=50)
             best_lams[j] = min_lam

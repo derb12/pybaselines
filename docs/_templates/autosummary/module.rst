@@ -44,6 +44,7 @@
    .. rubric:: {{ _('Functions') }}
 
    .. autosummary::
+      :template: autosummary/method.rst
       :toctree:
       :nosignatures:
    {% for item in functions %}

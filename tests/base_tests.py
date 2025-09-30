@@ -169,7 +169,7 @@ def get_data2d(include_noise=True, num_points=(30, 41), three_d=False):
     ----------
     include_noise : bool, optional
         If True (default), will include noise with the y-data.
-    num_points : Container(int, int), optional
+    num_points : Container[int, int], optional
         The number of data points to use for x, and z, respectively. Default
         is (30, 41), which uses different numbers so that any issues caused
         by not having a square matrix will be seen.
@@ -280,7 +280,7 @@ def changing_dataset2d(data_size=(40, 33), dataset_size=20, three_d=False):
 
     Parameters
     ----------
-    data_size : Container(int, int), optional
+    data_size : Container[int, int], optional
         The number of data points to use for x, and z, respectively. Default
         is (50, 40), which uses different numbers so that any issues caused
         by not having a square matrix will be seen.

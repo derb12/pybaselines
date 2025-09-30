@@ -9,7 +9,8 @@ a `tol_history` item in the parameter dictionary, which is a numpy array of
 the measured tolerance value at each iteration. The `tol_history` parameter
 can be helpful for determining appropriate `max_iter` or `tol` values.
 
-In this example, the convergence of the :meth:`~.Baseline.asls` and :meth:`~.Baseline.aspls`
+In this example, the convergence of the :meth:`~pybaselines.Baseline.asls` and
+:meth:`~pybaselines.Baseline.aspls`
 functions will be compared. asls is a relatively simple calculation that sets its weighting
 each iteration based on whether the current baseline is above or below the input data
 at each point. aspls has a much more intricate weighting based on the logistic distribution
@@ -18,6 +19,7 @@ parameter each iteration that controls the local stiffness of the baseline.
 
 """
 # sphinx_gallery_thumbnail_number = 4
+# sphinx_gallery_multi_image = "single"
 
 import matplotlib.pyplot as plt
 import numpy as np

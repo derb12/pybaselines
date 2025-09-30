@@ -159,21 +159,20 @@ def test_trapezoid():
 
 def _scipy_below_1_12():
     """
-    Checks that the installed scipy version is new enough to use sparse arrays.
+    Checks that the installed SciPy version is new enough to use sparse arrays.
 
     This check is wrapped into a function just in case it fails so that pybaselines
-    can still be imported without error. The result is cached so it only has to
-    be done once.
+    can still be imported without error.
 
     Returns
     -------
     bool
-        True if the installed scipy version is below 1.12; False otherwise.
+        True if the installed SciPy version is below 1.12; False otherwise.
 
     Notes
     -----
-    Scipy introduced its sparse arrays in version 1.8, but the interface and helper
-    functions were not stable until version 1.12; a warning will be emitted in scipy
+    SciPy introduced its sparse arrays in version 1.8, but the interface and helper
+    functions were not stable until version 1.12; a warning will be emitted in SciPy
     1.13 when using the matrix interface, so want to use the sparse array interface
     as early as possible.
 
@@ -189,7 +188,7 @@ def _scipy_below_1_12():
 
 def test_use_sparse_arrays():
     """
-    Ensures the scipy version check works correctly.
+    Ensures the SciPy version check works correctly.
 
     Use try-finally so that even if the test fails, the mocked values do
     not remain, which would cause subsequent tests to fail.
@@ -230,6 +229,66 @@ def test_use_sparse_arrays():
     # ensure the cache is cleared so the correct value can be filled so the next call
     # to it is correct
     assert _compat._use_sparse_arrays.cache_info().currsize == 0
+
+
+def test_np_ge_2():
+    """
+    Ensures the NumPy version check works correctly.
+
+    Use try-finally so that even if the test fails, the mocked values do
+    not remain, which would cause subsequent tests to fail.
+    """
+    # check that the version parsing within np_gt_2 is safe
+    try:
+        numpy_ge_2 = int(np.__version__.lstrip('v').split('.')[0]) >= 2
+    except Exception as e:
+        # raise the exception so that version parsing can be changed if needed
+        raise ValueError('Issue parsing NumPy version') from e
+    else:
+        assert _compat._np_ge_2() == numpy_ge_2
+
+    try:
+        _compat._np_ge_2.cache_clear()
+        # sanity check that cache was cleared
+        assert _compat._np_ge_2.cache_info().currsize == 0
+        with mock.patch.object(np, '__version__', '0.1'):
+            assert not _compat._np_ge_2()
+
+        _compat._np_ge_2.cache_clear()
+        # sanity check that cache was cleared
+        assert _compat._np_ge_2.cache_info().currsize == 0
+        with mock.patch.object(np, '__version__', '1.11'):
+            assert not _compat._np_ge_2()
+
+        _compat._np_ge_2.cache_clear()
+        # sanity check that cache was cleared
+        assert _compat._np_ge_2.cache_info().currsize == 0
+        with mock.patch.object(np, '__version__', '2.0'):
+            assert _compat._np_ge_2()
+
+        _compat._np_ge_2.cache_clear()
+        # sanity check that cache was cleared
+        assert _compat._np_ge_2.cache_info().currsize == 0
+        with mock.patch.object(np, '__version__', '2.1'):
+            assert _compat._np_ge_2()
+
+        _compat._np_ge_2.cache_clear()
+        # sanity check that cache was cleared
+        assert _compat._np_ge_2.cache_info().currsize == 0
+        with mock.patch.object(np, '__version__', '3.1.0'):
+            assert _compat._np_ge_2()
+
+        _compat._np_ge_2.cache_clear()
+        # sanity check that cache was cleared
+        assert _compat._np_ge_2.cache_info().currsize == 0
+        # check that it returns True when an error reading the scipy version occurs
+        with mock.patch.object(np, '__version__', 'abc'):
+            assert _compat._np_ge_2()
+    finally:
+        _compat._np_ge_2.cache_clear()
+    # ensure the cache is cleared so the correct value can be filled so the next call
+    # to it is correct
+    assert _compat._np_ge_2.cache_info().currsize == 0
 
 
 @pytest.mark.parametrize('dtype', (float, int))

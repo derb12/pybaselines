@@ -30,9 +30,9 @@ class _Morphological(_Algorithm2D):
             The half-window used for the rows and columns, respectively, for the morphology
             functions. If a single value is given, rows and columns will use the same value.
             Default is None, which will optimize the half-window size using
-            :func:`.optimize_window` and `window_kwargs`.
+            :func:`.estimate_window` and `window_kwargs`.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -75,13 +75,13 @@ class _Morphological(_Algorithm2D):
             The half-window used for the rows and columns, respectively, for the morphology
             functions. If a single value is given, rows and columns will use the same value.
             Default is None, which will optimize the half-window size using
-            :func:`.optimize_window` and `window_kwargs`.
+            :func:`.estimate_window` and `window_kwargs`.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
             The maximum number of iterations. Default is 200.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -141,7 +141,7 @@ class _Morphological(_Algorithm2D):
             The half-window used for the rows and columns, respectively, for the morphology
             functions. If a single value is given, rows and columns will use the same value.
             Default is None, which will optimize the half-window size using
-            :func:`.optimize_window` and `window_kwargs`.
+            :func:`.estimate_window` and `window_kwargs`.
         smooth_half_window : int, optional
             The half-window to use for smoothing the data after performing the
             morphological operation. Default is None, which will use the same
@@ -150,7 +150,7 @@ class _Morphological(_Algorithm2D):
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from the moving average.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 
@@ -205,9 +205,9 @@ class _Morphological(_Algorithm2D):
             The half-window used for the rows and columns, respectively, for the morphology
             functions. If a single value is given, rows and columns will use the same value.
             Default is None, which will optimize the half-window size using
-            :func:`.optimize_window` and `window_kwargs`.
+            :func:`.estimate_window` and `window_kwargs`.
         window_kwargs : dict, optional
-            A dictionary of keyword arguments to pass to :func:`.optimize_window` for
+            A dictionary of keyword arguments to pass to :func:`.estimate_window` for
             estimating the half window if `half_window` is None. Default is None.
         **kwargs
 

@@ -11,19 +11,19 @@ predominantly used in pybaselines. B-splines can be expressed as:
 
 .. math::
 
-    v(x) = \sum\limits_{i}^N \sum\limits_{j}^M {B_j(x_i) c_j}
+    v(x) = \sum\limits_{i}^N \sum\limits_{j}^M c_j {B_j(x_i)}
 
 where :math:`N` is the number of points in :math:`x`, :math:`M` is the number of spline
 basis functions, :math:`B_j(x_i)` is the j-th basis function evaluated at :math:`x_i`,
-and :math:`c_j` is the coefficient for the j-th basis (which is analogous to
+and :math:`c_j` is the coefficient vector for the j-th basis (which is analogous to
 the height of the j-th basis). In pybaselines, the number of spline basis functions,
-:math:`M`, is calculated as the number of knots, `num_knots`, plus the spline degree
+:math:`M`, is calculated as the number of knots, ``num_knots``, plus the spline degree
 minus 1.
 
 For regular B-spline fitting, the spline coefficients that best fit the data
 are gotten from minimizing the least-squares:
 
-.. math:: \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+.. math:: \sum\limits_{i}^N w_i (y_i - v(x_i))^2
 
 where :math:`y_i` and :math:`x_i` are the measured data, and :math:`w_i` is
 the weighting. In order to control the smoothness of the fitting spline, a penalty
@@ -34,7 +34,7 @@ The minimized function for P-splines is thus:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 where :math:`\lambda` is the penalty scale factor, and
@@ -45,14 +45,21 @@ The resulting linear equation for solving the above minimization is:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
+
+and the baseline is given by:
+
+.. math::
+
+    v = B c
 
 where :math:`W` is the diagaonal matrix of the weights, :math:`B` is the matrix
 containing all of the spline basis functions, and :math:`D_d` is the matrix
 version of :math:`\Delta^d` (same as :ref:`explained <difference-matrix-explanation>`
 for Whittaker-smoothing-based algorithms). P-splines have similarities with Whittaker
-smoothing; in fact, if the number of basis functions, :math:`M`, is set up to be equal
-to the number of data points, :math:`N`, and the spline degree is set to 0, then
+smoothing, including the use of :ref:`iterative reweighting <iterative-reweighting-explanation>`
+to calculate the baseline; in fact, if the number of basis functions, :math:`M`, is set up to
+be equal to the number of data points, :math:`N`, and the spline degree is set to 0, then
 :math:`B` becomes the identity matrix and the above equation becomes identical
 to the equation used for Whittaker smoothing.
 
@@ -75,6 +82,8 @@ residual belonging to the noise's normal distribution.
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -206,6 +215,8 @@ to perform quantile regression on the data.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     quantiles = {0: 0.3, 1: 0.1, 2: 0.2, 3: 0.25, 4: 0.5}
     # to see contents of create_data function, look at the top-most algorithm's code
@@ -232,6 +243,8 @@ between all but the first and last non-corner points.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -256,14 +269,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i -  v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -277,6 +290,8 @@ Weighting:
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -304,16 +319,16 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N (w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j}))^2
+    \sum\limits_{i}^N (w_i (y_i - v(x_i)))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
-    + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - \sum\limits_{j}^M {B_j(x_i) c_j}))^2
+    + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - v(x_i)))^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1 B + \lambda D_d^{\top} D_d) c
-    = (B^{\top} W^{\top} W B + \lambda_1 B^{\top} D_1^{\top} D_1) y
+    (B^{\mathsf{T}} W^{\mathsf{T}} W B + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B + \lambda D_d^{\mathsf{T}} D_d) c
+    = (B^{\mathsf{T}} W^{\mathsf{T}} W B + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1) y
 
 Weighting:
 
@@ -328,6 +343,8 @@ Weighting:
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -357,14 +374,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -383,6 +400,8 @@ publication, as `specified by the author <https://github.com/zmzhang/airPLS/issu
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -406,14 +425,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -433,6 +452,8 @@ values in the residual vector :math:`\mathbf r`.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -450,7 +471,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d}(1 - \eta w_{i,intp}) (\Delta^d c_i)^2
     + \sum\limits_{i}^{M - 1} (\Delta^1 (c_i))^2
 
@@ -463,7 +484,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top}W B + D_1^{\top} D_1 + \lambda (I - \eta W_{intp}) D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}}W B + D_1^{\mathsf{T}} D_1 + \lambda (I - \eta W_{intp}) D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 where :math:`I` is the identity matrix.
 
@@ -485,6 +506,8 @@ respectively, of the negative values in the residual vector :math:`\mathbf r`.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -506,14 +529,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -533,6 +556,8 @@ the residual vector :math:`\mathbf r`.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -554,7 +579,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} \alpha_{i,intp} (\Delta^d c_i)^2
 
 where
@@ -573,7 +598,7 @@ Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda \alpha_{intp} D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda \alpha_{intp} D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -582,20 +607,21 @@ Weighting:
     w_i = \frac
         {1}
         {1 + \exp{\left(\frac
-            {k (r_i - \sigma^-)}
+            {k (r_i - \sigma^- + offset)}
             {\sigma^-}
         \right)}}
 
 where :math:`r_i = y_i - v_i`, :math:`\sigma^-` is the standard deviation
-of the negative values in the residual vector :math:`\mathbf r`, and :math:`k`
-is the asymmetric coefficient (Note that the default value of :math:`k` is 0.5 in
-pybaselines rather than 2 in the published version of the asPLS. pybaselines
-uses the factor of 0.5 since it matches the results in Table 2 and Figure 5
-of the asPLS paper closer than the factor of 2 and fits noisy data much better).
+of the negative values in the residual vector :math:`\mathbf r`, :math:`k`
+is the asymmetric coefficient, and `offset` is the mean of the negative values
+in the residual vector, :math:`\mu^-`, if ``alternate_weighting`` is True and
+0 if ``alternate_weighting`` is False.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -619,14 +645,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -644,6 +670,8 @@ be considered a peak.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -666,14 +694,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -707,6 +735,8 @@ respectively, of the smoothed data, :math:`y_{sm}`, and :math:`rms()` is the roo
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -728,14 +758,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -749,6 +779,8 @@ Weighting:
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -773,14 +805,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -810,6 +842,8 @@ within :math:`\mathbf r`.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -828,14 +862,14 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - \sum\limits_{j}^M {B_j(x_i) c_j})^2
+    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
 
 .. math::
 
-    (B^{\top} W B + \lambda D_d^{\top} D_d) c = B^{\top} W y
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
 
 Weighting:
 
@@ -844,17 +878,21 @@ Weighting:
     w_i = \frac{1}{2}\left(
         1 -
         \frac
-            {10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
-            {1 + \text{abs}[10^t (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
+            {f(t) (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-}
+            {1 + \text{abs}[f(t) (r_i - (-\mu^- + 2 \sigma^-))/\sigma^-]}
     \right)
 
-where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number, and
+where :math:`r_i = y_i - v_i`, :math:`t` is the iteration number,
 :math:`\mu^-` and :math:`\sigma^-` are the mean and standard deviation,
-respectively, of the negative values in the residual vector :math:`\mathbf r`.
+respectively, of the negative values in the residual vector :math:`\mathbf r`,
+and :math:`f(t)` is :math:`10^t` if ``alternate_weighting`` is False and :math:`\exp(t)`
+if ``alternate_weighting`` is True.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)

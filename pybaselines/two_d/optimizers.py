@@ -68,6 +68,11 @@ class _Optimizers(_Algorithm2D):
                 Keys will depend on the selected method and will have a list of values,
                 with each item corresponding to a fit.
 
+        Raises
+        ------
+        ValueError
+            Raised if the input data is not three dimensional.
+
         Notes
         -----
         If `method` is 'aspls', `collab_pls` will also calculate
@@ -196,6 +201,11 @@ class _Optimizers(_Algorithm2D):
                 A dictionary containing the output parameters for each individual fit.
                 Keys will depend on the selected method and will have a list of values,
                 with each item corresponding to a fit.
+
+        Raises
+        ------
+        ValueError
+            Raised if ``constrained_fraction`` is outside of the range [0, 1].
 
         References
         ----------

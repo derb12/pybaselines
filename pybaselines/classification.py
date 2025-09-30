@@ -56,8 +56,9 @@ from scipy.spatial import ConvexHull
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit, trapezoid
 from ._validation import _check_scalar, _check_scalar_variable
+from ._weighting import _safe_std_mean
 from .utils import (
-    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, optimize_window,
+    _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, estimate_window,
     pad_edges, relative_difference
 )
 
@@ -84,7 +85,7 @@ class _Classification(_Algorithm):
             The half-window to use for the rolling maximum and rolling minimum calculations.
             Should be approximately equal to the full-width-at-half-maximum of the peaks or
             features in the data. Default is None, which will use half of the value from
-            :func:`.optimize_window`, which is not always a good value, but at least scales
+            :func:`.estimate_window`, which is not always a good value, but at least scales
             with the number of data points and gives a starting point for tuning the parameter.
         num_std : float, optional
             The number of standard deviations to include when thresholding. Higher values
@@ -137,9 +138,9 @@ class _Classification(_Algorithm):
         """
         y, weight_array = self._setup_classification(data, weights, **kwargs)
         if half_window is None:
-            # optimize_window(y) / 2 gives an "okay" estimate that at least scales
+            # estimate_window(y) / 2 gives an "okay" estimate that at least scales
             # with data size
-            half_window = ceil(optimize_window(y) / 2)
+            half_window = ceil(estimate_window(y) / 2)
         if smooth_half_window is None:
             smooth_half_window = half_window
         min_sigma = np.inf
@@ -317,7 +318,7 @@ class _Classification(_Algorithm):
             The half-window to use for the rolling standard deviation calculation. Should
             be approximately equal to the full-width-at-half-maximum of the peaks or features
             in the data. Default is None, which will use half of the value from
-            :func:`.optimize_window`, which is not always a good value, but at least scales
+            :func:`.estimate_window`, which is not always a good value, but at least scales
             with the number of data points and gives a starting point for tuning the parameter.
         interp_half_window : int, optional
             When interpolating between baseline segments, will use the average of
@@ -366,9 +367,9 @@ class _Classification(_Algorithm):
         """
         y, weight_array = self._setup_classification(data, weights, **kwargs)
         if half_window is None:
-            # optimize_window(y) / 2 gives an "okay" estimate that at least scales
+            # estimate_window(y) / 2 gives an "okay" estimate that at least scales
             # with data size
-            half_window = ceil(optimize_window(y) / 2)
+            half_window = ceil(estimate_window(y) / 2)
         if smooth_half_window is None:
             smooth_half_window = half_window
 
@@ -416,7 +417,7 @@ class _Classification(_Algorithm):
             The half-window to use for the rolling standard deviation calculation. Should
             be approximately equal to the full-width-at-half-maximum of the peaks or features
             in the data. Default is None, which will use half of the value from
-            :func:`.optimize_window`, which is not always a good value, but at least scales
+            :func:`.estimate_window`, which is not always a good value, but at least scales
             with the number of data points and gives a starting point for tuning the parameter.
         threshold : float or Callable, optional
             All points in the rolling standard deviation below `threshold` will be considered
@@ -483,9 +484,9 @@ class _Classification(_Algorithm):
         """
         y, weight_array = self._setup_classification(data, weights, **kwargs)
         if half_window is None:
-            # optimize_window(y) / 2 gives an "okay" estimate that at least scales
+            # estimate_window(y) / 2 gives an "okay" estimate that at least scales
             # with data size
-            half_window = ceil(optimize_window(y) / 2)
+            half_window = ceil(estimate_window(y) / 2)
         if smooth_half_window is None:
             smooth_half_window = half_window
         if min_fwhm is None:
@@ -749,7 +750,7 @@ class _Classification(_Algorithm):
             The scale at which to calculate the continuous wavelet transform. Should be
             approximately equal to the index-based full-width-at-half-maximum of the peaks
             or features in the data. Default is None, which will use half of the value from
-            :func:`.optimize_window`, which is not always a good value, but at least scales
+            :func:`.estimate_window`, which is not always a good value, but at least scales
             with the number of data points and gives a starting point for tuning the parameter.
         num_std : float, optional
             The number of standard deviations to include when thresholding. Higher values
@@ -817,9 +818,9 @@ class _Classification(_Algorithm):
         else:
             y, weight_array = self._setup_classification(data, weights)
             if scale is None:
-                # optimize_window(y) / 2 gives an "okay" estimate that at least scales
+                # estimate_window(y) / 2 gives an "okay" estimate that at least scales
                 # with data size
-                scale = ceil(optimize_window(y) / 2)
+                scale = ceil(estimate_window(y) / 2)
             # TODO is 2*scale enough padding to prevent edge effects from cwt?
             half_window = scale * 2
             pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
@@ -987,6 +988,8 @@ def _refine_mask(mask, min_length=2):
 
     Examples
     --------
+    >>> import numpy as np
+    >>> from pybaselines.classification import _refine_mask
     >>> mask = np.array([1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1])
     >>> _refine_mask(mask, 3).astype(int)
     array([1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1])
@@ -1112,7 +1115,7 @@ def golotvin(data, x_data=None, half_window=None, num_std=2.0, sections=32,
         The half-window to use for the rolling maximum and rolling minimum calculations.
         Should be approximately equal to the full-width-at-half-maximum of the peaks or
         features in the data. Default is None, which will use half of the value from
-        :func:`.optimize_window`, which is not always a good value, but at least scales
+        :func:`.estimate_window`, which is not always a good value, but at least scales
         with the number of data points and gives a starting point for tuning the parameter.
     num_std : float, optional
         The number of standard deviations to include when thresholding. Higher values
@@ -1192,7 +1195,8 @@ def _iter_threshold(power, num_std=3.0):
     Two-Dimensional NMR Spectra. Journal of Magnetic Resonance. 1991, 91, 1-11.
 
     """
-    mask = power < np.mean(power) + num_std * np.std(power, ddof=1)
+    std, mean = _safe_std_mean(power, ddof=1)
+    mask = power < mean + num_std * std
     old_mask = np.ones_like(mask)
     while not np.array_equal(mask, old_mask):
         old_mask = mask
@@ -1203,7 +1207,8 @@ def _iter_threshold(power, num_std=3.0):
                 ParameterWarning, stacklevel=2
             )
             break
-        mask = power < np.mean(masked_power) + num_std * np.std(masked_power, ddof=1)
+        std, mean = _safe_std_mean(masked_power, ddof=1)
+        mask = power < mean + num_std * std
 
     return mask
 
@@ -1435,7 +1440,7 @@ def std_distribution(data, x_data=None, half_window=None, interp_half_window=5,
         The half-window to use for the rolling standard deviation calculation. Should
         be approximately equal to the full-width-at-half-maximum of the peaks or features
         in the data. Default is None, which will use half of the value from
-        :func:`.optimize_window`, which is not always a good value, but at least scales
+        :func:`.estimate_window`, which is not always a good value, but at least scales
         with the number of data points and gives a starting point for tuning the parameter.
     interp_half_window : int, optional
         When interpolating between baseline segments, will use the average of
@@ -1506,7 +1511,7 @@ def fastchrom(data, x_data=None, half_window=None, threshold=None, min_fwhm=None
         The half-window to use for the rolling standard deviation calculation. Should
         be approximately equal to the full-width-at-half-maximum of the peaks or features
         in the data. Default is None, which will use half of the value from
-        :func:`.optimize_window`, which is not always a good value, but at least scales
+        :func:`.estimate_window`, which is not always a good value, but at least scales
         with the number of data points and gives a starting point for tuning the parameter.
     threshold : float or Callable, optional
         All points in the rolling standard deviation below `threshold` will be considered
@@ -1838,7 +1843,7 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
         The scale at which to calculate the continuous wavelet transform. Should be
         approximately equal to the index-based full-width-at-half-maximum of the peaks
         or features in the data. Default is None, which will use half of the value from
-        :func:`.optimize_window`, which is not always a good value, but at least scales
+        :func:`.estimate_window`, which is not always a good value, but at least scales
         with the number of data points and gives a starting point for tuning the parameter.
     num_std : float, optional
         The number of standard deviations to include when thresholding. Higher values

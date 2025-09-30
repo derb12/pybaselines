@@ -43,7 +43,7 @@ solving the above minimization is:
 
 .. math::
 
-    (B^{\top} W_{diag} B + \lambda_r I_h \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_g) \alpha = B^{\top} W_{diag} y
+    (B^{\mathsf{T}} W_{diag} B + \lambda_r I_h \otimes D_{d_r}^{\mathsf{T}} D_{d_r} + \lambda_c D_{d_c}^{\mathsf{T}} D_{d_c} \otimes I_g) \alpha = B^{\mathsf{T}} W_{diag} y
 
 and the baseline is then:
 
@@ -68,20 +68,20 @@ memory and computation time.
 
 Let :math:`F` be the
 `face-splitting product operator <https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product>`_
-of a matrix with itself such that :math:`F(B_r) = (B_r \otimes 1_{g}^{\top}) \odot (1_{g}^{\top} \otimes B_r)`
-and :math:`F(B_c) = (B_c \otimes 1_{h}^{\top}) \odot (1_{h}^{\top} \otimes B_c)`, where
+of a matrix with itself such that :math:`F(B_r) = (B_r \otimes 1_{g}^{\mathsf{T}}) \odot (1_{g}^{\mathsf{T}} \otimes B_r)`
+and :math:`F(B_c) = (B_c \otimes 1_{h}^{\mathsf{T}}) \odot (1_{h}^{\mathsf{T}} \otimes B_c)`, where
 :math:`1_g` and :math:`1_h` are vectors of ones of length :math:`g` and :math:`h`, respecitvely,
 and :math:`\odot` signifies elementwise multiplication. Then the linear equation can be rewritten as:
 
 .. math::
 
-    (F(B_r)^{\top} W F(B_c) + \lambda_r I_h \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_g) \alpha = B_{r}^{\top} (W \odot Y) B_c
+    (F(B_r)^{\mathsf{T}} W F(B_c) + \lambda_r I_h \otimes D_{d_r}^{\mathsf{T}} D_{d_r} + \lambda_c D_{d_c}^{\mathsf{T}} D_{d_c} \otimes I_g) \alpha = B_{r}^{\mathsf{T}} (W \odot Y) B_c
 
 and the baseline is:
 
 .. math::
 
-    V = B_r \alpha B_{c}^{\top}
+    V = B_r \alpha B_{c}^{\mathsf{T}}
 
 
 Algorithms
@@ -91,11 +91,13 @@ mixture_model (Mixture Model)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.mixture_model`:
-:ref:`explanation for the algorithm <algorithms/spline:mixture_model (Mixture Model)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:mixture_model (Mixture Model)>`.
 
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -152,11 +154,13 @@ irsqr (Iterative Reweighted Spline Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.irsqr`:
-:ref:`explanation for the algorithm <algorithms/spline:irsqr (Iterative Reweighted Spline Quantile Regression)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:irsqr (Iterative Reweighted Spline Quantile Regression)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.irsqr(y, lam=(1e3, 1e2), quantile=0.3)
@@ -167,11 +171,13 @@ pspline_asls (Penalized Spline Version of asls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_asls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_asls (Penalized Spline Version of asls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_asls (Penalized Spline Version of asls)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_asls(y, lam=(1e3, 1e0), p=0.005)
@@ -182,11 +188,13 @@ pspline_iasls (Penalized Spline Version of iasls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_iasls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_iasls (Penalized Spline Version of iasls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_iasls (Penalized Spline Version of iasls)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_iasls(y, lam=(1e2, 1e-2))
@@ -197,11 +205,13 @@ pspline_airpls (Penalized Spline Version of airpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_airpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_airpls (Penalized Spline Version of airpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_airpls (Penalized Spline Version of airpls)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_airpls(y, lam=(1e3, 1e-1))
@@ -212,11 +222,13 @@ pspline_arpls (Penalized Spline Version of arpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_arpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_arpls (Penalized Spline Version of arpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_arpls (Penalized Spline Version of arpls)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_arpls(y, lam=(1e3, 5e0))
@@ -227,11 +239,13 @@ pspline_iarpls (Penalized Spline Version of iarpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_iarpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_iarpls (Penalized Spline Version of iarpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_iarpls (Penalized Spline Version of iarpls)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_iarpls(y, lam=(1e2, 1e0))
@@ -242,11 +256,13 @@ pspline_psalsa (Penalized Spline Version of psalsa)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_psalsa`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_psalsa (Penalized Spline Version of psalsa)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_psalsa (Penalized Spline Version of psalsa)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_psalsa(y, lam=(1e3, 5e0), k=0.5)
@@ -257,11 +273,13 @@ pspline_brpls (Penalized Spline Version of brpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_brpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_brpls (Penalized Spline Version of brpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_brpls (Penalized Spline Version of brpls)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_brpls(y, lam=(1e3, 5e0))
@@ -272,11 +290,13 @@ pspline_lsrpls (Penalized Spline Version of lsrpls)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.pspline_lsrpls`:
-:ref:`explanation for the algorithm <algorithms/spline:pspline_lsrpls (Penalized Spline Version of lsrpls)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/spline:pspline_lsrpls (Penalized Spline Version of lsrpls)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.pspline_lsrpls(y, lam=(1e3, 5e0))

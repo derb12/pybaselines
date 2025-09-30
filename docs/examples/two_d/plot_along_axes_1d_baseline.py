@@ -4,7 +4,7 @@ Using `individual_axes` for 1D Baseline Correction
 --------------------------------------------------
 
 This example will show how to apply one dimensional baseline correction to two
-dimensional data using :meth:`.Baseline2D.individual_axes`. Note that this is valid
+dimensional data using :meth:`~pybaselines.Baseline2D.individual_axes`. Note that this is valid
 only if each baseline along the axis uses the same inputs; otherwise, the more appropriate
 approach is to use a for-loop with the corresponding :class:`.Baseline` method.
 
@@ -75,7 +75,8 @@ plot_1d(wavenumber, y)
 # While the measured data is two dimensional, each baseline can be considered as
 # only dependent on the wavenumbers and independent of every other measurement along the
 # temperature axis. Thus, individual_axes can be called on just the axis corresponding
-# to the wavenumbers (ie. axis 1, the columns).
+# to the wavenumbers (ie. axis 1, the columns), and the one dimensional
+# :meth:`~pybaselines.Baseline.pspline_arpls` method will be applied to each spectra.
 baseline_fitter = Baseline2D(temperature, wavenumber)
 baseline, params = baseline_fitter.individual_axes(
     y, axes=1, method='pspline_arpls', method_kwargs={'lam': 1e4}

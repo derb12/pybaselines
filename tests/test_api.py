@@ -16,7 +16,7 @@ from pybaselines import (
     api, classification, misc, morphological, optimizers, polynomial, smooth, spline, whittaker
 )
 
-from .base_tests import get_data, check_param_keys
+from .base_tests import get_data, check_param_keys, ensure_deprecation
 
 
 _ALL_CLASSES = (
@@ -134,6 +134,9 @@ class TestBaseline:
         cls.y = None
         cls.algorithm = None
 
+    @ensure_deprecation(1, 5)  # remove the warnings filters after version 1.5
+    @pytest.mark.filterwarnings('ignore:"pspline_mpls" is deprecated')
+    @pytest.mark.filterwarnings('ignore:"interp_pts" is deprecated')
     @pytest.mark.parametrize('method_and_class', _ALL_CLASSES_AND_METHODS)
     def test_all_methods(self, method_and_class):
         """Ensures all available methods work the same when accessing through Baseline class."""

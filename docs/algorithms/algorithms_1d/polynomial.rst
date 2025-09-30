@@ -16,7 +16,7 @@ where :math:`\beta` is the array of coefficients for the polynomial.
 For regular polynomial fitting, the polynomial coefficients that best fit data
 are gotten from minimizing the least-squares:
 
-.. math:: \sum\limits_{i}^N w_i^2 (y_i - p(x_i))^2
+.. math:: \sum\limits_{i}^N w_i (y_i - p(x_i))^2
 
 where :math:`y_i` and :math:`x_i` are the measured data, :math:`p(x_i)` is
 the polynomial estimate at :math:`x_i`, and :math:`w_i` is the weighting.
@@ -25,7 +25,7 @@ However, since only the baseline of the data is desired, the least-squares
 approach must be modified. For polynomial-based algorithms, this is done
 by 1) only fitting the data in regions where there is only baseline (termed
 selective masking), 2) modifying the y-values being fit each iteration, termed
-thresholding, or 3) penalyzing outliers.
+thresholding, or 3) penalizing outliers.
 
 .. _selective-masking-explanation:
 
@@ -132,7 +132,7 @@ The only algorithm in pybaselines that requires using selective masking is
 above. However, all other polynomial techniques allow inputting custom weights
 in order to get better fits or to reduce the number of iterations.
 
-The use of selective masking is generally not encouraged since it is time consuming
+The use of manual selective masking is generally not encouraged since it is time consuming
 to select the peak and non-peak regions in each set of data, and can lead to hard
 to reproduce results.
 
@@ -142,14 +142,15 @@ Thresholding
 ~~~~~~~~~~~~
 
 Thresholding is an iterative method that first fits the data using
-traditional least-squares, and then sets the next iteration's fit data
+traditional least-squares and then sets the next iteration's data-to-fit
 as the element-wise minimum between the current data and the current fit.
-The figure below illustrates the iterative thresholding.
+The figure below illustrates this iterative thresholding.
 
 .. plot::
    :align: center
    :context: close-figs
    :include-source: False
+   :show-source-link: True
 
     fig, axes = plt.subplots(
         2, 2, gridspec_kw={'hspace': 0, 'wspace': 0},
@@ -176,14 +177,15 @@ The figure below illustrates the iterative thresholding.
 The algorithms in pybaselines that use thresholding are :meth:`~.Baseline.modpoly`,
 :meth:`~.Baseline.imodpoly`, and :meth:`~.Baseline.loess` (if ``use_threshold`` is True).
 
-Penalyzing Outliers
+Penalizing Outliers
 ~~~~~~~~~~~~~~~~~~~
 
-The algorithms in pybaselines that penalyze outliers are
-:meth:`~.Baseline.penalized_poly`, which incorporate the penalty directly into the
-minimized cost function, and :meth:`~.Baseline.loess` (if ``use_threshold`` is False),
-which incorporates penalties by applying lower weights to outliers. Refer
-to the particular algorithms below for more details.
+The polynomial algorithms in pybaselines that penalize outliers include
+:meth:`~.Baseline.penalized_poly`, which incorporates the penalty directly into the
+minimized cost function, and :meth:`~.Baseline.loess` (if ``use_threshold`` is False)
+and :meth:`~.Baseline.quant_reg`, which use
+:ref:`iterative reweighting <iterative-reweighting-explanation>` to apply lower weights
+to outliers. Refer to the particular algorithms below for more details.
 
 
 Algorithms
@@ -195,12 +197,14 @@ poly (Regular Polynomial)
 :meth:`~.Baseline.poly` is simple least-squares polynomial fitting. Use selective
 masking, as described above, in order to use it for baseline fitting.
 
-Note that the plots below are just the least-squared polynomial fitting
-of the data since masking is time-consuming.
+Note that the plots below are just the least-squared polynomial fits of the data
+without masking.
 
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -325,6 +329,8 @@ baseline to data. `modpoly` is also sometimes called "ModPolyFit" in literature,
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -362,6 +368,8 @@ and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterati
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -393,6 +401,8 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
 
 .. plot::
    :align: center
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -474,6 +484,8 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -507,6 +519,8 @@ is reduced by iterative reweighting.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -541,6 +555,8 @@ quant_reg (Quantile Regression)
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
@@ -567,6 +583,8 @@ based on the input `peak_ratio` value.
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     peak_ratios = [0.2, 0.6, 0.2, 0.2, 0.3]
     # to see contents of create_data function, look at the top-most algorithm's code

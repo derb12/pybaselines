@@ -7,7 +7,7 @@ Introduction
 
 Excellent introductory papers on two dimensional penalized least squares are
 `[1] <https://doi.org/10.1016/j.csda.2004.07.008>`_ and
-`[2] <https://doi.org/10.48550/arXiv.2306.06932>`_. Whittaker-smoothing-based
+`[2] <https://doi.org/10.1017/asb.2025.10061>`_. Whittaker-smoothing-based
 algorithms are extended to two dimensional data as follows:
 
 Let the number of rows be :math:`M` and the number of columns :math:`N` within the matrix
@@ -32,7 +32,7 @@ The resulting linear equation for solving the above minimization is:
 
 .. math::
 
-    (W_{diag} + \lambda_r I_M \otimes D_{d_r}^{\top} D_{d_r} + \lambda_c D_{d_c}^{\top} D_{d_c} \otimes I_M) v = w y
+    (W_{diag} + \lambda_r I_M \otimes D_{d_r}^{\mathsf{T}} D_{d_r} + \lambda_c D_{d_c}^{\mathsf{T}} D_{d_c} \otimes I_M) v = w y
 
 
 where :math:`W_{diag}` is the diagaonal matrix of the flattened weights, and :math:`D_d` is the matrix
@@ -52,9 +52,9 @@ up but still does not scale well above ~500x500 sized matrices). However...
 Eigendecomposition
 ~~~~~~~~~~~~~~~~~~
 
-By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.48550/arXiv.2306.06932>`_,
+By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.1017/asb.2025.10061>`_,
 the dimensionality of the system can be reduced by using eigendecomposition on each of the two
-penalty matrices, :math:`D_{d_r}^{\top} D_{d_r}` and :math:`D_{d_c}^{\top} D_{d_c}`. (Note that speeding up
+penalty matrices, :math:`D_{d_r}^{\mathsf{T}} D_{d_r}` and :math:`D_{d_c}^{\mathsf{T}} D_{d_c}`. (Note that speeding up
 Whittaker smoothing using `factorization in 1D <https://doi.org/10.1016/j.csda.2006.11.038>`_ and using the
 `analytical eigenvalues in nD (great paper) <https://doi.org/10.1016/j.csda.2009.09.020>`_ are established
 methods, although they require using a fixed difference order, and, in the second case, of using
@@ -63,7 +63,7 @@ The general eigendecomposition of the penalty matrix gives
 
 .. math::
 
-    D_{d}^{\top} D_{d} = U \Sigma U^{\top}
+    D_{d}^{\mathsf{T}} D_{d} = U \Sigma U^{\mathsf{T}}
 
 where :math:`U` is the matrix of eigenvectors and :math:`\Sigma` is a diagonal matrix
 with the eigenvalues along the diagonal. Letting :math:`B = U_c \otimes U_r` denote the Kronecker
@@ -73,7 +73,7 @@ can be rewritten as:
 
 .. math::
 
-    (B^{\top} W_{diag} B + \lambda_r I_h \otimes \Sigma_r + \lambda_c \Sigma_c \otimes I_g) \alpha = B^{\top} W_{diag} y
+    (B^{\mathsf{T}} W_{diag} B + \lambda_r I_h \otimes \Sigma_r + \lambda_c \Sigma_c \otimes I_g) \alpha = B^{\mathsf{T}} W_{diag} y
 
 and the baseline is then:
 
@@ -112,11 +112,13 @@ asls (Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.asls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:asls (Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:asls (Asymmetric Least Squares)>`.
 
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -173,12 +175,14 @@ iasls (Improved Asymmetric Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.iasls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:iasls (Improved Asymmetric Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:iasls (Improved Asymmetric Least Squares)>`.
 Eigendecomposition is not allowed for this method.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.iasls(y, lam=(1e3, 1e0))
@@ -189,11 +193,13 @@ airpls (Adaptive Iteratively Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.airpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:airpls (Adaptive Iteratively Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:airpls (Adaptive Iteratively Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.airpls(y, lam=(1e3, 1e1))
@@ -204,11 +210,13 @@ arpls (Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.arpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:arpls (Asymmetrically Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:arpls (Asymmetrically Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.arpls(y, lam=(1e4, 1e2))
@@ -219,12 +227,14 @@ drpls (Doubly Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.drpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:drpls (Doubly Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:drpls (Doubly Reweighted Penalized Least Squares)>`.
 Eigendecomposition is not allowed for this method.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.drpls(y, lam=(1e3, 1e2))
@@ -235,11 +245,13 @@ iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.iarpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:iarpls (Improved Asymmetrically Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.iarpls(y, lam=(1e3, 1e2))
@@ -250,12 +262,14 @@ aspls (Adaptive Smoothness Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.aspls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:aspls (Adaptive Smoothness Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:aspls (Adaptive Smoothness Penalized Least Squares)>`.
 Eigendecomposition is not allowed for this method.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.aspls(y, lam=(1e3, 1e2))
@@ -266,11 +280,13 @@ psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.psalsa`:
-:ref:`explanation for the algorithm <algorithms/whittaker:psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:psalsa (Peaked Signal's Asymmetric Least Squares Algorithm)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.psalsa(y, lam=(1e3, 1e2), k=0.5)
@@ -281,11 +297,13 @@ brpls (Bayesian Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.brpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:brpls (Bayesian Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:brpls (Bayesian Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.brpls(y, lam=(1e4, 1e2))
@@ -296,11 +314,13 @@ lsrpls (Locally Symmetric Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.lsrpls`:
-:ref:`explanation for the algorithm <algorithms/whittaker:lsrpls (Locally Symmetric Reweighted Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/whittaker:lsrpls (Locally Symmetric Reweighted Penalized Least Squares)>`.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_plots function, look at the top-most algorithm's code
     baseline, params = baseline_fitter.lsrpls(y, lam=(1e4, 1e2))

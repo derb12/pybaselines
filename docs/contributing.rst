@@ -21,13 +21,16 @@ If you are proposing a feature:
 * Explain in detail how it would work.
 * Keep the scope as narrow as possible to make it easier to implement.
 
+In addition, suggestions for improvements to the clarity/content of the documentation
+or new examples showing unique applications of pybaselines would be immensely helpful!
+
 Pull Requests
 ~~~~~~~~~~~~~
 
 Pull requests are welcomed for this project. Generally, it is preferred to file an issue first,
 so that details can be discussed/finalized before a pull request is created.
 
-Any new code or documentation must be able to be covered by the BSD 3-clause license
+Any new code or documentation must be able to be covered by the BSD-3-Clause license
 used by pybaselines.
 
 When submitting a pull request, follow similar procedures for a feature request, namely:
@@ -35,9 +38,18 @@ When submitting a pull request, follow similar procedures for a feature request,
 * Explain in detail how it works.
 * Keep the scope as narrow as possible to make it easier to incorporate.
 
-The following sections will detail how to setup a development environment for contributing
-code to pybaselines and all of the potential checks to run.
+The following section will detail how to setup a development environment for contributing
+code to pybaselines and all of the potential checks to run before submitting a pull request.
 
+Development Workflow
+~~~~~~~~~~~~~~~~~~~~
+
+If you are unfamiliar with using `git <https://git-scm.com>`_ or GitHub, see
+`GitHub's helpful guide <https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project>`_
+on how to create a fork with the intent to contribute to a project.
+
+The sections below will detail the aspects of this process that are specific
+to pybaselines.
 
 Setting Up Development Environment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -49,18 +61,15 @@ ensure `git <https://git-scm.com>`_ is installed and then run:
 
     git clone https://github.com/derb12/pybaselines.git
     cd pybaselines
-    pip install .[dev]
+    pip install --editable ".[dev]"
 
-All sections below assume the above commands were ran.
+All sections below assume the above commands were ran such that necessary
+developement dependencies are available.
 
 Style Guidelines
 ^^^^^^^^^^^^^^^^
 
-pybaselines has the following guidelines (note: if you have any questions/concerns about
-these guidelines, please feel free to open an issue or email the author; the guidelines
-are meant to help keep a consistent style, not to discourage contributing :) ).
-
-Any new code should follow `PEP 8 <https://www.python.org/dev/peps/pep-0008>`_ standards
+Any new code should follow `PEP 8 <https://peps.python.org/pep-0008/>`_ standards
 as closely as possible and be fully documented using
 `Numpy style <https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard>`_
 docstrings. To check that new code has the correct formatting, run the following command in the
@@ -134,8 +143,29 @@ please ensure the documentation builds locally by running the following command 
     make html
 
 and ensure that no warnings or errors are raised during building. The built documentation can
-then be viewed in the ``pybaselines/docs/_build/html`` folder.
+then be viewed in the ``pybaselines/docs/_build/html`` directory.
 
+The files generated for the examples and API documentation (rendered from the docstrings of code)
+during the build process are output to the ``pybaselines/docs/generated`` directory. If you
+are working on these sections of the documentation and changes are not being properly reflected in
+the built documentation, it can be helpful to delete the ``pybaselines/docs/generated`` directory
+so that all of the contents are regenerated upon the next documentation build (and if that does
+not work, run :code:`make clean` to also remove all of the built documentation before building
+the documentation again).
+
+Doctests
+^^^^^^^^
+
+If adding new code, it is often good to show an example usage of the class/method/function
+within its docstring using
+`doctest format <https://numpydoc.readthedocs.io/en/latest/format.html#examples>`_. pybaselines
+uses `scipy-doctest <https://github.com/scipy/scipy_doctest>`_ to ensure that these examples are
+correctly formatted and will run without errors. To perform these doctests, run the following
+command in the terminal while in the pybaselines directory:
+
+.. code-block:: console
+
+    pytest pybaselines --doctest-modules
 
 Adding New Algorithms
 ^^^^^^^^^^^^^^^^^^^^^
@@ -146,6 +176,9 @@ If adding a new baseline algorithm to pybaselines:
     ``pybaselines/tests/base_tests.py`` file that should be subclassed to ensure all basic
     requirements for a new algorithm are met. Additional tests should also be added as needed.
     See existing tests for examples.
+*   Try to add example usages of the algorithm within its docstring, showing basic usage and
+    any noteworthy fine-tuning. Ensure these examples run correctly by performing doctests as
+    outlined above.
 *   Add a short summary of the algorithm to the appropriate place in the
     `algorithms section <https://pybaselines.readthedocs.io/en/latest/algorithms/index.html>`_,
     and, if possible, add a plot showing how the algorithm fits different baselines using

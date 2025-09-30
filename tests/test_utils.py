@@ -816,38 +816,69 @@ def test_pspline_smooth(data_fixture, diff_order, num_knots, spline_degree):
 
 
 @pytest.mark.parametrize('two_d', (True, False))
-def test_optimize_window(small_data2d, two_d):
-    """Ensures optimize_window has the correct outputs for the dimesions of the input."""
+def test_estimate_window(small_data2d, two_d):
+    """Ensures estimate_window has the correct outputs for the dimesions of the input."""
     data = small_data2d
     if not two_d:
         data = data.flatten()
 
-    output = utils.optimize_window(data)
+    output = utils.estimate_window(data)
     if two_d:
         assert output.shape == (2,)
         assert isinstance(output, np.ndarray)
     else:
         assert isinstance(output, int)
 
+    # also ensure that the old optimize_window also works the same
+    output_opt = utils.optimize_window(data)
+    if two_d:
+        assert output.shape == (2,)
+        assert isinstance(output, np.ndarray)
+    else:
+        assert isinstance(output, int)
+    assert_allclose(output_opt, output, rtol=1e-12, atol=0)
+
 
 @pytest.mark.parametrize('data_size', (500, 1000, 1001))
-@pytest.mark.parametrize('baseline_type', ('exponential', 'gaussian', 'linear', 'sine'))
-def test_make_data(data_size, baseline_type):
-    """Ensures basic functionality of the _make_data function."""
-    x, y, baseline = utils._make_data(data_size, baseline_type)
+@pytest.mark.parametrize(
+    'baseline_type', ('exponential', 'gaussian', 'linear', 'sine', 'gaussian_small')
+)
+@pytest.mark.parametrize('signal_type', (1, 2))
+@pytest.mark.parametrize('return_baseline', (True, False))
+def test_make_data(data_size, baseline_type, signal_type, return_baseline):
+    """Ensures basic functionality of the make_data function."""
+    output = utils.make_data(
+        data_size, bkg_type=baseline_type, signal_type=signal_type, return_baseline=return_baseline,
+        noise_std=0.2
+    )
+    if return_baseline:
+        assert len(output) == 3
+        x, y, baseline = output
+    else:
+        assert len(output) == 2
+        x, y = output
+        baseline = None
+
     assert isinstance(x, np.ndarray)
     assert isinstance(y, np.ndarray)
-    assert isinstance(baseline, np.ndarray)
-
     assert x.shape == (data_size,)
     assert y.shape == (data_size,)
-    assert baseline.shape == (data_size,)
+
+    if baseline is not None:
+        assert isinstance(baseline, np.ndarray)
+        assert baseline.shape == (data_size,)
 
 
 def test_make_data_invalid_baseline():
     """Ensures an error is raised when an invalid baseline type is specified."""
     with pytest.raises(ValueError):
-        utils._make_data(100, 'aaaaa')
+        utils.make_data(100, bkg_type='aaaaa')
+
+
+def test_make_data_invalid_signal():
+    """Ensures an error is raised when an invalid signal type is specified."""
+    with pytest.raises(ValueError):
+        utils.make_data(100, signal_type=3)
 
 
 @pytest.mark.parametrize('half_window', (1, 2, 22))
@@ -893,3 +924,37 @@ def test_mollifier_kernel_zero_window(data_fixture, half_window):
     x, y = data_fixture
     out = utils.padded_convolve(y, kernel)
     assert_array_equal(y, out)
+
+
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('input_x', (True, False))
+def test_estimate_polyorder(list_input, input_x):
+    """Ensures basic functionality of estimate_polyorder."""
+    x, y = utils.make_data(bkg_type='gaussian_small')
+    if list_input:
+        x = list(x)
+        y = list(y)
+    if input_x:
+        estimated_order = utils.estimate_polyorder(y, x)
+    else:
+        estimated_order = utils.estimate_polyorder(y)
+
+    assert isinstance(estimated_order, int)
+    assert estimated_order == 3  # integration test; need to change if y changes for this test
+
+
+def test_estimate_polyorder_failures(data_fixture):
+    """Ensures expected exceptions are raised within estimate_polyorder."""
+    x, y = data_fixture
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, min_value=-1)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, min_value=1.0)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, max_value=-1)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, max_value=1.0)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, min_value=5, max_value=5)
+    with pytest.raises(ValueError):
+        utils.estimate_polyorder(y, x, min_value=5, max_value=4)

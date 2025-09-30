@@ -1,26 +1,28 @@
-=======================
-Morphological Baselines
-=======================
-
-.. note::
-   All morphological algorithms use a ``half_window`` parameter to define the size
-   of the window used for the morphological operators. ``half_window`` is index-based,
-   rather than based on the units of the data, so proper conversions must be done
-   by the user to get the desired window size.
-
+===================
+Optimizer Baselines
+===================
 
 Algorithms
 ----------
 
-mor (Morphological)
-~~~~~~~~~~~~~~~~~~~
+collab_pls (Collaborative Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline2D.mor`:
-:ref:`explanation for the algorithm <algorithms/morphological:mor (Morphological)>`.
+:meth:`~.Baseline2D.collab_pls`:
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/optimizers:collab_pls (Collaborative Penalized Least Squares)>`.
+There is no figure showing a fit for for this method since it requires multiple sets of data.
+
+adaptive_minmax (Adaptive MinMax)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline2D.adaptive_minmax`:
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/optimizers:adaptive_minmax (Adaptive MinMax)>`.
 
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -69,51 +71,32 @@ mor (Morphological)
     x, z, y, real_baseline = create_data()
     baseline_fitter = Baseline2D(x, z, check_finite=False)
 
-    baseline, params = baseline_fitter.mor(y, half_window=(6, 4))
+    baseline, params = baseline_fitter.adaptive_minmax(y, poly_order=(2, 3))
     create_plots(y, baseline)
 
+individual_axes (1D Baseline Correction Along Individual Axes)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-imor (Improved Morphological)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+:meth:`~.Baseline2D.individual_axes` is the single unique 2D baseline correction
+algorithm that is not available as a 1D algorithm, and it applies the specified 1D
+baseline algorithm along each row and/or column of the measured data. This is useful
+if the axes of the data are not correlated such that no information is lost by
+fitting each axis separately, or when baselines only exist along one axis.
 
-:meth:`~.Baseline2D.imor`:
-:ref:`explanation for the algorithm <algorithms/morphological:imor (Improved Morphological)>`.
+Note that one limitation of :meth:`~.Baseline2D.individual_axes` is that it does not
+handle array-like `method_kwargs`, such as when different input weights are desired
+for each dataset along the rows and/or columns. However, this is an extremely niche
+situation, and could be handled by simply using a for-loop to do one dimensional
+baseline correction instead.
 
 .. plot::
    :align: center
    :context: close-figs
+   :include-source: False
+   :show-source-link: True
 
     # to see contents of create_data function, look at the top-most algorithm's code
-    baseline, params = baseline_fitter.imor(y, half_window=(4, 2), tol=5e-3)
-    create_plots(y, baseline)
-
-
-rolling_ball (Rolling Ball)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:meth:`~.Baseline2D.rolling_ball`:
-:ref:`explanation for the algorithm <algorithms/morphological:rolling_ball (Rolling Ball)>`.
-
-.. plot::
-   :align: center
-   :context: close-figs
-
-    # to see contents of create_data function, look at the top-most algorithm's code
-    baseline, params = baseline_fitter.rolling_ball(y, half_window=(8, 5), smooth_half_window=3)
-    create_plots(y, baseline)
-
-
-tophat (Top-hat Transformation)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:meth:`~.Baseline2D.tophat`:
-:ref:`explanation for the algorithm <algorithms/morphological:tophat (Top-hat Transformation)>`.
-
-
-.. plot::
-   :align: center
-   :context: close-figs
-
-    # to see contents of create_data function, look at the top-most algorithm's code
-    baseline, params = baseline_fitter.tophat(y, half_window=(8, 5))
+    baseline, params = baseline_fitter.individual_axes(
+        y, method='arpls', axes=0, method_kwargs=({'lam': 1e4})
+    )
     create_plots(y, baseline)

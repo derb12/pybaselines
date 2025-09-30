@@ -97,6 +97,8 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     two_d = True
     weight_keys = ('average_weights', 'weights')
 
+    @ensure_deprecation(1, 5)  # remove the warnings filter after version 1.5
+    @pytest.mark.filterwarnings('ignore:"pspline_mpls" is deprecated')
     @pytest.mark.parametrize(
         'method',
         (

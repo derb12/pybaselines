@@ -15,11 +15,13 @@ noise_median (Noise Median method)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.noise_median`:
-:ref:`explanation for the algorithm <algorithms/smooth:noise_median (Noise Median method)>`.
+:ref:`explanation for the algorithm <algorithms/algorithms_1d/smooth:noise_median (Noise Median method)>`.
 
 .. plot::
    :align: center
    :context: reset
+   :include-source: False
+   :show-source-link: True
 
     import numpy as np
     import matplotlib.pyplot as plt
