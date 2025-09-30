@@ -557,8 +557,8 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
     reuse the diagonals whenever possible but will otherwise re-setup the object.
 
     Since `allow_penta` is set to True, the `lower` attribute of the
-    PenalizedSystem will equal the input `allow_lower` if `diff_order` is not 2, otherwise
-    it will be False.
+    PenalizedSystem will equal the input `allow_lower` if `diff_order` is not 2 and
+    numba is not installed, otherwise it will be False.
 
     """
     data_size = 100
@@ -588,9 +588,9 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
     )
     assert initial_system._num_bases == data_size
 
+    # mock having numba so the solver is used if allow_penta is True even if numba is not
+    # installed
     for padding in range(-1, 3):
-        # mock having numba so the solver is used if allow_penta is True even if numba is not
-        # installed
         with mock.patch.object(_banded_utils, '_HAS_NUMBA', True):
             penalized_system = _banded_utils.PenalizedSystem(
                 data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
@@ -609,6 +609,36 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, actual_lower,
             reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size
+        )
+
+    # mock not having numba to check that the solver is not used even if the input
+    # allow_penta is True
+    actual_lower = allow_lower  # should now always be lower banded if allowed
+    expected_penalty = _banded_utils.diff_penalty_diagonals(
+        data_size, diff_order=diff_order, lower_only=actual_lower, padding=0
+    )
+    if reverse_diags:
+        expected_penalty = expected_penalty[::-1]
+
+    for padding in range(-1, 3):
+        with mock.patch.object(_banded_utils, '_HAS_NUMBA', False):
+            penalized_system = _banded_utils.PenalizedSystem(
+                data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+                reverse_diags=reverse_diags, allow_penta=True, padding=padding
+            )
+        check_penalized_system(
+            penalized_system, expected_penalty, lam, diff_order, actual_lower,
+            reverse_diags, padding, using_penta=False, data_size=data_size
+        )
+        # also check that the reset_diagonal method performs similarly
+        with mock.patch.object(_banded_utils, '_HAS_NUMBA', False):
+            initial_system.reset_diagonals(
+                lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+                reverse_diags=reverse_diags, allow_penta=True, padding=padding
+            )
+        check_penalized_system(
+            initial_system, expected_penalty, lam, diff_order, actual_lower,
+            reverse_diags, padding, using_penta=False, data_size=data_size
         )
 
 
