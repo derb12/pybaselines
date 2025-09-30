@@ -140,17 +140,26 @@ class _Algorithm:
 
         .. versionadded:: 1.2.0
 
-        An integer between 1 and 4 designating the solver to prefer for solving banded
-        linear systems. Setting to 1 or 2 will use the ``PTRANS-I``
-        and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
-        ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
-        it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
-        else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
-        will only use the SciPy solvers following the same logic, and 4 will
-        force usage of :func:`scipy.linalg.solve_banded`. Default is 2.
+        An integer designating the solver. Setting to 1 or 2 will use the ``PTRANS-I``
+        and ``PTRANS-II`` solvers, respectively, from [1]_ if ``numba`` is installed
+        and the linear system is pentadiagonal. Otherwise, it will use
+        :func:`scipy.linalg.solveh_banded` if the system is symmetric, else
+        :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3 will only
+        use the SciPy solvers following the same logic, and 4 will force usage of
+        :func:`scipy.linalg.solve_banded`. Default is 2
 
-        This typically does not need to be modified since all solvers have relatively
-        the same numerical stability and is mostly for internal testing.
+        PTRANS-I and PTRANS-II are the fastest, and solve_banded is the slowest. In terms
+        of numerical stability, solveh_banded is the least stable, PTRANS-I and PTRANS-II
+        are slightly more stable (LU factorization without pivoting), and solve_banded (LU
+        factorization with partial pivoting) is the most stable. In practice, however,
+        instability rarely occurs during baseline correction and should be avoided through
+        other means (eg. switching from Whittaker-smoothing methods to penalized spline
+        methods in order to lower the required `lam` parameter).
+
+        References
+        ----------
+        .. [1] Askar, S., et al. On Solving Pentadiagonal Linear Systems via
+            Transformations. Mathematical Problems in Engineering, 2015, 232456.
 
         """
         return self._banded_solver
@@ -158,23 +167,28 @@ class _Algorithm:
     @banded_solver.setter
     def banded_solver(self, solver):
         """
-        Sets the solver for banded systems and the solver for the optional dependency pentapy.
+        Sets the solver to use for banded linear systems.
 
         Parameters
         ----------
         solver : {1, 2, 3, 4}
             An integer designating the solver. Setting to 1 or 2 will use the ``PTRANS-I``
-            and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
-            ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
-            it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
-            else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
-            will only use the SciPy solvers following the same logic, and 4 will
-            force usage of :func:`scipy.linalg.solve_banded`.
+            and ``PTRANS-II`` solvers, respectively, from [1]_ if ``numba`` is installed
+            and the linear system is pentadiagonal. Otherwise, it will use
+            :func:`scipy.linalg.solveh_banded` if the system is symmetric, else
+            :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3 will only
+            use the SciPy solvers following the same logic, and 4 will force usage of
+            :func:`scipy.linalg.solve_banded`.
 
         Raises
         ------
         ValueError
             Raised if `solver` is not an integer between 1 and 4.
+
+        References
+        ----------
+        .. [1] Askar, S., et al. On Solving Pentadiagonal Linear Systems via
+            Transformations. Mathematical Problems in Engineering, 2015, 232456.
 
         """
         if isinstance(solver, bool) or solver not in {1, 2, 3, 4}:
@@ -190,7 +204,7 @@ class _Algorithm:
     @property
     def pentapy_solver(self):
         """
-        The solver if using ``pentapy`` to solve banded equations.
+        The solver if using the dedicated pentadiagonal solvers to solve banded equations.
 
         .. deprecated:: 1.2
             The `pentapy_solver` property is deprecated and will be removed in

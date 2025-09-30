@@ -98,7 +98,7 @@ jobs:
       run: pytest .
 
     - name: Install minimum optional dependencies
-      run: python -m pip install "pentapy==1.1.*" "numba==0.53.*"
+      run: python -m pip install "numba==0.53.*"
 
     - name: Test with minimum optional dependencies
       run: pytest .

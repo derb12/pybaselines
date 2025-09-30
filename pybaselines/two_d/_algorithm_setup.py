@@ -32,11 +32,6 @@ class _Algorithm2D:
 
     Attributes
     ----------
-    petapy_solver : int or str
-        Only used to pass to a new :class:`~.Baseline` object when using
-        :meth:`.Baseline2D.individual_axes`. The integer or string designating which solver
-        to use if using pentapy. See :func:`pentapy.solve` for available options, although
-        1 or 2 are the most relevant options. Default is 2.
     x : numpy.ndarray or None
         The x-values for the object. If initialized with None, then `x` is initialized the
         first function call to have the same size as the input `data.shape[-2]` and has min
@@ -194,32 +189,34 @@ class _Algorithm2D:
         the solver to prefer for solving banded linear systems in 1D. See
         :attr:`~.Baseline.banded_solver` for more information.  Default is 2.
 
-        This typically does not need to be modified since all solvers have relatively
-        the same numerical stability and is mostly for internal testing.
-
         """
         return self._banded_solver
 
     @banded_solver.setter
     def banded_solver(self, solver):
         """
-        Sets the solver for 1D banded systems.
+        Sets the solver to use for 1D banded linear systems.
 
         Parameters
         ----------
         solver : {1, 2, 3, 4}
             An integer designating the solver. Setting to 1 or 2 will use the ``PTRANS-I``
-            and ``PTRANS-II`` solvers, respectively, from :func:`pentapy.solve` if
-            ``pentapy`` is installed and the linear system is pentadiagonal. Otherwise,
-            it will use :func:`scipy.linalg.solveh_banded` if the system is symmetric,
-            else :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3
-            will only use the SciPy solvers following the same logic, and 4 will
-            force usage of :func:`scipy.linalg.solve_banded`.
+            and ``PTRANS-II`` solvers, respectively, from [1]_ if ``numba`` is installed
+            and the linear system is pentadiagonal. Otherwise, it will use
+            :func:`scipy.linalg.solveh_banded` if the system is symmetric, else
+            :func:`scipy.linalg.solve_banded`. Setting ``banded_solver`` to 3 will only
+            use the SciPy solvers following the same logic, and 4 will force usage of
+            :func:`scipy.linalg.solve_banded`.
 
         Raises
         ------
         ValueError
             Raised if `solver` is not an integer between 1 and 4.
+
+        References
+        ----------
+        .. [1] Askar, S., et al. On Solving Pentadiagonal Linear Systems via
+            Transformations. Mathematical Problems in Engineering, 2015, 232456.
 
         """
         if isinstance(solver, bool) or solver not in {1, 2, 3, 4}:
@@ -232,7 +229,7 @@ class _Algorithm2D:
     @property
     def pentapy_solver(self):
         """
-        The solver if using ``pentapy`` to solve banded equations.
+        The solver if using the dedicated pentadiagonal solvers to solve banded equations.
 
         .. deprecated:: 1.2
             The `pentapy_solver` property is deprecated and will be removed in

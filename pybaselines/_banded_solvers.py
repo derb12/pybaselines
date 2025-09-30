@@ -947,7 +947,8 @@ def penta_factorize_solve(ab_factorization, b, solver=1, overwrite_b=False):
     ----------
     ab_factorization : array-like, shape (5, M)
         The factorization of the pentadiagonal matrix `A` in row-wise banded format (see
-        :func:`pentapy.solve`), as given by :func:`~.penta_factorize`.
+        https://geostat-framework.readthedocs.io/projects/pentapy/en/stable/examples/index.html`),
+        as given by :func:`~.penta_factorize`.
     b : array-like, shape (M,) or (M, N)
         The right-hand side of the equation.
     solver : {1, 2}, optional

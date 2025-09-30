@@ -54,7 +54,8 @@ def pentapy_ptrans1(mat_flat, rhs):
     Parameters
     ----------
     lhs : numpy.ndarray, shape (5, M)
-        The pentadiagonal matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
+        The pentadiagonal matrix `A` in row-wise banded format (see
+        https://geostat-framework.readthedocs.io/projects/pentapy/en/stable/examples/index.html).
     rhs : numpy.ndarray, shape (M,) or (M, N)
         The right-hand side of the equation.
 
@@ -148,7 +149,8 @@ def pentapy_ptrans2(mat_flat, rhs):
     Parameters
     ----------
     lhs : numpy.ndarray, shape (5, M)
-        The pentadiagonal matrix `A` in row-wise banded format (see :func:`pentapy.solve`).
+        The pentadiagonal matrix `A` in row-wise banded format (see
+        https://geostat-framework.readthedocs.io/projects/pentapy/en/stable/examples/index.html).
     rhs : numpy.ndarray, shape (M,) or (M, N)
         The right-hand side of the equation.
 
