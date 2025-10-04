@@ -6,6 +6,7 @@ Created on July 3, 2021
 
 """
 
+import inspect
 import pickle
 
 import numpy as np
@@ -14,7 +15,7 @@ import pytest
 
 from pybaselines.two_d import api, morphological, optimizers, polynomial, smooth, spline, whittaker
 
-from ..base_tests import get_data2d
+from ..base_tests import get_data2d, check_param_keys
 
 
 _ALL_CLASSES = (
@@ -166,19 +167,7 @@ class TestBaseline2D:
         )(fit_data, **kwargs)
 
         assert_allclose(api_baseline, class_baseline, rtol=1e-12, atol=1e-12)
-        assert len(api_params.keys()) == len(class_params.keys())
-        for key, value in api_params.items():
-            assert key in class_params
-            class_value = class_params[key]
-            if isinstance(value, (int, float, np.ndarray, list, tuple)):
-                assert_allclose(value, class_value, rtol=1e-12, atol=1e-12)
-            elif isinstance(value, dict):
-                # do not check values of the internal dictionary since the nested structure
-                # is no longer guaranteed to be the same shape for every value
-                for internal_key in value.keys():
-                    assert internal_key in class_value
-            else:
-                assert value == class_value
+        check_param_keys(api_params.keys(), class_params.keys())
 
     def test_method_availability(self):
         """Ensures all public algorithms are available through the Baseline class."""
@@ -263,3 +252,28 @@ class TestBaseline2D:
         pickle_and_check(
             fitter, 1, fitter._polynomial, fitter._spline_basis, x_validated, z_validated
         )
+
+
+def test_tck(data_fixture2d):
+    """Ensures all penalized spline methods return 'tck' in the output params."""
+    methods = []
+    for (method_name, method) in inspect.getmembers(api.Baseline2D):
+        if (
+            inspect.isfunction(method)
+            and not method_name.startswith('_')
+            and (
+                'num_knots' in inspect.signature(method).parameters.keys()
+                or 'spline_degree' in inspect.signature(method).parameters.keys()
+            )
+        ):
+            methods.append(method_name)
+    x, z, y = data_fixture2d
+    fitter = api.Baseline2D(x_data=x, z_data=z)
+    failures = []
+    for method in methods:
+        _, params = getattr(fitter, method)(y)
+        if 'tck' not in params:
+            failures.append(method)
+
+    if failures:
+        raise AssertionError(f'"tck" not in output params for {failures}')

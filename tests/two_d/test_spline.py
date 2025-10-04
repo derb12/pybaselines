@@ -56,7 +56,7 @@ class SplineTester(BaseTester2D):
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):
     """Base testing class for iterative spline functions."""
 
-    checked_keys = ('weights', 'tol_history')
+    checked_keys = ('weights', 'tol_history', 'tck')
 
     @classmethod
     def setup_class(cls):

@@ -182,7 +182,7 @@ class _Spline(_Algorithm2D):
             residual = y - baseline
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1]
+            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck
         }
 
         baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
@@ -273,7 +273,7 @@ class _Spline(_Algorithm2D):
             old_coef = pspline.coef
             weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
 
         return baseline, params
 
@@ -364,7 +364,7 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
 
         return baseline, params
 
@@ -474,7 +474,7 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
 
         return baseline, params
 
@@ -561,7 +561,7 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck}
 
         return baseline, params
 
@@ -641,7 +641,7 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
 
         return baseline, params
 
@@ -722,7 +722,7 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck}
 
         return baseline, params
 
@@ -823,7 +823,7 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
 
         return baseline, params
 
@@ -940,7 +940,8 @@ class _Spline(_Algorithm2D):
             beta = 1 - weight_mean
 
         params = {
-            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1]
+            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
+            'tck': pspline.tck
         }
 
         return baseline, params
@@ -1040,6 +1041,6 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck}
 
         return baseline, params

@@ -6,6 +6,7 @@ Created on July 3, 2021
 
 """
 
+import inspect
 import pickle
 
 import numpy as np
@@ -268,3 +269,30 @@ class TestBaseline:
 
         fitter.optimize_extended_range(self.y, method='asls')
         pickle_and_check(fitter, 1, fitter._polynomial, fitter._spline_basis, True)
+
+
+@ensure_deprecation(1, 4)  # remove the warnings filter once pspline_mpls is removed
+@pytest.mark.filterwarnings('ignore:"pspline_mpls" is deprecated')
+def test_tck(data_fixture):
+    """Ensures all penalized spline methods return 'tck' in the output params."""
+    methods = []
+    for (method_name, method) in inspect.getmembers(api.Baseline):
+        if (
+            inspect.isfunction(method)
+            and not method_name.startswith('_')
+            and (
+                'num_knots' in inspect.signature(method).parameters.keys()
+                or 'spline_degree' in inspect.signature(method).parameters.keys()
+            )
+        ):
+            methods.append(method_name)
+    x, y = data_fixture
+    fitter = api.Baseline(x)
+    failures = []
+    for method in methods:
+        _, params = getattr(fitter, method)(y)
+        if 'tck' not in params:
+            failures.append(method)
+
+    if failures:
+        raise AssertionError(f'"tck" not in output params for {failures}')

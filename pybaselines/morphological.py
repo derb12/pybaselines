@@ -790,7 +790,7 @@ class _Morphological(_Algorithm):
         pspline.penalty = (_check_lam(lam) / lam_smooth) * pspline.penalty
         baseline = pspline.solve_pspline(spline_fit, weight_array)
 
-        return baseline, {'half_window': half_window, 'weights': weight_array}
+        return baseline, {'half_window': half_window, 'weights': weight_array, 'tck': pspline.tck}
 
     @_Algorithm._register(sort_keys=('signal',))
     def jbcd(self, data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1,

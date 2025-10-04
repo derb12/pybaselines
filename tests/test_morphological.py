@@ -185,7 +185,7 @@ class TestMpspline(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpspline baseline."""
 
     func_name = 'mpspline'
-    checked_keys = ('half_window', 'weights')
+    checked_keys = ('half_window', 'weights', 'tck')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
