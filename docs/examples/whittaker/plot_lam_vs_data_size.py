@@ -10,6 +10,12 @@ Whittaker-smoothing-based algorithm is dependent on the number of data points. T
 this can cause issues when adapting an algorithm to a new set of data since the published
 optimal `lam` value is not universal. This example shows an analysis of this dependence
 for all available :ref:`Whittaker smoothing methods <api/Baseline:Whittaker Smoothing Algorithms>`.
+To the author's knowledge, the only existing literature that examines the effects of curvature and
+data size on the necessary `lam` value is
+`Park, A., et al. Decision function for optimal smoothing parameter of asymmetrically
+reweighted penalized least squares. Journal of the Korea Academia-Indiustrial cooperation
+Society, 2019, 20(3), 500-506` (authors of the arPLS algorithm; the DOI link is omitted
+since it often times out).
 
 Note that the exact optimal `lam` values reported in this example are not of significant
 use since they depend on many other factors such as the baseline curvature, noise, peaks,
