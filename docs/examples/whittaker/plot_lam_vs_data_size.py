@@ -14,8 +14,7 @@ To the author's knowledge, the only existing literature that examines the effect
 data size on the necessary `lam` value is
 `Park, A., et al. Decision function for optimal smoothing parameter of asymmetrically
 reweighted penalized least squares. Journal of the Korea Academia-Indiustrial cooperation
-Society, 2019, 20(3), 500-506` (authors of the arPLS algorithm; the DOI link is omitted
-since it often times out).
+Society, 2019, 20(3), 500-506` (authors of the arPLS algorithm).
 
 Note that the exact optimal `lam` values reported in this example are not of significant
 use since they depend on many other factors such as the baseline curvature, noise, peaks,

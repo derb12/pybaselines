@@ -53,26 +53,26 @@ class _Polynomial(_Algorithm2D):
     )
     def poly(self, data, poly_order=2, weights=None, return_coef=False, max_cross=None):
         """
-        Computes a polynomial that fits the baseline of the data.
+        Computes a polynomial fit to the data.
 
         Parameters
         ----------
         data : array-like, shape (M, N)
             The y-values of the measured data.
         poly_order : int or Sequence[int, int], optional
-            The polynomial orders for x and z. If a single value, will use that for both x and
-            z. Default is 2.
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the x and z values and return them in the params dictionary.
-            Default is False, since the conversion takes time.
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
         max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
-            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
-            does not limit the cross terms.
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
 
         Returns
         -------
@@ -91,7 +91,9 @@ class _Polynomial(_Algorithm2D):
         Notes
         -----
         To only fit regions without peaks, supply a weight array with zero values
-        at the indices where peaks are located.
+        at the indices where peaks are located. It is **NOT** recommended to use this
+        method without supplying weights since it is otherwise a least-squares fit to
+        the data, which is not a correct representation of the baseline.
 
         """
         y, weight_array, pseudo_inverse = self._setup_polynomial(
@@ -122,8 +124,8 @@ class _Polynomial(_Algorithm2D):
         data : array-like, shape (M, N)
             The y-values of the measured data.
         poly_order : int or Sequence[int, int], optional
-            The polynomial orders for x and z. If a single value, will use that for both x and
-            z. Default is 2.
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -140,12 +142,12 @@ class _Polynomial(_Algorithm2D):
             deviation of the residual is less than measured data [3]_. Default is False.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the x and z values and return them in the params dictionary.
-            Default is False, since the conversion takes time.
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
         max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
-            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
-            does not limit the cross terms.
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
 
         Returns
         -------
@@ -232,8 +234,8 @@ class _Polynomial(_Algorithm2D):
         data : array-like, shape (M, N)
             The y-values of the measured data.
         poly_order : int or Sequence[int, int], optional
-            The polynomial orders for x and z. If a single value, will use that for both x and
-            z. Default is 2.
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -250,15 +252,15 @@ class _Polynomial(_Algorithm2D):
             the standard deviation of the residual is less than measured data [3]_.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the x and z values and return them in the params dictionary.
-            Default is False, since the conversion takes time.
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
         num_std : float, optional
             The number of standard deviations to include when thresholding. Default
             is 1. Must be greater or equal to 0.
         max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
-            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
-            does not limit the cross terms.
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
 
         Returns
         -------
@@ -361,8 +363,8 @@ class _Polynomial(_Algorithm2D):
         data : array-like, shape (M, N)
             The y-values of the measured data.
         poly_order : int or Sequence[int, int], optional
-            The polynomial orders for x and z. If a single value, will use that for both x and
-            z. Default is 2.
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
         tol : float, optional
             The exit criteria. Default is 1e-3.
         max_iter : int, optional
@@ -396,12 +398,12 @@ class _Polynomial(_Algorithm2D):
             0.99. Typically should not need to change this value.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the x and z values and return them in the params dictionary.
-            Default is False, since the conversion takes time.
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
         max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
-            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
-            does not limit the cross terms.
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
 
         Returns
         -------
@@ -494,8 +496,8 @@ class _Polynomial(_Algorithm2D):
         data : array-like, shape (M, N)
             The y-values of the measured data.
         poly_order : int or Sequence[int, int], optional
-            The polynomial orders for x and z. If a single value, will use that for both x and
-            z. Default is 2.
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
         quantile : float, optional
             The quantile at which to fit the baseline. Default is 0.05.
         tol : float, optional
@@ -514,12 +516,12 @@ class _Polynomial(_Algorithm2D):
             fit each iteration multiplied by 1e-6.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
-            a form that fits the x and z values and return them in the params dictionary.
-            Default is False, since the conversion takes time.
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
         max_cross : int, optional
             The maximum degree for the cross terms. For example, if `max_cross` is 1, then
-            `x z**2`, `x**2 z`, and `x**2 z**2` would all be set to 0. Default is None, which
-            does not limit the cross terms.
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
 
         Returns
         -------

@@ -90,7 +90,7 @@ class _Polynomial(_Algorithm):
     @_Algorithm._register(sort_keys=('weights',))
     def poly(self, data, poly_order=2, weights=None, return_coef=False):
         """
-        Computes a polynomial that fits the baseline of the data.
+        Computes a polynomial fit to the data.
 
         Parameters
         ----------
@@ -123,7 +123,9 @@ class _Polynomial(_Algorithm):
         Notes
         -----
         To only fit regions without peaks, supply a weight array with zero values
-        at the indices where peaks are located.
+        at the indices where peaks are located. It is **NOT** recommended to use this
+        method without supplying weights since it is otherwise a least-squares fit to
+        the data, which is not a correct representation of the baseline.
 
         """
         y, weight_array, pseudo_inverse = self._setup_polynomial(
