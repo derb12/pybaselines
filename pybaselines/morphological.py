@@ -725,6 +725,10 @@ class _Morphological(_Algorithm):
                 The weight array used for fitting the data.
             * 'half_window': int
                 The half window used for the morphological calculations.
+            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
+                The knots, spline coefficients, and spline degree for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
+                other usages such as evaluating with different x-values.
 
         Raises
         ------

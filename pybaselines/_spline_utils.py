@@ -610,7 +610,18 @@ class SplineBasis:
 
     @property
     def tk(self):
-        """The knots and spline degree for the spline."""
+        """
+        The knots and spline degree for the spline.
+
+        Returns
+        -------
+        knots : numpy.ndarray, shape (K,)
+            The knots for the spline. Has a shape of `K`, which is equal to
+            ``num_knots + 2 * spline_degree``.
+        spline_degree : int
+            The degree of the spline.
+
+        """
         return self.knots, self.spline_degree
 
 
@@ -708,8 +719,19 @@ class PSpline(PenalizedSystem):
         The knots, spline coefficients, and spline degree to reconstruct the spline.
 
         Convenience function for easily reconstructing the last solved spline with outside
-        modules, such as with SciPy's `BSpline`, to allow for other usages such as evaulating
+        modules, such as with SciPy's `BSpline`, to allow for other usages such as evaluating
         with different x-values.
+
+        Returns
+        -------
+        knots : numpy.ndarray, shape (K,)
+            The knots for the spline. Has a shape of `K`, which is equal to
+            ``num_knots + 2 * spline_degree``.
+        coef : numpy.ndarray, shape (M,)
+            The spline coeffieicnts. Has a shape of `M`, which is the number of basis functions
+            (equal to ``K - spline_degree - 1`` or equivalently ``num_knots + spline_degree - 1``).
+        spline_degree : int
+            The degree of the spline.
 
         Raises
         ------

@@ -174,6 +174,13 @@ class SplineBasis2D:
         """
         The knots and spline degree for the spline.
 
+        Returns
+        -------
+        knots : tuple[numpy.ndarray, numpy.ndarray]
+            The knots for the spline along the rows and columns.
+        spline_degree : numpy.ndarray([int, int])
+            The degree of the spline for the rows and columns.
+
         Notes
         -----
         To compare with :class:`scipy.interpolate.NdBSpline`, the setup would look like:
@@ -331,8 +338,18 @@ class PSpline2D(PenalizedSystem2D):
         The knots, spline coefficients, and spline degree to reconstruct the spline.
 
         Convenience function for easily reconstructing the last solved spline with outside
-        modules, such as with SciPy's `NdBSpline`, to allow for other usages such as evaulating
+        modules, such as with SciPy's `NdBSpline`, to allow for other usages such as evaluating
         with different x- and z-values.
+
+        Returns
+        -------
+        knots : tuple[numpy.ndarray, numpy.ndarray]
+            The knots for the spline along the rows and columns.
+        coef : numpy.ndarray, shape (M, N)
+            The spline coeffieicnts. Has a shape of (`M`, `N`), correspondong to the number
+            of basis functions along the rows and columns.
+        spline_degree : numpy.ndarray([int, int])
+            The degree of the spline for the rows and columns.
 
         Raises
         ------
@@ -348,7 +365,7 @@ class PSpline2D(PenalizedSystem2D):
             pspline = Pspline2D(x, z, ...)
             pspline_fit = pspline.solve(...)
             XZ = np.array(np.meshgrid(x, z)).T  # same as zipping the meshgrid and rearranging
-            fit = NdBSpline(pspline.tck)(XZ)  # fit == pspline_fit
+            fit = NdBSpline(*pspline.tck)(XZ)  # fit == pspline_fit
 
         """
         if self.coef is None:

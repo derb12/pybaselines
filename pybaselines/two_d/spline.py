@@ -82,6 +82,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         Raises
         ------
@@ -243,6 +247,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         Raises
         ------
@@ -327,6 +335,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         Raises
         ------
@@ -422,6 +434,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         Raises
         ------
@@ -528,6 +544,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         See Also
         --------
@@ -611,6 +631,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         See Also
         --------
@@ -691,6 +715,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         See Also
         --------
@@ -782,6 +810,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         Raises
         ------
@@ -883,6 +915,10 @@ class _Spline(_Algorithm2D):
                 `max_iter_2`, `tol_2`), and shape K is the maximum of the number of
                 iterations for the threshold and the maximum number of iterations for all of
                 the fits of the various threshold values (related to `max_iter` and `tol`).
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         See Also
         --------
@@ -998,6 +1034,10 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
+                The knots, spline coefficients, and spline degrees for the fit baseline.
+                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
+                other usages such as evaluating with different x-values and z-values.
 
         See Also
         --------
