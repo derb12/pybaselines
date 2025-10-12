@@ -13,13 +13,13 @@ Algorithms
 optimize_extended_range
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The :meth:`~.Baseline.optimize_extended_range` function is based on the `Extended Range
+The :meth:`~.Baseline.optimize_extended_range` method is based on the `Extended Range
 Penalized Least Squares (erPLS) method <https://doi.org/10.3390/s20072015>`_,
 but extends its usage to all Whittaker-smoothing-based, polynomial, and spline algorithms.
 
 In this algorithm, a linear baseline is extrapolated from the left and/or
 right edges, Gaussian peaks are added to these baselines, and then the original
-data plus the extensions are input into the indicated Whittaker or polynomial function.
+data plus the extensions are input into the indicated Whittaker or polynomial method.
 An example of data with added baseline and Gaussian peaks is shown below.
 
 .. _extending-data-explanation:
@@ -313,3 +313,270 @@ reducing the number of data points in regions where higher stiffness
 is required. There is no figure showing the fits for various baseline types for
 this method since it is more suited for hard-to-fit data; however, :ref:`an
 example <sphx_glr_generated_examples_optimizers_plot_custom_bc_1_whittaker.py>` showcases its use.
+
+
+optimize_pls (Optimize Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The :meth:`~.Baseline.optimize_pls` method is based on the `method developed by the authors
+of the arPLS algorithm <https://dx.doi.org/10.5573/ieie.2016.53.3.124>`_,
+but extends its usage to all Whittaker-smoothing and penalized spline algorithms.
+
+The method works by considering the general equation of penalized least squares given by
+
+.. math::
+    F + \lambda R
+
+where :math:`F` is the fidelity of the fit and :math:`R` is the roughness term penalized by
+:math:`\lambda`. In general, both Whittaker smoothing and penalized splines have a fidelity
+given by:
+
+.. math::
+
+    F = \sum\limits_{i}^N w_i (y_i - v_i)^2
+
+where :math:`y_i` is the measured data, :math:`v_i` is the calculated baseline,
+and :math:`w_i` is the weight. The roughness for Whittaker smoothing is generally:
+
+.. math::
+
+    R = \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
+
+where :math:`\Delta^d` is the finite-difference operator of order d, and for penalized
+splines the roughness is generally:
+
+.. math::
+
+
+    R = \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+where :math:`c` are the calculated spline coefficients.
+
+In either case, a range of ``lam`` values are tested, with the fidelity and roughness
+values calculated for each fit. Then the array of fidelity and roughness values are
+normalized by their minimum and maximum values:
+
+.. math::
+
+    F_{norm} = \frac{F - \min(F)}{\max(F) - \min(F)}
+
+.. math::
+
+    R_{norm} = \frac{R - \min(R)}{\max(R) - \min(R)}
+
+
+The ``lam`` value that produces a minimum of the sum of normalized roughness and fidelity
+values is then selected as the optimal value. An example demonstrating this process is shown below.
+
+.. note::
+    Fun fact: this method was the reason that all baseline correction methods in pybaselines
+    output a parameter dictionary! Since the conception of pybaselines, the author has tried to
+    implement this method and only realized after ~5 years that the original publication had a
+    typo that prevented being able to replicate the publication's results.
+
+.. note::
+    Interestingly, a very similar framework using the normalized fidelity and roughness
+    values was proposed by `Andriyana, Y., et al. <https://doi.org/10.1007/s11749-013-0346-2>`_
+    for optimizing the smoothing parameter for quantile P-splines, although they minimized
+    the euclidean distance (:math:`\sqrt{F_{norm}^2 + R_{norm}^2}`) as a pseudo L-curve optimization.
+
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    from math import ceil
+
+    x = np.linspace(1, 1000, 500)
+    signal = (
+        gaussian(x, 6, 180, 5)
+        + gaussian(x, 6, 550, 5)
+        + gaussian(x, 9, 800, 10)
+        + gaussian(x, 9, 100, 12)
+        + gaussian(x, 15, 400, 8)
+        + gaussian(x, 13, 700, 12)
+        + gaussian(x, 9, 880, 8)
+    )
+    baseline = 5 + 15 * np.exp(-x / 800) + gaussian(x, 5, 700, 300)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+    y = signal * 0.5 + baseline + noise
+
+    min_value = 2
+    max_value = 10
+    step = 0.25
+    lam_range = np.linspace(min_value, max_value, ceil((max_value - min_value) / step))
+
+    fit, params = baseline_fitter.optimize_pls(y, min_value=min_value, max_value=max_value, step=step)
+    normed_sum = params['roughness'] + params['fidelity']
+
+    plt.figure()
+    plt.plot(lam_range, params['roughness'], '--', label='Roughness, $R_{norm}$')
+    plt.plot(lam_range, params['fidelity'], '--', label='Fidelity, $F_{norm}$')
+    plt.plot(lam_range, normed_sum, '-', label='$F_{norm} + R_{norm}$')
+    index = np.argmin(abs(lam_range - np.log10(params['optimal_parameter'])))
+    plt.plot(lam_range[index], normed_sum[index], 'o', label='Optimal Value')
+    plt.xlabel('Log$_{10}$(lam)')
+    plt.ylabel('Normalized Value')
+    plt.legend()
+
+    plt.figure()
+    plt.plot(x, y)
+    plt.plot(
+        x, baseline_fitter.arpls(y, lam=10**min_value)[0], label=f'lam=10$^{{{min_value}}}$'
+    )
+    plt.plot(
+        x, baseline_fitter.arpls(y, lam=10**max_value)[0], label=f'lam=10$^{{{max_value}}}$'
+    )
+    plt.plot(x, fit, label=f'lam=10$^{{{np.log10(params['optimal_parameter']):.1f}}}$')
+    plt.legend()
+
+
+In general, this method is more sensitive to the minimum and maximum ``lam`` values used for
+the fits compared to :meth:`~.Baseline.optimize_extended_range`. Further discussion on the
+inherent drawbacks of this method and the "fix" are continued below the example plot.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        baseline, params = baseline_fitter.optimize_pls(y, method='arpls', min_value=2.5, max_value=5)
+        ax.plot(baseline, 'g--')
+
+
+As hinted at above, this method is inherently limited by its assumptions of the curvature of the
+fidelity and roughness as ``lam`` varies. Although the authors did not state in detail their thought
+process for arriving at this optimization beyond balancing fidelity and roughness (at least the
+translation of their paper did not, apologies to the authors if the details were simply lost in translation).
+However, this approach is very similar to another optimization technique for finding the optimal regularization
+parameter for regularized least squares called L-curve optimization
+(see G. Frasso's thesis "Smoothing parameter selection using the L-curve" for more details on L-curve optimization).
+
+.. note::
+    Note that other methods such as generalized cross validation (GCV) can be used to
+    calculate the optimal regularization parameter, such as recently added to SciPy
+    as :func:`scipy.interpolate.make_smoothing_spline`.
+
+For L-curve optimization, the optimal parameter is selected where the curvature of the roughness vs
+fidelity plot (or log(roughness) vs log(fidelity)) is maximized. In the case that the minimum and maximum
+values of lam are selected correctly, the L-curve will be setup where the maximum curvature of the L-curve
+occurs at close to the origin on the normalized fidelity vs roughness curve and this
+method reaches the correct optimal value.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    x = np.linspace(1, 1000, 500)
+    signal = (
+        gaussian(x, 6, 180, 5)
+        + gaussian(x, 6, 550, 5)
+        + gaussian(x, 9, 800, 10)
+        + gaussian(x, 9, 100, 12)
+        + gaussian(x, 15, 400, 8)
+        + gaussian(x, 13, 700, 12)
+        + gaussian(x, 9, 880, 8)
+    )
+    baseline = 5 + 15 * np.exp(-x / 800) + gaussian(x, 5, 700, 300)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+    y = signal * 0.5 + baseline + noise
+
+    min_value = 2
+    max_value = 10
+    step = 0.25
+    lam_range = np.linspace(min_value, max_value, ceil((max_value - min_value) / step))
+
+    fit, params = baseline_fitter.optimize_pls(y, min_value=min_value, max_value=max_value, step=step)
+    normed_sum = params['roughness'] + params['fidelity']
+
+    plt.figure()
+    plt.plot(lam_range, params['roughness'], '--', label='Roughness, $R_{norm}$')
+    plt.plot(lam_range, params['fidelity'], '--', label='Fidelity, $F_{norm}$')
+    plt.plot(lam_range, normed_sum, '-', label='$F_{norm} + R_{norm}$')
+    plt.plot(lam_range[index], normed_sum[index], 'o', label='optimal value')
+    plt.xlabel('Log$_{10}$(lam)')
+    plt.ylabel('Normalized Value')
+    plt.legend()
+
+    plt.figure()
+    # plot a line connecting points for visibility; have to set zorder since matplotlib places
+    # lines above scatter points by default
+    plt.plot(params['fidelity'], params['roughness'], 'k', zorder=0)
+    scatter_plot = plt.scatter(params['fidelity'], params['roughness'], c=lam_range)
+    optimal_index = np.argmin(abs(lam_range - np.log10(params['optimal_parameter'])))
+    plt.annotate(
+        'Selected Optimal lam',
+        xy=(params['fidelity'][optimal_index], params['roughness'][optimal_index]),
+        xytext=(20, 30), textcoords='offset points', arrowprops={'arrowstyle': '->'}
+    )
+
+    plt.xlabel('Normalized Fidelity')
+    plt.ylabel('Normalized Roughness')
+    colorbar = plt.colorbar(scatter_plot, orientation='horizontal')
+
+    colorbar.set_label('log$_{10}$(lam)')
+
+However, if the minimum and maximum lam values are selected incorrectly, the L-curve does not
+follow this simplified case and has additional points that drive the point of maximum curvature
+away from the origin. In that case, this method will fail.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    min_value = -3
+    max_value = 10
+    step = 0.25
+    lam_range = np.linspace(min_value, max_value, ceil((max_value - min_value) / step))
+
+    fit2, params2 = baseline_fitter.optimize_pls(y, min_value=min_value, max_value=max_value, step=step)
+    normed_sum = params2['roughness'] + params2['fidelity']
+
+    plt.figure()
+    plt.plot(lam_range, params2['roughness'], '--', label='Roughness, $R_{norm}$')
+    plt.plot(lam_range, params2['fidelity'], '--', label='Fidelity, $F_{norm}$')
+    plt.plot(lam_range, normed_sum, '-', label='$F_{norm} + R_{norm}$')
+    new_index = np.argmin(abs(lam_range - np.log10(params2['optimal_parameter'])))
+    plt.plot(lam_range[new_index], normed_sum[new_index], 'o', label='selected optimal value')
+    plt.xlabel('Log$_{10}$(lam)')
+    plt.ylabel('Normalized Value')
+    plt.legend()
+
+    plt.figure()
+    # plot a line connecting points for visibility; have to set zorder since matplotlib places
+    # lines above scatter points by default
+    plt.plot(params2['fidelity'], params2['roughness'], 'k', zorder=0)
+    scatter_plot = plt.scatter(params2['fidelity'], params2['roughness'], c=lam_range)
+    plt.annotate(
+        'Selected Optimal lam',
+        xy=(params2['fidelity'][new_index], params2['roughness'][new_index]),
+        xytext=(10, 30), textcoords='offset points', arrowprops={'arrowstyle': '->'}
+    )
+    # now refer back to the old optimal
+    optimal_index = np.argmin(abs(lam_range - np.log10(params['optimal_parameter'])))
+    plt.annotate(
+        'Previous Optimal lam',
+        xy=(params2['fidelity'][optimal_index], params2['roughness'][optimal_index]),
+        xytext=(50, 15), textcoords='offset points', arrowprops={'arrowstyle': '->'}
+    )
+    plt.xlabel('Normalized Fidelity')
+    plt.ylabel('Normalized Roughness')
+    colorbar = plt.colorbar(scatter_plot, orientation='horizontal')
+
+    colorbar.set_label('log$_{10}$(lam)')
+
+    plt.figure()
+    plt.plot(x, y)
+    plt.plot(x, fit, label=f"lam range=[2, 10], $lam_{{opt}}=10^{{{np.log10(params['optimal_parameter']):.1f}}}$")
+    plt.plot(x, fit2, label=f"lam range=[-3, 10], $lam_{{opt}}=10^{{{np.log10(params2['optimal_parameter']):.1f}}}$")
+    plt.legend()

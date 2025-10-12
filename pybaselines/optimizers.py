@@ -10,15 +10,17 @@ Created on March 3, 2021
 """
 
 from collections import defaultdict
+import inspect
 import itertools
 from math import ceil
+import warnings
 
 import numpy as np
 
 from . import classification, misc, morphological, polynomial, smooth, spline, whittaker
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, _sort_array, gaussian
+from .utils import ParameterWarning, _check_scalar, _get_edges, _sort_array, gaussian
 
 
 class _Optimizers(_Algorithm):
@@ -686,8 +688,251 @@ class _Optimizers(_Algorithm):
 
         return baseline, params
 
+    @_Algorithm._register(skip_sorting=True)
+    def optimize_pls(self, data, method='arpls', opt_method='U-curve', min_value=4, max_value=7,
+                     step=0.5, method_kwargs=None, euclidean=False):
+        """
+        Optimizes the regularization parameter for penalized least squares methods.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        method : str, optional
+            A string indicating the Whittaker-smoothing or spline method
+            to use for fitting the baseline. Default is 'arpls'.
+        opt_method : str, optional
+            The optimization method used to optimize `lam`. Supported methods are:
+
+            * 'erPLS'
+            * 'U-curve'
+            * 'gcv'
+
+            Details on each optimization method are in the Notes section below.
+        min_value : int or float, optional
+            The minimum value for the `lam` value to use with the indicated method. Should
+            be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
+            designates a `lam` value of 10**2). Default is 4.
+        max_value : int or float, optional
+            The maximum value for the `lam` value to use with the indicated method. Should
+            be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
+            designates a `lam` value of 10**3). Default is 7.
+        step : int or float, optional
+            The step size for iterating the parameter value from `min_value` to `max_value`.
+            Should be the exponent to raise to the power of 10 (eg. a `step` value of 1
+            designates a `lam` value of 10**1). Default is 0.5.
+        method_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to the selected `method` function.
+            Default is None, which will use an empty dictionary.
+        euclidean : bool, optional
+            Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
+            is the minimum of the sum of the normalized fidelity and roughness values, which is
+            equivalent to the minimum graph distance from the origin. If True, the metric is the
+            euclidean distance from the origin
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The baseline calculated with the optimum parameter.
+        method_params : dict
+            A dictionary with the following items:
+
+            * 'optimal_parameter': float
+                The `lam` value that minimized the computed metric.
+            * 'metric': numpy.ndarray[float]
+                The computed metric for each `lam` value tested.
+            * 'method_params': dict
+                A dictionary containing the output parameters for the optimal fit.
+                Items will depend on the selected method.
+            * 'fidelity': numpy.ndarray[float]
+                Only returned if `opt_method` is 'U-curve'. The computed normalized fidelity
+                values for each `lam` value tested.
+            * 'roughness': numpy.ndarray[float]
+                Only returned if `opt_method` is 'U-curve'. The computed normalized roughness
+                values for each `lam` value tested.
+
+        Raises
+        ------
+        ValueError
+            _description_
+        NotImplementedError
+            _description_
+
+        Notes
+        -----
+        This method requires that the sum of the normalized roughness and fidelity values is
+        roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
+        `min_value` and `max_value` such that roughness continually decreases and fidelity
+        continually increases as `lam` increases.
+
+        References
+        ----------
+        .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+                using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
+                of Electronics and Information Engineers, 2016, 53(3), 124-131.
+
+        """
+        if opt_method is None:
+            # TODO once all methods are added, pick a good ordering, pick a default, and remove this
+            raise NotImplementedError('solver order needs determining')
+        y, baseline_func, _, method_kws, fitting_object = self._setup_optimizer(
+            data, method, (whittaker, morphological, spline, classification, misc),
+            method_kwargs, copy_kwargs=False
+        )
+        method = method.lower()
+        if 'lam' in method_kws:
+            # TODO maybe just warn and pop out instead? Would need to copy input kwargs in that
+            # case so that the original input is not modified
+            raise ValueError('lam must not be specified within method_kwargs')
+
+        if any(val > 15 for val in (min_value, max_value, step)):
+            raise ValueError((
+                'min_value, max_value, and step should be the power of 10 to use '
+                '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
+                'thus should not be greater than 15'
+            ))
+
+        if step == 0 or min_value == max_value:
+            do_optimization = False
+        else:
+            do_optimization = True
+            if max_value < min_value and step > 0:
+                step = -step
+        if do_optimization:
+            lam_range = np.logspace(
+                min_value, max_value, ceil((max_value - min_value) / step), base=10.0
+            )
+            # double check that variables has at least two items; otherwise skip the optimization
+            if lam_range.size < 2:
+                do_optimization = False
+        if not do_optimization:
+            lam_range = np.array([10.0**min_value])
+            warnings.warn(
+                ('min_value, max_value, and step were set such that only a single "lam" value '
+                 'was fit'), ParameterWarning, stacklevel=2
+            )
+
+        selected_method = opt_method.lower().replace('-', '_')
+        if selected_method == 'u_curve':
+            params = _optimize_ucurve(
+                y, selected_method, method, method_kws, baseline_func, fitting_object, lam_range,
+                euclidean
+            )
+        else:
+            raise ValueError(f'{opt_method} is not a supported opt_method input')
+
+        baseline, final_params = baseline_func(y, lam=params['optimal_parameter'], **method_kws)
+        params['method_params'] = final_params
+
+        return baseline, params
+
 
 _optimizers_wrapper = _class_wrapper(_Optimizers)
+
+
+def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_obj: _Algorithm,
+                     lam_range, euclidean=False):
+    """
+    Performs U-curve optimization based on the fit fidelity and roughness.
+
+    Parameters
+    ----------
+    y : _type_
+        _description_
+    opt_method : _type_
+        _description_
+    method : _type_
+        _description_
+    method_kws : _type_
+        _description_
+    baseline_func : _type_
+        _description_
+    baseline_obj : _Algorithm
+        _description_
+    lam_range : _type_
+        _description_
+    euclidean : bool, optional
+        _description_. Default is False.
+
+    Returns
+    -------
+    _type_
+        _description_
+
+    Raises
+    ------
+    NotImplementedError
+        _description_
+
+
+    References
+    ----------
+    .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction using
+           Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
+           Electronics and Information Engineers, 2016, 53(3), 124-131.
+    .. [2] Andriyana, Y., et al. P-splines quantile regression estimation in varying coefficient
+           models. TEST, 2014, 23(1), 153-194.
+
+    """
+    if 'pspline' in method or method in ('mixture_model', 'irsqr'):
+        spline_fit = True
+    else:
+        spline_fit = False
+
+    using_aspls = 'aspls' in method
+    using_drpls = 'drpls' in method
+    using_iasls = 'iasls' in method
+    if any((using_aspls, using_drpls, using_iasls)):
+        raise NotImplementedError(f'{method} method is not currently supported')
+
+    method_signature = inspect.signature(baseline_func).parameters
+    if 'diff_order' in method_kws:
+        diff_order = method_kws['diff_order']
+    else:
+        # some methods have a different default diff_order, so have to inspect them
+        diff_order = method_signature['diff_order'].default
+
+    roughness = []
+    fidelity = []
+    for lam in lam_range:
+        fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
+        if spline_fit:
+            penalized_object = fit_params['tck'][1]
+        else:
+            penalized_object = fit_baseline
+        # Park, et al. multiplied the roughness by lam (Equation 8), but I think that may have
+        # been a typo since it otherwise favors low lam values and does not produce a
+        # roughness plot shown in Figure 4 in the Park, et al. reference
+        partial_roughness = np.diff(penalized_object, diff_order)
+        fit_roughness = partial_roughness.dot(partial_roughness)
+
+        residual = y - fit_baseline
+        if 'weights' in fit_params:
+            fit_fidelity = fit_params['weights'] @ residual**2
+        else:
+            fit_fidelity = residual @ residual
+
+        roughness.append(fit_roughness)
+        fidelity.append(fit_fidelity)
+
+    roughness = np.array(roughness)
+    fidelity = np.array(fidelity)
+
+    if lam_range.size > 1:
+        roughness = (roughness - roughness.min()) / (roughness.max() - roughness.min())
+        fidelity = (fidelity - fidelity.min()) / (fidelity.max() - fidelity.min())
+    if euclidean:
+        metric = np.sqrt(fidelity**2 + roughness**2)
+    else:  # graph distance from the origin, ie. only travelling along x and y axes
+        metric = fidelity + roughness
+
+    best_lam = lam_range[np.argmin(metric)]
+    params = {
+        'optimal_parameter': best_lam, 'metric': metric,
+        'fidelity': fidelity, 'roughness': roughness,
+    }
+
+    return params
 
 
 @_optimizers_wrapper
