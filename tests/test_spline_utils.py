@@ -455,6 +455,54 @@ def test_pspline_tck_readonly(data_fixture):
         pspline.tck = (1, 2, 3)
 
 
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('num_knots', (50, 101))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+def test_pspline_update_lam(data_fixture, diff_order, allow_lower, num_knots, spline_degree):
+    """Tests updating the lam value for PSpline."""
+    x, y = data_fixture
+    lam_init = 5
+    basis = _spline_utils.SplineBasis(x, num_knots=num_knots, spline_degree=spline_degree)
+    pspline = _spline_utils.PSpline(
+        basis, diff_order=diff_order, lam=lam_init, allow_lower=allow_lower
+    )
+    data_size = pspline._num_bases
+
+    expected_penalty = lam_init * _banded_utils.diff_penalty_diagonals(
+        data_size, diff_order=diff_order, lower_only=pspline.lower,
+        padding=spline_degree - diff_order
+    )
+    diag_index = pspline.main_diagonal_index
+
+    assert_allclose(pspline.penalty, expected_penalty, rtol=1e-14, atol=1e-14)
+    assert_allclose(
+        pspline.main_diagonal, expected_penalty[diag_index], rtol=1e-14, atol=1e-14
+    )
+    for lam in (1e3, 5.2e1):
+        expected_penalty = lam * _banded_utils.diff_penalty_diagonals(
+            data_size, diff_order=diff_order, lower_only=pspline.lower,
+            padding=spline_degree - diff_order
+        )
+        pspline.update_lam(lam)
+
+        assert_allclose(pspline.penalty, expected_penalty, rtol=1e-14, atol=1e-14)
+        assert_allclose(
+            pspline.main_diagonal, expected_penalty[diag_index], rtol=1e-14, atol=1e-14
+        )
+
+
+def test_pspline_update_lam_invalid_lam(data_fixture):
+    """Ensures PSpline.update_lam throws an exception when given a non-positive lam."""
+    x, y = data_fixture
+    basis = _spline_utils.SplineBasis(x)
+    pspline = _spline_utils.PSpline(basis)
+    with pytest.raises(ValueError):
+        pspline.update_lam(-1.)
+    with pytest.raises(ValueError):
+        pspline.update_lam(0)
+
+
 def test_spline_basis_tk_readonly(data_fixture):
     """Ensures the tk attribute is read-only."""
     x, y = data_fixture

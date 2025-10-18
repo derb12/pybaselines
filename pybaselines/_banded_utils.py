@@ -224,7 +224,7 @@ def _sparse_to_banded(matrix):
     ):
         # offsets are typically negative to positive, but can get flipped during conversion
         # between sparse formats; LAPACK's banded format matches SciPy's diagonal data format
-        # when offsets are from positve to negative
+        # when offsets are from positive to negative
         if upper == diag_matrix.offsets[0]:
             ab = diag_matrix.data
         else:
@@ -234,6 +234,47 @@ def _sparse_to_banded(matrix):
         ab[upper - diag_matrix.offsets, :sparse_columns] = diag_matrix.data
 
     return ab, (abs(lower), upper)
+
+
+def _banded_to_sparse(ab, lower=True, sparse_format='csc'):
+    """
+    Converts a banded matrix into its square sparse version.
+
+    Parameters
+    ----------
+    ab : numpy.ndarray, shape (M, N)
+        The banded matrix in LAPACK format, either with its full band structure (ie.
+        ``M == 2 * num_bands + 1``) or only the lower bands (``M == num_bands + 1``).
+    lower : bool, optional
+        False indicates that `ab` represents the full band structure,
+        while True (default) indicates `ab` is in lower format.
+    sparse_format : str, optional
+        The format for the output sparse array or matrix. Default is 'csc'.
+
+    Returns
+    -------
+    matrix : scipy.sparse.spmatrix or scipy.sparse.sparray, shape (N, N)
+        The sparse, banded matrix.
+
+    Notes
+    -----
+    The input `ab` banded matrix is assumed to have equal numbers of upper
+    and lower diagonals.
+
+    """
+    rows, columns = ab.shape
+    if lower:
+        ab_full = _lower_to_full(ab)
+        bands = rows - 1
+    else:
+        ab_full = ab
+        bands = rows // 2
+
+    matrix = dia_object(
+        (ab_full, np.arange(bands, -bands - 1, -1)), shape=(columns, columns),
+    ).asformat(sparse_format)
+
+    return matrix
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
@@ -862,3 +903,19 @@ class PenalizedSystem:
         self.penalty = self.penalty[::-1]
         self.original_diagonals = self.original_diagonals[::-1]
         self.reversed = not self.reversed
+
+    def update_lam(self, lam):
+        """
+        Updates the penalty with a new regularization parameter.
+
+        Parameters
+        ----------
+        lam : float
+            The new regularization parameter to apply to the penalty.
+
+        """
+        new_lam = _check_lam(lam, allow_zero=False)
+        self.penalty *= (new_lam / self.lam)
+        self.main_diagonal = self.penalty[self.main_diagonal_index].copy()
+        self.lam = new_lam
+

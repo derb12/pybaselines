@@ -791,7 +791,7 @@ class _Morphological(_Algorithm):
             # TODO should this use np.isclose instead?
             weight_array = np.where(spline_fit == optimal_opening, 1 - p, p)
 
-        pspline.penalty = (_check_lam(lam) / lam_smooth) * pspline.penalty
+        pspline.update_lam(lam)
         baseline = pspline.solve_pspline(spline_fit, weight_array)
 
         return baseline, {'half_window': half_window, 'weights': weight_array, 'tck': pspline.tck}

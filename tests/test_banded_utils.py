@@ -898,6 +898,45 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
             )
 
 
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+def test_penalized_system_update_lam(diff_order, allow_lower):
+    """Tests updating the lam value for PenalizedSystem."""
+    data_size = 100
+    lam_init = 5
+    penalized_system = _banded_utils.PenalizedSystem(
+        data_size, lam=lam_init, diff_order=diff_order, allow_lower=allow_lower
+    )
+    expected_penalty = lam_init * _banded_utils.diff_penalty_diagonals(
+        data_size, diff_order=diff_order, lower_only=penalized_system.lower
+    )
+    diag_index = penalized_system.main_diagonal_index
+
+    assert_allclose(penalized_system.penalty, expected_penalty, rtol=1e-14, atol=1e-14)
+    assert_allclose(
+        penalized_system.main_diagonal, expected_penalty[diag_index], rtol=1e-14, atol=1e-14
+    )
+    for lam in (1e3, 5.2e1):
+        expected_penalty = lam * _banded_utils.diff_penalty_diagonals(
+            data_size, diff_order=diff_order, lower_only=penalized_system.lower
+        )
+        penalized_system.update_lam(lam)
+
+        assert_allclose(penalized_system.penalty, expected_penalty, rtol=1e-14, atol=1e-14)
+        assert_allclose(
+            penalized_system.main_diagonal, expected_penalty[diag_index], rtol=1e-14, atol=1e-14
+        )
+
+
+def test_penalized_system_update_lam_invalid_lam():
+    """Ensures PenalizedSystem.update_lam throws an exception when given a non-positive lam."""
+    penalized_system = _banded_utils.PenalizedSystem(100)
+    with pytest.raises(ValueError):
+        penalized_system.update_lam(-1.)
+    with pytest.raises(ValueError):
+        penalized_system.update_lam(0)
+
+
 @pytest.mark.parametrize('dtype', (float, np.float32))
 def test_sparse_to_banded(dtype):
     """Tests basic functionality of _sparse_to_banded."""
@@ -1053,7 +1092,7 @@ def test_sparse_to_banded_truncation():
 
     # sanity check
     assert_array_equal(matrix.toarray(), data)
-    # ensure that the first column isn't truncted by SciPy's sparse conversion
+    # ensure that the first column isn't truncated by SciPy's sparse conversion
     assert_array_equal(matrix.data[::-1], expected_data)
 
     assert_array_equal(banded_data, out)
@@ -1223,3 +1262,51 @@ def test_sparse_to_banded_ragged_truncated():
     assert_array_equal(banded_data, out2)
     assert lower2 == 3
     assert upper2 == 1
+
+
+def test_banded_to_sparse_simple():
+    """Basic test of functionality for _banded_to_sparse."""
+    full_matrix = np.array([
+        [1, 2, 3, 0, 0],
+        [2, 2, 3, 4, 0],
+        [3, 3, 3, 4, 5],
+        [0, 4, 4, 4, 5],
+        [0, 0, 5, 5, 5]
+    ])
+    banded_matrix = np.array([
+        [0, 0, 3, 4, 5],
+        [0, 2, 3, 4, 5],
+        [1, 2, 3, 4, 5],
+        [2, 3, 4, 5, 0],
+        [3, 4, 5, 0, 0]
+    ])
+
+    output_full = _banded_utils._banded_to_sparse(banded_matrix, lower=False)
+    assert_allclose(output_full.toarray(), full_matrix, rtol=1e-14, atol=1e-14)
+
+    output_lower = _banded_utils._banded_to_sparse(banded_matrix[2:], lower=True)
+    assert_allclose(output_lower.toarray(), full_matrix, rtol=1e-14, atol=1e-14)
+
+
+@pytest.mark.parametrize('lower', (True, False))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('size', (100, 1001))
+def test_banded_to_sparse(lower, diff_order, size):
+    """Ensures proper functionality of _banded_to_sparse."""
+    expected_matrix = _banded_utils.diff_penalty_matrix(size, diff_order=diff_order)
+    banded_matrix = _banded_utils.diff_penalty_diagonals(
+        size, diff_order=diff_order, lower_only=lower
+    )
+
+    output = _banded_utils._banded_to_sparse(banded_matrix, lower=lower)
+    assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-14, atol=1e-14)
+
+
+@pytest.mark.parametrize('form', ('dia', 'csc', 'csr'))
+@pytest.mark.parametrize('lower', (True, False))
+def test_banded_to_sparse_formats(form, lower):
+    """Ensures that the sparse format is correctly passed to the constructor."""
+    banded_matrix = _banded_utils.diff_penalty_diagonals(200, diff_order=2, lower_only=lower)
+
+    output = _banded_utils._banded_to_sparse(banded_matrix, lower=lower, sparse_format=form)
+    assert output.format == form
