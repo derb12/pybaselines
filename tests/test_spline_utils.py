@@ -395,6 +395,62 @@ def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, dif
     assert_allclose(output, expected_ed, rtol=1e-10, atol=1e-12)
 
 
+@pytest.mark.parametrize('num_knots', (20, 101))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+@pytest.mark.parametrize('lower_only', (True, False))
+@pytest.mark.parametrize('n_samples', (100, 201))
+def test_pspline_stochastic_effective_dimension(data_fixture, num_knots, spline_degree, diff_order,
+                                                lower_only, n_samples):
+    """
+    Tests the effective_dimension method of a PSpline object.
+
+    The effective dimension for penalized spline smoothing should be
+    ``trace((B.T @ W @ B + lam * D.T @ D)^-1 @ B.T @ W @ B)``, where `W` is the weight matrix,
+    ``D.T @ D`` is the penalty, and `B` is the spline basis.
+
+    """
+    x, y = data_fixture
+    x = x.astype(float)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+    num_bases = basis.shape[1]
+    penalty_matrix = _banded_utils.diff_penalty_matrix(num_bases, diff_order=diff_order)
+
+    btwb = basis.T @ diags(weights, format='csr') @ basis
+    factorization = factorized(btwb + penalty_matrix)
+    expected_ed = 0
+    for i in range(num_bases):
+        expected_ed += factorization(btwb[:, i].toarray())[i]
+
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree
+    )
+    pspline = _spline_utils.PSpline(
+        spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+    )
+
+    output = pspline.effective_dimension(weights, n_samples=n_samples)
+    assert_allclose(output, expected_ed, rtol=5e-2, atol=1e-5)
+
+
+@pytest.mark.parametrize('n_samples', (-1, 50.5))
+def test_pspline_stochastic_effective_dimension_invalid_samples(data_fixture, n_samples):
+    """Ensures a non-zero, non-positive `n_samples` input raises an exception."""
+    x, y = data_fixture
+    x = x.astype(float)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    spline_basis = _spline_utils.SplineBasis(x)
+    pspline = _spline_utils.PSpline(spline_basis)
+    with pytest.raises(TypeError):
+        pspline.effective_dimension(weights, n_samples=n_samples)
+
+
 def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
                            allow_lower, reverse_diags, spline_degree, num_knots,
                            data_size):

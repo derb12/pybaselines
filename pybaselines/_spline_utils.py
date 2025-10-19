@@ -49,7 +49,8 @@ import numpy as np
 from scipy.interpolate import BSpline
 
 from ._banded_utils import (
-    PenalizedSystem, _add_diagonals, _banded_to_sparse, _lower_to_full, _sparse_to_banded
+    PenalizedSystem, _add_diagonals, _banded_dot_vector, _banded_to_sparse, _lower_to_full,
+    _sparse_to_banded
 )
 from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
 from ._validation import _check_array
@@ -968,7 +969,7 @@ class PSpline(PenalizedSystem):
 
         return btwb
 
-    def effective_dimension(self, weights=None, penalty=None):
+    def effective_dimension(self, weights=None, penalty=None, n_samples=0):
         """
         Calculates the effective dimension from the trace of the hat matrix.
 
@@ -987,6 +988,10 @@ class PSpline(PenalizedSystem):
             The finite difference penalty matrix, in LAPACK's lower banded format if
             `self.lower` is True or the full banded if `self.lower` is False. Default
             is None, which uses the object's penalty.
+        n_samples : int, optional
+            If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
+            trace estimation with a matrix of (M, `n_samples`) Rademacher random variables
+            (eg. either -1 or 1).
 
         Returns
         -------
@@ -994,10 +999,22 @@ class PSpline(PenalizedSystem):
             The trace of the hat matrix, denoting the effective dimension for
             the system.
 
+        Raises
+        ------
+        TypeError
+            Raised if `n_samples` is not 0 and a non-positive integer.
+
         References
         ----------
         Eilers, P., et al. Flexible Smoothing with B-splines and Penalties. Statistical Science,
         1996, 11(2), 89-121.
+
+        Hutchinson, M. A stochastic estimator of the trace of the influence matrix for laplacian
+        smoothing splines. Communications in Statistics - Simulation and Computation, (1990),
+        19(2), 433-450.
+
+        Meyer, R., et al. Hutch++: Optimal Stochastic Trace Estimation. 2021 Symposium on
+        Simplicity in Algorithms (SOSA), (2021), 142-155.
 
         """
         if weights is None:
@@ -1008,15 +1025,43 @@ class PSpline(PenalizedSystem):
             penalty = self.penalty
 
         lhs = _add_diagonals(btwb, penalty, self.lower)
+        # TODO could maybe make default n_samples to None and decide to use analytical or
+        # stochastic trace based on data size; data size > 1000 use stochastic with default
+        # n_samples = 100?
+        if n_samples == 0:
+            use_analytic = True
+        else:
+            if n_samples < 0 or not isinstance(n_samples, int):
+                raise TypeError('n_samples must be a positive integer')
+            use_analytic = False
 
-        # compute each diagonal of the hat matrix separately so that the full
-        # hat matrix does not need to be stored in memory
-        trace = 0
-        btwb_matrix = _banded_to_sparse(btwb, lower=self.lower, sparse_format='csc')
-        factorization = self.factorize(lhs, overwrite_ab=True)
-        for i in range(self._num_bases):
-            trace += self.factorized_solve(
-                factorization, btwb_matrix[:, i].toarray(), overwrite_b=True
-            )[i]
+        if use_analytic:
+            # compute each diagonal of the hat matrix separately so that the full
+            # hat matrix does not need to be stored in memory
+            trace = 0
+            btwb_matrix = _banded_to_sparse(btwb, lower=self.lower, sparse_format='csc')
+            factorization = self.factorize(lhs, overwrite_ab=True)
+            for i in range(self._num_bases):
+                trace += self.factorized_solve(
+                    factorization, btwb_matrix[:, i].toarray(), overwrite_b=True
+                )[i]
+        else:
+            # TODO should the rng seed be settable? Maybe a Baseline property
+            rng_samples = np.random.default_rng(1234).choice(
+                [-1., 1.], size=(self._num_bases, n_samples)
+            )
+            # (B.T @ W @ B) @ u
+            btwb_u = np.empty((self._num_bases, n_samples))
+            for i in range(n_samples):
+                btwb_u[:, i] = _banded_dot_vector(btwb, rng_samples[:, i], lower=self.lower)
+            # H @ u == (B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B) @ u
+            hat_u = self.solve(lhs, btwb_u, overwrite_ab=True, overwrite_b=True)
+            # u.T @ H @ u -> u.T @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B) @ u
+            # stochastic trace is the average of the trace of u.T @ H @ u;
+            # trace(A.T @ B) == (A * B).sum() (see
+            # https://en.wikipedia.org/wiki/Trace_(linear_algebra)#Trace_of_a_product ),
+            # with the latter using less memory and being much faster to compute; for future
+            # reference: einsum('ij,ij->', A, B) == (A * B).sum(), but is typically faster
+            trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
 
         return trace

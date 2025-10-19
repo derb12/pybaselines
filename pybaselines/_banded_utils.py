@@ -7,7 +7,9 @@ Created on December 8, 2021
 """
 
 import numpy as np
-from scipy.linalg import cholesky_banded, cho_solve_banded, solve_banded, solveh_banded
+from scipy.linalg import (
+    cholesky_banded, cho_solve_banded, get_blas_funcs, solve_banded, solveh_banded
+)
 
 from scipy.sparse.linalg import factorized
 
@@ -277,6 +279,128 @@ def _banded_to_sparse(ab, lower=True, sparse_format='csc'):
     ).asformat(sparse_format)
 
     return matrix
+
+
+def _banded_dot_vector_full(ab, x, ab_lu, a_full_shape):
+    """
+    Computes the dot product of the matrix `a` in banded format (`ab`) with the vector `x`.
+
+    Parameters
+    ----------
+    ab : array-like, shape (`n_lower` + `n_upper` + 1, N)
+        The banded matrix.
+    x : array-like, shape (N,)
+        The vector.
+    ab_lu : Container[int, int]
+        The number of lower (`n_lower`) and upper (`n_upper`) diagonals in `ab`.
+    a_full_shape : Container[int, int]
+        The number of rows and columns in the full `a` matrix.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The dot product of `ab` and `x`.
+
+    Notes
+    -----
+    The function is faster if the input `ab` matrix is Fortran-ordered (has the
+    F_CONTIGUOUS numpy flag), since the underlying 'gbmv' BLAS function is
+    implemented in Fortran.
+
+    """
+    matrix = np.asarray(ab)
+    vector = np.asarray(x)
+
+    gbmv = get_blas_funcs(['gbmv'], (matrix, vector))[0]
+    # gbmv computes y = alpha * a * x + beta * y where a is the banded matrix
+    # (in compressed form), x is the input vector, y is the output vector, and alpha
+    # and beta are scalar multipliers
+    output = gbmv(
+        m=a_full_shape[0],  # number of rows of `a` matrix in full form
+        n=a_full_shape[1],  # number of columns of `a` matrix in full form
+        kl=ab_lu[0],  # sub-diagonals
+        ku=ab_lu[1],  # super-diagonals
+        alpha=1.0,  # alpha, required
+        a=matrix,  # `a` matrix in compressed form
+        x=vector,  # `x` vector
+        # trans=False,  # transpose a, optional; may allow later
+    )
+
+    return output
+
+
+def _banded_dot_vector_lower(ab, x):
+    """
+    Computes the dot product of the matrix `a` in lower banded format (`ab`) with the vector `x`.
+
+    Parameters
+    ----------
+    ab : array-like, shape (`n_lower` + 1, N)
+        The banded matrix.
+    x : array-like, shape (N,)
+        The vector.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The dot product of `ab` and `x`.
+
+    Notes
+    -----
+    The function is faster if the input `ab` matrix is Fortran-ordered (has the
+    F_CONTIGUOUS numpy flag), since the underlying 'sbmv' BLAS function is
+    implemented in Fortran.
+
+    """
+    matrix = np.asarray(ab)
+    vector = np.asarray(x)
+
+    sbmv = get_blas_funcs(['sbmv'], (matrix, vector))[0]
+    # sbmv computes y = alpha * a * x + beta * y where a is the symmetric banded matrix
+    # (in compressed lower form), x is the input vector, y is the output vector, and alpha
+    # and beta are scalar multipliers
+    output = sbmv(
+        k=matrix.shape[0] - 1,  # number of bands
+        alpha=1.0,  # alpha, required
+        a=matrix,  # `a` matrix in compressed form
+        x=vector,  # `x` vector
+        lower=1,  # using lower banded format
+    )
+
+    return output
+
+
+def _banded_dot_vector(ab, x, lower=True):
+    """
+    Computes ``A @ x`` given `A` in banded format (`ab`) with the vector `x`.
+
+    Parameters
+    ----------
+    ab : array-like, shape (`n_lower` + `n_upper` + 1, N) or (`n_lower` + 1, N)
+        The banded matrix. Can either be in lower format or full. If given a full
+        banded matrix, assumes the number of lower (`n_lower`) and upper (`n_upper`)
+        diagonals are the same. If that assumption does not hold true, then must use
+        ``_banded_dot_vector_full`` directly.
+    x : array-like, shape (N,)
+        The vector.
+    lower : bool, optional
+        False indicates that `ab` represents the full band structure,
+        while True (default) indicates `ab` is in lower format.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The dot product of `ab` and `x`.
+
+    """
+    if lower:
+        output = _banded_dot_vector_lower(ab, x)
+    else:
+        rows, columns = ab.shape
+        bands = rows // 2
+        output = _banded_dot_vector_full(ab, x, (bands, bands), (columns, columns))
+
+    return output
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
@@ -989,7 +1113,7 @@ class PenalizedSystem:
 
         return output
 
-    def effective_dimension(self, weights=None, penalty=None):
+    def effective_dimension(self, weights=None, penalty=None, n_samples=0):
         """
         Calculates the effective dimension from the trace of the hat matrix.
 
@@ -1006,6 +1130,10 @@ class PenalizedSystem:
             The finite difference penalty matrix, in LAPACK's lower banded format if
             `self.lower` is True or the full banded if `self.lower` is False. Default
             is None, which uses the object's penalty.
+        n_samples : int, optional
+            If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
+            trace estimation with a matrix of (N, `n_samples`) Rademacher random variables
+            (eg. either -1 or 1).
 
         Returns
         -------
@@ -1013,9 +1141,21 @@ class PenalizedSystem:
             The trace of the hat matrix, denoting the effective dimension for
             the system.
 
+        Raises
+        ------
+        TypeError
+            Raised if `n_samples` is not 0 and a non-positive integer.
+
         References
         ----------
         Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+        Hutchinson, M. A stochastic estimator of the trace of the influence matrix for laplacian
+        smoothing splines. Communications in Statistics - Simulation and Computation, (1990),
+        19(2), 433-450.
+
+        Meyer, R., et al. Hutch++: Optimal Stochastic Trace Estimation. 2021 Symposium on
+        Simplicity in Algorithms (SOSA), (2021), 142-155.
 
         """
         if weights is None:
@@ -1035,18 +1175,43 @@ class PenalizedSystem:
         # -> worth the effort? Could it be extended to work for any diff_order as long as the
         # matrix is symmetric?
 
-        # compute each diagonal of the hat matrix separately so that the full
-        # hat matrix does not need to be stored in memory
-        # note to self: sparse factorization is the worst case scenario (non-symmetric lhs and
-        # diff_order != 2), but it is still much faster than individual solves through
-        # solve_banded
-        eye = np.zeros(self._num_bases)
-        trace = 0
-        factorization = self.factorize(penalty)
-        for i in range(self._num_bases):
-            eye[i] = weights[i]
-            trace += self.factorized_solve(factorization, eye)[i]
-            eye[i] = 0
+        # TODO could maybe make default n_samples to None and decide to use analytical or
+        # stochastic trace based on data size; data size > 1000 use stochastic with default
+        # n_samples = 100?
+        if n_samples == 0:
+            use_analytic = True
+        else:
+            if n_samples < 0 or not isinstance(n_samples, int):
+                raise TypeError('n_samples must be a positive integer')
+            use_analytic = False
+
+        if use_analytic:
+            # compute each diagonal of the hat matrix separately so that the full
+            # hat matrix does not need to be stored in memory
+            # note to self: sparse factorization is the worst case scenario (non-symmetric lhs and
+            # diff_order != 2), but it is still much faster than individual solves through
+            # solve_banded
+            eye = np.zeros(self._num_bases)
+            trace = 0
+            factorization = self.factorize(penalty)
+            for i in range(self._num_bases):
+                eye[i] = weights[i]
+                trace += self.factorized_solve(factorization, eye)[i]
+                eye[i] = 0
+
+        else:
+            # TODO should the rng seed be settable? Maybe a Baseline property
+            rng_samples = np.random.default_rng(1234).choice(
+                [-1., 1.], size=(self._num_bases, n_samples)
+            )
+            # H @ u == (W + lam * P)^-1 @ (w * u)
+            hat_u = self.solve(penalty, weights[:, None] * rng_samples, overwrite_b=True)
+            # stochastic trace is the average of the trace of u.T @ H @ u;
+            # trace(A.T @ B) == (A * B).sum() (see
+            # https://en.wikipedia.org/wiki/Trace_(linear_algebra)#Trace_of_a_product ),
+            # with the latter using less memory and being much faster to compute; for future
+            # reference: einsum('ij,ij->', A, B) == (A * B).sum(), but is typically faster
+            trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
 
         if reset_penalty:  # remove the weights
             self.penalty[self.main_diagonal_index] = self.main_diagonal

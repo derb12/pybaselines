@@ -1032,6 +1032,59 @@ def test_penalized_system_effective_dimension(diff_order, allow_lower, allow_pen
     assert_allclose(output, expected_ed, rtol=1e-7, atol=1e-10)
 
 
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('allow_penta', (True, False))
+@pytest.mark.parametrize('size', (100, 501))
+@pytest.mark.parametrize('n_samples', (100, 201))
+def test_penalized_system_effective_dimension_stochastic(diff_order, allow_lower, allow_penta,
+                                                         size, n_samples):
+    """
+    Tests the stochastic effective_dimension calculation of a PenalizedSystem object.
+
+    The effective dimension for Whittaker smoothing should be
+    ``trace((W + lam * D.T @ D)^-1 @ W)``, where `W` is the weight matrix, and
+    ``D.T @ D`` is the penalty.
+
+    """
+    weights = np.random.default_rng(0).normal(0.8, 0.05, size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
+    expected_penalty = _banded_utils.diff_penalty_diagonals(
+        size, diff_order=diff_order, lower_only=False
+    )
+    sparse_penalty = dia_object(
+        (lam * expected_penalty, np.arange(diff_order, -(diff_order + 1), -1)),
+        shape=(size, size)
+    ).tocsr()
+    weights_matrix = diags(weights, format='csc')
+    factorization = factorized(weights_matrix + sparse_penalty)
+    expected_ed = 0
+    for i in range(size):
+        expected_ed += factorization(weights_matrix[:, i].toarray())[i]
+
+    penalized_system = _banded_utils.PenalizedSystem(
+        size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=False, allow_penta=allow_penta
+    )
+    output = penalized_system.effective_dimension(weights, n_samples=n_samples)
+
+    assert_allclose(output, expected_ed, rtol=5e-1, atol=1e-5)
+
+
+@pytest.mark.parametrize('n_samples', (-1, 50.5))
+def test_penalized_system_effective_dimension_stochastic_invalid_samples(data_fixture, n_samples):
+    """Ensures a non-zero, non-positive `n_samples` input raises an exception."""
+    x, y = data_fixture
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    penalized_system = _banded_utils.PenalizedSystem(x.size)
+    with pytest.raises(TypeError):
+        penalized_system.effective_dimension(weights, n_samples=n_samples)
+
+
 @pytest.mark.parametrize('dtype', (float, np.float32))
 def test_sparse_to_banded(dtype):
     """Tests basic functionality of _sparse_to_banded."""
@@ -1430,3 +1483,17 @@ def test_banded_to_sparse_formats(form, lower):
 
     output = _banded_utils._banded_to_sparse(banded_matrix, lower=lower, sparse_format=form)
     assert output.format == form
+
+
+@pytest.mark.parametrize('lower', (True, False))
+@pytest.mark.parametrize('size', (50, 201))
+def test_banded_dot_vector(lower, size):
+    """Ensures correctness of the dot product of banded matrices with a vector."""
+    matrix = _banded_utils.diff_penalty_matrix(size, diff_order=2)
+    banded_matrix = _banded_utils.diff_penalty_diagonals(size, diff_order=2, lower_only=lower)
+    vector = np.random.default_rng(123).normal(10, 5, size)
+
+    expected = matrix @ vector
+    output = _banded_utils._banded_dot_vector(banded_matrix, vector, lower=lower)
+
+    assert_allclose(output, expected, rtol=5e-14, atol=1e-14)
