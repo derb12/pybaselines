@@ -11,9 +11,11 @@ from unittest import mock
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy.linalg import cholesky_banded
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
+from pybaselines._banded_solvers import penta_factorize
 from pybaselines._compat import dia_object, diags, identity
 
 
@@ -649,12 +651,15 @@ def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_pen
     """
     Tests the solve method of a PenalizedSystem object.
 
-    Solves the equation ``(I + lam * D.T @ D) x = y``, where `I` is the identity
+    Solves the equation ``(W + lam * D.T @ D) x = W @ y``, where `W` is the weight
     matrix, and ``D.T @ D`` is the penalty.
 
     """
     x, y = data_fixture
     data_size = len(y)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
     lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
     expected_penalty = _banded_utils.diff_penalty_diagonals(
         data_size, diff_order=diff_order, lower_only=False
@@ -663,14 +668,14 @@ def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_pen
         (lam * expected_penalty, np.arange(diff_order, -(diff_order + 1), -1)),
         shape=(data_size, data_size)
     ).tocsr()
-    expected_solution = spsolve(identity(data_size, format='csr') + sparse_penalty, y)
+    expected_solution = spsolve(diags(weights, format='csr') + sparse_penalty, weights * y)
 
     penalized_system = _banded_utils.PenalizedSystem(
         data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
         reverse_diags=False, allow_penta=allow_penta
     )
-    penalized_system.penalty[penalized_system.main_diagonal_index] += 1
-    output = penalized_system.solve(penalized_system.penalty, y)
+    penalized_system.add_diagonal(weights)
+    output = penalized_system.solve(penalized_system.penalty, weights * y)
 
     assert_allclose(output, expected_solution, 1e-6, 1e-10)
 
@@ -916,6 +921,7 @@ def test_penalized_system_update_lam(diff_order, allow_lower):
     assert_allclose(
         penalized_system.main_diagonal, expected_penalty[diag_index], rtol=1e-14, atol=1e-14
     )
+    assert_allclose(penalized_system.lam, lam_init, rtol=1e-15, atol=1e-15)
     for lam in (1e3, 5.2e1):
         expected_penalty = lam * _banded_utils.diff_penalty_diagonals(
             data_size, diff_order=diff_order, lower_only=penalized_system.lower
@@ -926,6 +932,7 @@ def test_penalized_system_update_lam(diff_order, allow_lower):
         assert_allclose(
             penalized_system.main_diagonal, expected_penalty[diag_index], rtol=1e-14, atol=1e-14
         )
+        assert_allclose(penalized_system.lam, lam, rtol=1e-15, atol=1e-15)
 
 
 def test_penalized_system_update_lam_invalid_lam():
@@ -935,6 +942,55 @@ def test_penalized_system_update_lam_invalid_lam():
         penalized_system.update_lam(-1.)
     with pytest.raises(ValueError):
         penalized_system.update_lam(0)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('allow_penta', (True, False))
+def test_penalized_system_factorize_solve(data_fixture, diff_order, allow_lower, allow_penta):
+    """
+    Tests the factorize and factorized_solve methods of a PenalizedSystem object.
+
+    Solves the equation ``(W + lam * D.T @ D) x = W @ y``, where `W` is the weight
+    matrix, and ``D.T @ D`` is the penalty.
+
+    """
+    x, y = data_fixture
+    data_size = len(y)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
+    expected_penalty = _banded_utils.diff_penalty_diagonals(
+        data_size, diff_order=diff_order, lower_only=False
+    )
+    sparse_penalty = dia_object(
+        (lam * expected_penalty, np.arange(diff_order, -(diff_order + 1), -1)),
+        shape=(data_size, data_size)
+    ).tocsr()
+    expected_solution = spsolve(diags(weights, format='csr') + sparse_penalty, weights * y)
+
+    penalized_system = _banded_utils.PenalizedSystem(
+        data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=False, allow_penta=allow_penta
+    )
+    penalized_system.add_diagonal(weights)
+
+    output_factorization = penalized_system.factorize(penalized_system.penalty)
+    if allow_lower or (allow_penta and diff_order == 2):
+        if allow_penta and diff_order == 2:
+            expected_factorization = penta_factorize(
+                penalized_system.penalty, solver=penalized_system.penta_solver
+            )
+        else:
+            expected_factorization = cholesky_banded(penalized_system.penalty, lower=True)
+
+        assert_allclose(output_factorization, expected_factorization, rtol=1e-14, atol=1e-14)
+    else:
+        assert callable(output_factorization)
+
+    output = penalized_system.factorized_solve(output_factorization, weights * y)
+    assert_allclose(output, expected_solution, rtol=1e-7, atol=1e-10)
 
 
 @pytest.mark.parametrize('dtype', (float, np.float32))
@@ -1291,14 +1347,39 @@ def test_banded_to_sparse_simple():
 @pytest.mark.parametrize('lower', (True, False))
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('size', (100, 1001))
-def test_banded_to_sparse(lower, diff_order, size):
-    """Ensures proper functionality of _banded_to_sparse."""
+def test_banded_to_sparse_symmetric(lower, diff_order, size):
+    """Ensures proper functionality of _banded_to_sparse for symmetric matrices."""
     expected_matrix = _banded_utils.diff_penalty_matrix(size, diff_order=diff_order)
     banded_matrix = _banded_utils.diff_penalty_diagonals(
         size, diff_order=diff_order, lower_only=lower
     )
 
     output = _banded_utils._banded_to_sparse(banded_matrix, lower=lower)
+    assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-14, atol=1e-14)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('size', (100, 1001))
+def test_banded_to_sparse_nonsymmetric(diff_order, size):
+    """Ensures proper functionality of _banded_to_sparse for non symmetric matrices."""
+    multiplier = np.random.default_rng(123).uniform(0, 1, size)
+    multiplier_matrix = diags(multiplier)
+    penalty_matrix = _banded_utils.diff_penalty_matrix(size, diff_order=diff_order)
+    banded_penalty = _banded_utils.diff_penalty_diagonals(
+        size, diff_order=diff_order, lower_only=False
+    )
+
+    expected_matrix = multiplier_matrix @ penalty_matrix
+    banded_matrix = _banded_utils._shift_rows(
+        banded_penalty[::-1] * multiplier, diff_order, diff_order
+    )
+    # sanity check that the banded multiplication resulted in the correct LAPACK banded format
+    for i in range(diff_order):
+        for j in range(diff_order - i):
+            assert_allclose(banded_matrix[i, j], 0., rtol=1e-16, atol=1e-16)
+            assert_allclose(banded_matrix[-(i + 1), -(j + 1)], 0., rtol=1e-16, atol=1e-16)
+
+    output = _banded_utils._banded_to_sparse(banded_matrix, lower=False)
     assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-14, atol=1e-14)
 
 

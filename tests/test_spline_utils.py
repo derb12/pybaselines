@@ -12,6 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.interpolate import BSpline
+from scipy.linalg import cholesky_banded
 from scipy.sparse import issparse
 from scipy.sparse.linalg import spsolve
 
@@ -245,38 +246,70 @@ def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower
         basis.T @ (weights * y)
     )
     expected_spline = basis @ expected_coeffs
+    for has_numba in (True, False):
+        with mock.patch.object(_spline_utils, '_HAS_NUMBA', has_numba):
+            spline_basis = _spline_utils.SplineBasis(
+                x, num_knots=num_knots, spline_degree=spline_degree
+            )
+            pspline = _spline_utils.PSpline(
+                spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+            )
+            assert_allclose(
+                pspline.solve_pspline(y, weights=weights, penalty=penalty),
+                expected_spline, 1e-10, 1e-12
+            )
+            assert_allclose(
+                pspline.coef, expected_coeffs, 1e-10, 1e-12
+            )
 
-    with mock.patch.object(_spline_utils, '_HAS_NUMBA', False):
-        # use sparse calculation
-        spline_basis = _spline_utils.SplineBasis(
-            x, num_knots=num_knots, spline_degree=spline_degree
-        )
-        pspline = _spline_utils.PSpline(
-            spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
-        )
-        assert_allclose(
-            pspline.solve_pspline(y, weights=weights, penalty=penalty),
-            expected_spline, 1e-10, 1e-12
-        )
-        assert_allclose(
-            pspline.coef, expected_coeffs, 1e-10, 1e-12
-        )
 
-    with mock.patch.object(_spline_utils, '_HAS_NUMBA', True):
-        # should use the numba calculation
-        spline_basis = _spline_utils.SplineBasis(
-            x, num_knots=num_knots, spline_degree=spline_degree
-        )
-        pspline = _spline_utils.PSpline(
-            spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
-        )
+@pytest.mark.parametrize('num_knots', (100, 1000))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_pspline_factorize_solve(data_fixture, num_knots, spline_degree, diff_order, lower_only):
+    """Tests the factorize and factorized_solve methods of a PSpline object."""
+    x, y = data_fixture
+    # ensure x and y are floats
+    x = x.astype(float)
+    y = y.astype(float)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+    num_bases = basis.shape[1]
+    penalty_matrix = dia_object(
+        (_banded_utils.diff_penalty_diagonals(num_bases, diff_order, False),
+        np.arange(diff_order, -(diff_order + 1), -1)), shape=(num_bases, num_bases)
+    ).tocsr()
+
+    lhs_sparse = basis.T @ diags(weights, format='csr') @ basis + penalty_matrix
+    rhs = basis.T @ (weights * y)
+    expected_coeffs = spsolve(lhs_sparse, rhs)
+
+    lhs_banded = _banded_utils._sparse_to_banded(lhs_sparse)[0]
+    if lower_only:
+        lhs_banded = lhs_banded[len(lhs_banded) // 2:]
+
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree
+    )
+    pspline = _spline_utils.PSpline(
+        spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+    )
+    output_factorization = pspline.factorize(lhs_banded)
+    if lower_only:
+        expected_factorization = cholesky_banded(lhs_banded, lower=True)
+
         assert_allclose(
-            pspline.solve_pspline(y, weights=weights, penalty=penalty),
-            expected_spline, 1e-10, 1e-12
+            output_factorization, expected_factorization, rtol=1e-14, atol=1e-14
         )
-        assert_allclose(
-            pspline.coef, expected_coeffs, 1e-10, 1e-12
-        )
+    else:
+        assert callable(output_factorization)
+
+    output = pspline.factorized_solve(output_factorization, rhs)
+    assert_allclose(output, expected_coeffs, rtol=1e-10, atol=1e-12)
 
 
 def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,

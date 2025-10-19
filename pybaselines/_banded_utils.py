@@ -7,9 +7,11 @@ Created on December 8, 2021
 """
 
 import numpy as np
-from scipy.linalg import solve_banded, solveh_banded
+from scipy.linalg import cholesky_banded, cho_solve_banded, solve_banded, solveh_banded
 
-from ._banded_solvers import solve_banded_penta
+from scipy.sparse.linalg import factorized
+
+from ._banded_solvers import penta_factorize, penta_factorize_solve, solve_banded_penta
 from ._compat import _HAS_NUMBA, dia_object, diags, identity
 from ._validation import _check_lam
 
@@ -919,3 +921,70 @@ class PenalizedSystem:
         self.main_diagonal = self.penalty[self.main_diagonal_index].copy()
         self.lam = new_lam
 
+    def factorize(self, lhs, overwrite_ab=False, check_finite=False):
+        """
+        Calculates the factorization of ``A`` for the linear equation ``A x = b``.
+
+        Parameters
+        ----------
+        lhs : array-like, shape (M, N)
+            The left-hand side of the equation, in banded format. `lhs` is assumed to be
+            some slight modification of `self.penalty` in the same format (reversed, lower,
+            number of bands, etc. are all the same).
+        overwrite_ab : bool, optional
+            Whether to overwrite `lhs` during factorization. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite. Default is False.
+
+        Returns
+        -------
+        factorization : numpy.ndarray or Callable
+            The factorization of `lhs`.
+
+        """
+        if self.using_penta:
+            factorization = penta_factorize(
+                lhs, solver=self.penta_solver, overwrite_ab=overwrite_ab
+            )
+        elif self.lower:
+            factorization = cholesky_banded(
+                lhs, lower=True, overwrite_ab=overwrite_ab, check_finite=check_finite
+            )
+        else:
+            factorization = factorized(_banded_to_sparse(lhs, self.lower, sparse_format='csc'))
+
+        return factorization
+
+    def factorized_solve(self, factorization, rhs, overwrite_b=False, check_finite=False):
+        """
+        Solves ``A x = b`` given the factorization of ``A``.
+
+        Parameters
+        ----------
+        factorization : numpy.ndarray or Callable
+            The factorization of ``A``, output by :meth:`PenalizedSystem.factorize`.
+        rhs : array-like, shape (N,) or (N, M)
+            The right-hand side of the equation.
+        overwrite_b : bool, optional
+            Whether to overwrite `rhs` when using any of the solvers. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite. Default is False.
+
+        Returns
+        -------
+        output : numpy.ndarray, shape (N,) or (N, M)
+            The solution to the linear system, `x`.
+
+        """
+        if self.using_penta:
+            output = penta_factorize_solve(
+                factorization, rhs, solver=self.penta_solver, overwrite_b=overwrite_b
+            )
+        elif self.lower:
+            output = cho_solve_banded(
+                (factorization, True), rhs, overwrite_b=overwrite_b, check_finite=check_finite
+            )
+        else:
+            output = factorization(rhs)
+
+        return output
