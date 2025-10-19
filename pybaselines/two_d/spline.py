@@ -947,7 +947,7 @@ class _Spline(_Algorithm2D):
 
     @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_lsrpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
-                       max_iter=50, tol=1e-3, weights=None, altnerate_weighting=False):
+                       max_iter=50, tol=1e-3, weights=None, alternate_weighting=False):
         """
         A penalized spline version of the LSRPLS algorithm.
 
@@ -1030,7 +1030,7 @@ class _Spline(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = pspline.solve(y, weight_array)
-            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, altnerate_weighting)
+            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
