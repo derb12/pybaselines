@@ -988,3 +988,67 @@ class PenalizedSystem:
             output = factorization(rhs)
 
         return output
+
+    def effective_dimension(self, weights=None, penalty=None):
+        """
+        Calculates the effective dimension from the trace of the hat matrix.
+
+        For typical Whittaker smoothing, the linear equation would be
+        ``(W + lam * P) x = W @ y``. Then the hat matrix would be ``(W + lam * P)^-1 @ W``.
+        The effective dimension for the system can be estimated as the trace
+        of the hat matrix.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (N,), optional
+            The weights. Default is None, which will use an array of ones.
+        penalty : numpy.ndarray, shape (N, N), optional
+            The finite difference penalty matrix, in LAPACK's lower banded format if
+            `self.lower` is True or the full banded if `self.lower` is False. Default
+            is None, which uses the object's penalty.
+
+        Returns
+        -------
+        trace : float
+            The trace of the hat matrix, denoting the effective dimension for
+            the system.
+
+        References
+        ----------
+        Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+        """
+        if weights is None:
+            weights = np.ones(self._num_bases)
+
+        reset_penalty = False
+        if penalty is None:
+            reset_penalty = True
+            self.add_diagonal(weights)
+            penalty = self.penalty
+
+        # TODO if diff_order is 2 and matrix is symmetric, could use the fast trace calculation from
+        # Frasso G, Eilers PH. L- and V-curves for optimal smoothing. Statistical Modelling.
+        # 2014;15(1):91-111. https://doi.org/10.1177/1471082X14549288, which is in turn based on
+        # Craven, P., Wahba, G. Smoothing noisy data with spline functions. Numerische Mathematik.
+        # 31, 377–403 (1978). https://doi.org/10.1007/BF01404567
+        # -> worth the effort? Could it be extended to work for any diff_order as long as the
+        # matrix is symmetric?
+
+        # compute each diagonal of the hat matrix separately so that the full
+        # hat matrix does not need to be stored in memory
+        # note to self: sparse factorization is the worst case scenario (non-symmetric lhs and
+        # diff_order != 2), but it is still much faster than individual solves through
+        # solve_banded
+        eye = np.zeros(self._num_bases)
+        trace = 0
+        factorization = self.factorize(penalty)
+        for i in range(self._num_bases):
+            eye[i] = weights[i]
+            trace += self.factorized_solve(factorization, eye)[i]
+            eye[i] = 0
+
+        if reset_penalty:  # remove the weights
+            self.penalty[self.main_diagonal_index] = self.main_diagonal
+
+        return trace

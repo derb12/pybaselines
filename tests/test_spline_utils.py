@@ -14,10 +14,10 @@ import pytest
 from scipy.interpolate import BSpline
 from scipy.linalg import cholesky_banded
 from scipy.sparse import issparse
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import factorized, spsolve
 
 from pybaselines import _banded_utils, _spline_utils
-from pybaselines._compat import dia_object, diags, _HAS_NUMBA
+from pybaselines._compat import diags, _HAS_NUMBA
 
 
 def _nieve_basis_matrix(x, knots, spline_degree):
@@ -68,7 +68,7 @@ def test_spline_knots_too_few_knots(num_knots):
         _spline_utils._spline_knots(np.arange(10), num_knots)
 
 
-@pytest.mark.parametrize('num_knots', (2, 20, 1001))
+@pytest.mark.parametrize('num_knots', (2, 20, 201))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('penalized', (True, False))
 def test_spline_knots(data_fixture, num_knots, spline_degree, penalized):
@@ -99,7 +99,7 @@ def test_spline_knots(data_fixture, num_knots, spline_degree, penalized):
     assert np.all(np.diff(knots) >= 0)
 
 
-@pytest.mark.parametrize('num_knots', (2, 20, 1001))
+@pytest.mark.parametrize('num_knots', (2, 20, 201))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('source', ('simple', 'numba', 'scipy'))
 def test_spline_basis(data_fixture, num_knots, spline_degree, source):
@@ -128,7 +128,7 @@ def test_spline_basis(data_fixture, num_knots, spline_degree, source):
     assert issparse(basis)
     assert_allclose(basis.toarray(), expected_basis, 1e-14, 1e-14)
     # also test the main interface for the spline basis; only test for one
-    # source to avoid unnecessary repitition
+    # source to avoid unnecessary repetition
     if source == 'simple':
         basis_2 = _spline_utils._spline_basis(x, knots, spline_degree)
         assert issparse(basis_2)
@@ -187,7 +187,7 @@ def test_bspline_has_extrapolate():
         assert _spline_utils._bspline_has_extrapolate.cache_info().misses == 1
 
 
-@pytest.mark.parametrize('num_knots', (2, 20, 1001))
+@pytest.mark.parametrize('num_knots', (2, 20, 201))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 def test_numba_basis_len(data_fixture, num_knots, spline_degree):
     """
@@ -210,7 +210,7 @@ def test_numba_basis_len(data_fixture, num_knots, spline_degree):
     assert len(basis.tocsr().data) == len(x) * (spline_degree + 1)
 
 
-@pytest.mark.parametrize('num_knots', (100, 1000))
+@pytest.mark.parametrize('num_knots', (20, 101))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 @pytest.mark.parametrize('lower_only', (True, False))
@@ -237,10 +237,7 @@ def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
     num_bases = basis.shape[1]
     penalty = _banded_utils.diff_penalty_diagonals(num_bases, diff_order, lower_only)
-    penalty_matrix = dia_object(
-        (_banded_utils.diff_penalty_diagonals(num_bases, diff_order, False),
-        np.arange(diff_order, -(diff_order + 1), -1)), shape=(num_bases, num_bases)
-    ).tocsr()
+    penalty_matrix = _banded_utils.diff_penalty_matrix(num_bases, diff_order=diff_order)
 
     expected_coeffs = spsolve(
         basis.T @ diags(weights, format='csr') @ basis + penalty_matrix,
@@ -263,7 +260,7 @@ def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower
         )
 
 
-@pytest.mark.parametrize('num_knots', (100, 1000))
+@pytest.mark.parametrize('num_knots', (20, 101))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 @pytest.mark.parametrize('lower_only', (True, False))
@@ -279,10 +276,7 @@ def test_pspline_factorize_solve(data_fixture, num_knots, spline_degree, diff_or
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
     basis = _spline_utils._spline_basis(x, knots, spline_degree)
     num_bases = basis.shape[1]
-    penalty_matrix = dia_object(
-        (_banded_utils.diff_penalty_diagonals(num_bases, diff_order, False),
-        np.arange(diff_order, -(diff_order + 1), -1)), shape=(num_bases, num_bases)
-    ).tocsr()
+    penalty_matrix = _banded_utils.diff_penalty_matrix(num_bases, diff_order=diff_order)
 
     lhs_sparse = basis.T @ diags(weights, format='csr') @ basis + penalty_matrix
     rhs = basis.T @ (weights * y)
@@ -312,7 +306,7 @@ def test_pspline_factorize_solve(data_fixture, num_knots, spline_degree, diff_or
     assert_allclose(output, expected_coeffs, rtol=1e-10, atol=1e-12)
 
 
-@pytest.mark.parametrize('num_knots', (100, 1000))
+@pytest.mark.parametrize('num_knots', (20, 101))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 @pytest.mark.parametrize('lower_only', (True, False))
@@ -358,6 +352,47 @@ def test_pspline_make_btwb(data_fixture, num_knots, spline_degree, diff_order, l
         assert_allclose(
             pspline._make_btwb(weights=weights), expected_output, 1e-14, 1e-14
         )
+
+
+@pytest.mark.parametrize('num_knots', (20, 101))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+@pytest.mark.parametrize('lower_only', (True, False))
+def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, diff_order,
+                                     lower_only):
+    """
+    Tests the effective_dimension method of a PSpline object.
+
+    The effective dimension for penalized spline smoothing should be
+    ``trace((B.T @ W @ B + lam * D.T @ D)^-1 @ B.T @ W @ B)``, where `W` is the weight matrix,
+    ``D.T @ D`` is the penalty, and `B` is the spline basis.
+
+    """
+    x, y = data_fixture
+    x = x.astype(float)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+    num_bases = basis.shape[1]
+    penalty_matrix = _banded_utils.diff_penalty_matrix(num_bases, diff_order=diff_order)
+
+    btwb = basis.T @ diags(weights, format='csr') @ basis
+    factorization = factorized(btwb + penalty_matrix)
+    expected_ed = 0
+    for i in range(num_bases):
+        expected_ed += factorization(btwb[:, i].toarray())[i]
+
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree
+    )
+    pspline = _spline_utils.PSpline(
+        spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+    )
+
+    output = pspline.effective_dimension(weights)
+    assert_allclose(output, expected_ed, rtol=1e-10, atol=1e-12)
 
 
 def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
@@ -408,7 +443,7 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3))
-@pytest.mark.parametrize('num_knots', (10, 100))
+@pytest.mark.parametrize('num_knots', (20, 101))
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
 @pytest.mark.parametrize('reverse_diags', (True, False))
@@ -491,7 +526,7 @@ def test_spline_basis_negative_spline_degree_fails(data_fixture, spline_degree):
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3))
-@pytest.mark.parametrize('num_knots', (10, 100))
+@pytest.mark.parametrize('num_knots', (20, 101))
 @pytest.mark.parametrize('diff_order', (1, 2))
 @pytest.mark.parametrize('lam', (1e-2, 1e2))
 def test_pspline_tck(data_fixture, num_knots, spline_degree, diff_order, lam):
@@ -538,7 +573,7 @@ def test_pspline_tck_readonly(data_fixture):
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
-@pytest.mark.parametrize('num_knots', (50, 101))
+@pytest.mark.parametrize('num_knots', (20, 101))
 @pytest.mark.parametrize('spline_degree', (1, 2, 3))
 def test_pspline_update_lam(data_fixture, diff_order, allow_lower, num_knots, spline_degree):
     """Tests updating the lam value for PSpline."""
@@ -560,6 +595,7 @@ def test_pspline_update_lam(data_fixture, diff_order, allow_lower, num_knots, sp
     assert_allclose(
         pspline.main_diagonal, expected_penalty[diag_index], rtol=1e-14, atol=1e-14
     )
+    assert_allclose(pspline.lam, lam_init, rtol=1e-15, atol=1e-15)
     for lam in (1e3, 5.2e1):
         expected_penalty = lam * _banded_utils.diff_penalty_diagonals(
             data_size, diff_order=diff_order, lower_only=pspline.lower,
@@ -571,6 +607,7 @@ def test_pspline_update_lam(data_fixture, diff_order, allow_lower, num_knots, sp
         assert_allclose(
             pspline.main_diagonal, expected_penalty[diag_index], rtol=1e-14, atol=1e-14
         )
+        assert_allclose(pspline.lam, lam, rtol=1e-15, atol=1e-15)
 
 
 def test_pspline_update_lam_invalid_lam(data_fixture):
@@ -593,7 +630,7 @@ def test_spline_basis_tk_readonly(data_fixture):
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3))
-@pytest.mark.parametrize('num_knots', (10, 100))
+@pytest.mark.parametrize('num_knots', (20, 101))
 def test_spline_basis_tk(data_fixture, num_knots, spline_degree):
     """Ensures the tk attribute can correctly recreate the solved spline."""
     x, y = data_fixture

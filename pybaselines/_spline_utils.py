@@ -48,7 +48,9 @@ from inspect import signature
 import numpy as np
 from scipy.interpolate import BSpline
 
-from ._banded_utils import PenalizedSystem, _add_diagonals, _lower_to_full, _sparse_to_banded
+from ._banded_utils import (
+    PenalizedSystem, _add_diagonals, _banded_to_sparse, _lower_to_full, _sparse_to_banded
+)
 from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
 from ._validation import _check_array
 
@@ -519,8 +521,6 @@ def _numba_btb(x, knots, spline_degree, weights, ab, basis_data):
         `spline_degree` extra knots.
     spline_degree : int
         The degree of the spline.
-    y : numpy.ndarray, shape (N,)
-        The y-values for fitting the spline.
     weights : numpy.ndarray, shape(N,)
         The weights for each y-value.
     ab : numpy.ndarray, shape (`spline_degree` + 1, N)
@@ -967,3 +967,56 @@ class PSpline(PenalizedSystem):
                 btwb = btwb[len(btwb) // 2:]
 
         return btwb
+
+    def effective_dimension(self, weights=None, penalty=None):
+        """
+        Calculates the effective dimension from the trace of the hat matrix.
+
+        For typical P-spline smoothing, the linear equation would be
+        ``(B.T @ W @ B + lam * P) c = B.T @ W @ y`` and ``z = B @ c``. Then the hat matrix
+        would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)`` or, equivalently
+        ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression is preferred
+        since it reduces the dimensionality. The effective dimension for the system
+        can be estimated as the trace of the hat matrix.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (N,), optional
+            The weights. Default is None, which will use an array of ones.
+        penalty : numpy.ndarray, shape (M, N), optional
+            The finite difference penalty matrix, in LAPACK's lower banded format if
+            `self.lower` is True or the full banded if `self.lower` is False. Default
+            is None, which uses the object's penalty.
+
+        Returns
+        -------
+        trace : float
+            The trace of the hat matrix, denoting the effective dimension for
+            the system.
+
+        References
+        ----------
+        Eilers, P., et al. Flexible Smoothing with B-splines and Penalties. Statistical Science,
+        1996, 11(2), 89-121.
+
+        """
+        if weights is None:
+            weights = np.ones(self._num_bases)
+
+        btwb = self._make_btwb(weights)
+        if penalty is None:
+            penalty = self.penalty
+
+        lhs = _add_diagonals(btwb, penalty, self.lower)
+
+        # compute each diagonal of the hat matrix separately so that the full
+        # hat matrix does not need to be stored in memory
+        trace = 0
+        btwb_matrix = _banded_to_sparse(btwb, lower=self.lower, sparse_format='csc')
+        factorization = self.factorize(lhs, overwrite_ab=True)
+        for i in range(self._num_bases):
+            trace += self.factorized_solve(
+                factorization, btwb_matrix[:, i].toarray(), overwrite_b=True
+            )[i]
+
+        return trace
