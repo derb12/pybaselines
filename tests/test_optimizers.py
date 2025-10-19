@@ -180,7 +180,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         """Tests all methods that should work with optimize_extended_range."""
         if method == 'loess':
             # reduce number of calculations for loess since it is much slower
-            kwargs = {'min_value': 1, 'max_value': 2}
+            kwargs = {'min_value': 1, 'max_value': 3}
         else:
             kwargs = {}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
@@ -214,7 +214,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         Ensures function fails when using a Whittaker method and input lambda exponent is too high.
 
         Since the function uses 10**exponent, do not want to allow a high exponent to be used,
-        since the user probably thought the actual lam value had to be specficied rather than
+        since the user probably thought the actual lam value had to be specifiied rather than
         just the exponent.
 
         """
@@ -223,7 +223,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
 
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
     def test_aspls_alpha_ordering(self, side):
-        """Ensures the `alpha` array for the aspls method is currectly processed."""
+        """Ensures the `alpha` array for the aspls method is correctly processed."""
         alpha = np.random.default_rng(0).normal(0.8, 0.05, len(self.x))
         alpha = np.clip(alpha, 0, 1).astype(float, copy=False)
 
@@ -280,9 +280,10 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         fit_1, params_1 = self.class_func(
             self.y, method=method, min_value=min_value, max_value=max_value
         )
-        # should simply do the fittings in the reversed order
+        # should simply do the fittings in the reversed order; subtract 1 from
+        # min and max values since np.arange(min, max) == np.arange(min - 1, max - 1, -1)[::-1]
         fit_2, params_2 = self.class_func(
-            self.y, method=method, min_value=max_value, max_value=min_value
+            self.y, method=method, min_value=max_value - 1, max_value=min_value - 1, step=-1
         )
 
         # fits and optimal parameter should be the same
@@ -298,22 +299,147 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         """Ensures a fit is still done if step is zero or min and max values are equal."""
         min_value = 2
         # case 1: step == 0
-        fit_1, params_1 = self.class_func(
-            self.y, method=method, min_value=min_value, max_value=min_value + 5, step=0
-        )
+        with pytest.warns(utils.ParameterWarning):
+            fit_1, params_1 = self.class_func(
+                self.y, method=method, min_value=min_value, max_value=min_value + 5, step=0
+            )
         # case 2: min and max value are equal
-        fit_2, params_2 = self.class_func(
-            self.y, method=method, min_value=min_value, max_value=min_value
-        )
+        with pytest.warns(utils.ParameterWarning):
+            fit_2, params_2 = self.class_func(
+                self.y, method=method, min_value=min_value, max_value=min_value
+            )
+        # case 3: step is too large
+        with pytest.warns(utils.ParameterWarning):
+            fit_3, params_3 = self.class_func(
+                self.y, method=method, min_value=min_value, max_value=min_value + 1, step=5
+            )
 
         # fits, optimal parameter, and rmse should all be the same
         assert_allclose(fit_2, fit_1, rtol=1e-12, atol=1e-12)
+        assert_allclose(fit_3, fit_1, rtol=1e-12, atol=1e-12)
         assert_allclose(
-            params_1['optimal_parameter'], params_2['optimal_parameter'], rtol=1e-12, atol=1e-12
+            params_2['optimal_parameter'], params_1['optimal_parameter'], rtol=1e-12, atol=1e-12
         )
-        assert_allclose(params_1['rmse'], params_2['rmse'], rtol=1e-8, atol=1e-12)
+        assert_allclose(
+            params_3['optimal_parameter'], params_1['optimal_parameter'], rtol=1e-12, atol=1e-12
+        )
+        assert_allclose(params_2['rmse'], params_1['rmse'], rtol=1e-8, atol=1e-12)
+        assert_allclose(params_3['rmse'], params_1['rmse'], rtol=1e-8, atol=1e-12)
         assert len(params_1['rmse']) == 1
         assert len(params_2['rmse']) == 1
+        assert len(params_3['rmse']) == 1
+
+    def test_value_range(self):
+        """Ensures the correct number of parameters to fit are generated."""
+        min_value = 2
+        max_value = 6
+        for step in (1, 2, 3):
+            expected_tested_values = np.arange(min_value, max_value, step)
+            _, params_1 = self.class_func(
+                self.y, method='modpoly', min_value=min_value, max_value=max_value, step=step
+            )
+            _, params_2 = self.class_func(
+                self.y, method='asls', min_value=min_value, max_value=max_value, step=step
+            )
+            # both methods should have the same number of tested values
+            assert len(params_1['rmse']) == len(expected_tested_values)
+            assert len(params_2['rmse']) == len(expected_tested_values)
+
+        # also test float inputs for lam-based methods
+        min_value = 1.
+        max_value = 5.5
+        step = 0.5
+        expected_tested_values = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+        _, params_3 = self.class_func(
+            self.y, method='asls', min_value=min_value, max_value=max_value, step=step
+        )
+        # both methods should have the same number of tested values
+        assert len(params_3['rmse']) == len(expected_tested_values)
+
+
+def test_param_grid():
+    """Ensures basic functionality of _param_grid."""
+    min_value = 1
+    max_value = 5
+    step = 1
+
+    expected_values = np.arange(min_value, max_value, step)
+    output = optimizers._param_grid(min_value, max_value, step, polynomial_fit=True)
+
+    assert_array_equal(output, expected_values)
+
+    output2 = optimizers._param_grid(min_value, max_value, step, polynomial_fit=False)
+    assert_allclose(output2, 10**expected_values, rtol=1e-15, atol=1e-15)
+
+    # also ensure floats are properly handled
+    step = 0.5
+    expected_values = 10**np.array([1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5])
+    output3 = optimizers._param_grid(min_value, max_value, step, polynomial_fit=False)
+    assert_allclose(output3, expected_values, rtol=1e-15, atol=1e-15)
+
+
+@pytest.mark.parametrize('polynomial_fit', (True, False))
+def test_param_grid_no_step(polynomial_fit):
+    """Ensures a single param is still output if step is zero or min and max values are equal."""
+    min_value = 2
+    expected_value = np.array([min_value])
+    if not polynomial_fit:
+        expected_value = 10.0**expected_value
+
+    # case 1: step == 0
+    with pytest.warns(utils.ParameterWarning):
+        output1 = optimizers._param_grid(
+            min_value=min_value, max_value=min_value + 5, step=0, polynomial_fit=polynomial_fit
+        )
+    # case 2: min and max value are equal
+    with pytest.warns(utils.ParameterWarning):
+        output2 = optimizers._param_grid(
+            min_value=min_value, max_value=min_value, step=1, polynomial_fit=polynomial_fit
+        )
+    # case 3: step is too large
+    with pytest.warns(utils.ParameterWarning):
+        output3 = optimizers._param_grid(
+            min_value=min_value, max_value=min_value + 1, step=5, polynomial_fit=polynomial_fit
+        )
+
+    assert_allclose(output1, expected_value, rtol=1e-15, atol=1e-15)
+    assert_allclose(output2, expected_value, rtol=1e-15, atol=1e-15)
+    assert_allclose(output3, expected_value, rtol=1e-15, atol=1e-15)
+
+
+@pytest.mark.parametrize('key', ('min_value', 'max_value', 'step'))
+def test_param_grid_float_poly_fails(key):
+    """Ensures non-integer values raise an error for polynomial fits."""
+    if key == 'min_value':
+        kwargs = {'max_value': 5, 'step': 1}
+    elif key == 'max_value':
+        kwargs = {'min_value': 1, 'step': 1}
+    else:
+        kwargs = {'min_value': 1, 'max_value': 5}
+    kwargs[key] = 2.5
+    with pytest.raises(TypeError):
+        optimizers._param_grid(**kwargs, polynomial_fit=True)
+
+
+@pytest.mark.parametrize('key', ('min_value', 'max_value', 'step'))
+def test_param_grid_nonpoly_fails(key):
+    """
+    Ensures function fails when using a Whittaker method and input lambda exponent is too high.
+
+    Since the function uses 10**exponent, do not want to allow a high exponent to be used,
+    since the user probably thought the actual lam value had to be specifiied rather than
+    just the exponent.
+
+    """
+    if key == 'min_value':
+        kwargs = {'max_value': 5, 'step': 1}
+    elif key == 'max_value':
+        kwargs = {'min_value': 1, 'step': 1}
+    else:
+        kwargs = {'min_value': 1, 'max_value': 5}
+    kwargs[key] = 16
+    with pytest.raises(ValueError):
+        optimizers._param_grid(**kwargs, polynomial_fit=False)
 
 
 @pytest.mark.parametrize(

@@ -143,7 +143,7 @@ class _Optimizers(_Algorithm):
 
     @_Algorithm._register(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
-                                height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=8,
+                                height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=9,
                                 step=1, pad_kwargs=None, method_kwargs=None):
         """
         Extends data and finds the best parameter value for the given baseline method.
@@ -179,11 +179,11 @@ class _Optimizers(_Algorithm):
             be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
             designates a `lam` value of 10**2). Default is 2.
         max_value : int or float, optional
-            The maximum value for the `lam` or `poly_order` value to use with the
+            The maximum value for the `lam` or `poly_order` value to potentially use with the
             indicated method. If using a polynomial method, `max_value` must be an
             integer. If using a Whittaker-smoothing-based method, `max_value` should
             be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
-            designates a `lam` value of 10**3). Default is 8.
+            designates a `lam` value of 10**3). Default is 9.
         step : int or float, optional
             The step size for iterating the parameter value from `min_value` to `max_value`.
             If using a polynomial method, `step` must be an integer. If using a
@@ -215,9 +215,12 @@ class _Optimizers(_Algorithm):
                     dictionary in pybaselines version 1.4.0 in favor of the new
                     'rmse' key which returns all root-mean-squared-error values.
 
-            * 'rmse' : numpy.ndarray
+            * 'rmse': numpy.ndarray, shape (P,)
                 The array of the calculated root-mean-squared-error for each
                 of the fits.
+
+                .. versionadded:: 1.2.0
+
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
                 Items will depend on the selected method.
@@ -225,13 +228,16 @@ class _Optimizers(_Algorithm):
         Raises
         ------
         ValueError
-            Raised if `side` is not 'left', 'right', or 'both'.
+            Raised if `side` is not 'left', 'right', or 'both'. Also raised if using a
+            non-polynomial method and `min_value`, `max_value`, or `step` is
+            greater than 15.
         TypeError
             Raised if using a polynomial method and `min_value`, `max_value`, or
             `step` is not an integer.
-        ValueError
-            Raised if using a Whittaker-smoothing-based method and `min_value`,
-            `max_value`, or `step` is greater than 100.
+
+        See Also
+        --------
+        Baseline.optimize_pls
 
         Notes
         -----
@@ -248,6 +254,10 @@ class _Optimizers(_Algorithm):
         to the padded data; since ``lam`` has a dependance on data size, the optimal ``lam``
         value for fitting non-padded data will be slightly lower than the optimal value
         obtained from :meth:`~.Baseline.optimize_extended_range`.
+
+        The range of values to test is generated using
+        ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
+        the range of tested values.
 
         References
         ----------
@@ -268,26 +278,12 @@ class _Optimizers(_Algorithm):
         )
         method = method.lower()
         if func_module == 'polynomial' or method in ('dietrich', 'cwt_br'):
-            if any(not isinstance(val, int) for val in (min_value, max_value, step)):
-                raise TypeError((
-                    'min_value, max_value, and step must all be integers when'
-                    ' using a polynomial method'
-                ))
             param_name = 'poly_order'
         else:
-            if any(val > 15 for val in (min_value, max_value, step)):
-                raise ValueError((
-                    'min_value, max_value, and step should be the power of 10 to use '
-                    '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
-                    'thus should not be greater than 15'
-                ))
             param_name = 'lam'
-        if step == 0 or min_value == max_value:
-            do_optimization = False
-        else:
-            do_optimization = True
-            if max_value < min_value and step > 0:
-                step = -step
+        variables = _param_grid(
+            min_value, max_value, step, polynomial_fit=param_name == 'poly_order'
+        )
 
         added_window = int(self._size * width_scale)
         for key in ('weights', 'alpha'):
@@ -354,22 +350,7 @@ class _Optimizers(_Algorithm):
 
         new_fitter = fit_object._override_x(fit_x_data, new_sort_order=new_sort_order)
         baseline_func = getattr(new_fitter, method)
-        if do_optimization:
-            if param_name == 'poly_order':
-                variables = np.arange(min_value, max_value + step, step)
-            else:
-                # use linspace for floats since it ensures endpoints are included; use
-                # logspace to skip having to do 10.0**linspace(...)
-                variables = np.logspace(
-                    min_value, max_value, ceil((max_value - min_value) / step), base=10.0
-                )
-            # double check that variables has at least one item; otherwise skip the optimization
-            if variables.size == 0:
-                do_optimization = False
-        if not do_optimization:
-            variables = np.array([min_value])
-            if param_name == 'lam':
-                variables = 10.0**variables
+
         upper_idx = len(fit_data) - upper_bound
         min_sum_squares = np.inf
         best_idx = 0
@@ -758,12 +739,27 @@ class _Optimizers(_Algorithm):
         NotImplementedError
             _description_
 
+        See Also
+        --------
+        Baseline.optimize_extended_range
+
         Notes
         -----
         This method requires that the sum of the normalized roughness and fidelity values is
         roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
         `min_value` and `max_value` such that roughness continually decreases and fidelity
         continually increases as `lam` increases.
+
+        Uses a grid search for optimization since the objective functions for all supported
+        `opt_method` inputs are highly non-smooth (ie. many local minima) when performing
+        baseline correction, due to the reliance of calculated weights on the input `lam`.
+        Scalar minimization using :func:`scipy.optimize.minimize_scalar` was found to
+        perform okay in most cases, but it would also not allow some methods like 'U-Curve'
+        which requires normalization for computing the objective.
+
+        The range of values to test is generated using
+        ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
+        the range of tested values.
 
         References
         ----------
@@ -785,33 +781,7 @@ class _Optimizers(_Algorithm):
             # case so that the original input is not modified
             raise ValueError('lam must not be specified within method_kwargs')
 
-        if any(val > 15 for val in (min_value, max_value, step)):
-            raise ValueError((
-                'min_value, max_value, and step should be the power of 10 to use '
-                '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
-                'thus should not be greater than 15'
-            ))
-
-        if step == 0 or min_value == max_value:
-            do_optimization = False
-        else:
-            do_optimization = True
-            if max_value < min_value and step > 0:
-                step = -step
-        if do_optimization:
-            lam_range = np.logspace(
-                min_value, max_value, ceil((max_value - min_value) / step), base=10.0
-            )
-            # double check that variables has at least two items; otherwise skip the optimization
-            if lam_range.size < 2:
-                do_optimization = False
-        if not do_optimization:
-            lam_range = np.array([10.0**min_value])
-            warnings.warn(
-                ('min_value, max_value, and step were set such that only a single "lam" value '
-                 'was fit'), ParameterWarning, stacklevel=2
-            )
-
+        lam_range = _param_grid(min_value, max_value, step, polynomial_fit=False)
         selected_method = opt_method.lower().replace('-', '_')
         if selected_method == 'u_curve':
             params = _optimize_ucurve(
@@ -828,6 +798,86 @@ class _Optimizers(_Algorithm):
 
 
 _optimizers_wrapper = _class_wrapper(_Optimizers)
+
+
+def _param_grid(min_value, max_value, step, polynomial_fit=False):
+    """
+    Creates a range of parameters to use for grid optimization.
+
+    Parameters
+    ----------
+    min_value : int or float
+        The minimum parameter value. If `polynomial_fit` is True, `min_value` must be an
+        integer. Otherwise, `min_value` should be the exponent to raise to the power of
+        10 (eg. a `min_value` value of 2 designates a `lam` value of 10**2).
+    max_value : int or float, optional
+        The maximum parameter value for the range. If `polynomial_fit` is True, `max_value`
+        must be an integer. Otherwise, `min_value` should be the exponent to raise to the
+        power of 10 (eg. a `max_value` value of 5 designates a `lam` value of 10**5).
+    step : int or float
+        If `polynomial_fit` is True, `step` must be an integer. Otherwise, `step` should
+        be the exponent to raise to the power of 10 (eg. a `step` value of 1
+        designates a `lam` value of 10**1).
+    polynomial_fit : bool, optional
+        Whether the parameters define polynomial degrees. Default is False.
+
+    Returns
+    -------
+    values : numpy.ndarray
+        The range of parameters.
+
+    Raises
+    ------
+    TypeError
+        Raised if using a polynomial method and `min_value`, `max_value`, or
+        `step` is not an integer.
+    ValueError
+        Raised if using a Whittaker-smoothing-based method and `min_value`,
+        `max_value`, or `step` is greater than 15.
+
+    Notes
+    -----
+    The complete range of values for the grid is generated using
+    ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included.
+
+    """
+    if polynomial_fit:
+        if any(not isinstance(val, int) for val in (min_value, max_value, step)):
+            raise TypeError((
+                'min_value, max_value, and step must all be integers when'
+                ' using a polynomial method'
+            ))
+    else:
+        if any(val > 15 for val in (min_value, max_value, step)):
+            raise ValueError((
+                'min_value, max_value, and step should be the power of 10 to use '
+                '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
+                'thus should not be greater than 15'
+            ))
+
+    if step == 0 or min_value == max_value:
+        do_optimization = False
+    else:
+        do_optimization = True
+        if polynomial_fit:
+            values = np.arange(min_value, max_value, step)
+        else:
+            # explicitly set float dtype so that input dtypes are uninportant for arange step size
+            values = 10.0**np.arange(min_value, max_value, step, dtype=float)
+        # double check that values has at least two items; otherwise skip the optimization
+        if values.size < 2:
+            do_optimization = False
+
+    if not do_optimization:
+        warnings.warn(
+            ('min_value, max_value, and step were set such that only a single value '
+             'was fit'), ParameterWarning, stacklevel=2
+        )
+        values = np.array([min_value])
+        if not polynomial_fit:
+            values = 10.0**values
+
+    return values
 
 
 def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_obj: _Algorithm,
@@ -995,7 +1045,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
 
 @_optimizers_wrapper
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
-                            height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
+                            height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=9,
                             step=1, pad_kwargs=None, method_kwargs=None):
     """
     Extends data and finds the best parameter value for the given baseline method.
