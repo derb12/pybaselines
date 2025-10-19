@@ -501,6 +501,55 @@ def _numba_btb_bty(x, knots, spline_degree, y, weights, ab, rhs, basis_data):
             rhs[initial_idx + j] += work_val * y_val  # B.T @ W @ y
 
 
+# adapted from scipy (scipy/interpolate/_bspl.pyx/_norm_eq_lsq); see license above
+@jit(nopython=True, cache=True)
+def _numba_btb(x, knots, spline_degree, weights, ab, basis_data):
+    """
+    Computes ``B.T @ W @ B`` for a spline.
+
+    The result of ``B.T @ W @ B`` is stored in LAPACK's lower banded format (see
+    :func:`scipy.linalg.solveh_banded`).
+
+    Parameters
+    ----------
+    x : numpy.ndarray, shape (N,)
+        The x-values for the spline.
+    knots : numpy.ndarray, shape (K,)
+        The array of knots for the spline. Should be padded on each end with
+        `spline_degree` extra knots.
+    spline_degree : int
+        The degree of the spline.
+    y : numpy.ndarray, shape (N,)
+        The y-values for fitting the spline.
+    weights : numpy.ndarray, shape(N,)
+        The weights for each y-value.
+    ab : numpy.ndarray, shape (`spline_degree` + 1, N)
+        An array of zeros that will be modified inplace to contain ``B.T @ W @ B`` in
+        lower banded format.
+    basis_data : numpy.ndarray, shape (``N * (spline_degree + 1)``,)
+        The data for all of the basis functions. The basis for each `x[i]` value is represented
+        by ``basis_data[i * (spline_degree + 1):(i + 1) * (spline_degree + 1)]``. If the basis,
+        `B` is a sparse matrix, then `basis_data` can be gotten using `B.tocsr().data`.
+
+    """
+    spline_order = spline_degree + 1
+    num_bases = len(knots) - spline_order
+
+    left_knot_idx = spline_degree
+    idx = 0
+    for i in range(len(x)):
+        weight_val = weights[i]
+        left_knot_idx = _find_interval(knots, spline_degree, x[i], left_knot_idx, num_bases)
+        next_idx = idx + spline_order
+        work = basis_data[idx:next_idx]
+        idx = next_idx
+        initial_idx = left_knot_idx - spline_degree
+        for j in range(spline_order):
+            work_val = work[j] * weight_val  # B.T @ W
+            for k in range(j + 1):
+                ab[j - k, initial_idx + k] += work_val * work[k]   # B.T @ W @ B
+
+
 def _basis_midpoints(knots, spline_degree):
     """
     Calculates the midpoint x-values of spline basis functions assuming evenly spaced knots.
@@ -773,7 +822,7 @@ class PSpline(PenalizedSystem):
         common setup, cubic splines, have a bandwidth of 3 and would not use the
         pentadiagonal solvers anyway.
 
-        Adds padding to the penalty diagonals to accomodate the different shapes of the spline
+        Adds padding to the penalty diagonals to accommodate the different shapes of the spline
         basis and the penalty to speed up calculations when the two are added.
 
         """
@@ -799,10 +848,11 @@ class PSpline(PenalizedSystem):
             The y-values for fitting the spline.
         weights : numpy.ndarray, shape (N,)
             The weights for each y-value.
-        penalty : numpy.ndarray, shape (D, N)
+        penalty : numpy.ndarray, shape (M, N), optional
             The finite difference penalty matrix, in LAPACK's lower banded format (see
-            :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
-            format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
+            :func:`scipy.linalg.solveh_banded`) if `self.lower` is True or the full banded
+            format (see :func:`scipy.linalg.solve_banded`) if `self.lower` is False. Default
+            is None, which uses the object's penalty.
         rhs_extra : float or numpy.ndarray, shape (N,), optional
             If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
             of the equation before solving. Default is None, which adds nothing.
@@ -864,3 +914,56 @@ class PSpline(PenalizedSystem):
         )
 
         return self.basis.basis @ self.coef
+
+    def _make_btwb(self, weights):
+        """
+        Calculates the result of ``B.T @ W @ B``.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (N,)
+            The weights for each y-value.
+
+        Returns
+        -------
+        btwb : numpy.ndarray, shape (L, N)
+            The calculation of ``B.T @ W @ B`` in the same banded format as the PSpline object.
+
+        """
+        use_backup = True
+        # prefer numba version since it directly uses the basis
+        if self._use_numba:
+            basis_data = self.basis.basis.tocsr().data
+            # TODO if using the numba version, does fortran ordering speed up the calc? or
+            # can btwb just be c ordered?
+
+            # create btwb array outside of numba function since numba's implementation
+            # of np.zeros is slower than numpy's (https://github.com/numba/numba/issues/7259)
+            btwb = np.zeros((self.basis.spline_degree + 1, self.basis._num_bases), order='F')
+            _numba_btb(
+                self.basis.x, self.basis.knots, self.basis.spline_degree, weights, btwb,
+                basis_data
+            )
+            # TODO can probably make the full matrix directly within the numba
+            # btb calculation
+            if not self.lower:
+                btwb = _lower_to_full(btwb)
+            use_backup = False
+
+        if use_backup:
+            # worst case scenario; have to convert weights to a sparse diagonal matrix,
+            # do B.T @ W @ B, and convert back to lower banded
+            full_matrix = (
+                self.basis.basis.T
+                @ dia_object((weights, 0), shape=(self.basis._x_len, self.basis._x_len)).tocsr()
+                @ self.basis.basis
+            )
+            btwb = _sparse_to_banded(full_matrix)[0]
+
+            # take only the lower diagonals of the symmetric ab; cannot just do
+            # ab[spline_degree:] since some diagonals become fully 0 and are truncated from
+            # the data attribute, so have to calculate the number of bands first
+            if self.lower:
+                btwb = btwb[len(btwb) // 2:]
+
+        return btwb

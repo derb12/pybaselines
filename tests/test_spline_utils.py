@@ -214,7 +214,8 @@ def test_numba_basis_len(data_fixture, num_knots, spline_degree):
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 @pytest.mark.parametrize('lower_only', (True, False))
-def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower_only):
+@pytest.mark.parametrize('has_numba', (True, False))
+def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower_only, has_numba):
     """
     Tests the accuracy of the penalized spline solvers.
 
@@ -246,21 +247,20 @@ def test_pspline_solve(data_fixture, num_knots, spline_degree, diff_order, lower
         basis.T @ (weights * y)
     )
     expected_spline = basis @ expected_coeffs
-    for has_numba in (True, False):
-        with mock.patch.object(_spline_utils, '_HAS_NUMBA', has_numba):
-            spline_basis = _spline_utils.SplineBasis(
-                x, num_knots=num_knots, spline_degree=spline_degree
-            )
-            pspline = _spline_utils.PSpline(
-                spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
-            )
-            assert_allclose(
-                pspline.solve_pspline(y, weights=weights, penalty=penalty),
-                expected_spline, 1e-10, 1e-12
-            )
-            assert_allclose(
-                pspline.coef, expected_coeffs, 1e-10, 1e-12
-            )
+    with mock.patch.object(_spline_utils, '_HAS_NUMBA', has_numba):
+        spline_basis = _spline_utils.SplineBasis(
+            x, num_knots=num_knots, spline_degree=spline_degree
+        )
+        pspline = _spline_utils.PSpline(
+            spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+        )
+        assert_allclose(
+            pspline.solve_pspline(y, weights=weights, penalty=penalty),
+            expected_spline, 1e-10, 1e-12
+        )
+        assert_allclose(
+            pspline.coef, expected_coeffs, 1e-10, 1e-12
+        )
 
 
 @pytest.mark.parametrize('num_knots', (100, 1000))
@@ -310,6 +310,54 @@ def test_pspline_factorize_solve(data_fixture, num_knots, spline_degree, diff_or
 
     output = pspline.factorized_solve(output_factorization, rhs)
     assert_allclose(output, expected_coeffs, rtol=1e-10, atol=1e-12)
+
+
+@pytest.mark.parametrize('num_knots', (100, 1000))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+@pytest.mark.parametrize('lower_only', (True, False))
+@pytest.mark.parametrize('has_numba', (True, False))
+def test_pspline_make_btwb(data_fixture, num_knots, spline_degree, diff_order, lower_only,
+                           has_numba):
+    """
+    Tests the accuracy of the the PSpline ``B.T @ W @ B`` calculation.
+
+    The PSpline has two routes:
+    1) use the custom numba function (preferred if numba is installed)
+    2) compute ``B.T @ W @ B`` using the sparse system (last resort)
+
+    Both are tested here.
+
+    """
+    x, y = data_fixture
+    # ensure x and y are floats
+    x = x.astype(float)
+    y = y.astype(float)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+
+    sparse_calc = basis.T @ diags(weights, format='csr') @ basis
+    expected_output = _banded_utils._sparse_to_banded(sparse_calc)[0]
+    if has_numba and len(expected_output) != 2 * spline_degree + 1:
+        # the sparse calculation can truncate rows of just zeros, so refill them
+        zeros = np.zeros(expected_output.shape[1])
+        expected_output = np.vstack((zeros, expected_output, zeros))
+    if lower_only:
+        expected_output = expected_output[len(expected_output) // 2:]
+
+    with mock.patch.object(_spline_utils, '_HAS_NUMBA', has_numba):
+        spline_basis = _spline_utils.SplineBasis(
+            x, num_knots=num_knots, spline_degree=spline_degree
+        )
+        pspline = _spline_utils.PSpline(
+            spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+        )
+        assert_allclose(
+            pspline._make_btwb(weights=weights), expected_output, 1e-14, 1e-14
+        )
 
 
 def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
