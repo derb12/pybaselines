@@ -977,8 +977,10 @@ def test_penalized_system_factorize_solve(data_fixture, diff_order, allow_lower,
     penalized_system.add_diagonal(weights)
 
     output_factorization = penalized_system.factorize(penalized_system.penalty)
-    if allow_lower or (allow_penta and diff_order == 2):
-        if allow_penta and diff_order == 2:
+
+    using_penta = allow_penta and diff_order == 2 and _banded_utils._HAS_NUMBA
+    if allow_lower or using_penta:
+        if using_penta:
             expected_factorization = penta_factorize(
                 penalized_system.penalty, solver=penalized_system.penta_solver
             )
