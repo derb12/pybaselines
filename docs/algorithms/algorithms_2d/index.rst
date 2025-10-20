@@ -13,10 +13,10 @@ were extended to work with 2D data. It will not be as comprehensive as the
 :doc:`1D Algorithms section <../algorithms_1d/index>`, so to help understand any algorithm,
 it is suggested to start there.
 
-The two independant variables for 2D baseline algorithms in pybaselines are defined as ``x_data``
+The two independent variables for 2D baseline algorithms in pybaselines are defined as ``x_data``
 along the rows and ``z_data`` along the columns. The figure below shows an illustration of this,
-as well as the corresonding indexing within the input ``data``. In hindsight, it would have likely
-made more sense to switch the meanings of the two variables (pobody's nerfect ¯\\_(ツ)_/¯), but
+as well as the corresponding indexing within the input ``data``. In hindsight, it would have likely
+made more sense to switch the meanings of the two variables, but
 they will not be changed in order to maintain backwards compatibility. However, the documentation
 and API reference for all 2D methods are clear in the row and column distinction.
 

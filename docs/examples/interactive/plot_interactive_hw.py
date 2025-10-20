@@ -20,7 +20,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.widgets import Slider
 import numpy as np
 
@@ -66,7 +66,8 @@ class WindowFitter:
 
     def make_gui(self):
         """Constructs the GUI."""
-        self.fig, self.ax = plt.subplots()
+        self.fig = Figure()
+        self.ax = self.fig.subplots()
         self.fig.subplots_adjust(bottom=0.2)
         self.ax_variable = self.fig.add_axes([0.2, 0.05, 0.6, 0.1])
         self.ax.plot(self.x, self.y, label='data')

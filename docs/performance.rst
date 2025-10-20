@@ -95,7 +95,7 @@ module to decrease computation time.
     .. code-block:: python
 
             import sys
-            print(hasattr(sys, '_is_gil_enabled') and sys._is_gil_enabled())
+            print(hasattr(sys, '_is_gil_enabled') and not sys._is_gil_enabled())
 
     If the above code prints :code:`False`, then you are using non-free-threaded Python
     and should not use threading with pybaselines.

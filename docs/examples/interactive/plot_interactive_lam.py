@@ -20,7 +20,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.widgets import Slider
 import numpy as np
 
@@ -65,7 +65,8 @@ class LamFitter:
 
     def make_gui(self):
         """Constructs the GUI."""
-        self.fig, (self.ax, self.wt_ax) = plt.subplots(
+        self.fig = Figure()
+        self.ax, self.wt_ax = self.fig.subplots(
             nrows=2, sharex=True, height_ratios=(2, 1), gridspec_kw={'hspace': 0.1}
         )
         self.fig.subplots_adjust(bottom=0.2)
