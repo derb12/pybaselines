@@ -21,10 +21,17 @@ from tkinter import ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 import numpy as np
 
 from pybaselines import Baseline, utils
+
+
+# When building documentation on readthedocs, the environment is headless and raises an
+# error when trying to use tkinter, so just skip making the GUI when building documentation
+# -> set environmental variable PB_BUILDING_DOCS to '1' when invoking sphinx-build
+BUILDING_DOCS = os.environ.get('PB_BUILDING_DOCS', '0') == '1'
 
 
 def get_methods():
@@ -57,17 +64,21 @@ class WindowFitter:
 
         # skip creating the full tkinter GUI if this program is ran during
         # the documentation build since it raises a tkinter error on readthedocs
-        if os.environ.get('PB_BUILDING_DOCS', '0') != '1':
-            self.root = tk.Tk()
-        else:
+        if BUILDING_DOCS:
             self.root = None
+        else:
+            self.root = tk.Tk()
 
         self.make_gui()
 
     def make_gui(self):
         """Constructs the GUI."""
-        self.fig = Figure()
-        self.ax = self.fig.subplots()
+        if BUILDING_DOCS:
+            # use the pyplot interface so that the example output image will show a thumbnail
+            self.fig, self.ax = plt.subplots()
+        else:
+            self.fig = Figure()
+            self.ax = self.fig.subplots()
         self.fig.subplots_adjust(bottom=0.2)
         self.ax_variable = self.fig.add_axes([0.2, 0.05, 0.6, 0.1])
         self.ax.plot(self.x, self.y, label='data')
@@ -161,8 +172,6 @@ noise = np.random.default_rng(0).normal(0, 0.1, len(x))
 y = signal + baseline + noise
 
 gui = WindowFitter(x, y)
-# When building documentation on readthedocs, the environment is headless and raises an
-# error when trying to use tkinter, so just skip making the GUI when building documentation
-# -> set environmental variable PB_BUILDING_DOCS to '1' when invoking sphinx-build
-if os.environ.get('PB_BUILDING_DOCS', '0') != '1':
+# only invoke tkinter if not in a documentation build
+if not BUILDING_DOCS:
     tk.mainloop()
