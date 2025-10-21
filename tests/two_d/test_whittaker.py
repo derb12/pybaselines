@@ -18,7 +18,6 @@ class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    algorithm_base = whittaker._Whittaker
     checked_keys = ('weights', 'tol_history')
 
     def test_tol_history(self):

@@ -18,7 +18,6 @@ class SmoothTester(BaseTester2D):
     """Base testing class for whittaker functions."""
 
     module = smooth
-    algorithm_base = smooth._Smooth
 
     @ensure_deprecation(1, 4)
     def test_kwargs_deprecation(self):

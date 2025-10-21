@@ -23,7 +23,6 @@ class MiscTester(BaseTester):
     """Base testing class for miscellaneous functions."""
 
     module = misc
-    algorithm_base = misc._Misc
 
 
 @pytest.mark.filterwarnings('ignore:"interp_pts" is deprecated')

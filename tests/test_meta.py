@@ -7,6 +7,7 @@ Created on March 22, 2021
 """
 
 from contextlib import contextmanager
+from functools import wraps
 from threading import Lock
 
 import numpy as np
@@ -14,9 +15,16 @@ from numpy.testing import assert_allclose
 import pytest
 
 from .base_tests import (
-    BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, dummy_wrapper, get_data,
-    get_data2d
+    BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, get_data, get_data2d
 )
+
+
+def dummy_wrapper(func):
+    """A dummy wrapper to simulate using the _Algorithm._register wrapper function."""
+    @wraps(func)
+    def inner(*args, **kwargs):
+        return func(*args, **kwargs)
+    return inner
 
 
 class DummyModule:
@@ -391,6 +399,11 @@ class DummyAlgorithm:
         """Will raise an exception if x-values are not unique."""
         return DummyModule.non_unique_x_raises(data=data, x_data=self.x)
 
+    @dummy_wrapper
+    def func(self, data=None, *args, **kwargs):
+        """Dummy function."""
+        raise NotImplementedError('need to set func')
+
 
 class TestBaseTesterWorks(BaseTester):
     """Ensures a basic subclass of BaseTester works."""
@@ -671,6 +684,8 @@ class TestBaseTesterFailures(BaseTester, SetFuncMixin):
 
 class TestBaseTesterNoFunc(BaseTester):
     """Ensures the BaseTester fails if not setup correctly."""
+
+    algorithm_base = DummyAlgorithm
 
     @pytest.mark.parametrize('use_class', (True, False))
     def test_unchanged_data(self, use_class):
@@ -977,6 +992,8 @@ class TestBaseTester2DFailures(BaseTester2D, SetFuncMixin):
 
 class TestBaseTester2DNoFunc(BaseTester2D):
     """Ensures the BaseTester2D fails if not setup correctly."""
+
+    algorithm_base = DummyAlgorithm
 
     @pytest.mark.parametrize('new_instance', (True, False))
     def test_unchanged_data(self, new_instance):
