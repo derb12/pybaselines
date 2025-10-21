@@ -12,7 +12,7 @@ import pytest
 from scipy.sparse import kron
 
 from pybaselines._compat import identity
-from pybaselines.two_d import _algorithm_setup, optimizers, polynomial, whittaker
+from pybaselines.two_d import Baseline2D, _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines.utils import ParameterWarning, SortingWarning, difference_matrix, estimate_window
 from pybaselines._validation import _check_scalar
 
@@ -1019,16 +1019,25 @@ def test_override_x(algorithm):
         ('asls', 'asls', 'whittaker')
     )
 )
-def test_get_function(algorithm, method_and_outputs):
+@pytest.mark.parametrize('ensure_new', (True, False))
+def test_get_function(method_and_outputs, ensure_new):
     """Ensures _get_function gets the correct method, regardless of case."""
     method, expected_func, expected_module = method_and_outputs
     tested_modules = [optimizers, polynomial, whittaker]
+
+    algorithm = Baseline2D(
+        x_data=np.arange(10), z_data=np.arange(20), assume_sorted=True, check_finite=False
+    )
     selected_func, module, class_object = algorithm._get_function(
-        method, tested_modules
+        method, tested_modules, ensure_new
     )
     assert selected_func.__name__ == expected_func
     assert module == expected_module
     assert isinstance(class_object, _algorithm_setup._Algorithm2D)
+    if ensure_new:
+        assert class_object is not algorithm
+    else:
+        assert class_object is algorithm
 
 
 def test_get_function_fails_wrong_method(algorithm):
@@ -1043,28 +1052,34 @@ def test_get_function_fails_no_module(algorithm):
         algorithm._get_function('collab_pls', [])
 
 
-def test_get_function_sorting_x():
+@pytest.mark.parametrize('ensure_new', (True, False))
+def test_get_function_sorting_x(ensure_new):
     """Ensures the sort order is correct for the output class object when x is reversed."""
     num_points = 10
     x = np.arange(num_points)
     ordering = np.arange(num_points)
-    algorithm = _algorithm_setup._Algorithm2D(x[::-1], assume_sorted=False)
-    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+    algorithm = Baseline2D(x[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function('asls', [whittaker], ensure_new)
 
     assert_array_equal(class_object.x, x)
     assert_array_equal(class_object._sort_order, ordering[::-1])
     assert_array_equal(class_object._inverted_order, ordering[::-1])
     assert_array_equal(class_object._sort_order, algorithm._sort_order)
     assert_array_equal(class_object._inverted_order, algorithm._inverted_order)
+    if ensure_new:
+        assert class_object is not algorithm
+    else:
+        assert class_object is algorithm
 
 
-def test_get_function_sorting_z():
+@pytest.mark.parametrize('ensure_new', (True, False))
+def test_get_function_sorting_z(ensure_new):
     """Ensures the sort order is correct for the output class object when z is reversed."""
     num_points = 10
     z = np.arange(num_points)
     ordering = np.arange(num_points)
-    algorithm = _algorithm_setup._Algorithm2D(None, z[::-1], assume_sorted=False)
-    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+    algorithm = Baseline2D(None, z[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function('asls', [whittaker], ensure_new)
 
     assert_array_equal(class_object.z, z)
     assert class_object._sort_order[0] is Ellipsis
@@ -1075,9 +1090,14 @@ def test_get_function_sorting_z():
     assert_array_equal(class_object._inverted_order[1], ordering[::-1])
     assert_array_equal(class_object._sort_order[1], algorithm._sort_order[1])
     assert_array_equal(class_object._inverted_order[1], algorithm._inverted_order[1])
+    if ensure_new:
+        assert class_object is not algorithm
+    else:
+        assert class_object is algorithm
 
 
-def test_get_function_sorting_xz():
+@pytest.mark.parametrize('ensure_new', (True, False))
+def test_get_function_sorting_xz(ensure_new):
     """Ensures the sort order is correct for the output class object when x and z are reversed."""
     num_x_points = 10
     num_z_points = 11
@@ -1086,8 +1106,8 @@ def test_get_function_sorting_xz():
     z = np.arange(num_z_points)
     z_ordering = np.arange(num_z_points)
 
-    algorithm = _algorithm_setup._Algorithm2D(x[::-1], z[::-1], assume_sorted=False)
-    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+    algorithm = Baseline2D(x[::-1], z[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function('asls', [whittaker], ensure_new)
 
     assert_array_equal(class_object.x, x)
     assert_array_equal(class_object.z, z)
@@ -1099,13 +1119,22 @@ def test_get_function_sorting_xz():
     assert_array_equal(class_object._sort_order[1], algorithm._sort_order[1])
     assert_array_equal(class_object._inverted_order[0], algorithm._inverted_order[0])
     assert_array_equal(class_object._inverted_order[1], algorithm._inverted_order[1])
+    if ensure_new:
+        assert class_object is not algorithm
+    else:
+        assert class_object is algorithm
 
 
 @pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))
-def test_setup_optimizer(small_data2d, algorithm, method_kwargs):
+@pytest.mark.parametrize('ensure_new', (True, False))
+def test_setup_optimizer(small_data2d, method_kwargs, ensure_new):
     """Ensures output of _setup_optimizer is correct."""
+    num_x, num_z = small_data2d.shape
+    algorithm = Baseline2D(
+        x_data=np.arange(num_x), z_data=np.arange(num_z), assume_sorted=True, check_finite=False
+    )
     y, fit_func, func_module, output_kwargs, class_object = algorithm._setup_optimizer(
-        small_data2d, 'asls', [whittaker], method_kwargs
+        small_data2d, 'asls', [whittaker], method_kwargs, ensure_new=ensure_new
     )
 
     assert isinstance(y, np.ndarray)
@@ -1114,6 +1143,10 @@ def test_setup_optimizer(small_data2d, algorithm, method_kwargs):
     assert func_module == 'whittaker'
     assert isinstance(output_kwargs, dict)
     assert isinstance(class_object, _algorithm_setup._Algorithm2D)
+    if ensure_new:
+        assert class_object is not algorithm
+    else:
+        assert class_object is algorithm
 
 
 @pytest.mark.parametrize('copy_kwargs', (True, False))
