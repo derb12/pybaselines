@@ -978,8 +978,12 @@ def test_override_x(algorithm):
     assert algorithm._shape == (old_size,)
 
 
-def test_override_x_polynomial(algorithm):
+def test_override_x_polynomial():
     """Ensures the polynomial attributes are correctly reset and then returned by override_x."""
+    algorithm = _algorithm_setup._Algorithm(
+        x_data=np.arange(10), assume_sorted=True, check_finite=False
+    )
+
     old_len = len(algorithm.x)
     poly_order = 2
     new_poly_order = 3
@@ -1014,8 +1018,12 @@ def test_override_x_polynomial(algorithm):
     assert algorithm._polynomial.poly_order == poly_order
 
 
-def test_override_x_whittaker(algorithm):
+def test_override_x_whittaker():
     """Ensures the whittaker attributes are correctly reset and then returned by override_x."""
+    algorithm = _algorithm_setup._Algorithm(
+        x_data=np.arange(10), assume_sorted=True, check_finite=False
+    )
+
     old_len = len(algorithm.x)
     diff_order = 2
     new_diff_order = 3
@@ -1045,8 +1053,12 @@ def test_override_x_whittaker(algorithm):
     assert new_whittaker_system.penta_solver == banded_solver
 
 
-def test_override_x_spline(algorithm):
+def test_override_x_spline():
     """Ensures the spline attributes are correctly reset and then returned by override_x."""
+    algorithm = _algorithm_setup._Algorithm(
+        x_data=np.arange(10), assume_sorted=True, check_finite=False
+    )
+
     old_len = len(algorithm.x)
     spline_degree = 2
     new_spline_degree = 3

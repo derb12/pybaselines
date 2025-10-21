@@ -181,9 +181,11 @@ def test_bspline_has_extrapolate():
         # Also check that the result is cached so that the actual check is only done once. The
         # cache hits would depend on the test run order, so just check that calling it twice
         # results in a non-zero hits value and that misses is 1 (the first call counts as a miss)
+        # Note that the actual check uses misses > 0 to pass if using pytest-run-parallel, where
+        # the number of misses would equal the number of threads used during testing
         assert _spline_utils._bspline_has_extrapolate() == has_extrapolate
         assert _spline_utils._bspline_has_extrapolate.cache_info().hits > 0
-        assert _spline_utils._bspline_has_extrapolate.cache_info().misses == 1
+        assert _spline_utils._bspline_has_extrapolate.cache_info().misses > 0
 
 
 @pytest.mark.parametrize('num_knots', (2, 20, 1001))

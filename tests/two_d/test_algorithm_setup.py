@@ -241,8 +241,12 @@ def test_setup_polynomial_too_large_polyorder_fails(small_data2d, algorithm):
         algorithm._setup_polynomial(small_data2d, poly_order=np.array([1, 2, 3]))
 
 
-def test_setup_polynomial_maxcross(small_data2d, algorithm):
+def test_setup_polynomial_maxcross(small_data2d):
     """Ensures the _max_cross attribute is updated after calling _setup_polynomial."""
+    num_x, num_z = small_data2d.shape
+    algorithm = _algorithm_setup._Algorithm2D(
+        x_data=np.arange(num_x), z_data=np.arange(num_z), assume_sorted=True, check_finite=False
+    )
     algorithm._setup_polynomial(small_data2d, max_cross=[1], calc_vander=True)
     assert algorithm._polynomial.max_cross == 1
 
