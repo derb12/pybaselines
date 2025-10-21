@@ -50,7 +50,6 @@ class SplineTester(BaseTester2D):
     """Base testing class for spline functions."""
 
     module = spline
-    algorithm_base = spline._Spline
 
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):

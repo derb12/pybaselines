@@ -19,7 +19,6 @@ class MorphologicalTester(BaseTester2D):
     """Base testing class for morphological functions."""
 
     module = morphological
-    algorithm_base = morphological._Morphological
     checked_keys = ('half_window',)
 
     @pytest.mark.parametrize('half_window', (None, 10, [10, 12], np.array([12, 10])))

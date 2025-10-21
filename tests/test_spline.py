@@ -47,7 +47,6 @@ class SplineTester(BaseTester):
     """Base testing class for spline functions."""
 
     module = spline
-    algorithm_base = spline._Spline
 
     def test_numba_implementation(self):
         """
