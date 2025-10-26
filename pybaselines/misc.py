@@ -157,7 +157,25 @@ class _Misc(_Algorithm):
 
         Decomposes the input data into baseline and pure, noise-free signal by modeling
         the baseline as a low pass filter and by considering the signal and its derivatives
-        as sparse [1]_.
+        as sparse. The minimized equation for calculating the pure signal is given as:
+
+        .. math::
+
+            0.5 * ||H(y - s)||_2^2
+            + \lambda_0 \sum\limits_{i}^{N} \theta(s_i)
+            + \lambda_1 \sum\limits_{i}^{N - 1} \phi(\Delta^1 s_i)
+            + \lambda_2 \sum\limits_{i}^{N - 2} \phi(\Delta^2 s_i)
+
+        where y is the measured data, s is the calculated pure signal,
+        :math:`H` is a high pass filter, :math:`\theta()` is a differentiable, symmetric
+        or asymmetric penalty function on the calculated signal, :math:`\Delta^1` and
+        :math:`\Delta^2` are finite-difference operators of order 1 and 2, respectively,
+        and :math:`\phi()` is a differentiable, symmetric penalty function approximating the
+        L1 loss (mean absolute error) applied to the first and second derivatives of the
+        calculated signal.
+
+        The calculated baseline, v, upon convergence of calculating the pure signal is
+        given by :math:`v = y - s - H(y - s)`.
 
         Parameters
         ----------
@@ -200,10 +218,10 @@ class _Misc(_Algorithm):
             An integer describing the high pass filter type. The order of the high pass
             filter is ``2 * filter_type``. Default is 1 (second order filter).
         cost_function : {2, 1, "l1_v1", "l1_v2"}, optional
-            An integer or string indicating which approximation of the l1 (absolute value)
-            penalty to use. 1 or "l1_v1" will use :math:`l(x) = \sqrt{x^2 + \text{eps_1}}`
+            An integer or string indicating which approximation of the L1 (absolute value)
+            penalty to use. 1 or "l1_v1" will use :math:`\phi(x) = \sqrt{x^2 + \text{eps_1}}`
             and 2 (default) or "l1_v2" will use
-            :math:`l(x) = |x| - \text{eps_1}\log{(|x| + \text{eps_1})}`.
+            :math:`\phi(x) = |x| - \text{eps_1}\log{(|x| + \text{eps_1})}`.
         max_iter : int, optional
             The maximum number of iterations. Default is 50.
         tol : float, optional
@@ -246,13 +264,25 @@ class _Misc(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'fidelity': float
+                The fidelity term of the final fit, given as :math:`0.5 * ||H(y - s)||_2^2`.
+
+                .. versionadded:: 1.3.0
+
+            * 'penalty' : tuple[float, float, float]
+                The penalty terms of the final fit before multiplication with the `lam_d`
+                terms. These correspond to :math:`\sum\limits_{i}^{N} \theta(s_i)`,
+                :math:`\sum\limits_{i}^{N - 1} \phi(\Delta^1 s_i)`, and
+                :math:`\sum\limits_{i}^{N - 2} \phi(\Delta^2 s_i)`, respectively.
+
+                .. versionadded:: 1.3.0
 
         Notes
         -----
         If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the proceedure recommended in [1]_
         to base the `lam_d` values on the inverse of the L1 norm values of the `d'th` derivative
-        of `data`. In detail, it is assumed that `lam_0`, `lam_1`, and `lam_2` are related by
-        some constant `alpha` such that ``lam_0 = alpha / ||data||_1``,
+        of `data`. In detail, it is assumed that `lam_0`, `lam_1`, and `lam_2` are approximately
+        related by some constant `alpha` such that ``lam_0 = alpha / ||data||_1``,
         ``lam_1 = alpha / ||data'||_1``, and ``lam_2 = alpha / ||data''||_1``.
 
         When finding the best parameters for fitting, it is usually best to find the optimal
@@ -1036,11 +1066,14 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         h = B.dot(A_factor.solve(y - x))
         d1_x, d2_x = _abs_diff(x, smooth_half_window)
         abs_x, big_x, theta = _beads_theta(x, asymmetry, eps_0)
+        fidelity = 0.5 * (h @ h)
+        d1_loss = _beads_loss(d1_x, use_v2_loss, eps_1).sum()
+        d2_loss = _beads_loss(d2_x, use_v2_loss, eps_1).sum()
         cost = (
-            0.5 * h.dot(h)
+            fidelity
             + lam_0 * theta
-            + lam_1 * _beads_loss(d1_x, use_v2_loss, eps_1).sum()
-            + lam_2 * _beads_loss(d2_x, use_v2_loss, eps_1).sum()
+            + lam_1 * d1_loss
+            + lam_2 * d2_loss
         )
         cost_difference = relative_difference(cost_old, cost)
         tol_history[i] = cost_difference
@@ -1051,7 +1084,12 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     diff = y - x
     baseline = diff - B.dot(A_factor.solve(diff))
 
-    return baseline, {'signal': x, 'tol_history': tol_history[:i + 1]}
+    params = {
+        'signal': x, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
+        'penalty': (theta, d1_loss, d2_loss)
+    }
+
+    return baseline, params
 
 
 def _process_lams(y, alpha, lam_0, lam_1, lam_2):
@@ -1273,11 +1311,14 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
             solveh_banded(A_lower, y - x, check_finite=False, overwrite_b=True, lower=True),
             ab_lu, full_shape
         )
+        fidelity = 0.5 * (h @ h)
+        d1_loss = _beads_loss(d1_x, use_v2_loss, eps_1).sum()
+        d2_loss = _beads_loss(d2_x, use_v2_loss, eps_1).sum()
         cost = (
-            0.5 * h.dot(h)
+            fidelity
             + lam_0 * theta
-            + lam_1 * _beads_loss(d1_x, use_v2_loss, eps_1).sum()
-            + lam_2 * _beads_loss(d2_x, use_v2_loss, eps_1).sum()
+            + lam_1 * d1_loss
+            + lam_2 * d2_loss
         )
         cost_difference = relative_difference(cost_old, cost)
         tol_history[i] = cost_difference
@@ -1295,7 +1336,12 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         )
     )
 
-    return baseline, {'signal': x, 'tol_history': tol_history[:i + 1]}
+    params = {
+        'signal': x, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
+        'penalty': (theta, d1_loss, d2_loss)
+    }
+
+    return baseline, params
 
 
 @_misc_wrapper

@@ -82,7 +82,7 @@ class TestBeads(MiscTester):
     """Class for testing beads baseline."""
 
     func_name = 'beads'
-    checked_keys = ('signal', 'tol_history')
+    checked_keys = ('signal', 'tol_history', 'fidelity', 'penalty')
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('cost_function', (1, 2, 'l1_v1', 'l1_v2', 'L1_V1'))

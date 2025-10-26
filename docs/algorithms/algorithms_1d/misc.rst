@@ -78,7 +78,45 @@ beads (Baseline Estimation And Denoising with Sparsity)
 
 :meth:`~.Baseline.beads` decomposes the input data into baseline and pure, noise-free signal by
 modeling the baseline as a low pass filter and by considering the signal and its derivatives
-as sparse.
+as sparse. The minimized equation for calculating the pure signal is given as:
+
+.. math::
+
+    \frac{1}{2} ||H(y - s)||_2^2
+    + \lambda_0 \sum\limits_{i}^{N} \theta(s_i)
+    + \lambda_1 \sum\limits_{i}^{N - 1} \phi(\Delta^1 s_i)
+    + \lambda_2 \sum\limits_{i}^{N - 2} \phi(\Delta^2 s_i)
+
+where :math:`y` is the measured data, :math:`s` is the calculated pure signal,
+:math:`H` is a high pass filter, :math:`\theta()` is a differentiable, symmetric
+or asymmetric penalty function on the calculated signal, :math:`\Delta^1` and :math:`\Delta^2`
+are :ref:`finite-difference operators <difference-matrix-explanation>` of order 1
+and 2, respectively, and :math:`\phi()` is a differentiable, symmetric penalty function
+approximating the L1 loss (mean absolute error) applied to the first and second derivatives
+of the calculated signal.
+
+The calculated baseline, :math:`v`, upon convergence of calculating the pure signal is given by:
+
+.. math::
+
+    v = y - s - H(y - s)
+
+pybaselines version 1.3.0 introduced an optional simplification of the :math:`\lambda_0`,
+:math:`\lambda_1`, :math:`\lambda_2` regularization parameter selection using the procedure
+recommended by the BEADS manuscript through the addition of the parameter :math:`\alpha`.
+Briefly, it is assumed that each :math:`\lambda_d` value is approximately proportional to some
+constant :math:`\alpha` divided by the L1 norm of the d'th derivative of the input data such
+that:
+
+.. math::
+
+    \lambda_0 = \frac{\alpha}{||y||_1},
+    \lambda_1 = \frac{\alpha}{||y'||_1},
+    \lambda_2 = \frac{\alpha}{||y''||_1}
+
+Such a parametrization allows varying just :math:`\alpha`, as well as simplified usage
+within optimization frameworks to find the best value, as shown by
+`Bosten, et al. <https://doi.org/10.1016/j.chroma.2023.464360>`_
 
 .. plot::
    :align: center
@@ -189,22 +227,23 @@ as sparse.
     x, data, baselines = create_data()
     baseline_fitter = Baseline(x, check_finite=False)
 
-    fit_params = [(3, 3), (0.15, 8), (0.1, 6), (0.25, 8), (0.1, 0.6)]
-
+    fit_params = [
+        (500, 6, 0.01),
+        (0.01, 8, 0.08),
+        (80, 8, 0.01),
+        (0.2, 6, 0.04),
+        (100, 1, 0.01)
+    ]
     figure, axes, handles = create_plots(data, baselines)
     for i, (ax, y) in enumerate(zip(axes, data)):
-        if i == 0:
-            freq_cutoff = 0.002
-        else:
-            freq_cutoff = 0.005
-        lam_0, asymmetry = fit_params[i]
+        alpha, asymmetry, freq_cutoff = fit_params[i]
         baseline, params = baseline_fitter.beads(
-            y, freq_cutoff=freq_cutoff, lam_0=lam_0, lam_1=0.05, lam_2=0.2, asymmetry=asymmetry
+            y, freq_cutoff=freq_cutoff, alpha=alpha, asymmetry=asymmetry, tol=1e-3
         )
         ax.plot(baseline, 'g--')
 
 The signal with both noise and baseline removed can also be obtained from the output
-of the beads function.
+of the beads method by accessing the 'signal' key in the output parameters.
 
 .. plot::
    :align: center
@@ -214,15 +253,10 @@ of the beads function.
 
     # to see contents of create_data function, look at the second-to-top-most algorithm's code
     figure, axes, handles = create_plots(data, baselines)
-    fit_params = [(3, 3), (0.15, 8), (0.1, 6), (0.25, 8), (0.1, 0.6)]
     for i, (ax, y) in enumerate(zip(axes, data)):
-        if i == 0:
-            freq_cutoff = 0.002
-        else:
-            freq_cutoff = 0.005
-        lam_0, asymmetry = fit_params[i]
+        alpha, asymmetry, freq_cutoff = fit_params[i]
         baseline, params = baseline_fitter.beads(
-            y, freq_cutoff=freq_cutoff, lam_0=lam_0, lam_1=0.05, lam_2=0.2, asymmetry=asymmetry
+            y, freq_cutoff=freq_cutoff, alpha=alpha, asymmetry=asymmetry, tol=1e-3
         )
 
         ax.clear()  # remove the old plots in the axis
