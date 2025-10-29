@@ -391,7 +391,7 @@ def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, dif
         spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
     )
 
-    output = pspline.effective_dimension(weights)
+    output = pspline.effective_dimension(weights, n_samples=0)
     assert_allclose(output, expected_ed, rtol=1e-10, atol=1e-12)
 
 
@@ -415,23 +415,15 @@ def test_pspline_stochastic_effective_dimension(data_fixture, num_knots, spline_
     weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
     weights = np.clip(weights, 0, 1).astype(float)
 
-    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
-    basis = _spline_utils._spline_basis(x, knots, spline_degree)
-    num_bases = basis.shape[1]
-    penalty_matrix = _banded_utils.diff_penalty_matrix(num_bases, diff_order=diff_order)
-
-    btwb = basis.T @ diags(weights, format='csr') @ basis
-    factorization = factorized(btwb + penalty_matrix)
-    expected_ed = 0
-    for i in range(num_bases):
-        expected_ed += factorization(btwb[:, i].toarray())[i]
-
     spline_basis = _spline_utils.SplineBasis(
         x, num_knots=num_knots, spline_degree=spline_degree
     )
     pspline = _spline_utils.PSpline(
         spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
     )
+    # true solution is already verified by other tests, so use that as "known" in
+    # this test to only examine the relative difference from using stochastic estimation
+    expected_ed = pspline.effective_dimension(weights, n_samples=0)
 
     output = pspline.effective_dimension(weights, n_samples=n_samples)
     assert_allclose(output, expected_ed, rtol=5e-2, atol=1e-5)

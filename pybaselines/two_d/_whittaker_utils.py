@@ -11,7 +11,7 @@ import warnings
 import numpy as np
 from scipy.linalg import eig_banded, eigh_tridiagonal, solve
 from scipy.sparse import kron
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import factorized, spsolve
 
 from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
 from .._compat import identity
@@ -173,7 +173,7 @@ class PenalizedSystem2D:
         weights : numpy.ndarray
             The weights for each y-value. Will also be added to the diagonal of the
             penalty.
-        penalty : numpy.ndarray
+        penalty : scipy.sparse.spmatrix or scipy.sparse.sparray
             The penalty to use for solving. Default is None which uses the object's
             penalty.
         rhs_extra : float or numpy.ndarray, optional
@@ -198,6 +198,22 @@ class PenalizedSystem2D:
         return self.direct_solve(lhs, rhs)
 
     def direct_solve(self, lhs, rhs):
+        """
+        Solves the linear system ``lhs @ x = rhs``.
+
+        Parameters
+        ----------
+        lhs : scipy.sparse.spmatrix or scipy.sparse.sparray
+            The left hand side of the equation.
+        rhs : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
+            The right hand side of the equation.
+
+        Returns
+        -------
+        scipy.sparse.spmatrix or scipy.sparse.sparray
+            The solution to the linear system, with the same shape as `rhs`.
+
+        """
         return spsolve(lhs, rhs)
 
     def add_diagonal(self, value):
@@ -211,7 +227,7 @@ class PenalizedSystem2D:
 
         Returns
         -------
-        scipy.sparse.spmatrix
+        scipy.sparse.spmatrix or scipy.sparse.sparray
             The penalty matrix with the main diagonal updated.
 
         """
@@ -221,6 +237,100 @@ class PenalizedSystem2D:
     def reset_diagonal(self):
         """Sets the main diagonal of the penalty matrix back to its original value."""
         self.penalty.setdiag(self.main_diagonal)
+
+    def effective_dimension(self, weights=None, penalty=None, n_samples=0):
+        """
+        Calculates the effective dimension from the trace of the hat matrix.
+
+        For typical Whittaker smoothing, the linear equation would be
+        ``(W + lam * P) x = W @ y``. Then the hat matrix would be ``(W + lam * P)^-1 @ W``.
+        The effective dimension for the system can be estimated as the trace
+        of the hat matrix.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (``M * N``,) or shape (M, N), optional
+            The weights. Default is None, which will use ones.
+        penalty : scipy.sparse.spmatrix or scipy.sparse.sparray, shape (``M * N``, ``M * N``)
+            The finite difference penalty matrix. Default is None, which will use the
+            object's penalty.
+        n_samples : int, optional
+            If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
+            trace estimation with a matrix of (``M * N``, `n_samples`) Rademacher random variables
+            (eg. either -1 or 1).
+
+        Returns
+        -------
+        trace : float
+            The trace of the hat matrix, denoting the effective dimension for
+            the system.
+
+        Raises
+        ------
+        TypeError
+            Raised if `n_samples` is not 0 and a non-positive integer.
+
+        References
+        ----------
+        Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+        Hutchinson, M. A stochastic estimator of the trace of the influence matrix for laplacian
+        smoothing splines. Communications in Statistics - Simulation and Computation, (1990),
+        19(2), 433-450.
+
+        Meyer, R., et al. Hutch++: Optimal Stochastic Trace Estimation. 2021 Symposium on
+        Simplicity in Algorithms (SOSA), (2021), 142-155.
+
+        """
+        # TODO could maybe make default n_samples to None and decide to use analytical or
+        # stochastic trace based on tot_bases; tot_bases > 1000 use stochastic with default
+        # n_samples = 200?
+        tot_bases = np.prod(self._num_bases)
+        if n_samples == 0:
+            use_analytic = True
+        else:
+            if n_samples < 0 or not isinstance(n_samples, int):
+                raise TypeError('n_samples must be a positive integer')
+            use_analytic = False
+            # TODO should the rng seed be settable? Maybe a Baseline2D property
+            rng_samples = np.random.default_rng(1234).choice(
+                [-1., 1.], size=(tot_bases, n_samples)
+            )
+
+        if weights is None:
+            weights = np.ones(tot_bases)
+        elif weights.ndim == 2:
+            weights = weights.ravel()
+
+        reset_penalty = False
+        if penalty is None:
+            lhs = self.add_diagonal(weights)
+            reset_penalty = True
+        else:
+            penalty.setdiag(penalty.diagonal() + weights)
+            lhs = penalty
+
+        if use_analytic:
+            # compute each diagonal of the hat matrix separately so that the full
+            # hat matrix does not need to be stored in memory
+            eye = np.zeros(tot_bases)
+            trace = 0
+            factorization = factorized(lhs.tocsc())
+            for i in range(tot_bases):
+                eye[i] = weights[i]
+                trace += factorization(eye)[i]
+                eye[i] = 0
+
+        else:
+            # H @ u == (W + lam * P)^-1 @ (w * u)
+            hat_u = self.direct_solve(lhs, weights[:, None] * rng_samples)
+            # stochastic trace is the average of the trace of u.T @ H @ u;
+            trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
+
+        if reset_penalty:
+            self.add_diagonal(0)
+
+        return trace
 
 
 class WhittakerSystem2D(PenalizedSystem2D):
@@ -561,10 +671,9 @@ class WhittakerSystem2D(PenalizedSystem2D):
             The y-values for fitting the spline.
         weights : numpy.ndarray, shape (M, N)
             The weights for each y-value.
-        penalty : numpy.ndarray, shape (``M * N``, ``M * N``)
-            The finite difference penalty matrix, in LAPACK's lower banded format (see
-            :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
-            format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
+        penalty : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
+            The finite difference penalty matrix with shape (``M * N``, ``M * N``). Default
+            is None, which will use the object's penalty.
         rhs_extra : float or numpy.ndarray, shape (``M * N``,), optional
             If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
             of the equation before solving. Default is None, which adds nothing.
@@ -577,10 +686,10 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         Notes
         -----
-        Uses the more efficient algorithm from Eilers's paper, although the memory usage
-        is higher than the straigtforward method when the number of eigenvalues is high; however,
-        it is significantly faster and memory efficient when the number of eigenvalues is lower,
-        which will be the more typical use case.
+        Uses the more efficient algorithm from Eilers's paper, as a generalized linear array
+        model, although the memory usage is higher than the straightforward method when the
+        number of eigenvalues is high; however, it is significantly faster and memory efficient
+        when the number of eigenvalues is lower, which will be the more typical use case.
 
         References
         ----------
@@ -667,7 +776,6 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         """
         if not self._using_svd:
-            # Could maybe just output a matrix of ones?
             raise ValueError(
                 'Cannot calculate degrees of freedom when not using eigendecomposition'
             )
@@ -680,3 +788,97 @@ class WhittakerSystem2D(PenalizedSystem2D):
         )
 
         return dof.diagonal().reshape(self._num_bases)
+
+    def effective_dimension(self, weights=None, penalty=None, n_samples=0):
+        """
+        Calculates the effective dimension from the trace of the hat matrix.
+
+        For typical Whittaker smoothing, the linear equation would be
+        ``(W + lam * P) v = W @ y``. Then the hat matrix would be ``(W + lam * P)^-1 @ W``.
+        If using SVD, the linear equation is ``(B.T @ W @ B + lam * P) c = B.T @ W @ y``  and
+        ``v = B @ c``. Then the hat matrix would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)``
+        or, equivalently ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression
+        is preferred since it reduces the dimensionality. The effective dimension for the system
+        can be estimated as the trace of the hat matrix.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (``M * N``,) or shape (M, N), optional
+            The weights. Default is None, which will use ones.
+        penalty : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
+            The finite difference penalty matrix with shape (``M * N``, ``M * N``). Default
+            is None, which will use the object's penalty.
+        n_samples : int, optional
+            If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
+            trace estimation with a matrix of (``M * N``, `n_samples`) Rademacher random variables
+            (eg. either -1 or 1).
+
+        Returns
+        -------
+        trace : float
+            The trace of the hat matrix, denoting the effective dimension for
+            the system.
+
+        Raises
+        ------
+        TypeError
+            Raised if `n_samples` is not 0 and a non-positive integer.
+
+        Notes
+        -----
+        If using SVD, the trace will be lower than the actual analytical trace. The relative
+        difference is reduced as the number of eigenvalues selected approaches the data
+        size.
+
+        References
+        ----------
+        Biessy, G. Whittaker-Henderson smoothing revisited: A modern statistical framework for
+        practical use. ASTIN Bulletin, 2025, 1-31.
+
+        Hutchinson, M. A stochastic estimator of the trace of the influence matrix for laplacian
+        smoothing splines. Communications in Statistics - Simulation and Computation, (1990),
+        19(2), 433-450.
+
+        Meyer, R., et al. Hutch++: Optimal Stochastic Trace Estimation. 2021 Symposium on
+        Simplicity in Algorithms (SOSA), (2021), 142-155.
+
+        """
+        if not self._using_svd:
+            return super().effective_dimension(weights, penalty, n_samples)
+
+        # TODO could maybe make default n_samples to None and decide to use analytical or
+        # stochastic trace based on tot_bases; tot_bases > 1000 use stochastic with default
+        # n_samples = 200?
+        tot_bases = np.prod(self._num_bases)
+        if n_samples == 0:
+            use_analytic = True
+        else:
+            if n_samples < 0 or not isinstance(n_samples, int):
+                raise TypeError('n_samples must be a positive integer')
+            use_analytic = False
+            # TODO should the rng seed be settable? Maybe a Baseline2D property
+            rng_samples = np.random.default_rng(1234).choice(
+                [-1., 1.], size=(tot_bases, n_samples)
+            )
+
+        if weights is None:
+            weights = np.ones(self._num_bases)
+        elif weights.ndim == 1:
+            weights = weights.reshape(self._num_points)
+
+        if use_analytic:
+            trace = self._calc_dof(weights).sum()
+        else:
+            btwb = self._make_btwb(weights)
+            lhs = btwb.copy()
+            np.fill_diagonal(lhs, lhs.diagonal() + self.penalty)
+            # H @ u == (B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B) @ u
+            hat_u = solve(
+                lhs, btwb @ rng_samples, overwrite_a=True, overwrite_b=True,
+                check_finite=False, assume_a='pos'
+            )
+            # u.T @ H @ u -> u.T @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B) @ u
+            # stochastic trace is the average of the trace of u.T @ H @ u;
+            trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
+
+        return trace

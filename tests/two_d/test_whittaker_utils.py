@@ -11,10 +11,10 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.linalg import eig_banded, solve
 from scipy.sparse import issparse, kron
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import factorized, spsolve
 
-from pybaselines._banded_utils import diff_penalty_diagonals
-from pybaselines._compat import dia_object, identity
+from pybaselines._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
+from pybaselines._compat import dia_object, diags, identity
 from pybaselines.two_d import _spline_utils, _whittaker_utils
 from pybaselines.utils import difference_matrix
 
@@ -588,3 +588,196 @@ def test_whittaker_system_update_penalty(data_fixture2d, num_eigens, diff_order,
         whittaker_system.penalty, (new_penalty_rows + new_penalty_cols).diagonal(),
         rtol=1e-12, atol=1e-12
     )
+
+
+@pytest.mark.parametrize('shape', ((20, 23), (5, 50), (50, 5)))
+@pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
+@pytest.mark.parametrize('lam', (1e2, (1e1, 1e2)))
+def test_penalized_system_effective_dimension(shape, diff_order, lam):
+    """
+    Tests the effective_dimension method of PenalizedSystem2D objects.
+
+    The effective dimension for Whittaker smoothing should be
+    ``trace((W + lam * D.T @ D)^-1 @ W)``, where `W` is the weight matrix, and
+    ``D.T @ D`` is the penalty.
+
+    """
+    *_, lam_r, lam_c, diff_order_r, diff_order_c = get_2dspline_inputs(
+        lam=lam, diff_order=diff_order
+    )
+
+    weights = np.random.default_rng(0).normal(0.8, 0.05, shape)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    P_r = lam_r * kron(diff_penalty_matrix(shape[0], diff_order=diff_order_r), identity(shape[1]))
+    P_c = lam_c * kron(identity(shape[0]), diff_penalty_matrix(shape[1], diff_order=diff_order_c))
+    penalty = P_r + P_c
+
+    weights_matrix = diags(weights.ravel(), format='csc')
+    factorization = factorized(weights_matrix + penalty)
+    expected_ed = 0
+    for i in range(np.prod(shape)):
+        expected_ed += factorization(weights_matrix[:, i].toarray())[i]
+
+    penalized_system = _whittaker_utils.PenalizedSystem2D(shape, lam=lam, diff_order=diff_order)
+
+    # ensure weights work both raveled and unraveled
+    output = penalized_system.effective_dimension(weights, n_samples=0)
+    assert_allclose(output, expected_ed, rtol=1e-14, atol=1e-10)
+
+    output2 = penalized_system.effective_dimension(weights.ravel(), n_samples=0)
+    assert_allclose(output2, expected_ed, rtol=1e-14, atol=1e-10)
+
+
+@pytest.mark.parametrize('shape', ((20, 23), (5, 50), (50, 5)))
+@pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
+@pytest.mark.parametrize('lam', (1e2, (1e1, 1e2)))
+@pytest.mark.parametrize('n_samples', (100, 201))
+def test_penalized_system_effective_dimension_stochastic(shape, diff_order, lam,
+                                                         n_samples):
+    """
+    Tests the stochastic effective_dimension method of PenalizedSystem2D objects.
+
+    The effective dimension for Whittaker smoothing should be
+    ``trace((W + lam * D.T @ D)^-1 @ W)``, where `W` is the weight matrix, and
+    ``D.T @ D`` is the penalty.
+
+    """
+    weights = np.random.default_rng(0).normal(0.8, 0.05, shape)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    whittaker_system = _whittaker_utils.PenalizedSystem2D(shape, lam=lam, diff_order=diff_order)
+
+    # true solution is already verified by other tests, so use that as "known" in
+    # this test to only examine the relative difference from using stochastic estimation
+    expected_ed = whittaker_system.effective_dimension(weights, n_samples=0)
+
+    # ensure weights work both raveled and unraveled
+    output = whittaker_system.effective_dimension(weights, n_samples=n_samples)
+    assert_allclose(output, expected_ed, rtol=1e-1, atol=1e-4)
+
+    output2 = whittaker_system.effective_dimension(weights.ravel(), n_samples=n_samples)
+    assert_allclose(output2, expected_ed, rtol=1e-1, atol=1e-4)
+
+
+@pytest.mark.parametrize('shape', ((20, 23), (5, 50), (50, 5)))
+@pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
+@pytest.mark.parametrize('lam', (1e2, (1e1, 1e2)))
+@pytest.mark.parametrize('use_svd', (True, False))
+def test_whittaker_system_effective_dimension(shape, diff_order, lam, use_svd):
+    """
+    Tests the effective_dimension method of WhittakerSystem2D objects.
+
+    The effective dimension for Whittaker smoothing should be
+    ``trace((W + lam * D.T @ D)^-1 @ W)``, where `W` is the weight matrix, and
+    ``D.T @ D`` is the penalty.
+
+    Tests both the analytic and SVD-based solutions.
+
+    """
+    *_, lam_r, lam_c, diff_order_r, diff_order_c = get_2dspline_inputs(
+        lam=lam, diff_order=diff_order
+    )
+
+    weights = np.random.default_rng(0).normal(0.8, 0.05, shape)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    P_r = lam_r * kron(diff_penalty_matrix(shape[0], diff_order=diff_order_r), identity(shape[1]))
+    P_c = lam_c * kron(identity(shape[0]), diff_penalty_matrix(shape[1], diff_order=diff_order_c))
+    penalty = P_r + P_c
+
+    weights_matrix = diags(weights.ravel(), format='csc')
+    factorization = factorized(weights_matrix + penalty)
+    expected_ed = 0
+    for i in range(np.prod(shape)):
+        expected_ed += factorization(weights_matrix[:, i].toarray())[i]
+
+    # the relative error on the trace when using SVD decreases as the number of
+    # eigenvalues approaches the data size, so just test with a value very close
+    if use_svd:
+        num_eigens = (shape[0] - 1, shape[1] - 1)
+        atol = 1e-1
+        rtol = 5e-2
+    else:
+        num_eigens = None
+        atol = 1e-10
+        rtol = 1e-14
+    whittaker_system = _whittaker_utils.WhittakerSystem2D(
+        shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
+    )
+
+    # ensure weights work both raveled and unraveled
+    output = whittaker_system.effective_dimension(weights, n_samples=0)
+    assert_allclose(output, expected_ed, rtol=rtol, atol=atol)
+
+    output2 = whittaker_system.effective_dimension(weights.ravel(), n_samples=0)
+    assert_allclose(output2, expected_ed, rtol=rtol, atol=atol)
+
+
+@pytest.mark.parametrize('shape', ((20, 23), (5, 50), (50, 5)))
+@pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
+@pytest.mark.parametrize('lam', (1e2, (1e1, 1e2)))
+@pytest.mark.parametrize('use_svd', (True, False))
+@pytest.mark.parametrize('n_samples', (100, 201))
+def test_whittaker_system_effective_dimension_stochastic(shape, diff_order, lam, use_svd,
+                                                         n_samples):
+    """
+    Tests the stochastic effective_dimension method of WhittakerSystem2D objects.
+
+    The effective dimension for Whittaker smoothing should be
+    ``trace((W + lam * D.T @ D)^-1 @ W)``, where `W` is the weight matrix, and
+    ``D.T @ D`` is the penalty.
+
+    Tests both the analytic and SVD-based solutions.
+
+    """
+    weights = np.random.default_rng(0).normal(0.8, 0.05, shape)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    if use_svd:
+        num_eigens = (shape[0] - 1, shape[1] - 1)
+        rtol = 1e-2
+    else:
+        num_eigens = None
+        rtol = 1e-1
+
+    whittaker_system = _whittaker_utils.WhittakerSystem2D(
+        shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
+    )
+
+    # true solution is already verified by other tests, so use that as "known" in
+    # this test to only examine the relative difference from using stochastic estimation
+    expected_ed = whittaker_system.effective_dimension(weights, n_samples=0)
+
+    # ensure weights work both raveled and unraveled
+    output = whittaker_system.effective_dimension(weights, n_samples=n_samples)
+    assert_allclose(output, expected_ed, rtol=rtol, atol=1e-4)
+
+    output2 = whittaker_system.effective_dimension(weights.ravel(), n_samples=n_samples)
+    assert_allclose(output2, expected_ed, rtol=rtol, atol=1e-4)
+
+
+@pytest.mark.parametrize('n_samples', (-1, 50.5))
+def test_penalized_system_effective_dimension_stochastic_invalid_samples(small_data2d, n_samples):
+    """Ensures a non-zero, non-positive `n_samples` input raises an exception."""
+    weights = np.random.default_rng(0).normal(0.8, 0.05, small_data2d.shape)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    penalized_system = _whittaker_utils.PenalizedSystem2D(small_data2d.shape)
+    with pytest.raises(TypeError):
+        penalized_system.effective_dimension(weights, n_samples=n_samples)
+
+
+@pytest.mark.parametrize('n_samples', (-1, 50.5))
+def test_whittaker_system_effective_dimension_stochastic_invalid_samples(small_data2d, n_samples):
+    """Ensures a non-zero, non-positive `n_samples` input raises an exception."""
+    weights = np.random.default_rng(0).normal(0.8, 0.05, small_data2d.shape)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    penalized_system = _whittaker_utils.WhittakerSystem2D(small_data2d.shape, num_eigens=None)
+    with pytest.raises(TypeError):
+        penalized_system.effective_dimension(weights, n_samples=n_samples)
+
+    penalized_system = _whittaker_utils.WhittakerSystem2D(small_data2d.shape, num_eigens=5)
+    with pytest.raises(TypeError):
+        penalized_system.effective_dimension(weights, n_samples=n_samples)

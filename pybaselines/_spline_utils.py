@@ -974,7 +974,7 @@ class PSpline(PenalizedSystem):
         Calculates the effective dimension from the trace of the hat matrix.
 
         For typical P-spline smoothing, the linear equation would be
-        ``(B.T @ W @ B + lam * P) c = B.T @ W @ y`` and ``z = B @ c``. Then the hat matrix
+        ``(B.T @ W @ B + lam * P) c = B.T @ W @ y`` and ``v = B @ c``. Then the hat matrix
         would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)`` or, equivalently
         ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression is preferred
         since it reduces the dimensionality. The effective dimension for the system

@@ -1029,7 +1029,7 @@ def test_penalized_system_effective_dimension(diff_order, allow_lower, allow_pen
         size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
         reverse_diags=False, allow_penta=allow_penta
     )
-    output = penalized_system.effective_dimension(weights)
+    output = penalized_system.effective_dimension(weights, n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=1e-7, atol=1e-10)
 
@@ -1053,23 +1053,15 @@ def test_penalized_system_effective_dimension_stochastic(diff_order, allow_lower
     weights = np.clip(weights, 0, 1).astype(float)
 
     lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
-    expected_penalty = _banded_utils.diff_penalty_diagonals(
-        size, diff_order=diff_order, lower_only=False
-    )
-    sparse_penalty = dia_object(
-        (lam * expected_penalty, np.arange(diff_order, -(diff_order + 1), -1)),
-        shape=(size, size)
-    ).tocsr()
-    weights_matrix = diags(weights, format='csc')
-    factorization = factorized(weights_matrix + sparse_penalty)
-    expected_ed = 0
-    for i in range(size):
-        expected_ed += factorization(weights_matrix[:, i].toarray())[i]
 
     penalized_system = _banded_utils.PenalizedSystem(
         size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
         reverse_diags=False, allow_penta=allow_penta
     )
+    # true solution is already verified by other tests, so use that as "known" in
+    # this test to only examine the relative difference from using stochastic estimation
+    expected_ed = penalized_system.effective_dimension(weights, n_samples=0)
+
     output = penalized_system.effective_dimension(weights, n_samples=n_samples)
 
     assert_allclose(output, expected_ed, rtol=5e-1, atol=1e-5)

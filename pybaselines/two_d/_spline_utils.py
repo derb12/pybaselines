@@ -8,7 +8,7 @@ Created on April 25, 2023
 
 import numpy as np
 from scipy.sparse import kron
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import factorized, spsolve
 
 from .._compat import csr_object
 from .._spline_utils import _spline_basis, _spline_knots
@@ -281,9 +281,7 @@ class PSpline2D(PenalizedSystem2D):
 
         Solves the linear equation ``(B.T @ W @ B + P) c = B.T @ W @ y`` for the spline
         coefficients, `c`, given the spline basis, `B`, the weights (diagonal of `W`), the
-        penalty `P`, and `y`, and returns the resulting spline, ``B @ c``. Attempts to
-        calculate ``B.T @ W @ B`` and ``B.T @ W @ y`` as a banded system to speed up
-        the calculation.
+        penalty `P`, and `y`, and returns the resulting spline, ``B @ c``.
 
         Parameters
         ----------
@@ -291,10 +289,9 @@ class PSpline2D(PenalizedSystem2D):
             The y-values for fitting the spline.
         weights : numpy.ndarray, shape (M, N)
             The weights for each y-value.
-        penalty : numpy.ndarray, shape (``M * N``, ``M * N``)
-            The finite difference penalty matrix, in LAPACK's lower banded format (see
-            :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
-            format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
+        penalty : scipy.sparse.spmatrix or scipy.sparse.sparray, shape (``P * Q``, ``P * Q``)
+            The finite difference penalty matrix. Default is None, which will use the
+            object's penalty.
         rhs_extra : float or numpy.ndarray, shape (``M * N``,), optional
             If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
             of the equation before solving. Default is None, which adds nothing.
@@ -307,10 +304,11 @@ class PSpline2D(PenalizedSystem2D):
 
         Notes
         -----
-        Uses the more efficient algorithm from Eilers's paper, although the memory usage
-        is higher than the straigtforward method when the number of knots is high; however,
-        it is significantly faster and memory efficient when the number of knots is lower,
-        which will be the more typical use case.
+        Uses the more efficient algorithm from Eilers's paper, as a generalized linear array
+        model, although the memory usage is higher than the straightforward method when the
+        number of knots is high since reshaping and transposing cannot be done in sparse format;
+        however, it is significantly faster and memory efficient when the number of knots is
+        lower, which will be the more typical use case.
 
         References
         ----------
@@ -372,3 +370,93 @@ class PSpline2D(PenalizedSystem2D):
             raise ValueError('No spline coefficients, need to call "solve_pspline" first.')
         knots, degree = self.basis.tk
         return knots, self.coef.reshape(self.basis._num_bases), degree
+
+    def effective_dimension(self, weights=None, penalty=None, n_samples=0):
+        """
+        Calculates the effective dimension from the trace of the hat matrix.
+
+        For typical P-spline smoothing, the linear equation would be
+        ``(B.T @ W @ B + lam * P) c = B.T @ W @ y`` and ``v = B @ c``. Then the hat matrix
+        would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)`` or, equivalently
+        ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression is preferred
+        since it reduces the dimensionality. The effective dimension for the system
+        can be estimated as the trace of the hat matrix.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (``M * N``,) or shape (M, N), optional
+            The weights. Default is None, which will use ones.
+        penalty : scipy.sparse.spmatrix or scipy.sparse.sparray, shape (``P * Q``, ``P * Q``)
+            The finite difference penalty matrix. Default is None, which will use the
+            object's penalty.
+        n_samples : int, optional
+            If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
+            trace estimation with a matrix of (``M * N``, `n_samples`) Rademacher random variables
+            (eg. either -1 or 1).
+
+        Returns
+        -------
+        trace : float
+            The trace of the hat matrix, denoting the effective dimension for
+            the system.
+
+        Raises
+        ------
+        TypeError
+            Raised if `n_samples` is not 0 and a non-positive integer.
+
+        References
+        ----------
+        Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
+        Statistics and Data Analysis, 2006, 50(1), 61-76.
+
+        Hutchinson, M. A stochastic estimator of the trace of the influence matrix for laplacian
+        smoothing splines. Communications in Statistics - Simulation and Computation, (1990),
+        19(2), 433-450.
+
+        Meyer, R., et al. Hutch++: Optimal Stochastic Trace Estimation. 2021 Symposium on
+        Simplicity in Algorithms (SOSA), (2021), 142-155.
+
+        """
+        if weights is None:
+            weights = np.ones(self._num_bases)
+        elif weights.ndim == 1:
+            weights = weights.reshape((len(self.basis.x), len(self.basis.z)))
+
+        if penalty is None:
+            penalty = self.penalty
+
+        btwb = self.basis._make_btwb(weights)
+
+        # TODO could maybe make default n_samples to None and decide to use analytical or
+        # stochastic trace based on data size; data size > 1000 use stochastic with default
+        # n_samples = 100?
+        if n_samples == 0:
+            use_analytic = True
+        else:
+            if n_samples < 0 or not isinstance(n_samples, int):
+                raise TypeError('n_samples must be a positive integer')
+            use_analytic = False
+
+        lhs = (btwb + penalty).tocsc(copy=False)
+        tot_bases = np.prod(self._num_bases)
+        if use_analytic:
+            # compute each diagonal of the hat matrix separately so that the full
+            # hat matrix does not need to be stored in memory
+            trace = 0
+            factorization = factorized(lhs)
+            btwb = btwb.tocsc(copy=False)
+            for i in range(tot_bases):
+                trace += factorization(btwb[:, i].toarray())[i]
+        else:
+            # TODO should the rng seed be settable? Maybe a Baseline2D property
+            rng_samples = np.random.default_rng(1234).choice(
+                [-1., 1.], size=(tot_bases, n_samples)
+            )
+            # H @ u == (B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B) @ u
+            hat_u = self.direct_solve(lhs, btwb @ rng_samples)
+            # u.T @ H @ u -> u.T @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B) @ u
+            # stochastic trace is the average of the trace of u.T @ H @ u;
+            trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
+
+        return trace

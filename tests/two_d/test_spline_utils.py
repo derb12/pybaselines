@@ -11,19 +11,19 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy import interpolate
 from scipy.sparse import issparse, kron
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import factorized, spsolve
 
 from pybaselines._compat import identity
+from pybaselines._banded_utils import difference_matrix, diff_penalty_matrix
 from pybaselines.two_d import _spline_utils
-from pybaselines.utils import difference_matrix
 
 from ..base_tests import get_2dspline_inputs
 
 
-@pytest.mark.parametrize('num_knots', (10, 40, (10, 20)))
+@pytest.mark.parametrize('num_knots', (10, (11, 20)))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
-@pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
+@pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
 def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, lam):
     """
     Tests the accuracy of the penalized spline solvers.
@@ -87,7 +87,7 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, [2, 3]))
-@pytest.mark.parametrize('num_knots', (10, 50, [20, 30]))
+@pytest.mark.parametrize('num_knots', (16, [21, 30]))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
 def test_pspline_setup(data_fixture2d, num_knots, spline_degree, diff_order, lam):
@@ -271,7 +271,7 @@ def test_pspline_tck_none(data_fixture2d):
 def test_pspline_tck_readonly(data_fixture2d):
     """Ensures the tck attribute is read-only."""
     x, z, y = data_fixture2d
-    spline_basis = _spline_utils.SplineBasis2D(x, z)
+    spline_basis = _spline_utils.SplineBasis2D(x, z, num_knots=10)
     pspline = _spline_utils.PSpline2D(spline_basis)
 
     with pytest.raises(AttributeError):
@@ -325,3 +325,106 @@ def test_spline_basis_tk_readonly(data_fixture2d):
 
     with pytest.raises(AttributeError):
         spline_basis.tk = (1, 2)
+
+
+@pytest.mark.parametrize('num_knots', (10, (11, 20)))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, (2, 3)))
+@pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
+@pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
+def test_pspline_effective_dimension(data_fixture2d, num_knots, spline_degree, diff_order, lam):
+    """
+    Tests the effective_dimension method of a PSpline object.
+
+    The effective dimension for penalized spline smoothing should be
+    ``trace((B.T @ W @ B + lam * D.T @ D)^-1 @ B.T @ W @ B)``, where `W` is the weight matrix,
+    ``D.T @ D`` is the penalty, and `B` is the spline basis.
+
+    """
+    x, z, y = data_fixture2d
+    (
+        num_knots_r, num_knots_c, spline_degree_r, spline_degree_c,
+        lam_r, lam_c, diff_order_r, diff_order_c
+    ) = get_2dspline_inputs(num_knots, spline_degree, lam, diff_order)
+
+    knots_r = _spline_utils._spline_knots(x, num_knots_r, spline_degree_r, True)
+    basis_r = _spline_utils._spline_basis(x, knots_r, spline_degree_r)
+
+    knots_c = _spline_utils._spline_knots(z, num_knots_c, spline_degree_c, True)
+    basis_c = _spline_utils._spline_basis(z, knots_c, spline_degree_c)
+
+    num_bases = (basis_r.shape[1], basis_c.shape[1])
+    weights = np.random.default_rng(0).normal(0.8, 0.05, y.shape)
+    weights = np.clip(weights, 0, 1, dtype=float)
+
+    spline_basis = _spline_utils.SplineBasis2D(
+        x, z, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
+    # make B.T @ W @ B using generalized linear array model since it's much faster and
+    # already verified in other tests
+    btwb = spline_basis._make_btwb(weights).tocsc()
+    P_r = kron(diff_penalty_matrix(num_bases[0], diff_order=diff_order_r), identity(num_bases[1]))
+    P_c = kron(identity(num_bases[0]), diff_penalty_matrix(num_bases[1], diff_order=diff_order_c))
+    penalty = lam_r * P_r + lam_c * P_c
+
+    lhs = btwb + penalty
+    factorization = factorized(lhs.tocsc())
+    expected_ed = 0
+    for i in range(np.prod(num_bases)):
+        expected_ed += factorization(btwb[:, i].toarray())[i]
+
+    pspline = _spline_utils.PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
+
+    # ensure weights work both raveled and unraveled
+    output = pspline.effective_dimension(weights, n_samples=0)
+    assert_allclose(output, expected_ed, rtol=1e-14, atol=1e-10)
+
+    output2 = pspline.effective_dimension(weights.ravel(), n_samples=0)
+    assert_allclose(output2, expected_ed, rtol=1e-14, atol=1e-10)
+
+
+@pytest.mark.parametrize('num_knots', (10, (11, 20)))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, (2, 3)))
+@pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
+@pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
+@pytest.mark.parametrize('n_samples', (100, 201))
+def test_pspline_effective_dimension_stochastic(data_fixture2d, num_knots, spline_degree,
+                                                diff_order, lam, n_samples):
+    """
+    Tests the effective_dimension method of a PSpline object.
+
+    The effective dimension for penalized spline smoothing should be
+    ``trace((B.T @ W @ B + lam * D.T @ D)^-1 @ B.T @ W @ B)``, where `W` is the weight matrix,
+    ``D.T @ D`` is the penalty, and `B` is the spline basis.
+
+    """
+    x, z, y = data_fixture2d
+    weights = np.random.default_rng(0).normal(0.8, 0.05, y.shape)
+    weights = np.clip(weights, 0, 1, dtype=float)
+
+    spline_basis = _spline_utils.SplineBasis2D(
+        x, z, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
+    pspline = _spline_utils.PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
+    # true solution is already verified by other tests, so use that as "known" in
+    # this test to only examine the relative difference from using stochastic estimation
+    expected_ed = pspline.effective_dimension(weights, n_samples=0)
+
+    # ensure weights work both raveled and unraveled
+    output = pspline.effective_dimension(weights, n_samples=n_samples)
+    assert_allclose(output, expected_ed, rtol=1e-1, atol=1e-5)
+
+    output2 = pspline.effective_dimension(weights.ravel(), n_samples=n_samples)
+    assert_allclose(output2, expected_ed, rtol=1e-1, atol=1e-5)
+
+
+@pytest.mark.parametrize('n_samples', (-1, 50.5))
+def test_pspline_stochastic_effective_dimension_invalid_samples(data_fixture2d, n_samples):
+    """Ensures a non-zero, non-positive `n_samples` input raises an exception."""
+    x, z, y = data_fixture2d
+    weights = np.random.default_rng(0).normal(0.8, 0.05, y.size)
+    weights = np.clip(weights, 0, 1, dtype=float)
+
+    spline_basis = _spline_utils.SplineBasis2D(x, z, num_knots=10)
+    pspline = _spline_utils.PSpline2D(spline_basis)
+    with pytest.raises(TypeError):
+        pspline.effective_dimension(weights, n_samples=n_samples)

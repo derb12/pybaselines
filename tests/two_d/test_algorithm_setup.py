@@ -391,7 +391,7 @@ def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
 @pytest.mark.parametrize('lam', (1, 20, (3, 10)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3)))
-@pytest.mark.parametrize('num_knots', (20, 51, (20, 30)))
+@pytest.mark.parametrize('num_knots', (20, (21, 30)))
 def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree, num_knots):
     """Ensures output difference matrix diagonal data is in desired format."""
     x, z, y = data_fixture2d

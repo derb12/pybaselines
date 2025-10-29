@@ -734,7 +734,7 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
     Raises
     ------
     ValueError
-        Raised if `diff_order` is greater or equal to `data_size`.
+        Raised if `diff_order` is not greater than `data_size`.
 
     Notes
     -----
@@ -749,7 +749,7 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
 
     """
     if data_size <= diff_order:
-        raise ValueError('data size must be greater than or equal to the difference order.')
+        raise ValueError('data size must be greater than the difference order.')
     penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
     penalty_matrix = dia_object(
         (penalty_bands, np.arange(diff_order, -diff_order - 1, -1)), shape=(data_size, data_size),
@@ -1118,7 +1118,7 @@ class PenalizedSystem:
         Calculates the effective dimension from the trace of the hat matrix.
 
         For typical Whittaker smoothing, the linear equation would be
-        ``(W + lam * P) x = W @ y``. Then the hat matrix would be ``(W + lam * P)^-1 @ W``.
+        ``(W + lam * P) v = W @ y``. Then the hat matrix would be ``(W + lam * P)^-1 @ W``.
         The effective dimension for the system can be estimated as the trace
         of the hat matrix.
 
