@@ -49,8 +49,7 @@ import numpy as np
 from scipy.interpolate import BSpline
 
 from ._banded_utils import (
-    PenalizedSystem, _add_diagonals, _banded_dot_vector, _banded_to_sparse, _lower_to_full,
-    _sparse_to_banded
+    PenalizedSystem, _add_diagonals, _banded_to_sparse, _lower_to_full, _sparse_to_banded
 )
 from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
 from ._validation import _check_array
@@ -1030,16 +1029,18 @@ class PSpline(PenalizedSystem):
         # n_samples = 100?
         if n_samples == 0:
             use_analytic = True
+            btwb_format = 'csc'
         else:
             if n_samples < 0 or not isinstance(n_samples, int):
                 raise TypeError('n_samples must be a positive integer')
             use_analytic = False
+            btwb_format = 'csr'
 
+        btwb_matrix = _banded_to_sparse(btwb, lower=self.lower, sparse_format=btwb_format)
         if use_analytic:
             # compute each diagonal of the hat matrix separately so that the full
             # hat matrix does not need to be stored in memory
             trace = 0
-            btwb_matrix = _banded_to_sparse(btwb, lower=self.lower, sparse_format='csc')
             factorization = self.factorize(lhs, overwrite_ab=True)
             for i in range(self._num_bases):
                 trace += self.factorized_solve(
@@ -1050,12 +1051,10 @@ class PSpline(PenalizedSystem):
             rng_samples = np.random.default_rng(1234).choice(
                 [-1., 1.], size=(self._num_bases, n_samples)
             )
-            # (B.T @ W @ B) @ u
-            btwb_u = np.empty((self._num_bases, n_samples))
-            for i in range(n_samples):
-                btwb_u[:, i] = _banded_dot_vector(btwb, rng_samples[:, i], lower=self.lower)
             # H @ u == (B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B) @ u
-            hat_u = self.solve(lhs, btwb_u, overwrite_ab=True, overwrite_b=True)
+            hat_u = self.solve(
+                lhs, btwb_matrix @ rng_samples, overwrite_ab=True, overwrite_b=True
+            )
             # u.T @ H @ u -> u.T @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B) @ u
             # stochastic trace is the average of the trace of u.T @ H @ u;
             # trace(A.T @ B) == (A * B).sum() (see
