@@ -276,6 +276,22 @@ def test_lower_to_full(data_fixture, num_knots, spline_degree):
     assert_allclose(_banded_utils._lower_to_full(BTWB_lower), BTWB_full, 1e-10, 1e-14)
 
 
+@pytest.mark.parametrize('size', (100, 1001))
+def test_lower_to_full_diagonal(size):
+    """Ensures correct usage for a matrix with only a diagonal."""
+    # test both a 1d and 2d input
+    array = np.linspace(-1, 1, size)
+    array_2d = array.reshape((1, size))
+
+    expected = array_2d.copy()
+
+    output = _banded_utils._lower_to_full(array)
+    output_2d = _banded_utils._lower_to_full(array_2d)
+
+    assert_allclose(output, expected, rtol=1e-14, atol=1e-14)
+    assert_allclose(output_2d, expected, rtol=1e-14, atol=1e-14)
+
+
 @pytest.mark.parametrize('padding', (-1, 0, 1, 2))
 @pytest.mark.parametrize('lower_only', (True, False))
 def test_pad_diagonals(padding, lower_only):
@@ -1467,6 +1483,23 @@ def test_banded_to_sparse_nonsymmetric(diff_order, size):
 
     output = _banded_utils._banded_to_sparse(banded_matrix, lower=False)
     assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-14, atol=1e-14)
+
+
+@pytest.mark.parametrize('size', (100, 1001))
+@pytest.mark.parametrize('lower', (True, False))
+def test_banded_to_sparse_diagonal(size, lower):
+    """Ensures correct conversion for a matrix with only a diagonal."""
+    # test both a 1d and 2d input
+    array = np.linspace(-1, 1, size)
+    array_2d = array.reshape((1, size))
+
+    expected_matrix = diags(array)
+
+    output = _banded_utils._banded_to_sparse(array, lower=lower)
+    output_2d = _banded_utils._banded_to_sparse(array_2d, lower=lower)
+
+    assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-14, atol=1e-14)
+    assert_allclose(output_2d.toarray(), expected_matrix.toarray(), rtol=1e-14, atol=1e-14)
 
 
 @pytest.mark.parametrize('form', ('dia', 'csc', 'csr'))

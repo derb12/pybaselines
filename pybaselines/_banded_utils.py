@@ -87,6 +87,7 @@ def _lower_to_full(ab):
         The full, symmetric banded array.
 
     """
+    ab = np.atleast_2d(ab)
     ab_rows, ab_columns = ab.shape
     ab_full = np.concatenate((np.zeros((ab_rows - 1, ab_columns)), ab))
     ab_full[:ab_rows - 1] = ab[1:][::-1]
@@ -266,6 +267,7 @@ def _banded_to_sparse(ab, lower=True, sparse_format='csc'):
     and lower diagonals.
 
     """
+    ab = np.atleast_2d(ab)
     rows, columns = ab.shape
     if lower:
         ab_full = _lower_to_full(ab)
@@ -1169,11 +1171,18 @@ class PenalizedSystem:
 
         # TODO if diff_order is 2 and matrix is symmetric, could use the fast trace calculation from
         # Frasso G, Eilers PH. L- and V-curves for optimal smoothing. Statistical Modelling.
-        # 2014;15(1):91-111. https://doi.org/10.1177/1471082X14549288, which is in turn based on
-        # Craven, P., Wahba, G. Smoothing noisy data with spline functions. Numerische Mathematik.
-        # 31, 377–403 (1978). https://doi.org/10.1007/BF01404567
-        # -> worth the effort? Could it be extended to work for any diff_order as long as the
-        # matrix is symmetric?
+        # (2014), 15(1), 91-111. https://doi.org/10.1177/1471082X14549288, which is in turn based on
+        # Hutchinson, M, et al. Smoothing noisy data with spline functions. Numerische Mathematik.
+        # (1985), 47, 99-106. https://doi.org/10.1007/BF01389878
+        # For non-symmetric matrices, can use the slightly more involved algorithm from:
+        # Erisman, A., et al. On Computing Certain Elements of the Inverse of a Sparse Matrix.
+        # Communication of the ACM. (1975) 18(3), 177-179. https://doi.org/10.1145/360680.360704
+        # -> worth the effort? -> maybe...? For diff_order=2 and symmetric lhs, the timing is
+        # much faster than even the stochastic calculation and does not increase much with data
+        # size, and it provides the exact trace rather than an estimate -> however, this is only
+        # useful for GCV/BIC calculations atm, which are going to be very very rarely used -> could
+        # allow calculating the full inverse hat diagonal to allow calculating the baseline fit
+        # errors, but that's still incredibly niche...
 
         # TODO could maybe make default n_samples to None and decide to use analytical or
         # stochastic trace based on data size; data size > 1000 use stochastic with default
