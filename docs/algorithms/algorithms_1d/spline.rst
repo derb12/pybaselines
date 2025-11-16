@@ -328,7 +328,7 @@ Linear system:
 .. math::
 
     (B^{\mathsf{T}} W^{\mathsf{T}} W B + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B + \lambda D_d^{\mathsf{T}} D_d) c
-    = (B^{\mathsf{T}} W^{\mathsf{T}} W B + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1) y
+    = (B^{\mathsf{T}} W^{\mathsf{T}} W + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1) y
 
 Weighting:
 
