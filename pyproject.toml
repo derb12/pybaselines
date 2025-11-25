@@ -32,7 +32,10 @@ authors = [
 ]
 description = "A library of algorithms for the baseline correction of experimental data."
 readme = "README.rst"
-license = "BSD-3-Clause"
+# BSD-3-Clause: pybaselines, lowess, beads, bandmat, scipy
+# BSD-2-Clause: backcorr
+# MIT: pentapy
+license = "BSD-3-Clause AND BSD-2-Clause AND MIT"
 license-files = [
     "LICENSE.txt",
     "LICENSES_bundled.txt"
