@@ -51,7 +51,7 @@ from scipy.interpolate import BSpline
 from ._banded_utils import (
     PenalizedSystem, _add_diagonals, _banded_to_sparse, _lower_to_full, _sparse_to_banded
 )
-from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
+from ._compat import _HAS_NUMBA, _sparse_col_index, csr_object, dia_object, jit
 from ._validation import _check_array
 
 
@@ -348,7 +348,7 @@ def _spline_knots(x, num_knots=10, spline_degree=3, penalized=True):
     return knots
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=None)
 def _bspline_has_extrapolate():
     """
     Checks if ``scipy.interpolate.BSpline.design_matrix`` has the `extrapolate` keyword.
@@ -1044,7 +1044,7 @@ class PSpline(PenalizedSystem):
             factorization = self.factorize(lhs, overwrite_ab=True)
             for i in range(self._num_bases):
                 trace += self.factorized_solve(
-                    factorization, btwb_matrix[:, i].toarray(), overwrite_b=True
+                    factorization, _sparse_col_index(btwb_matrix, i), overwrite_b=True
                 )[i]
         else:
             # TODO should the rng seed be settable? Maybe a Baseline property

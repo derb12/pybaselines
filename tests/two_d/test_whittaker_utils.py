@@ -14,7 +14,7 @@ from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import factorized, spsolve
 
 from pybaselines._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
-from pybaselines._compat import dia_object, diags, identity
+from pybaselines._compat import _sparse_col_index, dia_object, diags, identity
 from pybaselines.two_d import _spline_utils, _whittaker_utils
 from pybaselines.utils import difference_matrix
 
@@ -617,7 +617,7 @@ def test_penalized_system_effective_dimension(shape, diff_order, lam):
     factorization = factorized(weights_matrix + penalty)
     expected_ed = 0
     for i in range(np.prod(shape)):
-        expected_ed += factorization(weights_matrix[:, i].toarray())[i]
+        expected_ed += factorization(_sparse_col_index(weights_matrix, i))[i]
 
     penalized_system = _whittaker_utils.PenalizedSystem2D(shape, lam=lam, diff_order=diff_order)
 
@@ -690,7 +690,7 @@ def test_whittaker_system_effective_dimension(shape, diff_order, lam, use_svd):
     factorization = factorized(weights_matrix + penalty)
     expected_ed = 0
     for i in range(np.prod(shape)):
-        expected_ed += factorization(weights_matrix[:, i].toarray())[i]
+        expected_ed += factorization(_sparse_col_index(weights_matrix, i))[i]
 
     # the relative error on the trace when using SVD decreases as the number of
     # eigenvalues approaches the data size, so just test with a value very close

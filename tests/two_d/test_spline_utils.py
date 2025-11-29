@@ -13,7 +13,7 @@ from scipy import interpolate
 from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import factorized, spsolve
 
-from pybaselines._compat import identity
+from pybaselines._compat import _sparse_col_index, identity
 from pybaselines._banded_utils import difference_matrix, diff_penalty_matrix
 from pybaselines.two_d import _spline_utils
 
@@ -370,7 +370,7 @@ def test_pspline_effective_dimension(data_fixture2d, num_knots, spline_degree, d
     factorization = factorized(lhs.tocsc())
     expected_ed = 0
     for i in range(np.prod(num_bases)):
-        expected_ed += factorization(btwb[:, i].toarray())[i]
+        expected_ed += factorization(_sparse_col_index(btwb, i))[i]
 
     pspline = _spline_utils.PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
 

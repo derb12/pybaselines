@@ -16,7 +16,7 @@ from scipy.sparse.linalg import factorized, spsolve
 
 from pybaselines import _banded_utils, _spline_utils
 from pybaselines._banded_solvers import penta_factorize
-from pybaselines._compat import dia_object, diags, identity
+from pybaselines._compat import _sparse_col_index, dia_object, diags, identity
 
 
 @pytest.mark.parametrize('data_size', (10, 1001))
@@ -1039,7 +1039,7 @@ def test_penalized_system_effective_dimension(diff_order, allow_lower, allow_pen
     factorization = factorized(weights_matrix + sparse_penalty)
     expected_ed = 0
     for i in range(size):
-        expected_ed += factorization(weights_matrix[:, i].toarray())[i]
+        expected_ed += factorization(_sparse_col_index(weights_matrix, i))[i]
 
     penalized_system = _banded_utils.PenalizedSystem(
         size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,

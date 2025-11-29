@@ -17,7 +17,7 @@ from scipy.sparse import issparse
 from scipy.sparse.linalg import factorized, spsolve
 
 from pybaselines import _banded_utils, _spline_utils
-from pybaselines._compat import diags, _HAS_NUMBA
+from pybaselines._compat import diags, _HAS_NUMBA, _sparse_col_index
 
 
 def _nieve_basis_matrix(x, knots, spline_degree):
@@ -382,7 +382,7 @@ def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, dif
     factorization = factorized(btwb + penalty_matrix)
     expected_ed = 0
     for i in range(num_bases):
-        expected_ed += factorization(btwb[:, i].toarray())[i]
+        expected_ed += factorization(_sparse_col_index(btwb, i))[i]
 
     spline_basis = _spline_utils.SplineBasis(
         x, num_knots=num_knots, spline_degree=spline_degree

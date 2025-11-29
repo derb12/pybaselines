@@ -52,7 +52,7 @@ else:
     trapezoid = integrate.trapz
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=None)
 def _use_sparse_arrays():
     """
     Checks that the installed SciPy version is new enough to use sparse arrays.
@@ -84,7 +84,7 @@ def _use_sparse_arrays():
     return _scipy_version[0] > 1 or (_scipy_version[0] == 1 and _scipy_version[1] >= 12)
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=None)
 def _np_ge_2():
     """
     Checks that the installed NumPy version is version 2.0 or later.
@@ -222,3 +222,59 @@ def diags(data, offsets=0, dtype=None, **kwargs):
         return sparse.diags_array(data, offsets=offsets, dtype=dtype, **kwargs)
     else:
         return sparse.diags(data, offsets=offsets, dtype=dtype, **kwargs)
+
+
+@lru_cache(maxsize=None)
+def _allows_1d_slice():
+    """
+    Determines whether 1d slicing is allowed for SciPy's sparse arrays.
+
+    Returns
+    -------
+    can_1d_slice : bool
+        Whether 1d slicing is allowed for the SciPy version being used.
+
+    Notes
+    -----
+    An equivalent function would be checking that the SciPy version is at least 1.15.0.
+
+    """
+    try:
+        diags([1]).tocsc()[:, 0]
+        can_1d_slice = True
+    except NotImplementedError:
+        can_1d_slice = False
+
+    return can_1d_slice
+
+
+def _sparse_col_index(matrix, index):
+    """
+    Indexes a column within a sparse matrix or array.
+
+    Parameters
+    ----------
+    matrix : scipy.sparse.spmatrix or scipy.sparse.sparray, shape (M, N)
+        The sparse object to index.
+    index : int
+        The column to select.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (M,)
+        The selected column from the sparse object.
+
+    """
+    if not matrix.format == 'csc':
+        matrix = matrix.tocsc()
+
+    if sparse.isspmatrix(matrix) or not _allows_1d_slice():
+        # for sparse matrices, both matrix[:, [i]] and matrix[:, i] produce the
+        # same 2d output
+        output = matrix[:, [index]].toarray().ravel()
+    else:
+        # when allowed, want to use non-fancy indexing since it should be faster
+        # for sparse arrays
+        output = matrix[:, index].toarray()
+
+    return output

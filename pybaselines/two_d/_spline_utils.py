@@ -10,7 +10,7 @@ import numpy as np
 from scipy.sparse import kron
 from scipy.sparse.linalg import factorized, spsolve
 
-from .._compat import csr_object
+from .._compat import _sparse_col_index, csr_object
 from .._spline_utils import _spline_basis, _spline_knots
 from .._validation import _check_array, _check_scalar_variable
 from ._whittaker_utils import PenalizedSystem2D, _face_splitting
@@ -447,7 +447,7 @@ class PSpline2D(PenalizedSystem2D):
             factorization = factorized(lhs)
             btwb = btwb.tocsc(copy=False)
             for i in range(tot_bases):
-                trace += factorization(btwb[:, i].toarray())[i]
+                trace += factorization(_sparse_col_index(btwb, i))[i]
         else:
             # TODO should the rng seed be settable? Maybe a Baseline2D property
             rng_samples = np.random.default_rng(1234).choice(
