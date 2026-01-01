@@ -39,7 +39,7 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.13t']
 
     steps:
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       # fetch-depth: '0' is needed to fetch tags for hatch-vcs (and thus setuptools-scm)
       # to generate the version correctly; only really needed for jobs that would build and
       # upload to pypi, so ignore it since fetching the entire git history can take much longer
@@ -80,7 +80,7 @@ jobs:
         python-version: ['3.9']
 
     steps:
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
@@ -112,7 +112,7 @@ jobs:
         python-version: ['3.13']
 
     steps:
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
