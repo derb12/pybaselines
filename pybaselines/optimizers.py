@@ -670,8 +670,8 @@ class _Optimizers(_Algorithm):
         return baseline, params
 
     @_Algorithm._register(skip_sorting=True)
-    def optimize_pls(self, data, method='arpls', opt_method='U-curve', min_value=4, max_value=7,
-                     step=0.5, method_kwargs=None, euclidean=False):
+    def optimize_pls(self, data, method='arpls', opt_method='U-Curve', min_value=4, max_value=7,
+                     step=0.5, method_kwargs=None, euclidean=False, rho=None):
         """
         Optimizes the regularization parameter for penalized least squares methods.
 
@@ -685,9 +685,9 @@ class _Optimizers(_Algorithm):
         opt_method : str, optional
             The optimization method used to optimize `lam`. Supported methods are:
 
-            * 'erPLS'
-            * 'U-curve'
-            * 'gcv'
+            * 'U-Curve'
+            * 'GCV'
+            * 'BIC'
 
             Details on each optimization method are in the Notes section below.
         min_value : int or float, optional
@@ -707,9 +707,16 @@ class _Optimizers(_Algorithm):
             Default is None, which will use an empty dictionary.
         euclidean : bool, optional
             Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
-            is the minimum of the sum of the normalized fidelity and roughness values, which is
+            is the minimum of the sum of the normalized fidelity and penalty values, which is
             equivalent to the minimum graph distance from the origin. If True, the metric is the
-            euclidean distance from the origin
+            euclidean distance from the origin.
+        rho : float, optional
+            Only used if `opt_method` is 'GCV'. The stabilization parameter for the modified
+            generalized cross validation (GCV) criteria. A value of 1 defines normal GCV, while
+            higher values of `rho` stabilize the scores to make a single, global minima value
+            more likely (when applied to smoothing). If None (default), the value of `rho` will
+            be selected following [2]_, with the value being 1.3 if ``len(data)`` is less than
+            100, otherwise 2.
 
         Returns
         -------
@@ -720,22 +727,29 @@ class _Optimizers(_Algorithm):
 
             * 'optimal_parameter': float
                 The `lam` value that minimized the computed metric.
-            * 'metric': numpy.ndarray[float]
+            * 'metric': numpy.ndarray, shape (P,)
                 The computed metric for each `lam` value tested.
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
                 Items will depend on the selected method.
-            * 'fidelity': numpy.ndarray[float]
-                Only returned if `opt_method` is 'U-curve'. The computed normalized fidelity
+            * 'fidelity': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'U-curve'. The computed non-normalized fidelity
                 values for each `lam` value tested.
-            * 'roughness': numpy.ndarray[float]
-                Only returned if `opt_method` is 'U-curve'. The computed normalized roughness
+            * 'penalty': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'U-curve'. The computed non-normalized penalty
                 values for each `lam` value tested.
+            * 'rss': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
+                squares (eg. ``(w * (y - baseline)**2).sum()`` for each `lam` value tested.
+            * 'trace': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'GCV' or 'BIC. The computed trace of the smoother
+                matrix for each `lam` value tested, which signifies the effective dimension
+                for the system.
 
         Raises
         ------
         ValueError
-            _description_
+            Raised if `opt_method` is 'GCV' and the input `rho` is less than 1.
         NotImplementedError
             _description_
 
@@ -745,9 +759,9 @@ class _Optimizers(_Algorithm):
 
         Notes
         -----
-        This method requires that the sum of the normalized roughness and fidelity values is
+        This method requires that the sum of the normalized penalty and fidelity values is
         roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
-        `min_value` and `max_value` such that roughness continually decreases and fidelity
+        `min_value` and `max_value` such that penalty continually decreases and fidelity
         continually increases as `lam` increases.
 
         Uses a grid search for optimization since the objective functions for all supported
@@ -766,11 +780,10 @@ class _Optimizers(_Algorithm):
         .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
                 using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
                 of Electronics and Information Engineers, 2016, 53(3), 124-131.
+        .. [2] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
+                smoothing. Computational Statistics, 2016, 31, 269-289.
 
         """
-        if opt_method is None:
-            # TODO once all methods are added, pick a good ordering, pick a default, and remove this
-            raise NotImplementedError('solver order needs determining')
         y, baseline_func, _, method_kws, fitting_object = self._setup_optimizer(
             data, method, (whittaker, morphological, spline, classification, misc),
             method_kwargs, copy_kwargs=False
@@ -782,17 +795,19 @@ class _Optimizers(_Algorithm):
             raise ValueError('lam must not be specified within method_kwargs')
 
         lam_range = _param_grid(min_value, max_value, step, polynomial_fit=False)
-        selected_method = opt_method.lower().replace('-', '_')
-        if selected_method == 'u_curve':
-            params = _optimize_ucurve(
+        selected_method = opt_method.lower().replace('-', '_').replace('_', '')
+        if selected_method in ('ucurve',):
+            baseline, params = _optimize_ucurve(
                 y, selected_method, method, method_kws, baseline_func, fitting_object, lam_range,
                 euclidean
             )
+        elif selected_method in ('gcv', 'bic'):
+            baseline, params = _optimize_ed(
+                y, selected_method, method, method_kws, baseline_func, fitting_object, lam_range,
+                rho
+            )
         else:
             raise ValueError(f'{opt_method} is not a supported opt_method input')
-
-        baseline, final_params = baseline_func(y, lam=params['optimal_parameter'], **method_kws)
-        params['method_params'] = final_params
 
         return baseline, params
 
@@ -880,10 +895,10 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
     return values
 
 
-def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_obj: _Algorithm,
-                     lam_range, euclidean=False):
+def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_obj,
+                     lam_range, euclidean):
     """
-    Performs U-curve optimization based on the fit fidelity and roughness.
+    Performs U-curve optimization based on the fit fidelity and penalty.
 
     Parameters
     ----------
@@ -942,7 +957,7 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
         # some methods have a different default diff_order, so have to inspect them
         diff_order = method_signature['diff_order'].default
 
-    roughness = []
+    penalty = []
     fidelity = []
     for lam in lam_range:
         fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
@@ -950,11 +965,11 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
             penalized_object = fit_params['tck'][1]
         else:
             penalized_object = fit_baseline
-        # Park, et al. multiplied the roughness by lam (Equation 8), but I think that may have
+        # Park, et al. multiplied the penalty by lam (Equation 8), but I think that may have
         # been a typo since it otherwise favors low lam values and does not produce a
-        # roughness plot shown in Figure 4 in the Park, et al. reference
-        partial_roughness = np.diff(penalized_object, diff_order)
-        fit_roughness = partial_roughness.dot(partial_roughness)
+        # penalty plot shown in Figure 4 in the Park, et al. reference
+        partial_penalty = np.diff(penalized_object, diff_order)
+        fit_penalty = partial_penalty.dot(partial_penalty)
 
         residual = y - fit_baseline
         if 'weights' in fit_params:
@@ -962,27 +977,156 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
         else:
             fit_fidelity = residual @ residual
 
-        roughness.append(fit_roughness)
+        penalty.append(fit_penalty)
         fidelity.append(fit_fidelity)
 
-    roughness = np.array(roughness)
+    penalty = np.array(penalty)
     fidelity = np.array(fidelity)
-
+    # add fidelity and penalty to params before potentially normalizing
+    params = {'fidelity': fidelity, 'penalty': penalty}
     if lam_range.size > 1:
-        roughness = (roughness - roughness.min()) / (roughness.max() - roughness.min())
+        penalty = (penalty - penalty.min()) / (penalty.max() - penalty.min())
         fidelity = (fidelity - fidelity.min()) / (fidelity.max() - fidelity.min())
     if euclidean:
-        metric = np.sqrt(fidelity**2 + roughness**2)
+        metric = np.sqrt(fidelity**2 + penalty**2)
     else:  # graph distance from the origin, ie. only travelling along x and y axes
-        metric = fidelity + roughness
+        metric = fidelity + penalty
 
     best_lam = lam_range[np.argmin(metric)]
+    baseline, best_params = baseline_func(y, lam=best_lam, **method_kws)
+    params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
+
+    return baseline, params
+
+
+def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
+                  lam_range, rho):
+    """
+    Optimizes the regularization coefficient using criteria based on the effective dimension.
+
+    Parameters
+    ----------
+    y : _type_
+        _description_
+    opt_method : {'gcv', 'bic'}
+        _description_
+    method : _type_
+        _description_
+    method_kws : _type_
+        _description_
+    baseline_func : _type_
+        _description_
+    baseline_obj : _Algorithm
+        _description_
+    lam_range : _type_
+        _description_
+    rho : _type_, optional
+        _description_. Default is None.
+
+    Returns
+    -------
+    _type_
+        _description_
+
+    Raises
+    ------
+    ValueError
+        _description_
+    NotImplementedError
+        _description_
+
+    """
+    use_gcv = opt_method == 'gcv'
+    if use_gcv:
+        if rho is None:
+            # selection of rho based on https://doi.org/10.1007/s00180-015-0577-7
+            rho = 1.3 if baseline_obj._size < 100 else 2.
+        else:
+            if rho < 1:
+                raise ValueError('rho must be >= 1')
+    if 'pspline' in method or method in ('mixture_model', 'irsqr'):
+        spline_fit = True
+    else:
+        spline_fit = False
+
+    using_aspls = 'aspls' in method
+    using_drpls = 'drpls' in method
+    using_iasls = 'iasls' in method
+    if any((using_aspls, using_drpls, using_iasls)):
+        raise NotImplementedError(f'{method} method is not currently supported')
+    elif method == 'beads':  # only supported for L-curve-based optimization options
+        raise NotImplementedError(
+            f'optimize_pls does not support the beads method for {opt_method}'
+        )
+
+    # some methods have different defaults, so have to inspect them
+    method_signature = inspect.signature(baseline_func).parameters
+    penalty_kwargs = {}
+    penalty_kwargs['diff_order'] = method_kws.get(
+        'diff_order', method_signature['diff_order'].default
+    )
+    if not spline_fit:
+        _, _, penalized_system = baseline_obj._setup_whittaker(y, **penalty_kwargs)
+    else:
+        for key in ('spline_degree', 'num_knots'):
+            penalty_kwargs[key] = method_kws.get(key, method_signature[key].default)
+        _, _, penalized_system = baseline_obj._setup_spline(y, **penalty_kwargs)
+
+    n_lams = len(lam_range)
+    min_metric = np.inf
+    metrics = np.empty(n_lams)
+    traces = np.empty(n_lams)
+    resid_sum_sqs = np.empty(n_lams)
+    for i, lam in enumerate(lam_range):
+        fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
+
+        penalized_system.update_lam(lam)
+        # have to ensure weights are sorted to match how their ordering during fitting
+        # for the effective dimension calc
+        trace = penalized_system.effective_dimension(
+            _sort_array(fit_params['weights'], baseline_obj._sort_order)
+        )
+        # TODO should just combine the rss calc with optimize_lcurve; should all terms
+        # that do not depend on lam be added to rss/fidelity?? Or just ignore? Affected
+        # methods are drpls and iasls
+        if using_iasls:
+            resid_sum_sq = ((fit_params['weights'] * (y - fit_baseline))**2).sum()
+        else:
+            resid_sum_sq = fit_params['weights'] @ (y - fit_baseline)**2
+        if use_gcv:
+            # GCV = (1/N) * RSS / (1 - rho * trace / N)**2 == RSS * N / (N - rho * trace)**2
+            # Note that some papers use different terms for fidelity (eg. RSS / N vs just RSS),
+            # within the actual minimized equation, but both Woltring
+            # (https://doi.org/10.1016/0141-1195(86)90098-7) and Eilers
+            # (https://doi.org/10.1021/ac034173t) uses the same GCV score
+            # formulation for penalized splines and Whittaker smoothing, respectively (using a
+            # fidelity term of just RSS), so this should be correct
+            metric = resid_sum_sq * baseline_obj._size / (baseline_obj._size - rho * trace)**2
+        else:
+            # BIC = -2 * l + ln(N) * ED, where l == log likelihood and
+            # ED == effective dimension ~ trace
+            # For Gaussian errors: BIC ~ N * ln(RSS / N) + ln(N) * trace
+            metric = (
+                baseline_obj._size * np.log(resid_sum_sq / baseline_obj._size)
+                + np.log(baseline_obj._size) * trace
+            )
+
+        if metric < min_metric:
+            min_metric = metric
+            best_lam = lam
+            baseline = fit_baseline
+            best_params = fit_params
+
+        metrics[i] = metric
+        traces[i] = trace
+        resid_sum_sqs[i] = resid_sum_sq
+
     params = {
-        'optimal_parameter': best_lam, 'metric': metric,
-        'fidelity': fidelity, 'roughness': roughness,
+        'optimal_parameter': best_lam, 'metric': metrics, 'trace': traces,
+        'rss': resid_sum_sqs, 'method_params': best_params
     }
 
-    return params
+    return baseline, params
 
 
 @_optimizers_wrapper
@@ -1351,3 +1495,8 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
             Intelligent Laboratory Systems, 2011, 109(1), 51-56.
 
     """
+
+
+@_optimizers_wrapper
+def optimize_pls(data, x_data=None, **kwargs):
+    pass
