@@ -147,7 +147,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
 
 
 class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
-    """Class for testing collab_pls baseline."""
+    """Class for testing optimize_extended_range baseline."""
 
     func_name = "optimize_extended_range"
     checked_keys = ('optimal_parameter', 'min_rmse', 'rmse')
@@ -670,3 +670,48 @@ class TestCustomBC(OptimizersTester):
         """Ensures an exception is raised if regions overlap."""
         with pytest.raises(ValueError):
             self.class_func(self.y, regions=((0, 10), (9, 13)))
+
+
+class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
+    """Class for testing optimize_pls baseline."""
+
+    func_name = "optimize_pls"
+    checked_keys = ('optimal_parameter', 'metric')
+    # will need to change checked_keys if default method is changed
+    checked_method_keys = ('weights', 'tol_history')
+
+    @pytest.mark.parametrize('opt_method', ('U-curve', 'GCV', 'BIC'))
+    def test_output(self, opt_method):
+        """Ensures correct output parameters for different optimization methods."""
+        if opt_method in ('GCV', 'BIC'):
+            additional_keys = ('rss', 'trace')
+        else:
+            additional_keys = ('fidelity', 'penalty')
+        super().test_output(additional_keys=additional_keys, opt_method=opt_method)
+
+    @pytest.mark.parametrize(
+        'method',
+        (
+            'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
+            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc',
+            'pspline_asls', 'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
+            'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa'
+        )
+    )
+    def test_all_methods(self, method):
+        """Tests most methods that should work with optimize_pls."""
+        output = self.class_func(self.y, method=method, **self.kwargs)
+        if 'weights' in output[1]['method_params']:
+            assert self.y.shape == output[1]['method_params']['weights'].shape
+        elif 'alpha' in output[1]['method_params']:
+            assert self.y.shape == output[1]['method_params']['alpha'].shape
+
+    def test_unknown_method_fails(self):
+        """Ensures method fails when an unknown baseline method is given."""
+        with pytest.raises(AttributeError):
+            self.class_func(self.y, method='aaaaa')
+
+    def test_unknown_opt_method_fails(self):
+        """Ensures method fails when an unknown opt_method is given."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, opt_method='aaaaa')
