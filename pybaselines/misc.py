@@ -81,7 +81,7 @@ class _Misc(_Algorithm):
     """A base class for all miscellaneous algorithms."""
 
     @_Algorithm._register
-    def interp_pts(self, data=None, baseline_points=(), interp_method='linear'):
+    def interp_pts(self, data=None, baseline_points=(), interp_method='linear', **kwargs):
         """
         Creates a baseline by interpolating through input points.
 
@@ -130,7 +130,7 @@ class _Misc(_Algorithm):
                 f'instead is {points.shape}'
             )
         interpolator = interp1d(
-            points[:, 0], points[:, 1], kind=interp_method, bounds_error=False, fill_value=0
+            points[:, 0], points[:, 1], kind=interp_method, **kwargs
         )
         baseline = interpolator(self.x)
 
