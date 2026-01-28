@@ -52,7 +52,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install --upgrade --pre --extra-index-url https://pypi.anaconda.org/scientific-python-nightly-wheels/simple numpy scipy
-        python -m pip install . pytest
+        python -m pip install .[test]
 
     - name: Test with required dependencies
       # use -Werror so that any warnings will show up as errors -> want to be as stringent

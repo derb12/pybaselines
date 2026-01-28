@@ -36,7 +36,9 @@ jobs:
       fail-fast: false
       matrix:
         # Use strings since yaml considers 3.10 equal to 3.1
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.13t']
+        # Only test one free-threaded build since threaded tests are very
+        # time consuming
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.14t']
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -51,15 +53,15 @@ jobs:
     - name: Install required dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install . pytest
+        python -m pip install .[test]
 
     - name: Test with required dependencies
       run: pytest .
 
     - name: Install optional dependencies
       id: install-optional
-      # uncomment below to allow skipping future versions
-      if: matrix.python-version != '3.13t'
+      # uncomment the if statement below to allow skipping versions
+      if: matrix.python-version != '3.14t'
       run: python -m pip install .[full]
 
     - name: Test with optional dependencies
@@ -73,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.9']
+        python-version: ['3.10']
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -90,13 +92,13 @@ jobs:
       # for minimum supported versions
       run: |
         python -m pip install --upgrade pip
-        python -m pip install . "numpy==1.20.*" "scipy==1.6.*" pytest
+        python -m pip install .[test] "numpy==1.22.*" "scipy==1.8.*"
 
     - name: Test with minimum required dependencies
       run: pytest .
 
     - name: Install minimum optional dependencies
-      run: python -m pip install "numba==0.53.*"
+      run: python -m pip install "numba==0.55.*"
 
     - name: Test with minimum optional dependencies
       run: pytest .
@@ -110,7 +112,7 @@ jobs:
       matrix:
         # only test earliest and latest supported Python versions since the examples should
         # be fairly simple
-        python-version: ['3.9', '3.13']
+        python-version: ['3.10', '3.14']
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -126,7 +128,7 @@ jobs:
       # TODO will need to think of how to handle doctests when they rely on optional dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install ".[test, doctest]"
+        python -m pip install ".[test, doctest, lint]"
 
     - name: Lint
       id: lint
