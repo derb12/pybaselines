@@ -15,6 +15,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 import pybaselines
+from pybaselines import Baseline, Baseline2D
 
 
 def ensure_deprecation(deprecation_major, deprecation_minor):
@@ -318,31 +319,11 @@ def changing_dataset2d(data_size=(40, 33), dataset_size=20, three_d=False):
     return x, z, dataset
 
 
-def dummy_wrapper(func):
-    """A dummy wrapper to simulate using the _Algorithm._register wrapper function."""
-    @wraps(func)
-    def inner(*args, **kwargs):
-        return func(*args, **kwargs)
-    return inner
-
-
 class DummyModule:
     """A dummy object to serve as a fake module."""
 
     @staticmethod
     def func(*args, data=None, x_data=None, **kwargs):
-        """Dummy function."""
-        raise NotImplementedError('need to set func')
-
-
-class DummyAlgorithm:
-    """A dummy object to serve as a fake Algorithm subclass."""
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    @dummy_wrapper
-    def func(self, data=None, *args, **kwargs):
         """Dummy function."""
         raise NotImplementedError('need to set func')
 
@@ -391,7 +372,7 @@ class BaseTester:
     """
 
     module = DummyModule
-    algorithm_base = DummyAlgorithm
+    algorithm_base = Baseline
     func_name = 'func'
     checked_keys = None
     required_kwargs = None
@@ -763,7 +744,7 @@ class BaseTester2D:
     """
 
     module = DummyModule
-    algorithm_base = DummyAlgorithm
+    algorithm_base = Baseline2D
     func_name = 'func'
     checked_keys = None
     required_kwargs = None

@@ -26,7 +26,6 @@ class PolynomialTester(BasePolyTester, InputWeightsMixin):
     """Base testing class for polynomial functions."""
 
     module = polynomial
-    algorithm_base = polynomial._Polynomial
     checked_keys = ('weights',)
 
 

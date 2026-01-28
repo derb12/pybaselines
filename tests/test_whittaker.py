@@ -92,7 +92,6 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    algorithm_base = whittaker._Whittaker
     checked_keys = ('weights', 'tol_history')
 
     @pytest.mark.parametrize('diff_order', (2, 3))

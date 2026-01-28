@@ -19,7 +19,6 @@ class SmoothTester(BaseTester):
     """Base testing class for whittaker functions."""
 
     module = smooth
-    algorithm_base = smooth._Smooth
     uses_padding = True  # TODO remove after version 1.4 when kwargs are deprecated
 
     @ensure_deprecation(1, 4)

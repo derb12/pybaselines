@@ -10,7 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import _algorithm_setup, optimizers, polynomial, whittaker
+from pybaselines import Baseline, _algorithm_setup, optimizers, polynomial, whittaker
 from pybaselines._compat import dia_object
 from pybaselines.utils import ParameterWarning, SortingWarning, estimate_window
 
@@ -576,16 +576,23 @@ def test_setup_misc(small_data, algorithm):
         ('asls', 'asls', 'whittaker')
     )
 )
-def test_get_function(algorithm, method_and_outputs):
+@pytest.mark.parametrize('ensure_new', (True, False))
+def test_get_function(method_and_outputs, ensure_new):
     """Ensures _get_function gets the correct method, regardless of case."""
     method, expected_func, expected_module = method_and_outputs
     tested_modules = [optimizers, polynomial, whittaker]
+
+    algorithm = Baseline(np.arange(10), assume_sorted=False)
     selected_func, module, class_object = algorithm._get_function(
-        method, tested_modules
+        method, tested_modules, ensure_new=ensure_new
     )
     assert selected_func.__name__ == expected_func
     assert module == expected_module
     assert isinstance(class_object, _algorithm_setup._Algorithm)
+    if ensure_new:
+        assert class_object is not algorithm
+    else:
+        assert class_object is algorithm
 
 
 def test_get_function_fails_wrong_method(algorithm):
@@ -600,26 +607,35 @@ def test_get_function_fails_no_module(algorithm):
         algorithm._get_function('collab_pls', [])
 
 
-def test_get_function_sorting():
+@pytest.mark.parametrize('ensure_new', (True, False))
+def test_get_function_sorting(ensure_new):
     """Ensures the sort order is correct for the output class object."""
     num_points = 10
     x = np.arange(num_points)
     ordering = np.arange(num_points)
-    algorithm = _algorithm_setup._Algorithm(x[::-1], assume_sorted=False)
-    func, func_module, class_object = algorithm._get_function('asls', [whittaker])
+    algorithm = Baseline(x[::-1], assume_sorted=False)
+    func, func_module, class_object = algorithm._get_function(
+        'asls', [whittaker], ensure_new=ensure_new
+    )
 
     assert_array_equal(class_object.x, x)
     assert_array_equal(class_object._sort_order, ordering[::-1])
     assert_array_equal(class_object._inverted_order, ordering[::-1])
     assert_array_equal(class_object._sort_order, algorithm._sort_order)
     assert_array_equal(class_object._inverted_order, algorithm._inverted_order)
+    if ensure_new:
+        assert class_object is not algorithm
+    else:
+        assert class_object is algorithm
 
 
 @pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))
-def test_setup_optimizer(small_data, algorithm, method_kwargs):
+@pytest.mark.parametrize('ensure_new', (True, False))
+def test_setup_optimizer(small_data, method_kwargs, ensure_new):
     """Ensures output of _setup_optimizer is correct."""
+    algorithm = Baseline(np.arange(len(small_data)))
     y, fit_func, func_module, output_kwargs, class_object = algorithm._setup_optimizer(
-        small_data, 'asls', [whittaker], method_kwargs
+        small_data, 'asls', [whittaker], method_kwargs, ensure_new=ensure_new
     )
 
     assert isinstance(y, np.ndarray)
@@ -628,6 +644,10 @@ def test_setup_optimizer(small_data, algorithm, method_kwargs):
     assert func_module == 'whittaker'
     assert isinstance(output_kwargs, dict)
     assert isinstance(class_object, _algorithm_setup._Algorithm)
+    if ensure_new:
+        assert class_object is not algorithm
+    else:
+        assert class_object is algorithm
 
 
 @pytest.mark.parametrize('copy_kwargs', (True, False))
@@ -978,8 +998,12 @@ def test_override_x(algorithm):
     assert algorithm._shape == (old_size,)
 
 
-def test_override_x_polynomial(algorithm):
+def test_override_x_polynomial():
     """Ensures the polynomial attributes are correctly reset and then returned by override_x."""
+    algorithm = _algorithm_setup._Algorithm(
+        x_data=np.arange(10), assume_sorted=True, check_finite=False
+    )
+
     old_len = len(algorithm.x)
     poly_order = 2
     new_poly_order = 3
@@ -1014,8 +1038,12 @@ def test_override_x_polynomial(algorithm):
     assert algorithm._polynomial.poly_order == poly_order
 
 
-def test_override_x_whittaker(algorithm):
+def test_override_x_whittaker():
     """Ensures the whittaker attributes are correctly reset and then returned by override_x."""
+    algorithm = _algorithm_setup._Algorithm(
+        x_data=np.arange(10), assume_sorted=True, check_finite=False
+    )
+
     old_len = len(algorithm.x)
     diff_order = 2
     new_diff_order = 3
@@ -1045,8 +1073,12 @@ def test_override_x_whittaker(algorithm):
     assert new_whittaker_system.penta_solver == banded_solver
 
 
-def test_override_x_spline(algorithm):
+def test_override_x_spline():
     """Ensures the spline attributes are correctly reset and then returned by override_x."""
+    algorithm = _algorithm_setup._Algorithm(
+        x_data=np.arange(10), assume_sorted=True, check_finite=False
+    )
+
     old_len = len(algorithm.x)
     spline_degree = 2
     new_spline_degree = 3

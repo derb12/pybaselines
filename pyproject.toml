@@ -32,7 +32,10 @@ authors = [
 ]
 description = "A library of algorithms for the baseline correction of experimental data."
 readme = "README.rst"
-license = "BSD-3-Clause"
+# BSD-3-Clause: pybaselines, lowess, beads, bandmat, scipy
+# BSD-2-Clause: backcorr
+# MIT: pentapy
+license = "BSD-3-Clause AND BSD-2-Clause AND MIT"
 license-files = [
     "LICENSE.txt",
     "LICENSES_bundled.txt"
@@ -43,11 +46,12 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Free Threading :: 3 - Stable",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Information Analysis",
@@ -64,10 +68,10 @@ keywords = [
     "spectroscopy",
     "raman",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
-    "numpy>=1.20",  # lowest version to allow dtype for np.concatenate
-    "scipy>=1.6",  # lowest version supported for python 3.9
+    "numpy>=1.22",  # lowest version supported for python 3.10
+    "scipy>=1.8",  # lowest version supported for python 3.10
 ]
 
 [project.urls]
@@ -76,15 +80,17 @@ Documentation = "https://pybaselines.readthedocs.io"
 
 [project.optional-dependencies]
 full = [
-    "numba>=0.53",  # first to allow usage with python 3.9
+    "numba>=0.55",  # first to allow usage with python 3.10
 ]
 test = [
     "pytest>=6.0",  # first version to work with pyproject.toml
-    "ruff",
 ]
 doctest = [
     "scipy-doctest",
     "matplotlib",
+]
+lint = [
+    "ruff",
 ]
 docs = [
     "sphinx",
@@ -99,7 +105,7 @@ release = [
     "bump-my-version",
     "twine",
 ]
-dev = ["pybaselines[full, docs, test, release, doctest]"]
+dev = ["pybaselines[full, docs, test, release, doctest, lint]"]
 
 
 [tool.pytest.ini_options]

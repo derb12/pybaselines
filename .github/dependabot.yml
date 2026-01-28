@@ -4,8 +4,13 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions" # Only update GitHub actions dependencies
-    directory: "/" # Only update the worflow files
+    directory: "/" # Only update the workflow files
     schedule:
       interval: "monthly"
     commit-message:
       prefix: "MAINT"
+    # group to make a single PR for all relevant GH actions updates
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"

@@ -7,15 +7,24 @@ Created on March 22, 2021
 """
 
 from contextlib import contextmanager
+from functools import wraps
+from threading import Lock
 
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
 from .base_tests import (
-    BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, dummy_wrapper, get_data,
-    get_data2d
+    BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, get_data, get_data2d
 )
+
+
+def dummy_wrapper(func):
+    """A dummy wrapper to simulate using the _Algorithm._register wrapper function."""
+    @wraps(func)
+    def inner(*args, **kwargs):
+        return func(*args, **kwargs)
+    return inner
 
 
 class DummyModule:
@@ -390,6 +399,11 @@ class DummyAlgorithm:
         """Will raise an exception if x-values are not unique."""
         return DummyModule.non_unique_x_raises(data=data, x_data=self.x)
 
+    @dummy_wrapper
+    def func(self, data=None, *args, **kwargs):
+        """Dummy function."""
+        raise NotImplementedError('need to set func')
+
 
 class TestBaseTesterWorks(BaseTester):
     """Ensures a basic subclass of BaseTester works."""
@@ -445,12 +459,8 @@ class TestBaseTesterWorks2d(BaseTester):
         assert_allclose(self.reverse_array(self.y), self.y[..., ::-1])
 
 
-class TestBaseTesterFailures(BaseTester):
-    """Tests the various BaseTester methods for functions with incorrect output."""
-
-    module = DummyModule
-    algorithm_base = DummyAlgorithm
-    func_name = 'no_func'
+class SetFuncMixin:
+    """Mixin to allow temporarily changing the function for the test class."""
 
     @contextmanager
     def set_func(self, func_name, checked_keys=None, attributes=None):
@@ -467,6 +477,8 @@ class TestBaseTesterFailures(BaseTester):
             A dictionary of other attributes to temporarily set. Should be class attributes.
 
         """
+        self.lock.acquire()
+
         original_name = self.func_name
         original_keys = self.param_keys
         attributes = attributes if attributes is not None else {}
@@ -486,6 +498,56 @@ class TestBaseTesterFailures(BaseTester):
             for key, value in original_attributes.items():
                 setattr(self.__class__, key, value)
             self.__class__.setup_class()
+
+            self.lock.release()
+
+
+class SetFuncWeightsMixin:
+    """Mixin to allow temporarily changing the function for test classes that deal with weights."""
+
+    @contextmanager
+    def set_func(self, func_name, checked_keys=None, weight_key=('weights',)):
+        """Temporarily sets a new function for the class.
+
+        Parameters
+        ----------
+        func_name : str
+            The string of the function to use.
+        checked_keys : iterable, optional
+            An iterable of strings designating the keys to check in the output parameters
+            dictionary.
+        weight_key : iterable, optional
+            An iterable of strings designating the keys corresponding to weights to check
+            in the output parameters dictionary. Default is ('weights',).
+
+        """
+        self.lock.acquire()
+
+        original_name = self.func_name
+        original_keys = self.param_keys
+        original_weight_key = self.weight_keys
+        try:
+            self.__class__.func_name = func_name
+            self.__class__.checked_keys = checked_keys
+            self.__class__.weight_keys = weight_key
+            self.__class__.setup_class()
+            yield self
+        finally:
+            self.__class__.func_name = original_name
+            self.__class__.checked_keys = original_keys
+            self.__class__.weight_keys = original_weight_key
+            self.__class__.setup_class()
+
+            self.lock.release()
+
+
+class TestBaseTesterFailures(BaseTester, SetFuncMixin):
+    """Tests the various BaseTester methods for functions with incorrect output."""
+
+    module = DummyModule
+    algorithm_base = DummyAlgorithm
+    func_name = 'no_func'
+    lock = Lock()
 
     def test_ensure_wrapped(self):
         """Ensures no wrapper fails."""
@@ -623,6 +685,8 @@ class TestBaseTesterFailures(BaseTester):
 class TestBaseTesterNoFunc(BaseTester):
     """Ensures the BaseTester fails if not setup correctly."""
 
+    algorithm_base = DummyAlgorithm
+
     @pytest.mark.parametrize('use_class', (True, False))
     def test_unchanged_data(self, use_class):
         """Ensures that input data is unchanged by the function."""
@@ -707,7 +771,7 @@ class TestBasePolyTesterFailures(BasePolyTester):
             super().test_output_coefs()
 
 
-class TestInputWeightsMixinWorks(BaseTester, InputWeightsMixin):
+class TestInputWeightsMixinWorks(BaseTester, InputWeightsMixin, SetFuncWeightsMixin):
     """Ensures a basic subclass of InputWeightsMixin works."""
 
     module = DummyModule
@@ -715,33 +779,17 @@ class TestInputWeightsMixinWorks(BaseTester, InputWeightsMixin):
     func_name = 'good_weights_func'
     checked_keys = ['a', 'weights']
     required_kwargs = {'key': 1}
-
-    @contextmanager
-    def set_func(self, func_name, checked_keys=None, weight_key=None):
-        """Temporarily sets a new function for the class."""
-        original_name = self.func_name
-        original_keys = self.param_keys
-        original_weight_key = self.weight_keys
-        try:
-            self.__class__.func_name = func_name
-            self.__class__.checked_keys = checked_keys
-            self.__class__.weight_keys = weight_key
-            self.__class__.setup_class()
-            yield self
-        finally:
-            self.__class__.func_name = original_name
-            self.__class__.checked_keys = original_keys
-            self.__class__.weight_keys = original_weight_key
-            self.__class__.setup_class()
+    lock = Lock()
 
     def test_input_weights(self):
         """Ensures weight testing works for different weight keys in the parameter dictionary."""
-        super().test_input_weights()
+        with self.lock:  # have to ensure the lock is maintained here too
+            super().test_input_weights()
         with self.set_func('good_mask_func', weight_key=('mask',), checked_keys=('a', 'mask')):
             super().test_input_weights()
 
 
-class TestInputWeightsMixinFails(BaseTester, InputWeightsMixin):
+class TestInputWeightsMixinFails(BaseTester, InputWeightsMixin, SetFuncWeightsMixin):
     """Tests the various BasePolyTester methods for functions with incorrect output."""
 
     module = DummyModule
@@ -749,24 +797,7 @@ class TestInputWeightsMixinFails(BaseTester, InputWeightsMixin):
     func_name = 'bad_weights_func'
     checked_keys = ['a', 'weights']
     required_kwargs = {'key': 1}
-
-    @contextmanager
-    def set_func(self, func_name, checked_keys=None, weight_key=('weights',)):
-        """Temporarily sets a new function for the class."""
-        original_name = self.func_name
-        original_keys = self.param_keys
-        original_weight_key = self.weight_keys
-        try:
-            self.__class__.func_name = func_name
-            self.__class__.checked_keys = checked_keys
-            self.__class__.weight_keys = weight_key
-            self.__class__.setup_class()
-            yield self
-        finally:
-            self.__class__.func_name = original_name
-            self.__class__.checked_keys = original_keys
-            self.__class__.weight_keys = original_weight_key
-            self.__class__.setup_class()
+    lock = Lock()
 
     def test_input_weights(self):
         """Ensures weight testing works for different weight keys in the parameter dictionary."""
@@ -835,47 +866,13 @@ class TestBaseTester2DWorks3d(BaseTester2D):
         assert_allclose(self.reverse_array(self.y), self.y[..., ::-1, ::-1])
 
 
-class TestBaseTester2DFailures(BaseTester2D):
+class TestBaseTester2DFailures(BaseTester2D, SetFuncMixin):
     """Tests the various BaseTester2D methods for functions with incorrect output."""
 
     module = DummyModule
     algorithm_base = DummyAlgorithm
     func_name = 'no_func'
-
-    @contextmanager
-    def set_func(self, func_name, checked_keys=None, attributes=None):
-        """Temporarily sets a new function for the class.
-
-        Parameters
-        ----------
-        func_name : str
-            The string of the function to use.
-        checked_keys : iterable, optional
-            An iterable of strings designating the keys to check in the output parameters
-            dictionary.
-        attributes : dict, optional
-            A dictionary of other attributes to temporarily set. Should be class attributes.
-
-        """
-        original_name = self.func_name
-        original_keys = self.param_keys
-        attributes = attributes if attributes is not None else {}
-        original_attributes = {}
-        for key in attributes.keys():
-            original_attributes[key] = getattr(self, key)
-        try:
-            self.__class__.func_name = func_name
-            self.__class__.checked_keys = checked_keys
-            for key, value in attributes.items():
-                setattr(self.__class__, key, value)
-            self.__class__.setup_class()
-            yield self
-        finally:
-            self.__class__.func_name = original_name
-            self.__class__.checked_keys = original_keys
-            for key, value in original_attributes.items():
-                setattr(self.__class__, key, value)
-            self.__class__.setup_class()
+    lock = Lock()
 
     def test_ensure_wrapped(self):
         """Ensures no wrapper fails."""
@@ -995,6 +992,8 @@ class TestBaseTester2DFailures(BaseTester2D):
 
 class TestBaseTester2DNoFunc(BaseTester2D):
     """Ensures the BaseTester2D fails if not setup correctly."""
+
+    algorithm_base = DummyAlgorithm
 
     @pytest.mark.parametrize('new_instance', (True, False))
     def test_unchanged_data(self, new_instance):

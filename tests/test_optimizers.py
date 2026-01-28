@@ -67,7 +67,6 @@ class OptimizersTester(BaseTester):
     """Base testing class for optimizer functions."""
 
     module = optimizers
-    algorithm_base = optimizers._Optimizers
     checked_method_keys = None
 
     def test_output(self, additional_keys=None, additional_method_keys=None, **kwargs):

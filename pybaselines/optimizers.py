@@ -461,7 +461,7 @@ class _Optimizers(_Algorithm):
 
         """
         y, baseline_func, _, method_kws, _ = self._setup_optimizer(
-            data, method, [polynomial], method_kwargs, False
+            data, method, [polynomial], method_kwargs, False, ensure_new=True
         )
         sort_weights = weights is not None
         weight_array = _check_optional_array(self._size, weights, check_finite=self._check_finite)

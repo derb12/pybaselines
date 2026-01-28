@@ -849,7 +849,7 @@ class _Algorithm2D:
 
         return y, weight_array
 
-    def _get_function(self, method, modules):
+    def _get_function(self, method, modules, ensure_new=False):
         """
         Tries to retrieve the indicated function from a list of modules.
 
@@ -859,6 +859,9 @@ class _Algorithm2D:
             The string name of the desired function. Case does not matter.
         modules : Sequence
             A sequence of modules in which to look for the method.
+        ensure_new : bool, optional
+            If True, will ensure that the output `class_object` and `func`
+            correspond to a new object rather than `self`.
 
         Returns
         -------
@@ -876,15 +879,17 @@ class _Algorithm2D:
 
         """
         function_string = method.lower()
+        self_has = hasattr(self, function_string)
         for module in modules:
             func_module = module.__name__.split('.')[-1]
             module_class = getattr(module, '_' + func_module.capitalize())
             if hasattr(module_class, function_string):
                 # if self is a Baseline2D class, can just use its method
-                if hasattr(self, function_string):
+                if self_has and not ensure_new:
                     func = getattr(self, function_string)
                     class_object = self
                 else:
+                    klass = self.__class__ if self_has else module_class
                     # have to reset x and z ordering so that all outputs and parameters are
                     # correctly sorted
                     if self._sort_order is None:
@@ -904,7 +909,7 @@ class _Algorithm2D:
                             x = self.x[self._inverted_order]
                             z = self.z
 
-                    class_object = module_class(
+                    class_object = klass(
                         x, z, check_finite=self._check_finite, assume_sorted=assume_sorted,
                         output_dtype=self._dtype
                     )
@@ -920,7 +925,8 @@ class _Algorithm2D:
 
         return func, func_module, class_object
 
-    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True):
+    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True,
+                         ensure_new=False):
         """
         Sets the starting parameters for doing optimizer algorithms.
 
@@ -939,6 +945,12 @@ class _Algorithm2D:
         copy_kwargs : bool, optional
             If True (default), will copy the input `method_kwargs` so that the input
             dictionary is not modified within the function.
+        ensure_new : bool, optional
+            If True, will ensure that the output `class_object` and `baseline_func`
+            correspond to a new object rather than `self`. This is to ensure
+            thread safety for methods which would modify internal state not typically
+            assumed to change when using threading, such as changing polynomial degrees.
+            Default is False.
 
         Returns
         -------
@@ -950,11 +962,11 @@ class _Algorithm2D:
             The string name of the module that contained `fit_func`.
         method_kws : dict
             A dictionary of keyword arguments to pass to `fit_func`.
-        class_object : pybaselines._algorithm_setup._Algorithm
-            The `_Algorithm` object which will be used for fitting.
+        class_object : pybaselines.two_d._algorithm_setup._Algorithm2D
+            The `_Algorithm2D` object which will be used for fitting.
 
         """
-        baseline_func, func_module, class_object = self._get_function(method, modules)
+        baseline_func, func_module, class_object = self._get_function(method, modules, ensure_new)
         if method_kwargs is None:
             method_kws = {}
         elif copy_kwargs:

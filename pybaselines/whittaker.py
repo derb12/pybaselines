@@ -831,16 +831,14 @@ class _Whittaker(_Algorithm):
             alpha_array = alpha_array[self._sort_order]
         asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
-        main_diag_idx = whittaker_system.main_diagonal_index
         lower_upper_bands = (diff_order, diff_order)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             lhs = whittaker_system.penalty * alpha_array
-            lhs[main_diag_idx] = lhs[main_diag_idx] + weight_array
-            lhs = _shift_rows(lhs, diff_order, diff_order)
+            lhs[whittaker_system.main_diagonal_index] += weight_array
             baseline = whittaker_system.solve(
-                lhs, weight_array * y, overwrite_ab=True, overwrite_b=True,
-                l_and_u=lower_upper_bands
+                _shift_rows(lhs, diff_order, diff_order), weight_array * y, overwrite_ab=True,
+                overwrite_b=True, l_and_u=lower_upper_bands
             )
             new_weights, residual, exit_early = _weighting._aspls(
                 y, baseline, asymmetric_coef, alternate_weighting
