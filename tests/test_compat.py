@@ -387,7 +387,7 @@ def test_allow_1d_slice():
     """Uses version checking rather than brute force to ensure sparse slicing is available.
 
     The actual implementation in pybaselines directly checks if 1d slicing can be done on
-    sparse matrices, which should be slightly more robust than a simple version check, but
+    sparse matrices/arrays, which should be slightly more robust than a simple version check, but
     they should match regardless.
 
     """
@@ -397,8 +397,13 @@ def test_allow_1d_slice():
         # raise the exception so that version parsing can be changed if needed
         raise ValueError('Issue parsing SciPy version') from e
 
-    # sparse 1d slicing was first available in version 1.15.0
-    expected = (_scipy_version[0] > 1 or (_scipy_version[0] == 1 and _scipy_version[1] >= 15))
+    # sparse matrices always supported making 1d slices, while sparse arrays didn't support
+    # 1d slicing until scipy version 1.15.0
+    if sparse.isspmatrix(_compat.diags(np.ones(5))):
+        expected = True
+    else:
+        expected = (_scipy_version[0] > 1 or (_scipy_version[0] == 1 and _scipy_version[1] >= 15))
+
     output = _compat._allows_1d_slice()
 
     assert expected == output

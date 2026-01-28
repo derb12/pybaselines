@@ -236,7 +236,8 @@ def _allows_1d_slice():
 
     Notes
     -----
-    An equivalent function would be checking that the SciPy version is at least 1.15.0.
+    An equivalent function would be checking that the SciPy version is at least 1.15.0 or
+    that the output of `diags` is a sparse matrix.
 
     """
     try:
