@@ -5,7 +5,7 @@ Optimizer Baselines
 Introduction
 ------------
 
-Optimizer algorithms build upon other baseline algorithms to improve their results.
+Optimizer algorithms build upon other baseline algorithms to extend or improve their results.
 
 Algorithms
 ----------

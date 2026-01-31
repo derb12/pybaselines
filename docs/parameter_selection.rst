@@ -6,7 +6,7 @@ Most baseline algorithms in pybaselines have several parameters that can be adju
 While this allows for fine-tuning each algorithm to work in a wide array of cases,
 it can also present a difficulty for new users. It is suggested to start by adjusting only
 one or two main parameters, and then change other parameters as needed. **Due to the
-variable nature of baselines, it is highly recommended to not assume the default
+variable nature of these algorithms, it is highly recommended to not assume the default
 parameters will work for your data!** Below are the suggested parameters to begin
 adjusting for each family of algorithms within pybaselines:
 

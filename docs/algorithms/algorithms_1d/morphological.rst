@@ -5,9 +5,9 @@ Morphological Baselines
 Introduction
 ------------
 
-`Morphological operations <https://en.wikipedia.org/wiki/Mathematical_morphology>`_
+`Morphological operations <https://wikipedia.org/wiki/Mathematical_morphology>`_
 include dilation, erosion, opening, and closing, and they use moving windows to compute the
-maximum, minimum, or a combination of the two within each window, as shown in the figures
+maximum, minimum, or a combination of the two within each window, as shown in the figure
 below. The algorithms in this section use these operations to estimate the baseline.
 
 .. plot::

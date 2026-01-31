@@ -65,7 +65,7 @@ although some techniques use both the first and second order difference matrices
 .. _iterative-reweighting-explanation:
 
 Baseline algorithms based on Whittaker smoothing use
-`iterative reweighting <https://en.wikipedia.org/wiki/Iteratively_reweighted_least_squares>`_,
+`iterative reweighting <https://wikipedia.org/wiki/Iteratively_reweighted_least_squares>`_,
 in which the baseline, :math:`v`, is calculated by solving the linear equation above, updating the
 weights based on that baseline, solving for a new baseline using the new weights, and repeating
 until some exit criteria. The major difference between Whittaker-smoothing-based algorithms is the

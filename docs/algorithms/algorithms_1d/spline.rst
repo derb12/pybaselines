@@ -210,7 +210,7 @@ irsqr (Iterative Reweighted Spline Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.irsqr` uses penalized splines and iterative reweighted least squares
-to perform quantile regression on the data.
+to perform `quantile regression <https://wikipedia.org/wiki/Quantile_regression>`_ on the data.
 
 .. plot::
    :align: center

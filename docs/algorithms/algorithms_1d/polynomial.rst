@@ -86,7 +86,7 @@ a polynomial that spans the entirety of the original dataset.
 
     plt.plot(x, y, label='data')
     plt.plot(x_masked, y_masked, label='non-peak regions')
-    plt.plot(x, baseline, '--', label='fit baseline')
+    plt.plot(x, baseline, '--', label='fit baseline', lw=2.5)
     plt.legend()
     plt.show()
 
@@ -109,7 +109,7 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
 
     plt.plot(x, y, label='data')
     plt.plot(x_masked, y_masked, label='non-peak regions')
-    plt.plot(x, baseline_2, '--', label='fit baseline')
+    plt.plot(x, baseline_2, '--', label='fit baseline', lw=2.5)
     plt.legend()
     plt.show()
 
@@ -184,7 +184,7 @@ Algorithms
 poly (Regular Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.poly` is simple least-squares polynomial fitting. Use selective
+:meth:`~.Baseline.poly` is basic least-squares polynomial fitting. Use selective
 masking, as described above, in order to use it for baseline fitting.
 
 Note that the plots below are just the least-squared polynomial fits of the data
@@ -375,9 +375,9 @@ and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterati
 penalized_poly (Penalized Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.penalized_poly` (sometimes referred to as "backcor" in literature) fits a
+:meth:`~.Baseline.penalized_poly` (typically referred to as "backcor" in literature) fits a
 polynomial baseline to data using non-quadratic cost functions. Compared to the quadratic
-cost function used in typical least-squares as discussed above, non-quadratic cost funtions
+cost function used in typical least-squares as discussed above, non-quadratic cost functions
 allow outliers above a user-defined threshold to have less effect on the fit. pentalized_poly
 has three different cost functions:
 
@@ -495,15 +495,15 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
 loess (Locally Estimated Scatterplot Smoothing)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.loess` (sometimes referred to as "rbe" or "robust baseline estimate" in literature)
-is similar to `traditional loess/lowess <https://en.wikipedia.org/wiki/Local_regression>`_
+:meth:`~.Baseline.loess` (typically referred to as "rbe" or "robust baseline estimate" in literature)
+is similar to `traditional loess/lowess <https://wikipedia.org/wiki/Local_regression>`_
 but adapted for fitting the baseline. The baseline at each point is estimated by using
 polynomial regression on the k-nearest neighbors of the point, and the effect of outliers
 is reduced by iterative reweighting.
 
 .. note::
    Although not its intended use, the loess function can be used for smoothing like
-   "traditional loess", simply by settting ``symmetric_weights`` to True and ``scale`` to ~4.05.
+   "traditional loess", simply by setting ``symmetric_weights`` to True and ``scale`` to ~4.05.
 
 
 .. plot::
@@ -540,7 +540,8 @@ is reduced by iterative reweighting.
 quant_reg (Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.quant_reg` fits a polynomial to the baseline using quantile regression.
+:meth:`~.Baseline.quant_reg` fits a polynomial to the baseline using
+`quantile regression <https://wikipedia.org/wiki/Quantile_regression>`_.
 
 .. plot::
    :align: center
