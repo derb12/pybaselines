@@ -64,13 +64,19 @@ ensure `git <https://git-scm.com>`_ is installed and then run:
     pip install --editable ".[dev]"
 
 All sections below assume the above commands were ran such that necessary
-developement dependencies are available.
+development dependencies are available.
+
+.. note::
+    For local development, it is recommended to use a Python version at least one minor version
+    older than the newest (eg. 3.13 if the newest is 3.14) since some optional dependencies
+    for pybaselines such as Numba may not immediately support the newest Python releases.
+
 
 Style Guidelines
 ^^^^^^^^^^^^^^^^
 
-Any new code should follow `PEP 8 <https://peps.python.org/pep-0008/>`_ standards
-as closely as possible and be fully documented using
+Any new code should generally follow `PEP 8 <https://peps.python.org/pep-0008/>`_ standards
+and be fully documented using
 `Numpy style <https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard>`_
 docstrings. To check that new code has the correct formatting, run the following command in the
 terminal while in the pybaselines directory:
@@ -102,7 +108,7 @@ to run threaded tests on a non free-threaded CPython version, run:
 
 
 The tests for the two dimensional algorithms are quite time consuming, so if the relevant
-tests are not concerened with two dimensional code, the 2D tests can be skipped with the following:
+tests are not concerned with two dimensional code, the 2D tests can be skipped with the following:
 
 .. code-block:: console
 
