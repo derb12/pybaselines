@@ -7,6 +7,38 @@ Introduction
 
 Smoothing algorithms use moving-window based smoothing operations such as moving averages,
 moving medians, and Savitzky-Golay filtering to eliminate peaks and leave only the baseline.
+A basic demonstration of this peak-smoothing effect is shown below for a 15-point moving
+average iteratively applied to a dataset with a single peak.
+
+.. plot::
+   :align: center
+   :context: reset
+   :include-source: False
+   :show-source-link: True
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.ndimage import uniform_filter1d
+    from pybaselines.utils import gaussian
+
+    x = np.linspace(1, 1000, 500)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+    y = gaussian(x, 15, 500, 8) + noise
+
+    fig, ax = plt.subplots(tight_layout={'pad': 0.2})
+    ax.plot(y, label='data')
+    for i in range(51):
+        fit = uniform_filter1d(y, 15)
+        if i % 10 == 0:
+            ax.plot(fit, label=f'iteration {i + 1}')
+        y = fit#np.minimum(y, fit)
+
+    ax.set_yticks([])
+    ax.set_xticks([])
+    ax.legend()
+
+    plt.show()
+
 
 .. note::
    The window size used for smoothing-based algorithms is index-based, rather
