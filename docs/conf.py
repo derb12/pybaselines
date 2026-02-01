@@ -52,6 +52,7 @@ extensions = [
     'sphinx_gallery.gen_gallery',
     'viewcode_inherit_methods',  # custom extension to allow viewcode with inherited methods
     'modify_module_docstring',  # custom extension to modify module docstrings
+    'xref_param_dict',  # custom extension to add cross references for parameter dictionary typings
 ]
 
 autosummary_generate = True # enables autosummary extension
@@ -173,7 +174,19 @@ numpydoc_use_plots = True
 
 # creates cross references for types in docstrings
 numpydoc_xref_param_type = True
-numpydoc_xref_ignore = {'optional', 'shape', 'K', 'L', 'M', 'N', 'P', 'Q', 'or', 'deprecated'}
+numpydoc_xref_ignore = {
+    'optional',
+    'shape',
+    'J',
+    'K',
+    'L',
+    'M',
+    'N',
+    'P',
+    'Q',
+    'or',
+    'deprecated',
+}
 numpydoc_xref_aliases = {
     'Sequence': ':term:`python:sequence`',
     'Callable': ':term:`python:callable`',

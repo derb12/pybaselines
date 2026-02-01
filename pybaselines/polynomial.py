@@ -115,7 +115,7 @@ class _Polynomial(_Algorithm):
 
             * 'weights': numpy.ndarray, shape (N,)
                 The weight array used for fitting the data.
-            * 'coef': numpy.ndarray, shape (poly_order,)
+            * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -186,7 +186,7 @@ class _Polynomial(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -288,7 +288,7 @@ class _Polynomial(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -421,7 +421,7 @@ class _Polynomial(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -573,7 +573,7 @@ class _Polynomial(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (N, poly_order + 1)
+            * 'coef': numpy.ndarray, shape (N, ``poly_order + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a polynomial
                 using :class:`numpy.polynomial.polynomial.Polynomial`. If `delta` is > 0,
@@ -751,7 +751,7 @@ class _Polynomial(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -881,7 +881,7 @@ class _Polynomial(_Algorithm):
             * 'threshold' : float
                 The optimal threshold value. Could be used in :meth:`~.Baseline.penalized_poly`
                 for fitting other similar data.
-            * 'coef': numpy.ndarray, shape (poly_order + 1,)
+            * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
                 polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -1030,7 +1030,7 @@ def poly(data, x_data=None, poly_order=2, weights=None, return_coef=False):
 
         * 'weights': numpy.ndarray, shape (N,)
             The weight array used for fitting the data.
-        * 'coef': numpy.ndarray, shape (poly_order,)
+        * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -1091,7 +1091,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
             each iteration. The length of the array is the number of iterations
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
-        * 'coef': numpy.ndarray, shape (poly_order + 1,)
+        * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -1166,7 +1166,7 @@ def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=No
             each iteration. The length of the array is the number of iterations
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
-        * 'coef': numpy.ndarray, shape (poly_order + 1,)
+        * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -1464,7 +1464,7 @@ def penalized_poly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250,
             each iteration. The length of the array is the number of iterations
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
-        * 'coef': numpy.ndarray, shape (poly_order + 1,)
+        * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -2036,7 +2036,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             each iteration. The length of the array is the number of iterations
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
-        * 'coef': numpy.ndarray, shape (N, poly_order + 1)
+        * 'coef': numpy.ndarray, shape (N, ``poly_order + 1``)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a polynomial
             using :class:`numpy.polynomial.polynomial.Polynomial`. If `delta` is > 0,
@@ -2131,7 +2131,7 @@ def quant_reg(data, x_data=None, poly_order=2, quantile=0.05, tol=1e-6, max_iter
             each iteration. The length of the array is the number of iterations
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
-        * 'coef': numpy.ndarray, shape (poly_order + 1,)
+        * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.
@@ -2237,7 +2237,7 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
         * 'threshold' : float
             The optimal threshold value. Could be used in :meth:`~.Baseline.penalized_poly`
             for fitting other similar data.
-        * 'coef': numpy.ndarray, shape (poly_order + 1,)
+        * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
             Only if `return_coef` is True. The array of polynomial parameters
             for the baseline, in increasing order. Can be used to create a
             polynomial using :class:`numpy.polynomial.polynomial.Polynomial`.

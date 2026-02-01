@@ -53,6 +53,11 @@ def find_super_method(app, modname):
     For an example of what ``ModuleAnalyzer`` tags and what viewcode expects, see the following
     issue from Sphinx: https://github.com/sphinx-doc/sphinx/issues/11279.
 
+    Raises
+    ------
+    RuntimeError
+        Raised if an issue occurred when retrieving the tags from `modname`.
+
     """
     if modname is None:
         return
@@ -74,8 +79,8 @@ def find_super_method(app, modname):
         analyzer.find_tags()
         code = analyzer.code
         tags = analyzer.tags
-    except Exception:
-        return
+    except Exception as e:
+        raise RuntimeError('Error within custom viewcode-inherit-methods extension') from e
 
     if 'two_d' in modname:
         new_obj = 'Baseline2D'
