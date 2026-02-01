@@ -7,4 +7,5 @@ API Reference
    Baseline
    Baseline2D
    utils
+   results
    functional_interface

@@ -19,6 +19,7 @@
    .. rubric:: {{ _('Classes') }}
 
    .. autosummary::
+      :template: autosummary/class.rst
       :toctree:
       :nosignatures:
    {% for item in classes %}
