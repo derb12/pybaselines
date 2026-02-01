@@ -1245,7 +1245,7 @@ def _directional_min_moving_avg(y, data_len, half_window):
     .. [1] Liland, K. 4S Peak Filling - baseline estimation by iterative mean suppression.
            MethodsX. 2 (2015) 135-140.
 
-    .. [2] https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+    .. [2] https://wikipedia.org/wiki/Algorithms_for_calculating_variance
 
     """
     if half_window > (data_len - 1) // 2:

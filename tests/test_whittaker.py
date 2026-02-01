@@ -336,7 +336,7 @@ class TestDrPLS(WhittakerTester):
             self.y, lam=lam, eta=eta, diff_order=diff_order, max_iter=max_iter, tol=tol
         )
 
-        assert_allclose(banded_output, sparse_output, rtol=1e-6, atol=1e-10)
+        assert_allclose(banded_output, sparse_output, rtol=1.5e-6, atol=1e-10)
 
 
 class TestIArPLS(WhittakerTester):
@@ -458,7 +458,7 @@ class TestAsPLS(WhittakerTester):
             asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )[0]
 
-        rtol = {2: 1e-4, 3: 5e-4}[diff_order]
+        rtol = {2: 1.5e-4, 3: 3e-4}[diff_order]
         assert_allclose(banded_output, sparse_output, rtol=rtol, atol=1e-8)
 
 

@@ -37,7 +37,7 @@ The resulting linear equation for solving the above minimization is:
 
 where :math:`W_{diag}` is the diagaonal matrix of the flattened weights, and :math:`D_d` is the matrix
 version of :math:`\Delta^d`, as already explained for the :ref:`1D case <difference-matrix-explanation>`.
-Further, :math:`\otimes` denotes the `Kronecker product <https://en.wikipedia.org/wiki/Kronecker_product>`_,
+Further, :math:`\otimes` denotes the `Kronecker product <https://wikipedia.org/wiki/Kronecker_product>`_,
 and :math:`I_M` and :math:`I_N` are the identity matrices of length :math:`M` and :math:`N`, respectively.
 After solving, the array :math:`v` can then be reshaped into the matrix :math:`V`.
 
@@ -84,13 +84,13 @@ and the baseline is then:
 The beauty of this reparameterization when applied to baseline correction is twofold:
 
 1) The number of eigenvalues required to approximate the analytical solution depends on
-   the required smoothness, ie. some constant approximated by :math:`\lambda / (\text{number of data points})`
-   that does not appreciably change with data size. Baselines require much less curvature than
+   the required smoothness, somewhat analogous to the number of knots for penalized splines,
+   and does not appreciably change with data size. Baselines require much less curvature than
    smoothing, so the number of eigenvalues is relatively low (from testing, ~5-10 for low order
    polynomial baselines and ~15-25 for sinusoidal baselines).
 2) Since experimental data is measured on gridded data (ie. :math:`Y_{ij} = f(x_i, z_j)`), the
    above equation can be further optimized by expressing it as a
-   `generalized linear array model <https://en.wikipedia.org/wiki/Generalized_linear_array_model>`_,
+   `generalized linear array model <https://wikipedia.org/wiki/Generalized_linear_array_model>`_,
    following the brilliant insights of `Eilers, Currie, and Durbán <https://doi.org/10.1016/j.csda.2004.07.008>`_,
    exactly as :ref:`explained for 2D penalized splines <generalized-linear-array-model-explanation>`.
 

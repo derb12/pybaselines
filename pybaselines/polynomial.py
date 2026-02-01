@@ -1554,7 +1554,7 @@ def _median_absolute_value(values):
     The 1/0.6744897501960817 scale factor is to make the result comparable to the
     standard deviation of a Gaussian distribution. The divisor is obtained by
     calculating the value at which the cumulative distribution function of a Gaussian
-    distribution is 0.75 (see https://en.wikipedia.org/wiki/Median_absolute_deviation),
+    distribution is 0.75 (see https://wikipedia.org/wiki/Median_absolute_deviation),
     which can be obtained by::
 
         from scipy.special import ndtri
@@ -1570,7 +1570,7 @@ def _median_absolute_value(values):
     estimation. J. Quantitative Spectroscopy and Radiative Transfer, 2001, 68,
     179-193.
 
-    https://en.wikipedia.org/wiki/Median_absolute_deviation.
+    https://wikipedia.org/wiki/Median_absolute_deviation.
 
     """
     return np.median(np.abs(values)) / 0.6744897501960817

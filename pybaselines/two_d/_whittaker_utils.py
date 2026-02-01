@@ -39,7 +39,7 @@ def _face_splitting(basis):
     Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
     Statistics and Data Analysis, 2006, 50(1), 61-76.
 
-    https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product
+    https://wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product
 
     """
     ones = np.ones((1, basis.shape[1]))

@@ -1343,7 +1343,7 @@ def _rolling_std(data, half_window, ddof):
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+    .. [1] https://wikipedia.org/wiki/Algorithms_for_calculating_variance
     .. [2] Chmielowiec, A. Algorithm for error-free determination of the variance of all
            contiguous subsequences and fixed-length contiguous subsequences for a sequence
            of industrial measurement data. Computational Statistics. 2021, 1-28.

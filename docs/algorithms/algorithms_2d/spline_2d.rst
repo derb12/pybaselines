@@ -61,16 +61,16 @@ product, and :math:`I_g` and :math:`I_h` are the identity matrices of length :ma
 
 Since experimental data is measured on gridded data (ie. :math:`Y_{ij} = f(x_i, z_j)`), the above equation
 can be optimized following `[1] <https://doi.org/10.1016/j.csda.2004.07.008>`_ and expressed as a
-`generalized linear array model <https://en.wikipedia.org/wiki/Generalized_linear_array_model>`_
+`generalized linear array model <https://wikipedia.org/wiki/Generalized_linear_array_model>`_
 which allows directly using the matrices of the measured data, :math:`Y`, and the weights,
 :math:`W`, rather than flattening them, and significantly reduces the required
 memory and computation time.
 
 Let :math:`F` be the
-`face-splitting product operator <https://en.wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product>`_
+`face-splitting product operator <https://wikipedia.org/wiki/Khatri%E2%80%93Rao_product#Face-splitting_product>`_
 of a matrix with itself such that :math:`F(B_r) = (B_r \otimes 1_{g}^{\mathsf{T}}) \odot (1_{g}^{\mathsf{T}} \otimes B_r)`
 and :math:`F(B_c) = (B_c \otimes 1_{h}^{\mathsf{T}}) \odot (1_{h}^{\mathsf{T}} \otimes B_c)`, where
-:math:`1_g` and :math:`1_h` are vectors of ones of length :math:`g` and :math:`h`, respecitvely,
+:math:`1_g` and :math:`1_h` are vectors of ones of length :math:`g` and :math:`h`, respectively,
 and :math:`\odot` signifies elementwise multiplication. Then the linear equation can be rewritten as:
 
 .. math::
@@ -128,7 +128,7 @@ mixture_model (Mixture Model)
             np.arange(y.shape[0]), np.arange(y.shape[1]), indexing='ij'
         )
 
-        # 4 total plots: 2 countours and 2 projections
+        # 4 total plots: 2 contours and 2 projections
         row_names = ('Raw Data', 'Baseline Corrected')
         for i, dataset in enumerate((y, y - fit_baseline)):
             fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))

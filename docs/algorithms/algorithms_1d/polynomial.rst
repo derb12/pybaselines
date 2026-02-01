@@ -27,6 +27,11 @@ by 1) only fitting the data in regions where there is only baseline (termed
 selective masking), 2) modifying the y-values being fit each iteration, termed
 thresholding, or 3) penalizing outliers.
 
+.. note::
+    Note that pybaselines uses both "order" and "degree" interchangeably to reference
+    the polynomial degree.
+
+
 .. _selective-masking-explanation:
 
 Selective Masking
@@ -35,9 +40,9 @@ Selective Masking
 Selective masking is the simplest of the techniques. There
 are two ways to use selective masking in pybaselines.
 
-First, the input dataset can be trimmed/masked (easy to do with numpy) to not
-include any peak regions, the masked data can be fit, and then the resulting
-polynomial coefficients (must set ``return_coef`` to True) can be used to create
+First, the input dataset can be trimmed/masked (easy to do with NumPy) to not
+include any peak regions, the masked data is fit, and then the resulting
+polynomial coefficients (must set ``return_coef`` to True) are used to create
 a polynomial that spans the entirety of the original dataset.
 
 .. plot::
@@ -62,7 +67,8 @@ a polynomial that spans the entirety of the original dataset.
     noise = np.random.default_rng(1).normal(0, 0.2, x.size)
     y = signal + real_baseline + noise
 
-    # bitwise "or" (|) and "and" (&) operators for indexing numpy array
+    # create the fitting mask by identifying non-peak regions;
+    # use bitwise "or" (|) and "and" (&) operators for indexing numpy array
     non_peaks = (
         (x < 150) | ((x > 210) & (x < 310))
         | ((x > 440) & (x < 650)) | (x > 840)
@@ -78,18 +84,10 @@ a polynomial that spans the entirety of the original dataset.
     # Alternatively, just use numpy:
     # baseline = np.polynomial.Polynomial.fit(x_masked, y_masked, 3)(x)
 
-    fig, ax = plt.subplots(tight_layout={'pad': 0.2})
-    data_handle = ax.plot(y)
-    baseline_handle = ax.plot(baseline, '--')
-    masked_y = y.copy()
-    masked_y[~non_peaks] = np.nan
-    masked_handle = ax.plot(masked_y)
-    ax.set_yticks([])
-    ax.set_xticks([])
-    ax.legend(
-        (data_handle[0], masked_handle[0], baseline_handle[0]),
-        ('data', 'non-peak regions', 'fit baseline'), frameon=False
-    )
+    plt.plot(x, y, label='data')
+    plt.plot(x_masked, y_masked, label='non-peak regions')
+    plt.plot(x, baseline, '--', label='fit baseline', lw=2.5)
+    plt.legend()
     plt.show()
 
 
@@ -101,26 +99,18 @@ fitting function with values equal to 0 in peak regions and 1 in baseline region
    :context: close-figs
    :include-source: True
 
-    weights = np.zeros(len(y))
-    weights[non_peaks] = 1
+    # weights are 1 for non-peak regions, otherwise 0
+    weights = np.where(non_peaks, 1., 0.)
     # directly create baseline by inputting weights
-    baseline = Baseline(x).poly(y, poly_order=3, weights=weights)[0]
+    baseline_2 = Baseline(x).poly(y, poly_order=3, weights=weights)[0]
 
     # Alternatively, just use numpy:
-    # baseline = np.polynomial.Polynomial.fit(x, y, 3, w=weights)(x)
+    # baseline_2 = np.polynomial.Polynomial.fit(x, y, 3, w=weights)(x)
 
-    fig, ax = plt.subplots(tight_layout={'pad': 0.2})
-    data_handle = ax.plot(y)
-    baseline_handle = ax.plot(baseline, '--')
-    masked_y = y.copy()
-    masked_y[~non_peaks] = np.nan
-    masked_handle = ax.plot(masked_y)
-    ax.set_yticks([])
-    ax.set_xticks([])
-    ax.legend(
-        (data_handle[0], masked_handle[0], baseline_handle[0]),
-        ('data', 'non-peak regions', 'fit baseline'), frameon=False
-    )
+    plt.plot(x, y, label='data')
+    plt.plot(x_masked, y_masked, label='non-peak regions')
+    plt.plot(x, baseline_2, '--', label='fit baseline', lw=2.5)
+    plt.legend()
     plt.show()
 
 
@@ -194,7 +184,7 @@ Algorithms
 poly (Regular Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.poly` is simple least-squares polynomial fitting. Use selective
+:meth:`~.Baseline.poly` is basic least-squares polynomial fitting. Use selective
 masking, as described above, in order to use it for baseline fitting.
 
 Note that the plots below are just the least-squared polynomial fits of the data
@@ -385,9 +375,9 @@ and both `modpoly` and `imodpoly` are sometimes referred to as "IPF" or "Iterati
 penalized_poly (Penalized Polynomial)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.penalized_poly` (sometimes referred to as "backcor" in literature) fits a
+:meth:`~.Baseline.penalized_poly` (typically referred to as "backcor" in literature) fits a
 polynomial baseline to data using non-quadratic cost functions. Compared to the quadratic
-cost function used in typical least-squares as discussed above, non-quadratic cost funtions
+cost function used in typical least-squares as discussed above, non-quadratic cost functions
 allow outliers above a user-defined threshold to have less effect on the fit. pentalized_poly
 has three different cost functions:
 
@@ -505,15 +495,15 @@ The plots below show the symmetric and asymmetric forms of the cost functions.
 loess (Locally Estimated Scatterplot Smoothing)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.loess` (sometimes referred to as "rbe" or "robust baseline estimate" in literature)
-is similar to `traditional loess/lowess <https://en.wikipedia.org/wiki/Local_regression>`_
+:meth:`~.Baseline.loess` (typically referred to as "rbe" or "robust baseline estimate" in literature)
+is similar to `traditional loess/lowess <https://wikipedia.org/wiki/Local_regression>`_
 but adapted for fitting the baseline. The baseline at each point is estimated by using
 polynomial regression on the k-nearest neighbors of the point, and the effect of outliers
 is reduced by iterative reweighting.
 
 .. note::
    Although not its intended use, the loess function can be used for smoothing like
-   "traditional loess", simply by settting ``symmetric_weights`` to True and ``scale`` to ~4.05.
+   "traditional loess", simply by setting ``symmetric_weights`` to True and ``scale`` to ~4.05.
 
 
 .. plot::
@@ -550,7 +540,8 @@ is reduced by iterative reweighting.
 quant_reg (Quantile Regression)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.quant_reg` fits a polynomial to the baseline using quantile regression.
+:meth:`~.Baseline.quant_reg` fits a polynomial to the baseline using
+`quantile regression <https://wikipedia.org/wiki/Quantile_regression>`_.
 
 .. plot::
    :align: center
