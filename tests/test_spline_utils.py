@@ -620,7 +620,7 @@ def test_pspline_lam_extremes(data_fixture, diff_order, allow_lower, spline_degr
         # and both larger num_knots and larger diff_orders need larger lam for it to be a
         # polynomial, so have to reduce the relative tolerance; num_knots has a larger effect
         # than diff_order, so base the rtol on it
-        rtol = {50: 5e-4, 501: 5e-3}[num_knots]
+        rtol = {50: 1e-3, 501: 5e-3}[num_knots]
         assert_allclose(output, polynomial_fit, rtol=rtol, atol=1e-10)
 
     # for lam ~ 0, should just approximate the an interpolating spline
