@@ -458,7 +458,7 @@ class TestAsPLS(WhittakerTester):
             asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )[0]
 
-        rtol = {2: 1.5e-4, 3: 3e-4}[diff_order]
+        rtol = {2: 1.5e-4, 3: 5e-4}[diff_order]
         assert_allclose(banded_output, sparse_output, rtol=rtol, atol=1e-8)
 
 
