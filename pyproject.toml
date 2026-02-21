@@ -184,11 +184,6 @@ message = "Bump version: {current_version} -> {new_version}"
 
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
-search = "version = \"{current_version}\""
-replace = "version = \"{new_version}\""
-
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
 search = "fallback-version = \"{current_version}.post1.dev0\""
 replace = "fallback-version = \"{new_version}.post1.dev0\""
 
