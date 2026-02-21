@@ -1085,3 +1085,32 @@ class RecreationMixin:
                 assert params_2['tol_history'].shape == (2, 1)
                 assert params_2['tol_history'].size == 2
         assert_allclose(second_baseline, first_baseline, rtol=1e-12, atol=1e-12)
+
+
+class MaskingMixin:
+    """A mixin for BaseTester and BaseTester2D to ensure masking works when expected.
+
+    Some methods should theoretically allow masking by simply inputting the mask as weights,
+    so this mixin is for ensuring that behavior.
+
+    """
+
+    def test_masking(self, **kwargs):
+        """Ensures weights can be correctly used as a mask, when expected."""
+        if hasattr(self, 'two_d'):  # BaseTester
+            bad_region = (self.x > 30) & (self.x < 40)
+        else:  # BaseTester2D
+            X, Z = np.meshgrid(self.x, self.z, indexing='ij')
+            bad_region = (Z > 40) & (Z < 50) & (X > 30) & (X < 40)
+
+        y_bad = self.y.copy()
+        # make the problematic region negative so that it would otherwise have strong
+        # effects on the fit
+        y_bad[bad_region] = self.y[bad_region] - 50
+        weights = ~bad_region
+
+        # input weights in both cases so that the fits should theoretically be the same
+        normal_fit, _ = self.class_func(self.y, weights=weights, **self.kwargs, **kwargs)
+        masked_fit, _ = self.class_func(y_bad, weights=weights, **self.kwargs, **kwargs)
+
+        assert_allclose(masked_fit, normal_fit, rtol=1e-10, atol=1e-4)

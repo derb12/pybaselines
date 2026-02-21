@@ -316,7 +316,7 @@ class _Polynomial(_Algorithm2D):
 
         coef = pseudo_inverse @ (sqrt_w * y)
         baseline = self._polynomial.vandermonde @ coef
-        deviation = np.std(y - baseline)
+        deviation = np.std(sqrt_w * (y - baseline))
         if mask_initial_peaks:
             weight_array[baseline + deviation < y] = 0
             sqrt_w = np.sqrt(weight_array)
@@ -327,7 +327,7 @@ class _Polynomial(_Algorithm2D):
             y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
             coef = pseudo_inverse @ (sqrt_w * y)
             baseline = self._polynomial.vandermonde @ coef
-            new_deviation = np.std(y - baseline)
+            new_deviation = np.std(sqrt_w * (y - baseline))
             # use new_deviation as dividing term in relative difference
             calc_difference = relative_difference(new_deviation, deviation)
             tol_history[i] = calc_difference

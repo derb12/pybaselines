@@ -89,6 +89,7 @@ def test_setup_whittaker_weights(small_data2d, algorithm, weight_enum):
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == float
 
 
 def test_setup_whittaker_wrong_weight_shape(small_data2d, algorithm):
@@ -157,6 +158,7 @@ def test_setup_polynomial_weights(small_data2d, algorithm, weight_enum):
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == float
 
 
 def test_setup_polynomial_wrong_weight_shape(small_data2d, algorithm):
@@ -548,6 +550,7 @@ def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == float
 
 
 @pytest.mark.parametrize('input_x', (True, False))

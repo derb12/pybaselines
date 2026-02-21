@@ -517,7 +517,7 @@ class _Algorithm2D:
             )
         weight_array = _check_optional_array(
             self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False, axis=slice(None)
+            ensure_1d=False, axis=slice(None), dtype=float
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
@@ -593,7 +593,7 @@ class _Algorithm2D:
         """
         weight_array = _check_optional_array(
             self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False, axis=slice(None)
+            ensure_1d=False, axis=slice(None), dtype=float
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]
@@ -687,7 +687,7 @@ class _Algorithm2D:
         """
         weight_array = _check_optional_array(
             self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False, axis=slice(None)
+            ensure_1d=False, axis=slice(None), dtype=float
         )
         if self._sort_order is not None and weights is not None:
             weight_array = weight_array[self._sort_order]

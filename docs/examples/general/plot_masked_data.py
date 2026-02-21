@@ -88,7 +88,6 @@ plt.legend()
 # will simply define the mask region by hand.
 fit_mask = (x < 1900) | (x > 2550)  # 1 in regions to fit, 0 in masked region
 
-
 # %%
 # First, the algorithms that are already mask-aware to a certain extent will be covered.
 # For these algorithms, the mask needs to simply be input as ``weights``, and any NaN values
@@ -102,8 +101,8 @@ masked_std_distribution = baseline_fitter.std_distribution(
     y_bad, half_window=20, num_std=3, weights=fit_mask
 )[0]
 
-non_masked_imodpoly = baseline_fitter.imodpoly(y_bad, poly_order=5, num_std=0.1)[0]
-masked_imodpoly = baseline_fitter.imodpoly(y_bad, poly_order=5, num_std=0.1, weights=fit_mask)[0]
+non_masked_imodpoly = baseline_fitter.imodpoly(y_bad, poly_order=7)[0]
+masked_imodpoly = baseline_fitter.imodpoly(y_bad, poly_order=7, weights=fit_mask)[0]
 
 _, (ax1, ax2) = plt.subplots(2, layout='constrained')
 ax1.set_title('std_distribution')
@@ -135,7 +134,7 @@ ax2.legend()
 # not apparent without intimate knowledge of each algorithm, so assuming all algorithms are
 # not x-aware and interpolating before baseline correction is the safer route.
 #
-# Note that as a generalization, polynomial, spline, and classifcation methods are x-aware
+# Note that as a generalization, polynomial, spline, and classification methods are x-aware
 # while Whittaker, morphological, and smoothing methods are not.
 _, (ax1, ax2) = plt.subplots(2, layout='constrained')
 ax1.plot(x[fit_mask], y[fit_mask])

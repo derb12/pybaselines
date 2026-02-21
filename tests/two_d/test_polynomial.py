@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines.two_d import polynomial
 
-from ..base_tests import BasePolyTester2D, InputWeightsMixin, RecreationMixin
+from ..base_tests import BasePolyTester2D, InputWeightsMixin, MaskingMixin, RecreationMixin
 from ..data import STATSMODELS_QUANTILES_2D
 
 
@@ -42,13 +42,13 @@ class IterativePolynomialTester(PolynomialTester):
             assert params['tol_history'].size == max_iter + 1
 
 
-class TestPoly(PolynomialTester):
+class TestPoly(PolynomialTester, MaskingMixin):
     """Class for testing regular polynomial baseline."""
 
     func_name = 'poly'
 
 
-class TestModPoly(IterativePolynomialTester):
+class TestModPoly(IterativePolynomialTester, MaskingMixin):
     """Class for testing modpoly baseline."""
 
     func_name = 'modpoly'
@@ -63,7 +63,7 @@ class TestModPoly(IterativePolynomialTester):
         )
 
 
-class TestIModPoly(IterativePolynomialTester):
+class TestIModPoly(IterativePolynomialTester, MaskingMixin):
     """Class for testing imodpoly baseline."""
 
     func_name = 'imodpoly'
@@ -87,7 +87,7 @@ class TestIModPoly(IterativePolynomialTester):
             self.class_func(self.y, num_std=num_std)
 
 
-class TestPenalizedPoly(IterativePolynomialTester):
+class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
     """Class for testing penalized_poly baseline."""
 
     func_name = 'penalized_poly'
@@ -192,6 +192,10 @@ class TestPenalizedPoly(IterativePolynomialTester):
         """Ensures an alpha factor outside of (0, 1] fails."""
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha_factor=alpha_factor)
+
+    def test_masking(self):
+        """Masking only works if `threshold` is a fixed value."""
+        super().test_masking(threshold=np.std(self.y) / 10)
 
 
 class TestQuantReg(IterativePolynomialTester, RecreationMixin):

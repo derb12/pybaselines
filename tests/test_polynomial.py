@@ -15,7 +15,7 @@ import pytest
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
-from .base_tests import BasePolyTester, InputWeightsMixin, RecreationMixin
+from .base_tests import BasePolyTester, InputWeightsMixin, MaskingMixin, RecreationMixin
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
     STATSMODELS_QUANTILES
@@ -46,7 +46,7 @@ class IterativePolynomialTester(PolynomialTester):
             assert params['tol_history'].size == max_iter + 1
 
 
-class TestPoly(PolynomialTester):
+class TestPoly(PolynomialTester, MaskingMixin):
     """Class for testing regular polynomial baseline."""
 
     func_name = 'poly'
@@ -126,21 +126,22 @@ def thresholding_polynomial(x, y, poly_order, max_iter, weights=None, use_origin
 
     """
     if weights is None:
-        sqrt_weights = None
+        sqrt_weights = np.ones_like(y)
     else:
         sqrt_weights = np.sqrt(weights)
     y_original = y.copy()
     baseline = np.polynomial.Polynomial.fit(x=x, y=y, deg=poly_order, w=sqrt_weights)(x)
     for _ in range(max_iter):
         y = np.minimum(
-            baseline + num_std * np.std(y - baseline), y_original if use_original else y
+            baseline + num_std * np.std(sqrt_weights * (y - baseline)),
+            y_original if use_original else y
         )
         baseline = np.polynomial.Polynomial.fit(x=x, y=y, deg=poly_order, w=sqrt_weights)(x)
 
     return baseline
 
 
-class TestModPoly(IterativePolynomialTester):
+class TestModPoly(IterativePolynomialTester, MaskingMixin):
     """Class for testing modpoly baseline."""
 
     func_name = 'modpoly'
@@ -173,7 +174,7 @@ class TestModPoly(IterativePolynomialTester):
         assert_allclose(fit, simple_fit, rtol=1e-12, atol=1e-12)
 
 
-class TestIModPoly(IterativePolynomialTester):
+class TestIModPoly(IterativePolynomialTester, MaskingMixin):
     """Class for testing imodpoly baseline."""
 
     func_name = 'imodpoly'
@@ -216,7 +217,7 @@ class TestIModPoly(IterativePolynomialTester):
         assert_allclose(fit, simple_fit, rtol=1e-12, atol=1e-12)
 
 
-class TestPenalizedPoly(IterativePolynomialTester):
+class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
     """Class for testing penalized_poly baseline."""
 
     func_name = 'penalized_poly'
@@ -322,8 +323,12 @@ class TestPenalizedPoly(IterativePolynomialTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha_factor=alpha_factor)
 
+    def test_masking(self):
+        """Masking only works if `threshold` is a fixed value."""
+        super().test_masking(threshold=np.std(self.y) / 10)
 
-class TestLoess(IterativePolynomialTester, RecreationMixin):
+
+class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
     """Class for testing loess baseline."""
 
     func_name = 'loess'
@@ -506,6 +511,15 @@ class TestLoess(IterativePolynomialTester, RecreationMixin):
         delta = 0.05 * (self.x.max() - self.x.min())  # use a larger delta to speed up method
         super().test_threading(conserve_memory=conserve_memory, delta=delta)
 
+    @pytest.mark.parametrize('use_threshold', (True, False))
+    def test_masking(self, use_threshold):
+        """Masking only works if `use_threshold` is True."""
+        if use_threshold:
+            super().test_masking(use_threshold=use_threshold)
+        else:
+            with pytest.raises(AssertionError):
+                super().test_masking(use_threshold=use_threshold)
+
 
 class TestQuantReg(IterativePolynomialTester, RecreationMixin):
     """Class for testing quant_reg baseline."""
@@ -564,7 +578,7 @@ class TestQuantReg(IterativePolynomialTester, RecreationMixin):
         assert_allclose(output[0], STATSMODELS_QUANTILES[quantile], rtol=1e-6)
 
 
-class TestGoldindec(PolynomialTester):
+class TestGoldindec(PolynomialTester, MaskingMixin):
     """Class for testing goldindec baseline."""
 
     func_name = 'goldindec'
