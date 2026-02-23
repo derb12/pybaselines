@@ -389,7 +389,7 @@ class TestFabc(ClassificationTester):
     """Class for testing fabc baseline."""
 
     func_name = 'fabc'
-    checked_keys = ('mask', 'weights')
+    checked_keys = ('mask', 'weights', 'result')
     weight_keys = ('mask', 'weights')
     requires_unique_x = False
 
@@ -573,3 +573,11 @@ class TestRubberband(ClassificationTester):
                         self.y, smooth_half_window=smooth_half_window,
                         pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate'
                 )
+
+    @pytest.mark.parametrize('lam', (0, 1e4))
+    def test_output(self, lam):
+        """Ensures that the output has the desired format."""
+        additional_keys = []
+        if lam > 0:
+            additional_keys.extend(['weights', 'result'])
+        super().test_output(additional_keys=additional_keys, lam=lam)

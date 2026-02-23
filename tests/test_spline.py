@@ -67,7 +67,7 @@ class SplineTester(BaseTester):
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):
     """Base testing class for iterative spline functions."""
 
-    checked_keys = ('weights', 'tol_history', 'tck')
+    checked_keys = ('weights', 'tol_history', 'tck', 'result')
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -436,7 +436,7 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_aspls baseline."""
 
     func_name = 'pspline_aspls'
-    checked_keys = ('weights', 'tol_history', 'alpha', 'tck')
+    checked_keys = ('weights', 'tol_history', 'alpha', 'tck', 'result')
     weight_keys = ('weights', 'alpha')
 
     def test_wrong_alpha_shape(self):
@@ -599,7 +599,7 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin)
     """Class for testing pspline_mpls baseline."""
 
     func_name = 'pspline_mpls'
-    checked_keys = ('half_window', 'weights', 'tck')
+    checked_keys = ('half_window', 'weights', 'tck', 'result')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):

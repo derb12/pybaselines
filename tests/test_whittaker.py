@@ -92,7 +92,7 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    checked_keys = ('weights', 'tol_history')
+    checked_keys = ('weights', 'tol_history', 'result')
 
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_scipy_solvers(self, diff_order):
@@ -380,7 +380,7 @@ class TestAsPLS(WhittakerTester):
     """Class for testing aspls baseline."""
 
     func_name = 'aspls'
-    checked_keys = ('weights', 'alpha', 'tol_history')
+    checked_keys = ('weights', 'alpha', 'tol_history', 'result')
     weight_keys = ('weights', 'alpha')
 
     @pytest.mark.parametrize('diff_order', (1, 3))

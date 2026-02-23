@@ -191,7 +191,11 @@ numpydoc_xref_aliases = {
     'Sequence': ':term:`python:sequence`',
     'Callable': ':term:`python:callable`',
     'Iterable': ':term:`python:iterable`',
-    'ParameterWarning': ':class:`pybaselines.utils.ParameterWarning`',
+    'ParameterWarning': ':class:`~pybaselines.utils.ParameterWarning`',
+    'WhittakerResult': ':class:`~pybaselines.results.WhittakerResult`',
+    'WhittakerResult2D': ':class:`~pybaselines.results.WhittakerResult2D`',
+    'PSplineResult': ':class:`~pybaselines.results.PSplineResult`',
+    'PSplineResult2D': ':class:`~pybaselines.results.PSplineResult2D`',
 }
 # have to set numpydoc_class_members_toctree to False to work well with autosummary;
 # otherwise, duplicate objects are added to the toctree

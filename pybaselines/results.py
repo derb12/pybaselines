@@ -283,7 +283,7 @@ class PSplineResult(WhittakerResult):
 
     """
 
-    def __init__(self, penalized_object, weights=None, rhs_extra=None):
+    def __init__(self, penalized_object, weights=None, rhs_extra=None, penalty=None):
         """
         Initializes the result object.
 
@@ -310,10 +310,16 @@ class PSplineResult(WhittakerResult):
         rhs_extra : numpy.ndarray or scipy.sparse.sparray or scipy.sparse.spmatrix, optional
             Additional terms besides ``B.T @ W @ B`` within the right hand side of the hat
             matrix. Default is None.
+        penalty : numpy.ndarray, optional
+            The penalty `P` for the system, in the same banded format as used by
+            `penalized_object`. If None (default), will use ``penalized_object.penalty``.
+            If given, will overwrite ``penalized_object.penalty`` with the given penalty.
 
         """
         super().__init__(penalized_object, weights=weights, rhs_extra=rhs_extra)
         self._btwb_ = None
+        if penalty is not None:
+            self._penalized_object.penalty = penalty
 
     @property
     def _shape(self):
@@ -370,7 +376,7 @@ class PSplineResult(WhittakerResult):
                     self._rhs_extra = _banded_to_sparse(
                         self._rhs_extra, lower=self._penalized_object.lower
                     )
-                self._hat_rhs = self.rhs_extra + btwb
+                self._hat_rhs = self._rhs_extra + btwb
         return self._hat_rhs
 
     @property
@@ -478,7 +484,7 @@ class PSplineResult2D(PSplineResult):
 
     """
 
-    def __init__(self, penalized_object, weights=None, rhs_extra=None):
+    def __init__(self, penalized_object, weights=None, rhs_extra=None, penalty=None):
         """
         Initializes the result object.
 
@@ -505,9 +511,13 @@ class PSplineResult2D(PSplineResult):
         rhs_extra : numpy.ndarray or scipy.sparse.sparray or scipy.sparse.spmatrix, optional
             Additional terms besides ``B.T @ W @ B`` within the right hand side of the hat
             matrix. Default is None.
+        penalty : scipy.sparse.sparray or scipy.sparse.spmatrix, optional
+            The penalty `P` for the system in full, sparse format. If None (default), will use
+            ``penalized_object.penalty``. If given, will overwrite ``penalized_object.penalty``
+            with the given penalty.
 
         """
-        super().__init__(penalized_object, weights, rhs_extra)
+        super().__init__(penalized_object, weights=weights, rhs_extra=rhs_extra, penalty=penalty)
         if self._weights.ndim == 1:
             self._weights = self._weights.reshape(self._shape)
 

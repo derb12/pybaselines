@@ -92,7 +92,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "collab_pls"
     checked_keys = ('average_weights',)
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history', 'result')
     two_d = True
     weight_keys = ('average_weights', 'weights')
 
@@ -151,7 +151,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "optimize_extended_range"
     checked_keys = ('optimal_parameter', 'min_rmse', 'rmse')
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history', 'result')
     required_kwargs = {'pad_kwargs': {'extrapolate_window': 100}}
 
     @pytest.mark.parametrize('use_class', (True, False))
@@ -172,16 +172,13 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
             'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg', 'goldindec',
             'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'dietrich', 'cwt_br', 'fabc',
             'pspline_asls', 'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
-            'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa'
+            'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa', 'rubberband',
         )
     )
     def test_all_methods(self, method):
         """Tests all methods that should work with optimize_extended_range."""
-        if method == 'loess':
-            # reduce number of calculations for loess since it is much slower
-            kwargs = {'min_value': 1, 'max_value': 3}
-        else:
-            kwargs = {}
+        # reduce number of calculations since this is just checking that calling works
+        kwargs = {'min_value': 1, 'max_value': 3}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
         output = self.class_func(
             self.y, method=method, height_scale=0.1, **kwargs, **self.kwargs
@@ -581,7 +578,7 @@ class TestCustomBC(OptimizersTester):
     func_name = 'custom_bc'
     checked_keys = ('y_fit', 'x_fit', 'baseline_fit')
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history', 'result')
     required_kwargs = {'sampling': 5}
 
     @pytest.mark.parametrize(
@@ -677,7 +674,9 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "optimize_pls"
     checked_keys = ('optimal_parameter', 'metric', 'fidelity')
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history', 'result')
+    # by default only run a few optimization steps
+    required_kwargs = {'min_value': 2, 'max_value': 3}
 
     @pytest.mark.parametrize('opt_method', ('U-curve', 'GCV', 'BIC'))
     def test_output(self, opt_method):
@@ -692,7 +691,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         'method',
         (
             'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
-            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc',
+            'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'fabc', 'rubberband',
             'pspline_asls', 'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
             'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa'
         )

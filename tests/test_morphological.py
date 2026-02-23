@@ -51,7 +51,7 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpls baseline."""
 
     func_name = 'mpls'
-    checked_keys = ('half_window', 'weights')
+    checked_keys = ('half_window', 'weights', 'result')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -184,7 +184,7 @@ class TestMpspline(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpspline baseline."""
 
     func_name = 'mpspline'
-    checked_keys = ('half_window', 'weights', 'tck')
+    checked_keys = ('half_window', 'weights', 'tck', 'result')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):

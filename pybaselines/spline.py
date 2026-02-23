@@ -17,6 +17,7 @@ from ._banded_utils import _add_diagonals, _shift_rows, _sparse_to_banded, diff_
 from ._compat import dia_object, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
+from .results import PSplineResult
 from .utils import (
     ParameterWarning, _mollifier_kernel, _sort_array, gaussian, pad_edges, padded_convolve,
     relative_difference, _MIN_FLOAT
@@ -94,6 +95,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -199,7 +203,8 @@ class _Spline(_Algorithm):
             residual = y - baseline
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck
+            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
         }
 
         baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
@@ -261,6 +266,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -291,7 +299,10 @@ class _Spline(_Algorithm):
             old_coef = pspline.coef
             weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -424,6 +435,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -463,7 +477,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -520,6 +537,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -572,7 +592,8 @@ class _Spline(_Algorithm):
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve_pspline(y, weight_array**2, rhs_extra=partial_rhs)
+            weight_squared = weight_array**2
+            baseline = pspline.solve_pspline(y, weight_squared, rhs_extra=partial_rhs)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -580,7 +601,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_squared, rhs_extra=d1_penalty)
+        }
 
         return baseline, params
 
@@ -635,6 +659,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -668,7 +695,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -719,6 +749,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -749,7 +782,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -804,6 +840,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -845,10 +884,8 @@ class _Spline(_Algorithm):
                 diff_n_diagonals * np.interp(interp_pts, self.x, weight_array),
                 pspline.num_bands, pspline.num_bands
             )
-            baseline = pspline.solve_pspline(
-                y, weight_array,
-                penalty=_add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
-            )
+            penalty = _add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
+            baseline = pspline.solve_pspline(y, weight_array, penalty=penalty)
             new_weights, exit_early = _weighting._drpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -860,7 +897,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array, penalty=penalty)
+        }
 
         return baseline, params
 
@@ -911,6 +951,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -942,7 +985,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -1015,6 +1061,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1067,7 +1116,7 @@ class _Spline(_Algorithm):
                 pspline.penalty * np.interp(interp_pts, self.x, alpha_array),
                 pspline.num_bands, pspline.num_bands
             )
-            baseline = pspline.solve_pspline(y, weight_array, alpha_penalty)
+            baseline = pspline.solve_pspline(y, weight_array, penalty=alpha_penalty)
             new_weights, residual, exit_early = _weighting._aspls(
                 y, baseline, asymmetric_coef, alternate_weighting
             )
@@ -1084,7 +1133,8 @@ class _Spline(_Algorithm):
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
-            'tck': pspline.tck
+            'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array, penalty=alpha_penalty)
         }
 
         return baseline, params
@@ -1146,6 +1196,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1187,7 +1240,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -1263,6 +1319,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1326,7 +1385,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -1403,6 +1465,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1466,7 +1531,10 @@ class _Spline(_Algorithm):
         )
         baseline = pspline.solve_pspline(y, weight_array)
 
-        params = {'weights': weight_array, 'half_window': half_wind, 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'half_window': half_wind, 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
         return baseline, params
 
     @_Algorithm._register(sort_keys=('weights',))
@@ -1526,6 +1594,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -1584,7 +1655,7 @@ class _Spline(_Algorithm):
 
         params = {
             'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
-            'tck': pspline.tck
+            'tck': pspline.tck, 'result': PSplineResult(pspline, baseline_weights)
         }
 
         return baseline, params
@@ -1642,6 +1713,9 @@ class _Spline(_Algorithm):
                 The knots, spline coefficients, and spline degree for the fit baseline.
                 Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
                 other usages such as evaluating with different x-values.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -1683,7 +1757,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
