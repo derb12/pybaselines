@@ -92,7 +92,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "collab_pls"
     checked_keys = ('average_weights',)
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history', 'result')
     three_d = True
     weight_keys = ('average_weights', 'weights')
 

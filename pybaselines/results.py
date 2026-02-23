@@ -676,7 +676,7 @@ class WhittakerResult2D(WhittakerResult):
 
     """
 
-    def __init__(self, penalized_object, weights=None, lhs=None, rhs_extra=None):
+    def __init__(self, penalized_object, weights=None, lhs=None, rhs_extra=None, penalty=None):
         """
         Initializes the result object.
 
@@ -698,10 +698,24 @@ class WhittakerResult2D(WhittakerResult):
         rhs_extra : scipy.sparse.sparray or scipy.sparse.spmatrix, optional
             Additional terms besides the weights within the right hand side of the hat matrix.
             Default is None.
+        penalty : scipy.sparse.sparray or scipy.sparse.spmatrix, optional
+            The penalty `P` for the system in full, sparse format. If None (default), will use
+            ``penalized_object.penalty``. If given, will overwrite ``penalized_object.penalty``
+            with the given penalty.
+
+        Raises
+        ------
+        ValueError
+            Raised if both `penalty` and `lhs` are not None.
 
         """
         super().__init__(penalized_object, weights=weights, lhs=lhs, rhs_extra=rhs_extra)
         self._btwb_ = None
+        if penalty is not None:
+            if lhs is not None:
+                raise ValueError('both `lhs` and `penalty` cannot be supplied')
+            self._penalized_object.penalty = penalty
+
         if self._penalized_object._using_svd and self._weights.ndim == 1:
             self._weights = self._weights.reshape(self._shape)
         elif not self._penalized_object._using_svd and self._weights.ndim == 2:

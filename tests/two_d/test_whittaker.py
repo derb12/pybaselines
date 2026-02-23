@@ -18,7 +18,7 @@ class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    checked_keys = ('weights', 'tol_history')
+    checked_keys = ('weights', 'tol_history', 'result')
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -174,7 +174,7 @@ class TestAsPLS(WhittakerTester):
     """Class for testing aspls baseline."""
 
     func_name = 'aspls'
-    checked_keys = ('weights', 'alpha', 'tol_history')
+    checked_keys = ('weights', 'alpha', 'tol_history', 'result')
     weight_keys = ('weights', 'alpha')
     required_repeated_kwargs = {'lam': 1e2, 'tol': 1e-1}
 
