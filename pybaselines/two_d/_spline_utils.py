@@ -349,7 +349,7 @@ class PSpline2D(PenalizedSystem2D):
         knots : tuple[numpy.ndarray, numpy.ndarray]
             The knots for the spline along the rows and columns.
         coef : numpy.ndarray, shape (M, N)
-            The spline coeffieicnts. Has a shape of (`M`, `N`), correspondong to the number
+            The spline coeffieicnts. Has a shape of (`M`, `N`), corresponding to the number
             of basis functions along the rows and columns.
         spline_degree : numpy.ndarray([int, int])
             The degree of the spline for the rows and columns.

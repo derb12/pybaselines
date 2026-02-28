@@ -964,7 +964,7 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
     for lam in lam_range:
         fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
         if spline_fit:
-            penalized_object = fit_params['tck'][1]
+            penalized_object = fit_params['result'].tck[1]  # the spline coefficients
         else:
             penalized_object = fit_baseline
         # Park, et al. multiplied the penalty by lam (Equation 8), but I think that may have

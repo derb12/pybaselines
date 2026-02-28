@@ -6,7 +6,6 @@ Created on July 3, 2021
 
 """
 
-import inspect
 import pickle
 
 import numpy as np
@@ -252,28 +251,3 @@ class TestBaseline2D:
         pickle_and_check(
             fitter, 1, fitter._polynomial, fitter._spline_basis, x_validated, z_validated
         )
-
-
-def test_tck(data_fixture2d):
-    """Ensures all penalized spline methods return 'tck' in the output params."""
-    methods = []
-    for (method_name, method) in inspect.getmembers(api.Baseline2D):
-        if (
-            inspect.isfunction(method)
-            and not method_name.startswith('_')
-            and (
-                'num_knots' in inspect.signature(method).parameters.keys()
-                or 'spline_degree' in inspect.signature(method).parameters.keys()
-            )
-        ):
-            methods.append(method_name)
-    x, z, y = data_fixture2d
-    fitter = api.Baseline2D(x_data=x, z_data=z)
-    failures = []
-    for method in methods:
-        _, params = getattr(fitter, method)(y)
-        if 'tck' not in params:
-            failures.append(method)
-
-    if failures:
-        raise AssertionError(f'"tck" not in output params for {failures}')

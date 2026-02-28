@@ -83,10 +83,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -190,7 +186,7 @@ class _Spline(_Algorithm2D):
             residual = y - baseline
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult2D(pspline, weight_array)
         }
 
@@ -252,10 +248,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -290,7 +282,7 @@ class _Spline(_Algorithm2D):
             weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult2D(pspline, weight_array)
         }
 
@@ -346,10 +338,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -391,7 +379,7 @@ class _Spline(_Algorithm2D):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult2D(pspline, weight_array)
         }
 
@@ -451,10 +439,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -513,7 +497,7 @@ class _Spline(_Algorithm2D):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult2D(pspline, weight_squared, rhs_extra=d1_penalty)
         }
 
@@ -569,10 +553,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -610,7 +590,7 @@ class _Spline(_Algorithm2D):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i],
             'result': PSplineResult2D(pspline, weight_array)
         }
 
@@ -662,10 +642,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -700,7 +676,7 @@ class _Spline(_Algorithm2D):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult2D(pspline, weight_array)
         }
 
@@ -752,10 +728,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -791,7 +763,7 @@ class _Spline(_Algorithm2D):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i],
             'result': PSplineResult2D(pspline, weight_array)
         }
 
@@ -853,10 +825,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -902,7 +870,7 @@ class _Spline(_Algorithm2D):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult2D(pspline, weight_array)
         }
 
@@ -964,10 +932,6 @@ class _Spline(_Algorithm2D):
                 `max_iter_2`, `tol_2`), and shape K is the maximum of the number of
                 iterations for the threshold and the maximum number of iterations for all of
                 the fits of the various threshold values (related to `max_iter` and `tol`).
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -1029,7 +993,7 @@ class _Spline(_Algorithm2D):
 
         params = {
             'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
-            'tck': pspline.tck, 'result': PSplineResult2D(pspline, weight_array)
+            'result': PSplineResult2D(pspline, weight_array)
         }
 
         return baseline, params
@@ -1086,10 +1050,6 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[tuple[numpy.ndarray, numpy.ndarray], numpy.ndarray, numpy.ndarray]
-                The knots, spline coefficients, and spline degrees for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.NdBSpline`, to allow for
-                other usages such as evaluating with different x-values and z-values.
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -1137,7 +1097,7 @@ class _Spline(_Algorithm2D):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i],
             'result': PSplineResult2D(pspline, weight_array)
         }
 

@@ -396,6 +396,28 @@ class PSplineResult(WhittakerResult):
             self._btwb_ = self._penalized_object._make_btwb(self._weights)
         return self._btwb_
 
+    @property
+    def tck(self):
+        """
+        The knots, spline coefficients, and spline degree to reconstruct the fit baseline.
+
+        Can be used with SciPy's :class:`scipy.interpolate.BSpline`, to allow for reconstructing
+        the fit baseline to allow for other usages such as evaluating with different x-values.
+
+        Returns
+        -------
+        numpy.ndarray, shape (K,)
+            The knots for the spline. Has a shape of `K`, which is equal to
+            ``num_knots + 2 * spline_degree``.
+        numpy.ndarray, shape (M,)
+            The spline coeffieicnts. Has a shape of `M`, which is the number of basis functions
+            (equal to ``K - spline_degree - 1`` or equivalently ``num_knots + spline_degree - 1``).
+        int
+            The degree of the spline.
+
+        """
+        return self._penalized_object.tck
+
     def effective_dimension(self, n_samples=0, rng=1234):
         """
         Calculates the effective dimension from the trace of the hat matrix.
@@ -590,6 +612,29 @@ class PSplineResult2D(PSplineResult):
         if self._btwb_ is None:
             self._btwb_ = self._penalized_object.basis._make_btwb(self._weights)
         return self._btwb_
+
+    @property
+    def tck(self):
+        """
+        The knots, spline coefficients, and spline degree to reconstruct the fit baseline.
+
+        Can be used with SciPy's :class:`scipy.interpolate.NdBSpline`, to allow for reconstructing
+        the fit baseline to allow for other usages such as evaluating with different x- and
+        z-values.
+
+        Returns
+        -------
+        tuple[numpy.ndarray, numpy.ndarray]
+            The knots for the spline along the rows and columns.
+        numpy.ndarray, shape (M, N)
+            The spline coeffieicnts. Has a shape of (`M`, `N`), corresponding to the number
+            of basis functions along the rows and columns.
+        numpy.ndarray([int, int])
+            The degree of the spline for the rows and columns.
+
+        """
+        # method only added to document differing output types compared to PSplineResult.tck
+        return super().tck
 
     def effective_dimension(self, n_samples=0, rng=1234):
         """

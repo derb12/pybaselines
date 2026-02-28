@@ -91,10 +91,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -203,7 +199,7 @@ class _Spline(_Algorithm):
             residual = y - baseline
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult(pspline, weight_array)
         }
 
@@ -262,10 +258,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -300,7 +292,7 @@ class _Spline(_Algorithm):
             weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult(pspline, weight_array)
         }
 
@@ -431,10 +423,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -478,7 +466,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult(pspline, weight_array)
         }
 
@@ -533,10 +521,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -602,7 +586,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult(pspline, weight_squared, rhs_extra=d1_penalty)
         }
 
@@ -655,10 +639,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -696,7 +676,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i],
             'result': PSplineResult(pspline, weight_array)
         }
 
@@ -745,10 +725,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -783,7 +759,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult(pspline, weight_array)
         }
 
@@ -836,10 +812,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -898,7 +870,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i],
             'result': PSplineResult(pspline, weight_array, penalty=penalty)
         }
 
@@ -947,10 +919,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -986,7 +954,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i],
             'result': PSplineResult(pspline, weight_array)
         }
 
@@ -1057,10 +1025,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -1133,7 +1097,6 @@ class _Spline(_Algorithm):
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
-            'tck': pspline.tck,
             'result': PSplineResult(pspline, weight_array, penalty=alpha_penalty)
         }
 
@@ -1192,10 +1155,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -1241,7 +1200,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult(pspline, weight_array)
         }
 
@@ -1315,10 +1274,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -1386,7 +1341,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': PSplineResult(pspline, weight_array)
         }
 
@@ -1461,10 +1416,6 @@ class _Spline(_Algorithm):
                 The weight array used for fitting the data.
             * 'half_window': int
                 The half window used for the morphological calculations.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -1532,7 +1483,7 @@ class _Spline(_Algorithm):
         baseline = pspline.solve_pspline(y, weight_array)
 
         params = {
-            'weights': weight_array, 'half_window': half_wind, 'tck': pspline.tck,
+            'weights': weight_array, 'half_window': half_wind,
             'result': PSplineResult(pspline, weight_array)
         }
         return baseline, params
@@ -1590,10 +1541,6 @@ class _Spline(_Algorithm):
                 `max_iter_2`, `tol_2`), and shape K is the maximum of the number of
                 iterations for the threshold and the maximum number of iterations for all of
                 the fits of the various threshold values (related to `max_iter` and `tol`).
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -1655,7 +1602,7 @@ class _Spline(_Algorithm):
 
         params = {
             'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
-            'tck': pspline.tck, 'result': PSplineResult(pspline, baseline_weights)
+            'result': PSplineResult(pspline, baseline_weights)
         }
 
         return baseline, params
@@ -1709,10 +1656,6 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
-            * 'tck': tuple[numpy.ndarray, numpy.ndarray, int]
-                The knots, spline coefficients, and spline degree for the fit baseline.
-                Can be used with SciPy's :class:`~scipy.interpolate.BSpline`, to allow for
-                other usages such as evaluating with different x-values.
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
@@ -1758,7 +1701,7 @@ class _Spline(_Algorithm):
             weight_array = new_weights
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i], 'tck': pspline.tck,
+            'weights': weight_array, 'tol_history': tol_history[:i],
             'result': PSplineResult(pspline, weight_array)
         }
 
