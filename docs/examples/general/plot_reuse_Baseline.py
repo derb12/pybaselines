@@ -60,13 +60,13 @@ methods = (
 plt.plot(x, y)
 timings = defaultdict(list)
 for method, kwargs in methods:
-    baseline_fitter = Baseline(x_data=x, check_finite=False, assume_sorted=True)
+    baseline_fitter = Baseline(x)
     for reuse_object in (True, False):
         for i in range(num_fits):
             if reuse_object:
                 func = getattr(baseline_fitter, method)
             else:
-                func = getattr(Baseline(x, check_finite=False, assume_sorted=True), method)
+                func = getattr(Baseline(x), method)
             t0 = perf_counter()
             calc_baseline = func(y, **kwargs)[0]
             t1 = perf_counter()
