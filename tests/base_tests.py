@@ -194,6 +194,7 @@ def get_data2d(include_noise=True, num_points=(30, 41), three_d=False):
     X, Z = np.meshgrid(x_data, z_data, indexing='ij')
     y_data = (
         500  # constant baseline
+        + 0.02 * X + 0.05 * Z  # linear baseline
         + gaussian2d(X, Z, 10, 25, 25)
         + gaussian2d(X, Z, 20, 50, 50)
         + gaussian2d(X, Z, 10, 75, 75)
@@ -1022,14 +1023,15 @@ class BasePolyTester2D(BaseTester2D):
         super().test_output(additional_keys=additional_keys, return_coef=return_coef)
 
     @pytest.mark.parametrize('poly_order', (1, 2, [2, 3]))
-    def test_output_coefs(self, poly_order):
+    @pytest.mark.parametrize('max_cross', [None, 1])
+    def test_output_coefs(self, poly_order, max_cross):
         """
         Ensures the output coefficients can correctly reproduce the baseline.
 
         Checks both the manual way using the Vandermonde and directly using numpy's polyval2d.
         """
         baseline, params = self.class_func(
-            data=self.y, poly_order=poly_order, **self.kwargs, return_coef=True
+            data=self.y, poly_order=poly_order, max_cross=max_cross, **self.kwargs, return_coef=True
         )
 
         assert 'coef' in params
@@ -1045,6 +1047,7 @@ class BasePolyTester2D(BaseTester2D):
             X, Z, (x_order, z_order)
         ).reshape((-1, (x_order + 1) * (z_order + 1)))
 
+        assert params['coef'].shape == ((x_order + 1), (z_order + 1))
         recreated_poly = (vander @ params['coef'].flatten()).reshape(self.y.shape)
         assert_allclose(recreated_poly, baseline, rtol=1e-10, atol=1e-12)
 
