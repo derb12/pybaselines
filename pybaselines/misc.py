@@ -295,12 +295,12 @@ class _Misc(_Algorithm):
         any of the regularization parameters within beads seems to increase the curvature of the
         baseline, the actual effect is due to the increased penalty on the signal. This can be
         readily observed by looking at the 'signal' key within the output parameter dictionary
-        with varying `lam_0`, `lam_1`, are `lam_2` values.
+        with varying `lam_0`, `lam_1`, `lam_2`, or `alpha` values.
 
         Raises
         ------
         ValueError
-            Raised if `asymmetry`, `lam_0`, `lam_1`, or `lam_2` is less than 0.
+            Raised if `asymmetry`, `lam_0`, `lam_1`, `lam_2`, or `alpha` is less than 0.
 
         References
         ----------

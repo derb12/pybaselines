@@ -65,7 +65,7 @@ class _Optimizers(_Algorithm):
                 :meth:`~.Baseline.aspls` or :meth:`~.Baseline.pspline_aspls` methods.
             * 'method_params': dict[str, list]
                 A dictionary containing the output parameters for each individual fit.
-                Keys will depend on the selected method and will have a list of values,
+                Keys will depend on the selected `method` and will have a list of values,
                 with each item corresponding to a fit.
 
         Raises
@@ -202,16 +202,18 @@ class _Optimizers(_Algorithm):
         -------
         baseline : numpy.ndarray, shape (N,)
             The baseline calculated with the optimum parameter.
-        method_params : dict
+        params : dict
             A dictionary with the following items:
 
-            * 'optimal_parameter': int or float
+            * 'optimal_parameter': float or int
                 The `lam` or `poly_order` value that produced the lowest
                 root-mean-squared-error.
             * 'min_rmse': float
+                The minimum root-mean-squared-error obtained when using
+                the optimal parameter.
 
                 .. deprecated:: 1.2.0
-                    The 'min_rmse' key will be removed from the ``method_params``
+                    The 'min_rmse' key will be removed from the `params`
                     dictionary in pybaselines version 1.4.0 in favor of the new
                     'rmse' key which returns all root-mean-squared-error values.
 
@@ -223,7 +225,7 @@ class _Optimizers(_Algorithm):
 
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
-                Items will depend on the selected method.
+                Items will depend on the selected `method`.
 
         Raises
         ------
@@ -445,7 +447,7 @@ class _Optimizers(_Algorithm):
                 An array of the two polynomial orders used for the fitting.
             * 'method_params': dict[str, list]
                 A dictionary containing the output parameters for each individual fit.
-                Keys will depend on the selected method and will have a list of values,
+                Keys will depend on the selected `method` and will have a list of values,
                 with each item corresponding to a fit.
 
         Raises
@@ -567,7 +569,7 @@ class _Optimizers(_Algorithm):
                 The truncated baseline before interpolating from `P` points to `N` points.
             * 'method_params': dict
                 A dictionary containing the output parameters for the fit using the selected
-                method.
+                `method`.
 
         Raises
         ------
@@ -726,7 +728,7 @@ class _Optimizers(_Algorithm):
         -------
         baseline : numpy.ndarray, shape (N,)
             The baseline calculated with the optimum parameter.
-        method_params : dict
+        params : dict
             A dictionary with the following items:
 
             * 'optimal_parameter': float
@@ -735,7 +737,7 @@ class _Optimizers(_Algorithm):
                 The computed metric for each `lam` value tested.
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
-                Items will depend on the selected method.
+                Items will depend on the selected `method`.
             * 'fidelity': numpy.ndarray, shape (P,)
                 The computed non-normalized fidelity term for each `lam` value tested. For
                 most algorithms within pybaselines, this corresponds to
@@ -949,41 +951,56 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
     using_aspls = 'aspls' in method
     using_drpls = 'drpls' in method
     using_iasls = 'iasls' in method
+    using_beads = method == 'beads'
     if any((using_aspls, using_drpls, using_iasls)):
         raise NotImplementedError(f'{method} method is not currently supported')
 
-    method_signature = inspect.signature(baseline_func).parameters
-    if 'diff_order' in method_kws:
-        diff_order = method_kws['diff_order']
+    if using_beads:
+        param_key = 'alpha'
     else:
-        # some methods have a different default diff_order, so have to inspect them
-        diff_order = method_signature['diff_order'].default
+        param_key = 'lam'
+        # some methods have different defaults, so have to inspect them
+        method_signature = inspect.signature(baseline_func).parameters
+        diff_order = method_kws.get(
+            'diff_order', method_signature['diff_order'].default
+        )
 
-    penalty = []
-    fidelity = []
-    for lam in lam_range:
-        fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
-        if spline_fit:
-            penalized_object = fit_params['result'].tck[1]  # the spline coefficients
+    n_lams = len(lam_range)
+    penalty = np.empty(n_lams)
+    fidelity = np.empty(n_lams)
+    for i, lam in enumerate(lam_range):
+        fit_baseline, fit_params = baseline_func(y, **{param_key: lam}, **method_kws)
+        if using_beads:
+            fit_penalty = sum(fit_params['penalty'])
+            fit_fidelity = fit_params['fidelity']
         else:
-            penalized_object = fit_baseline
-        # Park, et al. multiplied the penalty by lam (Equation 8), but I think that may have
-        # been a typo since it otherwise favors low lam values and does not produce a
-        # penalty plot shown in Figure 4 in the Park, et al. reference
-        partial_penalty = np.diff(penalized_object, diff_order)
-        fit_penalty = partial_penalty.dot(partial_penalty)
+            if spline_fit:
+                penalized_object = fit_params['result'].tck[1]  # the spline coefficients
+            else:
+                # have to ensure sort order of the fit baseline since
+                # diff(y_ordered) != diff(y_disordered); spline coefficients are always
+                # sorted since they correspond to sorted x-values
+                penalized_object = _sort_array(fit_baseline, baseline_obj._sort_order)
 
-        residual = y - fit_baseline
-        if 'weights' in fit_params:
-            fit_fidelity = fit_params['weights'] @ residual**2
-        else:
-            fit_fidelity = residual @ residual
+            # Park, et al. multiplied the penalty by lam (Equation 8), but I think that may have
+            # been a typo since it otherwise favors low lam values and does not produce a
+            # penalty plot shown in Figure 4 in the Park, et al. reference
+            partial_penalty = np.diff(penalized_object, diff_order)
+            fit_penalty = partial_penalty @ partial_penalty
 
-        penalty.append(fit_penalty)
-        fidelity.append(fit_fidelity)
+            residual = y - fit_baseline
+            if 'weights' in fit_params:
+                if using_iasls:
+                    weights = fit_params['weights']**2
+                else:
+                    weights = fit_params['weights']
+                fit_fidelity = weights @ residual**2
+            else:
+                fit_fidelity = residual @ residual
 
-    penalty = np.array(penalty)
-    fidelity = np.array(fidelity)
+        penalty[i] = fit_penalty
+        fidelity[i] = fit_fidelity
+
     # add fidelity and penalty to params before potentially normalizing
     params = {'fidelity': fidelity, 'penalty': penalty}
     if lam_range.size > 1:
@@ -995,7 +1012,7 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
         metric = fidelity + penalty
 
     best_lam = lam_range[np.argmin(metric)]
-    baseline, best_params = baseline_func(y, lam=best_lam, **method_kws)
+    baseline, best_params = baseline_func(y, **{param_key: best_lam}, **method_kws)
     params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
 
     return baseline, params
@@ -1051,7 +1068,7 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
 
     if method == 'beads':  # only supported for L-curve-based optimization options
         raise NotImplementedError(
-            f'optimize_pls does not support the beads method for {opt_method}'
+            'optimize_pls does not support the beads method for GCV or BIC opt_method inputs'
         )
 
     using_iasls = 'iasls' in method

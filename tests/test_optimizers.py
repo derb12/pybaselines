@@ -696,13 +696,26 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa'
         )
     )
-    def test_all_methods(self, method):
+    @pytest.mark.parametrize('opt_method', ('U-Curve', 'GCV'))
+    def test_all_methods(self, method, opt_method):
         """Tests most methods that should work with optimize_pls."""
-        output = self.class_func(self.y, method=method, **self.kwargs)
+        output = self.class_func(self.y, method=method, opt_method=opt_method, **self.kwargs)
         if 'weights' in output[1]['method_params']:
             assert self.y.shape == output[1]['method_params']['weights'].shape
         elif 'alpha' in output[1]['method_params']:
             assert self.y.shape == output[1]['method_params']['alpha'].shape
+
+    @pytest.mark.parametrize('opt_method', ('U-Curve', 'GCV', 'BIC'))
+    def test_beads(self, opt_method):
+        """Ensures beads is also supported for L-curve based optimization methods."""
+        if opt_method in ('GCV', 'BIC'):
+            with pytest.raises(
+                NotImplementedError, match='optimize_pls does not support the beads method'
+            ):
+                self.class_func(self.y, method='beads', opt_method=opt_method, **self.kwargs)
+        else:
+            # just ensure calling does not produce errors
+            self.class_func(self.y, method='beads', opt_method=opt_method, **self.kwargs)
 
     def test_unknown_method_fails(self):
         """Ensures method fails when an unknown baseline method is given."""
