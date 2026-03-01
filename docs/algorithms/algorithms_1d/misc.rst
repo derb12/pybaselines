@@ -83,13 +83,14 @@ as sparse. The minimized equation for calculating the pure signal is given as:
 .. math::
 
     \frac{1}{2} ||H(y - s)||_2^2
-    + \lambda_0 \sum\limits_{i}^{N} \theta(s_i)
+    + \lambda_0 \sum\limits_{i}^{N} \theta(s_i, r)
     + \lambda_1 \sum\limits_{i}^{N - 1} \phi(\Delta^1 s_i)
     + \lambda_2 \sum\limits_{i}^{N - 2} \phi(\Delta^2 s_i)
 
 where :math:`y` is the measured data, :math:`s` is the calculated pure signal,
 :math:`H` is a high pass filter, :math:`\theta()` is a differentiable, symmetric
-or asymmetric penalty function on the calculated signal, :math:`\Delta^1` and :math:`\Delta^2`
+or asymmetric penalty function on the calculated signal, :math:`r` is the asymmetry
+of :math:`\theta()` by which negative values are penalized more, :math:`\Delta^1` and :math:`\Delta^2`
 are :ref:`finite-difference operators <difference-matrix-explanation>` of order 1
 and 2, respectively, and :math:`\phi()` is a differentiable, symmetric penalty function
 approximating the L1 loss (mean absolute error) applied to the first and second derivatives
@@ -100,23 +101,6 @@ The calculated baseline, :math:`v`, upon convergence of calculating the pure sig
 .. math::
 
     v = y - s - H(y - s)
-
-pybaselines version 1.3.0 introduced an optional simplification of the :math:`\lambda_0`,
-:math:`\lambda_1`, :math:`\lambda_2` regularization parameter selection using the procedure
-recommended by the BEADS manuscript through the addition of the parameter :math:`\alpha`.
-Briefly, it is assumed that each :math:`\lambda_d` value is approximately proportional to some
-constant :math:`\alpha` divided by the L1 norm of the d'th derivative of the input data such
-that:
-
-.. math::
-
-    \lambda_0 = \frac{\alpha}{||y||_1},
-    \lambda_1 = \frac{\alpha}{||y'||_1},
-    \lambda_2 = \frac{\alpha}{||y''||_1}
-
-Such a parametrization allows varying just :math:`\alpha`, as well as simplified usage
-within optimization frameworks to find the best value, as shown by
-`Bosten, et al. <https://doi.org/10.1016/j.chroma.2023.464360>`_
 
 .. plot::
    :align: center
@@ -268,3 +252,86 @@ of the beads method by accessing the 'signal' key in the output parameters.
         (data_handle[0], signal_handle[0]),
         ('data', 'signal from beads'), loc='center', frameon=False
     )
+
+pybaselines version 1.3.0 introduced an optional simplification of the :math:`\lambda_0`,
+:math:`\lambda_1`, :math:`\lambda_2` regularization parameter selection using the procedure
+recommended by the BEADS manuscript through the addition of the parameter :math:`\alpha`.
+In detail, it is assumed that each :math:`\lambda_d` value is approximately proportional to some
+constant :math:`\alpha` divided by the L1 norm of the d'th derivative of the input data
+such that:
+
+.. math::
+    :label: lam_eq
+
+    \lambda_0 = \frac{\alpha}{||y||_1},
+    \lambda_1 = \frac{\alpha}{||y'||_1},
+    \lambda_2 = \frac{\alpha}{||y''||_1}
+
+Such a parametrization allows varying just :math:`\alpha`, which simplifies basic usage and
+allows for easier integration within optimization frameworks to find the best regularization
+parameter, as demonstrated by `Bosten, et al. <https://doi.org/10.1016/j.chroma.2023.464360>`_
+
+At first glance, Eq. :eq:`lam_eq` seems to have an issue in that the penalties within the BEADS
+algorithm are applied to the calculated signal, while the estimated :math:`\lambda_d` values
+will be based on the input data, which is composed of the signal, baseline, and noise.
+Due to this, the estimate for :math:`\lambda_0` is affected by an overestimation of the
+signal's L1 norm, while also not accounting for the asymmetry of the penalty function
+:math:`\theta()`. Further, while the estimates for :math:`\lambda_1` and :math:`\lambda_2`
+are less affected by the baseline since taking the derivatives eliminates some
+contributions from the baseline, the influence of noise is amplified, as demonstrated
+in the figure below, also resulting in an overestimation of their L1 norms. In practice,
+however, this systematic norm overestimation can be accounted for by simply selecting a larger
+:math:`\alpha`, and Eq. :eq:`lam_eq` ends up being a fairly good first approximation to
+allow one value to determine all three regularization terms.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    from pybaselines.utils import make_data
+
+    x, y_no_noise, known_baseline = make_data(
+        return_baseline=True, noise_std=0.001, bkg_type='sine'
+    )
+    true_y = y_no_noise - known_baseline
+    x, y = make_data(noise_std=0.1, bkg_type='sine')
+    # subtract the minimum so it plots nicer with the pure signal
+    y -= y.min()
+
+    _, (ax1, ax2, ax3) = plt.subplots(nrows=3, sharex=True)
+    dy = np.gradient(y)
+    d2y = np.gradient(dy)
+    true_dy = np.gradient(true_y)
+    true_d2y = np.gradient(true_dy)
+    ax1.plot(x, y, label='data')
+    ax1.plot(x, true_y, '--', label='true signal')
+    ax2.plot(x, dy)
+    ax2.plot(x, true_dy, '--')
+    ax3.plot(x, d2y, label='data')
+    ax3.plot(x, true_d2y, '--', label='true signal')
+
+    ax1.legend()
+    ax1.set_ylabel('0th Derivative')
+    ax2.set_ylabel('1st Derivative')
+    ax3.set_ylabel('2nd Derivative')
+
+    plt.figure()
+    deriv_values = np.arange(3, dtype=int)
+    plt.plot(
+        deriv_values,
+        [abs(y).sum(), abs(dy).sum(), abs(d2y).sum()],
+        'o-', label='data'
+    )
+    plt.plot(
+        deriv_values,
+        [abs(true_y).sum(), abs(true_dy).sum(), abs(true_d2y).sum()],
+        'o--', label='true signal'
+    )
+
+    plt.xlabel('Derivative Order')
+    plt.xticks(deriv_values)
+    plt.ylabel('L1 Norm')
+    plt.semilogy()
+    plt.legend()
