@@ -816,7 +816,7 @@ class _Morphological(_Algorithm):
             values produce smoother baselines. Default is 1e1.
         gamma : float, optional
             The regularization parameter that controls how smooth the signal is. Larger
-            values produce smoother baselines. Default is 1.
+            values produce smoother calculated signals. Default is 1.
         beta_mult : float, optional
             The value that `beta` is multiplied by each iteration. Default is 1.1.
         gamma_mult : float, optional
@@ -862,7 +862,10 @@ class _Morphological(_Algorithm):
                 completed, K. If the last values in the array are greater than the input
                 `tol` or `tol_2` values, then the function did not converge.
             * 'signal': numpy.ndarray, shape (N,)
-                The pure signal portion of the input `data` without noise or the baseline.
+                The pure signal portion of the input `data` after denoising and baseline
+                correction.
+            * 'opening': numpy.ndarray, shape (N,)
+                The calculated morphological opening of `data`.
 
         References
         ----------
@@ -907,7 +910,10 @@ class _Morphological(_Algorithm):
             gamma *= gamma_mult
             beta *= beta_mult
 
-        params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1], 'signal': signal}
+        params = {
+            'half_window': half_wind, 'tol_history': tol_history[:i + 1],
+            'signal': signal, 'opening': opening
+        }
 
         return baseline, params
 

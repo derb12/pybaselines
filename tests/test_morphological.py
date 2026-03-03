@@ -208,7 +208,7 @@ class TestJBCD(MorphologicalTester):
     """Class for testing jbcd baseline."""
 
     func_name = 'jbcd'
-    checked_keys = ('half_window', 'tol_history', 'signal')
+    checked_keys = ('half_window', 'tol_history', 'signal', 'opening')
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('robust_opening', (False, True))
@@ -221,6 +221,14 @@ class TestJBCD(MorphologicalTester):
         """Ensure that other difference orders work."""
         factor = {2: 1e4, 3: 1e10}[diff_order]
         self.class_func(self.y, beta=factor, gamma=factor, diff_order=diff_order)
+
+    @pytest.mark.parametrize('diff_order', (2, 3))
+    @pytest.mark.parametrize('half_window', (10, 31))
+    def test_output_params(self, diff_order, half_window):
+        """Ensures the output 'signal' and 'opening' keys are the same shape as the input."""
+        fit, params = self.class_func(self.y, diff_order=diff_order, half_window=half_window)
+        for key in ('signal', 'opening'):
+            assert params[key].shape == self.y.shape
 
     @pytest.mark.parametrize('pentadiagonal_solver', (1, 2))
     def test_pentadiagonal_solver(self, pentadiagonal_solver):
