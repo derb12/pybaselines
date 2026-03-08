@@ -153,6 +153,16 @@ class TestAsLS(WhittakerTester):
         lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
+
 
 class TestIAsLS(WhittakerTester):
     """Class for testing iasls baseline."""
@@ -197,6 +207,16 @@ class TestIAsLS(WhittakerTester):
         )[0]
 
         assert_allclose(banded_output, sparse_output, rtol=5e-4, atol=1e-8)
+
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
 
 
 class TestAirPLS(WhittakerTester):

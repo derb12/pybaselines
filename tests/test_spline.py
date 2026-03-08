@@ -211,6 +211,16 @@ class TestPsplineAsLS(IterativeSplineTester, WhittakerComparisonMixin):
         """Ensures the P-spline version is the same as the Whittaker version."""
         super().test_whittaker_comparison(lam=lam, p=p, diff_order=diff_order)
 
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
+
 
 class TestPsplineIAsLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_iasls baseline."""
@@ -245,6 +255,16 @@ class TestPsplineIAsLS(IterativeSplineTester, WhittakerComparisonMixin):
     def test_whittaker_comparison(self, lam, lam_1, p, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
         super().test_whittaker_comparison(lam=lam, lam_1=lam_1, p=p, diff_order=diff_order)
+
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
 
 
 class TestPsplineAirPLS(IterativeSplineTester, WhittakerComparisonMixin):

@@ -99,6 +99,16 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin):
         with pytest.warns(DeprecationWarning):
             super().test_recreation()
 
+    @pytest.mark.parametrize('p', (0, 0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
+
 
 class TestMor(MorphologicalTester):
     """Class for testing mor baseline."""
@@ -202,6 +212,16 @@ class TestMpspline(MorphologicalTester, InputWeightsMixin, RecreationMixin):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
+
+    @pytest.mark.parametrize('p', (0, 0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
 
 
 class TestJBCD(MorphologicalTester):

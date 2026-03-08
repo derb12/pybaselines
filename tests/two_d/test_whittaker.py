@@ -75,6 +75,16 @@ class TestAsLS(EigenvalueMixin, WhittakerTester):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
 
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
+
 
 class TestIAsLS(WhittakerTester):
     """Class for testing iasls baseline."""
@@ -103,6 +113,16 @@ class TestIAsLS(WhittakerTester):
             self.class_func(self.y, lam=1e2, diff_order=[1, 2])
         with pytest.raises(ValueError):
             self.class_func(self.y, lam=1e2, diff_order=[2, 1])
+
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
 
 
 class TestAirPLS(EigenvalueMixin, WhittakerTester):
