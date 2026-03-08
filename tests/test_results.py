@@ -457,6 +457,47 @@ def test_pspline_result_two_d_no_weights(data_fixture2d):
     assert_allclose(result_obj._weights, np.ones(y.shape), rtol=1e-16, atol=0)
 
 
+@pytest.mark.parametrize('num_knots', (10, (11, 20)))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, (2, 3)))
+@pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
+@pytest.mark.parametrize('large_lam', (True, False))
+def test_pspline_two_d_effective_dimension_lam_extremes(data_fixture2d, diff_order, spline_degree,
+                                                        num_knots, large_lam):
+    """
+    Tests the effective dimension of 2D P-spline smoothing for high and low limits of ``lam``.
+
+    Same reasoning as for `test_pspline_effective_dimension_lam_extremes`, except the total
+    effective dimension is just the product of the row and column effective dimensions.
+
+    """
+    x, z, y = data_fixture2d
+    (
+        num_knots_r, num_knots_c, spline_degree_r, spline_degree_c,
+        lam_r, lam_c, diff_order_r, diff_order_c
+    ) = get_2dspline_inputs(num_knots, spline_degree, lam=1, diff_order=diff_order)
+
+    if large_lam:
+        lam = 1e14
+        expected_ed = diff_order_r * diff_order_c
+        # limited by how close to infinity lam can get before it causes numerical instability;
+        # just picked rtol that passes all conditions
+        rtol = 4e-2
+    else:
+        lam = 1e-16
+        expected_ed = (num_knots_r + spline_degree_r - 1) * (num_knots_c + spline_degree_c - 1)
+        rtol = 1e-13
+
+    spline_basis = SplineBasis2D(
+        x, z, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
+    pspline = PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
+    result_obj = results.PSplineResult2D(pspline)
+
+    output = result_obj.effective_dimension(n_samples=0)
+
+    assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
+
+
 @pytest.mark.parametrize('shape', ((20, 23), (51, 6)))
 @pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
 @pytest.mark.parametrize('lam', (1e2, (1e1, 1e2)))
@@ -617,3 +658,41 @@ def test_whittaker_result_two_d_lhs_penalty_raises(data_fixture2d):
             penalized_system, weights, lhs=penalized_system.penalty,
             penalty=penalized_system.penalty
         )
+
+
+@pytest.mark.parametrize('shape', ((30, 21), (15, 40)))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, (1, 2)))
+@pytest.mark.parametrize('large_lam', (True, False))
+def test_whittaker_two_d_effective_dimension_lam_extremes(shape, diff_order, large_lam):
+    """
+    Tests the effective dimension of 2D Whittaker smoothing for high and low limits of ``lam``.
+
+    Same reasoning as for `test_whittaker_effective_dimension_lam_extremes`, except the total
+    effective dimension is just the product of the row and column effective dimensions.
+
+    """
+    if large_lam:
+        lam = 1e14
+        if isinstance(diff_order, int):
+            expected_ed = diff_order**2
+            max_diff_order = diff_order
+        else:
+            expected_ed = np.prod(diff_order)
+            max_diff_order = max(diff_order)
+        # limited by how close to infinity lam can get before it causes numerical instability,
+        # and larger diff_orders need larger lam for it to be a polynomial, so have to reduce the
+        # relative tolerance as diff_order increases
+        rtol = {1: 8e-3, 2: 2e-2, 3: 3e-2}[max_diff_order]
+    else:
+        lam = 1e-16
+        expected_ed = np.prod(shape)
+        rtol = 1e-15
+
+    whittaker_system = WhittakerSystem2D(
+        shape, lam=lam, diff_order=diff_order, num_eigens=None
+    )
+    result_obj = results.WhittakerResult2D(whittaker_system)
+
+    output = result_obj.effective_dimension(n_samples=0)
+
+    assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
