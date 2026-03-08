@@ -258,12 +258,12 @@ class TestPsplineIAsLS(IterativeSplineTester, WhittakerComparisonMixin):
 
     @pytest.mark.parametrize('p', (0.01, 0.2))
     def test_output_binary_weights(self, p):
-        """Ensures all weights are either ``p`` or ``1 - p``."""
+        """Ensures all weights are either ``p**2`` or ``(1 - p)**2``."""
         _, params = self.class_func(self.y, p=p)
         weights = params['weights']
         assert (
-            np.isclose(weights, p, atol=1e-15, rtol=0)
-            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+            np.isclose(weights, p**2, atol=1e-15, rtol=0)
+            | np.isclose(weights, (1 - p)**2, atol=1e-15, rtol=0)
         ).all()
 
 

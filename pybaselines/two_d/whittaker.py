@@ -147,8 +147,8 @@ class _Whittaker(_Algorithm2D):
             baselines. Default is 1e6.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
-            than the baseline will be given `p` weight, and values less than the baseline
-            will be given `1 - p` weight. Default is 1e-2.
+            than the baseline will be given ``p**2`` weight, and values less than the baseline
+            will be given ``(1 - p)**2`` weight. Default is 1e-2.
         lam_1 : float or Sequence[float, float], optional
             The smoothing parameter for the rows and columns, respectively, of the first
             derivative of the residual. Default is 1e-4.
@@ -173,6 +173,11 @@ class _Whittaker(_Algorithm2D):
 
             * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
+
+                .. versionchanged:: 1.3.0
+                    Prior to version 1.3.0, the returned weights were the non-squared
+                    values (ie. ``p`` or ``1 - p``).
+
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
@@ -186,6 +191,12 @@ class _Whittaker(_Algorithm2D):
         ------
         ValueError
             Raised if `p` is not between 0 and 1 or if `diff_order` is less than 2.
+
+        Notes
+        -----
+        Although both ``iasls`` and :meth:`~.Baseline2D.asls` use `p` for defining the weights,
+        the appropriate `p` value for ``iasls`` will be approximately equal to the square root
+        of the value used for ``asls`` when `p` is small since ``iasls`` uses squared weights.
 
         References
         ----------
@@ -213,9 +224,8 @@ class _Whittaker(_Algorithm2D):
         p1_y = penalized_system_1.penalty @ y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            weight_squared = weight_array**2
-            baseline = whittaker_system.solve(y, weight_squared, rhs_extra=p1_y)
-            new_weights = _weighting._asls(y, baseline, p)
+            baseline = whittaker_system.solve(y, weight_array, rhs_extra=p1_y)
+            new_weights = _weighting._asls(y, baseline, p)**2
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -225,7 +235,7 @@ class _Whittaker(_Algorithm2D):
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': WhittakerResult2D(
-                whittaker_system, weight_squared, rhs_extra=penalized_system_1.penalty
+                whittaker_system, weight_array, rhs_extra=penalized_system_1.penalty
             )
         }
 

@@ -990,11 +990,7 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
 
             residual = y - fit_baseline
             if 'weights' in fit_params:
-                if using_iasls:
-                    weights = fit_params['weights']**2
-                else:
-                    weights = fit_params['weights']
-                fit_fidelity = weights @ residual**2
+                fit_fidelity = fit_params['weights'] @ residual**2
             else:
                 fit_fidelity = residual @ residual
 
@@ -1086,11 +1082,7 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
         # methods are drpls and iasls
         # TODO should fidelity calc be directly added to the result objects so that this
         # can be handled directly?
-        if using_iasls:
-            weights = fit_params['weights']**2
-        else:
-            weights = fit_params['weights']
-        fit_fidelity = weights @ (y - fit_baseline)**2
+        fit_fidelity = fit_params['weights'] @ (y - fit_baseline)**2
         if use_gcv:
             # GCV = (1/N) * RSS / (1 - rho * trace / N)**2 == RSS * N / (N - rho * trace)**2
             # Note that some papers use different terms for fidelity (eg. RSS / N vs just RSS),
