@@ -94,6 +94,112 @@ def test_whittaker_effective_dimension_stochastic(diff_order, allow_lower, allow
     assert_allclose(output, expected_ed, rtol=5e-1, atol=1e-5)
 
 
+@pytest.mark.parametrize('size', (100, 401))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('large_lam', (True, False))
+@pytest.mark.parametrize('solver', (0, 1, 2))
+def test_whittaker_effective_dimension_lam_extremes(size, diff_order, large_lam, solver):
+    """
+    Tests the effective dimension of Whittaker smoothing for high and low limits of ``lam``.
+
+    When `lam` is ~infinite, the fit should approximate a polynomial of degree
+    ``diff_order - 1``, so the effective dimension should be `diff_order` sinc ED for a
+    polynomial is ``degree + 1``. Likewise, as `lam` approaches 0, the solution should
+    be the same as an interpolating spline of the same spline degree, so its effective
+    dimension should be the number of basis functions, i.e. the number of data points
+    when using Whittaker smoothing.
+
+    References
+    ----------
+    Eilers, P., et al. Flexible Smoothing with B-splines and Penalties. Statistical
+    Science, 1996, 11(2), 89-121.
+
+    Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+
+    """
+    if solver == 0:  # use full banded with solve_banded
+        allow_lower = False
+        allow_penta = False
+    elif solver == 1:  # use lower banded with solveh_banded
+        allow_lower = True
+        allow_penta = False
+    else:  # use full banded with pentadiagonal solver if diff_order=2
+        allow_lower = False
+        allow_penta = True
+
+    if large_lam:
+        lam = 1e14
+        expected_ed = diff_order
+        # limited by how close to infinity lam can get before it causes numerical instability,
+        # and larger diff_orders need larger lam for it to be a polynomial, so have to reduce the
+        # relative tolerance as diff_order increases
+        rtol = {1: 8e-3, 2: 5e-3, 3: 3e-2}[diff_order]
+    else:
+        lam = 1e-16
+        expected_ed = size
+        rtol = 1e-15
+
+    penalized_system = _banded_utils.PenalizedSystem(
+        size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=False, allow_penta=allow_penta
+    )
+    result_obj = results.WhittakerResult(penalized_system)
+    output = result_obj.effective_dimension(n_samples=0)
+    assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('num_knots', (20, 101))
+@pytest.mark.parametrize('large_lam', (True, False))
+@pytest.mark.parametrize('allow_lower', (True, False))
+def test_pspline_effective_dimension_lam_extremes(data_fixture, diff_order, spline_degree,
+                                                  num_knots, large_lam, allow_lower):
+    """
+    Tests the effective dimension of P-spline smoothing for high and low limits of ``lam``.
+
+    When `lam` is ~infinite, the spline fit should approximate a polynomial of degree
+    ``diff_order - 1``, so the effective dimension should be `diff_order` sinc ED for a
+    polynomial is ``degree + 1``. Likewise, as ``lam`` approaches 0, the solution should
+    be the same as an interpolating spline of the same spline degree, so its effective
+    dimension should be the number of basis functions.
+
+    References
+    ----------
+    Eilers, P., et al. Flexible Smoothing with B-splines and Penalties. Statistical
+    Science, 1996, 11(2), 89-121.
+
+    """
+    x, y = data_fixture
+    if large_lam:
+        lam = 1e14
+        expected_ed = diff_order
+        # limited by how close to infinity lam can get before it causes numerical instability,
+        # and both larger num_knots and larger diff_orders need larger lam for it to be a
+        # polynomial, so have to reduce the relative tolerance; num_knots has a larger effect
+        # than diff_order, so base the rtol on it
+        if spline_degree >= diff_order:  # can approximate a polynomial
+            rtol = {20: 6e-3, 101: 5e-2}[num_knots]
+        else:
+            # technically should skip since the spline cannot approximate the polynomial,
+            # but just increase rtol instead
+            rtol = {20: 1e-2, 101: 1e-1}[num_knots]
+    else:
+        lam = 1e-16
+        expected_ed = num_knots + spline_degree - 1
+        rtol = 1e-15
+
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree
+    )
+    pspline = _spline_utils.PSpline(
+        spline_basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower
+    )
+    result_obj = results.PSplineResult(pspline)
+    output = result_obj.effective_dimension(n_samples=0)
+    assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
+
+
 @pytest.mark.parametrize('n_samples', (-1, 50.5))
 def test_whittaker_effective_dimension_stochastic_invalid_samples(data_fixture, n_samples):
     """Ensures a non-zero, non-positive `n_samples` input raises an exception."""
