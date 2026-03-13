@@ -138,6 +138,7 @@ ignore = [
     "D401",  # D401 first line should be in imperative mood; try rephrasing
     "E731",  # E731 do not assign a lambda expression, use a def
     "DOC502",  # DOC502 documented exception is not raised in function -> raised in underlying calls so ignore
+    "B905",  # B905 `zip()` without an explicit `strict=` parameter -> TODO need to implement
 ]
 task-tags = ["TODO"]
 
