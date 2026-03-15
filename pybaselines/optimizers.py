@@ -1434,6 +1434,9 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
     method : str, optional
         A string indicating the algorithm to use for fitting the baseline; can be any
         non-optimizer algorithm in pybaselines. Default is 'asls'.
@@ -1501,4 +1504,135 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
 @_optimizers_wrapper
 def optimize_pls(data, method='arpls', opt_method='U-Curve', min_value=4, max_value=7, step=0.5,
                  method_kwargs=None, euclidean=False, rho=None, n_samples=0, x_data=None):
-    pass
+    """
+    Optimizes the regularization parameter for penalized least squares methods.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    method : str, optional
+        A string indicating the Whittaker-smoothing or spline method
+        to use for fitting the baseline. Default is 'arpls'.
+    opt_method : {'U-Curve', 'GCV', 'BIC'}, optional
+        The optimization method used to optimize `lam`. Supported methods are:
+
+        * 'U-Curve'
+        * 'GCV'
+        * 'BIC'
+
+        Details on each optimization method are in the Notes section below.
+    min_value : int or float, optional
+        The minimum value for the `lam` value to use with the indicated method. Should
+        be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
+        designates a `lam` value of 10**2). Default is 4.
+    max_value : int or float, optional
+        The maximum value for the `lam` value to use with the indicated method. Should
+        be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
+        designates a `lam` value of 10**3). Default is 7.
+    step : int or float, optional
+        The step size for iterating the parameter value from `min_value` to `max_value`.
+        Should be the exponent to raise to the power of 10 (eg. a `step` value of 1
+        designates a `lam` value of 10**1). Default is 0.5.
+    method_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to the selected `method` function.
+        Default is None, which will use an empty dictionary.
+    euclidean : bool, optional
+        Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
+        is the minimum of the sum of the normalized fidelity and penalty values [1]_, which is
+        equivalent to the minimum graph distance from the origin. If True, the metric is the
+        euclidean distance from the origin, similar to [2]_ and [3]_.
+    rho : float, optional
+        Only used if `opt_method` is 'GCV'. The stabilization parameter for the modified
+        generalized cross validation (mGCV) criteria. A value of 1 defines normal GCV, while
+        higher values of `rho` stabilize the scores to make a single, global minima value
+        more likely (when applied to smoothing). If None (default), the value of `rho` will
+        be selected following [4]_, with the value being 1.3 if ``len(data)`` is less than
+        100, otherwise 2.
+    n_samples : int, optional
+        Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
+        analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
+        (N, `n_samples`) Rademacher random variables (ie. either -1 or 1).
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The baseline calculated with the optimum parameter.
+    params : dict
+        A dictionary with the following items:
+
+        * 'optimal_parameter': float
+            The `lam` value that minimized the computed metric.
+        * 'metric': numpy.ndarray, shape (P,)
+            The computed metric for each `lam` value tested.
+        * 'method_params': dict
+            A dictionary containing the output parameters for the optimal fit.
+            Items will depend on the selected `method`.
+        * 'fidelity': numpy.ndarray, shape (P,)
+            Only returned if `opt_method` is 'U-curve'. The computed non-normalized
+            fidelity term for each `lam` value tested. For
+            most algorithms within pybaselines, this is equivalent to the weighted residual
+            sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
+        * 'penalty': numpy.ndarray, shape (P,)
+            Only returned if `opt_method` is 'U-curve'. The computed non-normalized penalty
+            values for each `lam` value tested.
+        * 'wrss': numpy.ndarray, shape (P,)
+            Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
+            squares (eg. ``sum(weights * (data - baseline)**2)``) for each `lam` value tested.
+        * 'trace': numpy.ndarray, shape (P,)
+            Only returned if `opt_method` is 'GCV' or 'BIC. The computed trace of the smoother
+            matrix for each `lam` value tested, which signifies the effective dimension
+            for the system.
+
+    Raises
+    ------
+    ValueError
+        Raised if `opt_method` is 'GCV' and the input `rho` is less than 1.
+    NotImplementedError
+        Raised if `method` is 'beads' and `opt_method` is 'GCV' or 'BIC'.
+
+    See Also
+    --------
+    pybaselines.optimizers.optimize_extended_range
+
+    Notes
+    -----
+    `opt_method` 'U-Curve' requires that the sum of the normalized penalty and fidelity values
+    is roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
+    `min_value` and `max_value` such that penalty continually decreases and fidelity
+    continually increases as `lam` increases.
+
+    For `opt_method` 'U-Curve', the multipliers on `lam` used in methods `drpls` or `aspls`,
+    ``(1 - eta * weights)`` and ``alpha``, respectively, are omitted from the penalty term.
+    Otherwise, the penalty term shows little change with varying `lam` and gives bad results.
+    Likewise, for method='iasls', the penalty term from `lam_1` is omitted since its gradient
+    with respect to `lam` is assumed to be 0. More advanced optimization varying both `lam`
+    and `lam_1` is possible, but not supported within this method.
+
+    Uses a grid search for optimization since the objective functions for all supported
+    `opt_method` inputs are highly non-smooth (ie. many local minima) when performing
+    baseline correction, due to the reliance of calculated weights on the input `lam`.
+    Scalar minimization using :func:`scipy.optimize.minimize_scalar` was found to
+    perform okay in most cases, but it would also not allow some methods like 'U-Curve'
+    which requires calculating with all `lam` values before computing the objective.
+
+    The range of values to test is generated using
+    ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
+    the range of tested values.
+
+    References
+    ----------
+    .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+            using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
+            of Electronics and Information Engineers, 2016, 53(3), 124-131.
+    .. [2] Belge, M., et al. Efficient determination of multiple regularization parameters in
+            a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+    .. [3] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+            coefficient models. TEST, 2014, 23, 153-194.
+    .. [4] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
+            smoothing. Computational Statistics, 2016, 31, 269-289.
+
+    """
