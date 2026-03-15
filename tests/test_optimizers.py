@@ -672,7 +672,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing optimize_pls baseline."""
 
     func_name = "optimize_pls"
-    checked_keys = ('optimal_parameter', 'metric', 'fidelity')
+    checked_keys = ('optimal_parameter', 'metric')
     # will need to change checked_keys if default method is changed
     checked_method_keys = ('weights', 'tol_history', 'result')
     # by default only run a few optimization steps
@@ -682,9 +682,9 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     def test_output(self, opt_method):
         """Ensures correct output parameters for different optimization methods."""
         if opt_method in ('GCV', 'BIC'):
-            additional_keys = ['trace']
+            additional_keys = ['trace', 'wrss']
         else:
-            additional_keys = ['penalty']
+            additional_keys = ['penalty', 'fidelity']
         super().test_output(additional_keys=additional_keys, opt_method=opt_method)
 
     @pytest.mark.parametrize(

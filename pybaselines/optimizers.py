@@ -739,12 +739,16 @@ class _Optimizers(_Algorithm):
                 A dictionary containing the output parameters for the optimal fit.
                 Items will depend on the selected `method`.
             * 'fidelity': numpy.ndarray, shape (P,)
-                The computed non-normalized fidelity term for each `lam` value tested. For
-                most algorithms within pybaselines, this corresponds to
-                ``sum(weights * (data - baseline)**2)``.
+                Only returned if `opt_method` is 'U-curve'. The computed non-normalized
+                fidelity term for each `lam` value tested. For
+                most algorithms within pybaselines, this is equivalent to the weighted residual
+                sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
             * 'penalty': numpy.ndarray, shape (P,)
                 Only returned if `opt_method` is 'U-curve'. The computed non-normalized penalty
                 values for each `lam` value tested.
+            * 'wrss': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
+                squares (eg. ``sum(weights * (data - baseline)**2)``) for each `lam` value tested.
             * 'trace': numpy.ndarray, shape (P,)
                 Only returned if `opt_method` is 'GCV' or 'BIC. The computed trace of the smoother
                 matrix for each `lam` value tested, which signifies the effective dimension
@@ -755,7 +759,7 @@ class _Optimizers(_Algorithm):
         ValueError
             Raised if `opt_method` is 'GCV' and the input `rho` is less than 1.
         NotImplementedError
-            _description_
+            Raised if `method` is 'beads' and `opt_method` is 'GCV' or 'BIC'.
 
         See Also
         --------
@@ -763,10 +767,17 @@ class _Optimizers(_Algorithm):
 
         Notes
         -----
-        This method requires that the sum of the normalized penalty and fidelity values is
-        roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
+        `opt_method` 'U-Curve' requires that the sum of the normalized penalty and fidelity values
+        is roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
         `min_value` and `max_value` such that penalty continually decreases and fidelity
         continually increases as `lam` increases.
+
+        For `opt_method` 'U-Curve', the multipliers on `lam` used in methods `drpls` or `aspls`,
+        ``(1 - eta * weights)`` and ``alpha``, respectively, are omitted from the penalty term.
+        Otherwise, the penalty term shows little change with varying `lam` and gives bad results.
+        Likewise, for method='iasls', the penalty term from `lam_1` is omitted since its gradient
+        with respect to `lam` is assumed to be 0. More advanced optimization varying both `lam`
+        and `lam_1` is possible, but not supported within this method.
 
         Uses a grid search for optimization since the objective functions for all supported
         `opt_method` inputs are highly non-smooth (ie. many local minima) when performing
@@ -932,12 +943,6 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
     _type_
         _description_
 
-    Raises
-    ------
-    NotImplementedError
-        _description_
-
-
     References
     ----------
     .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction using
@@ -952,13 +957,8 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
     else:
         spline_fit = False
 
-    using_aspls = 'aspls' in method
     using_drpls = 'drpls' in method
-    using_iasls = 'iasls' in method
     using_beads = method == 'beads'
-    if any((using_aspls, using_drpls, using_iasls)):
-        raise NotImplementedError(f'{method} method is not currently supported')
-
     if using_beads:
         param_key = 'alpha'
     else:
@@ -997,6 +997,15 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
                 fit_fidelity = fit_params['weights'] @ residual**2
             else:
                 fit_fidelity = residual @ residual
+
+            if using_drpls:
+                if spline_fit:  # still need to sort the baseline
+                    additional_fidelity = np.diff(
+                        _sort_array(fit_baseline, baseline_obj._sort_order), 1
+                    )
+                else:
+                    additional_fidelity = np.diff(penalized_object, 1)
+                fit_fidelity += additional_fidelity @ additional_fidelity
 
         penalty[i] = fit_penalty
         fidelity[i] = fit_fidelity
@@ -1071,37 +1080,35 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
             'optimize_pls does not support the beads method for GCV or BIC opt_method inputs'
         )
 
-    using_iasls = 'iasls' in method
     n_lams = len(lam_range)
     min_metric = np.inf
     metrics = np.empty(n_lams)
     traces = np.empty(n_lams)
-    fidelity = np.empty(n_lams)
+    wrss = np.empty(n_lams)
     for i, lam in enumerate(lam_range):
         fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
 
         trace = fit_params['result'].effective_dimension(n_samples)
-        # TODO should just combine the rss calc with optimize_lcurve; should all terms
-        # that do not depend on lam be added to rss/fidelity?? Or just ignore? Affected
-        # methods are drpls and iasls
         # TODO should fidelity calc be directly added to the result objects so that this
         # can be handled directly?
-        fit_fidelity = fit_params['weights'] @ (y - fit_baseline)**2
+        fit_wrss = fit_params['weights'] @ (y - fit_baseline)**2
         if use_gcv:
             # GCV = (1/N) * RSS / (1 - rho * trace / N)**2 == RSS * N / (N - rho * trace)**2
             # Note that some papers use different terms for fidelity (eg. RSS / N vs just RSS),
             # within the actual minimized equation, but both Woltring
             # (https://doi.org/10.1016/0141-1195(86)90098-7) and Eilers
-            # (https://doi.org/10.1021/ac034173t) uses the same GCV score
+            # (https://doi.org/10.1021/ac034173t) use the same GCV score
             # formulation for penalized splines and Whittaker smoothing, respectively (using a
             # fidelity term of just RSS), so this should be correct
-            metric = fit_fidelity * baseline_obj._size / (baseline_obj._size - rho * trace)**2
+            metric = fit_wrss * baseline_obj._size / (baseline_obj._size - rho * trace)**2
         else:
             # BIC = -2 * l + ln(N) * ED, where l == log likelihood and
             # ED == effective dimension ~ trace
+            # log likelhood of Whittaker/P-Spline smoothing can be approximated from the result
+            # of fitting with lam=0, ie. RSS / N (see Eilers's original 1996 P-Spline paper)
             # For Gaussian errors: BIC ~ N * ln(RSS / N) + ln(N) * trace
             metric = (
-                baseline_obj._size * np.log(fit_fidelity / baseline_obj._size)
+                baseline_obj._size * np.log(fit_wrss / baseline_obj._size)
                 + np.log(baseline_obj._size) * trace
             )
 
@@ -1113,11 +1120,11 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
 
         metrics[i] = metric
         traces[i] = trace
-        fidelity[i] = fit_fidelity
+        wrss[i] = fit_wrss
 
     params = {
         'optimal_parameter': best_lam, 'metric': metrics, 'trace': traces,
-        'fidelity': fidelity, 'method_params': best_params
+        'wrss': wrss, 'method_params': best_params
     }
 
     return baseline, params
@@ -1492,5 +1499,6 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
 
 
 @_optimizers_wrapper
-def optimize_pls(data, x_data=None, **kwargs):
+def optimize_pls(data, method='arpls', opt_method='U-Curve', min_value=4, max_value=7, step=0.5,
+                 method_kwargs=None, euclidean=False, rho=None, n_samples=0, x_data=None):
     pass
