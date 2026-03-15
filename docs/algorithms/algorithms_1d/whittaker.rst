@@ -7,9 +7,9 @@ Introduction
 
 Whittaker-smoothing-based algorithms are usually referred to in literature
 as weighted least squares, penalized least squares, or asymmetric least squares,
-but are referred to as Whittaker-smoothing-based in pybaselines to distinguish them from polynomial
-techniques that also take advantage of weighted least squares (like :meth:`~.Baseline.loess`)
-and penalized least squares (like :meth:`~.Baseline.penalized_poly`).
+but are referred to as Whittaker-smoothing-based in pybaselines to distinguish them from other
+algorithms that also take advantage of weighted least squares (like :meth:`~.Baseline.loess`)
+and penalized least squares (like :meth:`~.Baseline.beads`).
 
 A great introduction to Whittaker smoothing is Paul Eilers's
 `A Perfect Smoother paper <https://doi.org/10.1021/ac034173t>`_ (note that Whittaker
