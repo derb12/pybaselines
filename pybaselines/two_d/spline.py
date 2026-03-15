@@ -453,17 +453,16 @@ class _Spline(_Algorithm2D):
         ValueError
             Raised if `p` is not between 0 and 1 or if `diff_order` is less than 2.
 
+        See Also
+        --------
+        Baseline2D.iasls
+
         Notes
         -----
         Although both ``pspline_iasls`` and :meth:`~.Baseline2D.pspline_asls` use `p` for defining
         the weights, the appropriate `p` value for ``pspline_iasls`` will be approximately equal
         to the square root of the value used for ``pspline_asls`` when `p` is small since
         ``pspline_iasls`` uses squared weights.
-
-
-        See Also
-        --------
-        Baseline2D.iasls
 
         References
         ----------

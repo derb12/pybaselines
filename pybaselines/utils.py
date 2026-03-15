@@ -950,14 +950,14 @@ def _sort_array2d(array, sort_order=None):
     output : numpy.ndarray
         The input array after optionally sorting.
 
-    Notes
-    -----
-    For all inputs, assumes the last 2 axes correspond to the data that needs sorted.
-
     Raises
     ------
     ValueError
         Raised if the input array is not two or three dimensional.
+
+    Notes
+    -----
+    For all inputs, assumes the last 2 axes correspond to the data that needs sorted.
 
     """
     if sort_order is None:
@@ -997,14 +997,14 @@ def _sort_array(array, sort_order=None):
     output : numpy.ndarray
         The input array after optionally sorting.
 
-    Notes
-    -----
-    For all inputs, assumes the last axis corresponds to the data that needs sorted.
-
     Raises
     ------
     ValueError
         Raised if the input array has more than two dimensions.
+
+    Notes
+    -----
+    For all inputs, assumes the last axis corresponds to the data that needs sorted.
 
     """
     if sort_order is None:

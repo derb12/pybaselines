@@ -76,15 +76,15 @@ def _airpls(y, baseline, iteration, normalize_weights=False):
         Designates if there is a potential error with the calculation such that no further
         iterations should be performed.
 
-    References
-    ----------
-    Zhang, Z.M., et al. Baseline correction using adaptive iteratively
-    reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
-
     Notes
     -----
     Equation 9 in the original algorithm was misprinted according to the author
     (https://github.com/zmzhang/airPLS/issues/8), so the correct weighting is used here.
+
+    References
+    ----------
+    Zhang, Z.M., et al. Baseline correction using adaptive iteratively
+    reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
     """
     residual = y - baseline

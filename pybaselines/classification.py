@@ -1704,17 +1704,17 @@ def _haar(num_points, scale=2):
     wavelet : numpy.ndarray
         The Haar wavelet.
 
+    Raises
+    ------
+    TypeError
+        Raised if `scale` is not an integer.
+
     Notes
     -----
     This implementation is only designed to work for integer scales.
 
     Matches pywavelets's Haar implementation after applying patches from pywavelets
     issue #365 and pywavelets pull request #580.
-
-    Raises
-    ------
-    TypeError
-        Raised if `scale` is not an integer.
 
     References
     ----------

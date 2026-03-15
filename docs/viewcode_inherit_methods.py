@@ -35,6 +35,11 @@ def find_super_method(app, modname):
         have a value resembling `('def', 90, 140))`, and the key "Baseline" would have a value
         resembling `('class', 14, 80)`.
 
+    Raises
+    ------
+    RuntimeError
+        Raised if an issue occurred when retrieving the tags from `modname`.
+
     Notes
     -----
     The "viewcode_follow_imported_members" toggle for sphinx.ext.viewcode can find the
@@ -52,11 +57,6 @@ def find_super_method(app, modname):
 
     For an example of what ``ModuleAnalyzer`` tags and what viewcode expects, see the following
     issue from Sphinx: https://github.com/sphinx-doc/sphinx/issues/11279.
-
-    Raises
-    ------
-    RuntimeError
-        Raised if an issue occurred when retrieving the tags from `modname`.
 
     """
     if modname is None:

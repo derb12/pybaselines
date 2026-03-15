@@ -277,6 +277,11 @@ class _Misc(_Algorithm):
 
                 .. versionadded:: 1.3.0
 
+        Raises
+        ------
+        ValueError
+            Raised if `asymmetry`, `lam_0`, `lam_1`, `lam_2`, or `alpha` is less than 0.
+
         Notes
         -----
         If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the proceedure recommended in [1]_
@@ -296,11 +301,6 @@ class _Misc(_Algorithm):
         baseline, the actual effect is due to the increased penalty on the signal. This can be
         readily observed by looking at the 'signal' key within the output parameter dictionary
         with varying `lam_0`, `lam_1`, `lam_2`, or `alpha` values.
-
-        Raises
-        ------
-        ValueError
-            Raised if `asymmetry`, `lam_0`, `lam_1`, `lam_2`, or `alpha` is less than 0.
 
         References
         ----------
@@ -1114,6 +1114,12 @@ def _process_lams(y, alpha, lam_0, lam_1, lam_2):
     output_lams : list[float, float, float]
         The `lam_0`, `lam_1`, and `lam_2` values.
 
+    Raises
+    ------
+    ValueError
+        Raised if `alpha` is not positive or if all three of `lam_0`, `lam_1`, and `lam_2`
+        are 0.
+
     Notes
     -----
     Follows the proceedure recommended in [1]_ to base the `lam_d` values on the inverse of
@@ -1123,12 +1129,6 @@ def _process_lams(y, alpha, lam_0, lam_1, lam_2):
     ``lam_2 = alpha / ||y''||_1``. If `lam_0`, `lam_1`, and `lam_2` are all None, then all
     values are calculated assuming `alpha` is 1. If only `lam_0` is not None, the
     corresponding `alpha` value is calculated and `lam_1` and `lam_2` are set accordingly.
-
-    Raises
-    ------
-    ValueError
-        Raised if `alpha` is not positive or if all three of `lam_0`, `lam_1`, and `lam_2`
-        are 0.
 
     References
     ----------
@@ -1434,6 +1434,11 @@ def beads(data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
 
+    Raises
+    ------
+    ValueError
+        Raised if `asymmetry` is less than 0.
+
     Notes
     -----
     If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the proceedure recommended in [4]_
@@ -1445,11 +1450,6 @@ def beads(data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry
     When finding the best parameters for fitting, it is usually best to find the optimal
     `freq_cutoff` for the noise in the data before adjusting any other parameters since
     it has the largest effect [5]_.
-
-    Raises
-    ------
-    ValueError
-        Raised if `asymmetry` is less than 0.
 
     References
     ----------

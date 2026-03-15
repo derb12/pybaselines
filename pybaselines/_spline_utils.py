@@ -298,6 +298,11 @@ def _spline_knots(x, num_knots=10, spline_degree=3, penalized=True):
     knots : numpy.ndarray, shape (``num_knots + 2 * spline_degree``,)
         The array of knots for the spline, properly padded on each side.
 
+    Raises
+    ------
+    ValueError
+        Raised if `num_knots` is less than 2.
+
     Notes
     -----
     If `penalized` is True, makes the knots uniformly spaced to create penalized
@@ -306,11 +311,6 @@ def _spline_knots(x, num_knots=10, spline_degree=3, penalized=True):
 
     The knots are padded on each end with `spline_degree` extra knots to provide proper
     support for the outermost inner knots.
-
-    Raises
-    ------
-    ValueError
-        Raised if `num_knots` is less than 2.
 
     References
     ----------
