@@ -709,20 +709,20 @@ class _Optimizers(_Algorithm):
             Default is None, which will use an empty dictionary.
         euclidean : bool, optional
             Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
-            is the minimum of the sum of the normalized fidelity and penalty values, which is
+            is the minimum of the sum of the normalized fidelity and penalty values [1]_, which is
             equivalent to the minimum graph distance from the origin. If True, the metric is the
-            euclidean distance from the origin.
+            euclidean distance from the origin, similar to [2]_ and [3]_.
         rho : float, optional
             Only used if `opt_method` is 'GCV'. The stabilization parameter for the modified
             generalized cross validation (mGCV) criteria. A value of 1 defines normal GCV, while
             higher values of `rho` stabilize the scores to make a single, global minima value
             more likely (when applied to smoothing). If None (default), the value of `rho` will
-            be selected following [2]_, with the value being 1.3 if ``len(data)`` is less than
+            be selected following [4]_, with the value being 1.3 if ``len(data)`` is less than
             100, otherwise 2.
         n_samples : int, optional
             Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
             analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
-            (N, `n_samples`) Rademacher random variables (eg. either -1 or 1).
+            (N, `n_samples`) Rademacher random variables (ie. either -1 or 1).
 
         Returns
         -------
@@ -773,7 +773,7 @@ class _Optimizers(_Algorithm):
         baseline correction, due to the reliance of calculated weights on the input `lam`.
         Scalar minimization using :func:`scipy.optimize.minimize_scalar` was found to
         perform okay in most cases, but it would also not allow some methods like 'U-Curve'
-        which requires normalization for computing the objective.
+        which requires calculating with all `lam` values before computing the objective.
 
         The range of values to test is generated using
         ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
@@ -784,7 +784,11 @@ class _Optimizers(_Algorithm):
         .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
                 using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
                 of Electronics and Information Engineers, 2016, 53(3), 124-131.
-        .. [2] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
+        .. [2] Belge, M., et al. Efficient determination of multiple regularization parameters in
+                a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+        .. [3] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+                coefficient models. TEST, 2014, 23, 153-194.
+        .. [4] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
                 smoothing. Computational Statistics, 2016, 31, 269-289.
 
         """
