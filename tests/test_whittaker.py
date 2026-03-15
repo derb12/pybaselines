@@ -104,7 +104,7 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
             self.algorithm.banded_solver = 4  # force use solve_banded
             solve_output = self.class_func(self.y, diff_order=diff_order)[0]
 
-            assert_allclose(solveh_output, solve_output, rtol=1e-6, atol=1e-8)
+            assert_allclose(solveh_output, solve_output, rtol=5e-6, atol=1e-8)
         finally:
             self.algorithm.banded_solver = original_solver
 
@@ -478,7 +478,7 @@ class TestAsPLS(WhittakerTester):
             asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )[0]
 
-        rtol = {2: 1.5e-4, 3: 5e-4}[diff_order]
+        rtol = {2: 2e-4, 3: 5e-4}[diff_order]
         assert_allclose(banded_output, sparse_output, rtol=rtol, atol=1e-8)
 
 

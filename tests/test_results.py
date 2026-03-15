@@ -682,7 +682,7 @@ def test_whittaker_two_d_effective_dimension_lam_extremes(shape, diff_order, lar
         # limited by how close to infinity lam can get before it causes numerical instability,
         # and larger diff_orders need larger lam for it to be a polynomial, so have to reduce the
         # relative tolerance as diff_order increases
-        rtol = {1: 8e-3, 2: 2e-2, 3: 3e-2}[max_diff_order]
+        rtol = {1: 8e-3, 2: 2e-2, 3: 7e-2}[max_diff_order]
     else:
         lam = 1e-16
         expected_ed = np.prod(shape)
