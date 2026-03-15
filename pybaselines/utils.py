@@ -950,14 +950,14 @@ def _sort_array2d(array, sort_order=None):
     output : numpy.ndarray
         The input array after optionally sorting.
 
-    Notes
-    -----
-    For all inputs, assumes the last 2 axes correspond to the data that needs sorted.
-
     Raises
     ------
     ValueError
         Raised if the input array is not two or three dimensional.
+
+    Notes
+    -----
+    For all inputs, assumes the last 2 axes correspond to the data that needs sorted.
 
     """
     if sort_order is None:
@@ -997,14 +997,14 @@ def _sort_array(array, sort_order=None):
     output : numpy.ndarray
         The input array after optionally sorting.
 
-    Notes
-    -----
-    For all inputs, assumes the last axis corresponds to the data that needs sorted.
-
     Raises
     ------
     ValueError
         Raised if the input array has more than two dimensions.
+
+    Notes
+    -----
+    For all inputs, assumes the last axis corresponds to the data that needs sorted.
 
     """
     if sort_order is None:
@@ -1302,3 +1302,29 @@ def estimate_polyorder(data, x_data=None, min_value=1, max_value=10):
             max_skew = residual_skew
 
     return best_order
+
+
+def _get_rng(rng):
+    """
+    Generates or returns a random number generator from the given input.
+
+    Parameters
+    ----------
+    rng : int or numpy.random.Generator or numpy.random.RandomState
+        The integer for the seed of the random number generator or an existing generating
+        object.
+
+    Returns
+    -------
+    output : numpy.random.Generator or numpy.random.RandomState
+        The random number generator corresponding to the input `rng`. If `rng` was an existing
+        RandomState or Generator object, it is returned; otherwise, `output` is
+        a Generator object.
+
+    """
+    if isinstance(rng, (np.random.Generator, np.random.RandomState)):
+        output = rng
+    else:
+        output = np.random.default_rng(rng)
+
+    return output

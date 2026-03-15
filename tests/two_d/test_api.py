@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines.two_d import api, morphological, optimizers, polynomial, smooth, spline, whittaker
 
-from ..base_tests import get_data2d
+from ..base_tests import get_data2d, check_param_keys
 
 
 _ALL_CLASSES = (
@@ -166,19 +166,7 @@ class TestBaseline2D:
         )(fit_data, **kwargs)
 
         assert_allclose(api_baseline, class_baseline, rtol=1e-12, atol=1e-12)
-        assert len(api_params.keys()) == len(class_params.keys())
-        for key, value in api_params.items():
-            assert key in class_params
-            class_value = class_params[key]
-            if isinstance(value, (int, float, np.ndarray, list, tuple)):
-                assert_allclose(value, class_value, rtol=1e-12, atol=1e-12)
-            elif isinstance(value, dict):
-                # do not check values of the internal dictionary since the nested structure
-                # is no longer guaranteed to be the same shape for every value
-                for internal_key in value.keys():
-                    assert internal_key in class_value
-            else:
-                assert value == class_value
+        check_param_keys(api_params.keys(), class_params.keys())
 
     def test_method_availability(self):
         """Ensures all public algorithms are available through the Baseline class."""

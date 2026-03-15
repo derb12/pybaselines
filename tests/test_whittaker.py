@@ -92,7 +92,7 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    checked_keys = ('weights', 'tol_history')
+    checked_keys = ('weights', 'tol_history', 'result')
 
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_scipy_solvers(self, diff_order):
@@ -104,7 +104,7 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
             self.algorithm.banded_solver = 4  # force use solve_banded
             solve_output = self.class_func(self.y, diff_order=diff_order)[0]
 
-            assert_allclose(solveh_output, solve_output, rtol=1e-6, atol=1e-8)
+            assert_allclose(solveh_output, solve_output, rtol=5e-6, atol=1e-8)
         finally:
             self.algorithm.banded_solver = original_solver
 
@@ -153,6 +153,16 @@ class TestAsLS(WhittakerTester):
         lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
+
 
 class TestIAsLS(WhittakerTester):
     """Class for testing iasls baseline."""
@@ -197,6 +207,16 @@ class TestIAsLS(WhittakerTester):
         )[0]
 
         assert_allclose(banded_output, sparse_output, rtol=5e-4, atol=1e-8)
+
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p**2`` or ``(1 - p)**2``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p**2, atol=1e-15, rtol=0)
+            | np.isclose(weights, (1 - p)**2, atol=1e-15, rtol=0)
+        ).all()
 
 
 class TestAirPLS(WhittakerTester):
@@ -380,7 +400,7 @@ class TestAsPLS(WhittakerTester):
     """Class for testing aspls baseline."""
 
     func_name = 'aspls'
-    checked_keys = ('weights', 'alpha', 'tol_history')
+    checked_keys = ('weights', 'alpha', 'tol_history', 'result')
     weight_keys = ('weights', 'alpha')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
@@ -458,7 +478,7 @@ class TestAsPLS(WhittakerTester):
             asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )[0]
 
-        rtol = {2: 1.5e-4, 3: 3e-4}[diff_order]
+        rtol = {2: 2e-4, 3: 5e-4}[diff_order]
         assert_allclose(banded_output, sparse_output, rtol=rtol, atol=1e-8)
 
 

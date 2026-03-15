@@ -12,6 +12,7 @@ import numpy as np
 
 from .. import _weighting
 from .._validation import _check_scalar_variable
+from ..results import PSplineResult2D
 from ..utils import ParameterWarning, gaussian, relative_difference, _MIN_FLOAT
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
@@ -82,6 +83,9 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -182,7 +186,8 @@ class _Spline(_Algorithm2D):
             residual = y - baseline
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1]
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult2D(pspline, weight_array)
         }
 
         baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
@@ -243,6 +248,9 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -273,7 +281,10 @@ class _Spline(_Algorithm2D):
             old_coef = pspline.coef
             weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult2D(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -327,6 +338,9 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -364,7 +378,10 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult2D(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -384,8 +401,8 @@ class _Spline(_Algorithm2D):
             baselines. Default is 1e3.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
-            than the baseline will be given `p` weight, and values less than the baseline
-            will be given `1 - p` weight. Default is 1e-2.
+            than the baseline will be given ``p**2`` weight, and values less than the baseline
+            will be given ``(1 - p)**2`` weight. Default is 1e-2.
         lam_1 : float or Sequence[float, float], optional
             The smoothing parameter for the rows and columns, respectively, of the first
             derivative of the residual. If a single value is given, both will use the same
@@ -417,11 +434,19 @@ class _Spline(_Algorithm2D):
 
             * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
+
+                .. versionchanged:: 1.3.0
+                    Prior to version 1.3.0, the returned weights were the non-squared
+                    values (ie. ``p`` or ``1 - p``).
+
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -431,6 +456,13 @@ class _Spline(_Algorithm2D):
         See Also
         --------
         Baseline2D.iasls
+
+        Notes
+        -----
+        Although both ``pspline_iasls`` and :meth:`~.Baseline2D.pspline_asls` use `p` for defining
+        the weights, the appropriate `p` value for ``pspline_iasls`` will be approximately equal
+        to the square root of the value used for ``pspline_asls`` when `p` is small since
+        ``pspline_iasls`` uses squared weights.
 
         References
         ----------
@@ -459,22 +491,26 @@ class _Spline(_Algorithm2D):
 
         # B.T @ P_1 @ B and B.T @ P_1 @ y
         penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
-        p1_partial_penalty = pspline.basis.basis.T @ penalized_system_1.penalty
+        d1_penalty = pspline.basis.basis.T @ penalized_system_1.penalty
 
-        partial_rhs = p1_partial_penalty @ y.ravel()
-        pspline.add_penalty(p1_partial_penalty @ pspline.basis.basis)
+        partial_rhs = d1_penalty @ y.ravel()
+        d1_penalty = d1_penalty @ pspline.basis.basis
+        pspline.add_penalty(d1_penalty)
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array**2, rhs_extra=partial_rhs)
-            new_weights = _weighting._asls(y, baseline, p)
+            baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
+            new_weights = _weighting._asls(y, baseline, p)**2
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult2D(pspline, weight_array, rhs_extra=d1_penalty)
+        }
 
         return baseline, params
 
@@ -528,6 +564,9 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -561,7 +600,10 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': PSplineResult2D(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -611,6 +653,9 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -641,7 +686,10 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult2D(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -691,6 +739,9 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -722,7 +773,10 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': PSplineResult2D(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -782,6 +836,9 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -823,7 +880,10 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult2D(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -883,6 +943,9 @@ class _Spline(_Algorithm2D):
                 `max_iter_2`, `tol_2`), and shape K is the maximum of the number of
                 iterations for the threshold and the maximum number of iterations for all of
                 the fits of the various threshold values (related to `max_iter` and `tol`).
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -940,7 +1003,8 @@ class _Spline(_Algorithm2D):
             beta = 1 - weight_mean
 
         params = {
-            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1]
+            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
+            'result': PSplineResult2D(pspline, weight_array)
         }
 
         return baseline, params
@@ -997,6 +1061,9 @@ class _Spline(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -1040,6 +1107,9 @@ class _Spline(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': PSplineResult2D(pspline, weight_array)
+        }
 
         return baseline, params

@@ -13,13 +13,13 @@ Algorithms
 optimize_extended_range
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The :meth:`~.Baseline.optimize_extended_range` function is based on the `Extended Range
+The :meth:`~.Baseline.optimize_extended_range` method is based on the `Extended Range
 Penalized Least Squares (erPLS) method <https://doi.org/10.3390/s20072015>`_,
 but extends its usage to all Whittaker-smoothing-based, polynomial, and spline algorithms.
 
 In this algorithm, a linear baseline is extrapolated from the left and/or
 right edges, Gaussian peaks are added to these baselines, and then the original
-data plus the extensions are input into the indicated Whittaker or polynomial function.
+data plus the extensions are input into the indicated Whittaker or polynomial method.
 An example of data with added baseline and Gaussian peaks is shown below.
 
 .. _extending-data-explanation:
@@ -313,3 +313,135 @@ reducing the number of data points in regions where higher stiffness
 is required. There is no figure showing the fits for various baseline types for
 this method since it is more suited for hard-to-fit data; however, :ref:`an
 example <sphx_glr_generated_examples_optimizers_plot_custom_bc_1_whittaker.py>` showcases its use.
+
+
+optimize_pls (Optimize Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The :meth:`~.Baseline.optimize_pls` method is based on the `method developed by the authors
+of the arPLS algorithm <https://dx.doi.org/10.5573/ieie.2016.53.3.124>`_,
+but extends its usage to all Whittaker-smoothing and penalized spline algorithms.
+
+The method works by considering the general equation of penalized least squares given by
+
+.. math::
+    F + \lambda P
+
+where :math:`F` is the fidelity of the fit and :math:`P` is the penalty term whose contribution
+is controlled by the regularization parameter :math:`\lambda`. In general, both Whittaker
+smoothing and penalized splines have a fidelity given by:
+
+.. math::
+
+    F = \sum\limits_{i}^N w_i (y_i - v_i)^2
+
+where :math:`y_i` is the measured data, :math:`v_i` is the calculated baseline,
+and :math:`w_i` is the weight. The penalty for Whittaker smoothing is generally:
+
+.. math::
+
+    P = \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
+
+where :math:`\Delta^d` is the finite-difference operator of order d. For penalized
+splines the penalty is generally:
+
+.. math::
+
+
+    P = \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
+
+where :math:`c` are the calculated spline coefficients.
+
+In either case, a range of ``lam`` values are tested, with the fidelity and penalty
+values calculated for each fit. Then the array of fidelity and penalty values are
+normalized by their minimum and maximum values:
+
+.. math::
+
+    F_{norm} = \frac{F - \min(F)}{\max(F) - \min(F)}
+
+.. math::
+
+    P_{norm} = \frac{P - \min(P)}{\max(P) - \min(P)}
+
+
+The ``lam`` value that produces a minimum of the sum of normalized penalty and fidelity
+values is then selected as the optimal value. An example demonstrating this process is shown below.
+
+.. note::
+    Fun fact: this method was the reason that all baseline correction methods in pybaselines
+    output a parameter dictionary. Since the conception of pybaselines, the author had tried to
+    implement this method and only realized after ~5 years that the original publication had a
+    typo that prevented being able to replicate the publication's results.
+
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    def normalize(values):
+        return (values - values.min()) / (values.max() - values.min())
+
+    x = np.linspace(1, 1000, 500)
+    signal = (
+        gaussian(x, 6, 180, 5)
+        + gaussian(x, 6, 550, 5)
+        + gaussian(x, 9, 800, 10)
+        + gaussian(x, 9, 100, 12)
+        + gaussian(x, 15, 400, 8)
+        + gaussian(x, 13, 700, 12)
+        + gaussian(x, 9, 880, 8)
+    )
+    baseline = 5 + 15 * np.exp(-x / 800) + gaussian(x, 5, 700, 300)
+    noise = np.random.default_rng(1).normal(0, 0.2, x.size)
+    y = signal * 0.5 + baseline + noise
+
+    min_value = 2
+    max_value = 10
+    step = 0.25
+    lam_range = np.arange(min_value, max_value, step)
+
+    fit, params = baseline_fitter.optimize_pls(
+        y, opt_method='u-curve', min_value=min_value, max_value=max_value, step=step
+    )
+
+    plt.figure()
+    plt.plot(lam_range, normalize(params['penalty']), label='Penalty, $P_{norm}$')
+    plt.plot(lam_range, normalize(params['fidelity']), label='Fidelity, $F_{norm}$')
+    plt.plot(lam_range, params['metric'], '--', label='$F_{norm} + P_{norm}$')
+    index = np.argmin(abs(lam_range - np.log10(params['optimal_parameter'])))
+    plt.plot(lam_range[index], params['metric'][index], 'o', label='Optimal Value')
+    plt.xlabel('log$_{10}$(lam)')
+    plt.ylabel('Normalized Value')
+    plt.legend()
+
+    plt.figure()
+    plt.plot(x, y)
+    plt.plot(
+        x, baseline_fitter.arpls(y, lam=10**min_value)[0], label=f'lam=10$^{{{min_value}}}$'
+    )
+    plt.plot(
+        x, baseline_fitter.arpls(y, lam=10**max_value)[0], label=f'lam=10$^{{{max_value}}}$'
+    )
+    plt.plot(x, fit, label=f'lam=10$^{{{np.log10(params['optimal_parameter']):.1f}}}$')
+    plt.legend()
+
+
+In general, this method is more sensitive to the minimum and maximum ``lam`` values used for
+the fits compared to :meth:`~.Baseline.optimize_extended_range`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        baseline, params = baseline_fitter.optimize_pls(
+            y, method='arpls', opt_method='u-curve', min_value=2.5, max_value=5
+        )
+        ax.plot(baseline, 'g--')

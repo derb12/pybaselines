@@ -10,15 +10,17 @@ Created on March 3, 2021
 """
 
 from collections import defaultdict
+import inspect
 import itertools
 from math import ceil
+import warnings
 
 import numpy as np
 
 from . import classification, misc, morphological, polynomial, smooth, spline, whittaker
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_optional_array
-from .utils import _check_scalar, _get_edges, _sort_array, gaussian
+from .utils import ParameterWarning, _check_scalar, _get_edges, _sort_array, gaussian
 
 
 class _Optimizers(_Algorithm):
@@ -63,7 +65,7 @@ class _Optimizers(_Algorithm):
                 :meth:`~.Baseline.aspls` or :meth:`~.Baseline.pspline_aspls` methods.
             * 'method_params': dict[str, list]
                 A dictionary containing the output parameters for each individual fit.
-                Keys will depend on the selected method and will have a list of values,
+                Keys will depend on the selected `method` and will have a list of values,
                 with each item corresponding to a fit.
 
         Raises
@@ -141,7 +143,7 @@ class _Optimizers(_Algorithm):
 
     @_Algorithm._register(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
-                                height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=8,
+                                height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=9,
                                 step=1, pad_kwargs=None, method_kwargs=None):
         """
         Extends data and finds the best parameter value for the given baseline method.
@@ -177,11 +179,11 @@ class _Optimizers(_Algorithm):
             be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
             designates a `lam` value of 10**2). Default is 2.
         max_value : int or float, optional
-            The maximum value for the `lam` or `poly_order` value to use with the
+            The maximum value for the `lam` or `poly_order` value to potentially use with the
             indicated method. If using a polynomial method, `max_value` must be an
             integer. If using a Whittaker-smoothing-based method, `max_value` should
             be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
-            designates a `lam` value of 10**3). Default is 8.
+            designates a `lam` value of 10**3). Default is 9.
         step : int or float, optional
             The step size for iterating the parameter value from `min_value` to `max_value`.
             If using a polynomial method, `step` must be an integer. If using a
@@ -200,36 +202,44 @@ class _Optimizers(_Algorithm):
         -------
         baseline : numpy.ndarray, shape (N,)
             The baseline calculated with the optimum parameter.
-        method_params : dict
+        params : dict
             A dictionary with the following items:
 
-            * 'optimal_parameter': int or float
+            * 'optimal_parameter': float or int
                 The `lam` or `poly_order` value that produced the lowest
                 root-mean-squared-error.
             * 'min_rmse': float
+                The minimum root-mean-squared-error obtained when using
+                the optimal parameter.
 
                 .. deprecated:: 1.2.0
-                    The 'min_rmse' key will be removed from the ``method_params``
+                    The 'min_rmse' key will be removed from the `params`
                     dictionary in pybaselines version 1.4.0 in favor of the new
                     'rmse' key which returns all root-mean-squared-error values.
 
-            * 'rmse' : numpy.ndarray
+            * 'rmse': numpy.ndarray, shape (P,)
                 The array of the calculated root-mean-squared-error for each
                 of the fits.
+
+                .. versionadded:: 1.2.0
+
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
-                Items will depend on the selected method.
+                Items will depend on the selected `method`.
 
         Raises
         ------
         ValueError
-            Raised if `side` is not 'left', 'right', or 'both'.
+            Raised if `side` is not 'left', 'right', or 'both'. Also raised if using a
+            non-polynomial method and `min_value`, `max_value`, or `step` is
+            greater than 15.
         TypeError
             Raised if using a polynomial method and `min_value`, `max_value`, or
             `step` is not an integer.
-        ValueError
-            Raised if using a Whittaker-smoothing-based method and `min_value`,
-            `max_value`, or `step` is greater than 100.
+
+        See Also
+        --------
+        Baseline.optimize_pls
 
         Notes
         -----
@@ -246,6 +256,10 @@ class _Optimizers(_Algorithm):
         to the padded data; since ``lam`` has a dependance on data size, the optimal ``lam``
         value for fitting non-padded data will be slightly lower than the optimal value
         obtained from :meth:`~.Baseline.optimize_extended_range`.
+
+        The range of values to test is generated using
+        ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
+        the range of tested values.
 
         References
         ----------
@@ -266,26 +280,12 @@ class _Optimizers(_Algorithm):
         )
         method = method.lower()
         if func_module == 'polynomial' or method in ('dietrich', 'cwt_br'):
-            if any(not isinstance(val, int) for val in (min_value, max_value, step)):
-                raise TypeError((
-                    'min_value, max_value, and step must all be integers when'
-                    ' using a polynomial method'
-                ))
             param_name = 'poly_order'
         else:
-            if any(val > 15 for val in (min_value, max_value, step)):
-                raise ValueError((
-                    'min_value, max_value, and step should be the power of 10 to use '
-                    '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
-                    'thus should not be greater than 15'
-                ))
             param_name = 'lam'
-        if step == 0 or min_value == max_value:
-            do_optimization = False
-        else:
-            do_optimization = True
-            if max_value < min_value and step > 0:
-                step = -step
+        variables = _param_grid(
+            min_value, max_value, step, polynomial_fit=param_name == 'poly_order'
+        )
 
         added_window = int(self._size * width_scale)
         for key in ('weights', 'alpha'):
@@ -352,22 +352,7 @@ class _Optimizers(_Algorithm):
 
         new_fitter = fit_object._override_x(fit_x_data, new_sort_order=new_sort_order)
         baseline_func = getattr(new_fitter, method)
-        if do_optimization:
-            if param_name == 'poly_order':
-                variables = np.arange(min_value, max_value + step, step)
-            else:
-                # use linspace for floats since it ensures endpoints are included; use
-                # logspace to skip having to do 10.0**linspace(...)
-                variables = np.logspace(
-                    min_value, max_value, ceil((max_value - min_value) / step), base=10.0
-                )
-            # double check that variables has at least one item; otherwise skip the optimization
-            if variables.size == 0:
-                do_optimization = False
-        if not do_optimization:
-            variables = np.array([min_value])
-            if param_name == 'lam':
-                variables = 10.0**variables
+
         upper_idx = len(fit_data) - upper_bound
         min_sum_squares = np.inf
         best_idx = 0
@@ -462,7 +447,7 @@ class _Optimizers(_Algorithm):
                 An array of the two polynomial orders used for the fitting.
             * 'method_params': dict[str, list]
                 A dictionary containing the output parameters for each individual fit.
-                Keys will depend on the selected method and will have a list of values,
+                Keys will depend on the selected `method` and will have a list of values,
                 with each item corresponding to a fit.
 
         Raises
@@ -584,7 +569,7 @@ class _Optimizers(_Algorithm):
                 The truncated baseline before interpolating from `P` points to `N` points.
             * 'method_params': dict
                 A dictionary containing the output parameters for the fit using the selected
-                method.
+                `method`.
 
         Raises
         ------
@@ -686,8 +671,463 @@ class _Optimizers(_Algorithm):
 
         return baseline, params
 
+    @_Algorithm._register(skip_sorting=True)
+    def optimize_pls(self, data, method='arpls', opt_method='U-Curve', min_value=4, max_value=7,
+                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
+        """
+        Optimizes the regularization parameter for penalized least squares methods.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,)
+            The y-values of the measured data, with N data points.
+        method : str, optional
+            A string indicating the Whittaker-smoothing or spline method
+            to use for fitting the baseline. Default is 'arpls'.
+        opt_method : {'U-Curve', 'GCV', 'BIC'}, optional
+            The optimization method used to optimize `lam`. Supported methods are:
+
+            * 'U-Curve'
+            * 'GCV'
+            * 'BIC'
+
+            Details on each optimization method are in the Notes section below.
+        min_value : int or float, optional
+            The minimum value for the `lam` value to use with the indicated method. Should
+            be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
+            designates a `lam` value of 10**2). Default is 4.
+        max_value : int or float, optional
+            The maximum value for the `lam` value to use with the indicated method. Should
+            be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
+            designates a `lam` value of 10**3). Default is 7.
+        step : int or float, optional
+            The step size for iterating the parameter value from `min_value` to `max_value`.
+            Should be the exponent to raise to the power of 10 (eg. a `step` value of 1
+            designates a `lam` value of 10**1). Default is 0.5.
+        method_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to the selected `method` function.
+            Default is None, which will use an empty dictionary.
+        euclidean : bool, optional
+            Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
+            is the minimum of the sum of the normalized fidelity and penalty values [1]_, which is
+            equivalent to the minimum graph distance from the origin. If True, the metric is the
+            euclidean distance from the origin, similar to [2]_ and [3]_.
+        rho : float, optional
+            Only used if `opt_method` is 'GCV'. The stabilization parameter for the modified
+            generalized cross validation (mGCV) criteria. A value of 1 defines normal GCV, while
+            higher values of `rho` stabilize the scores to make a single, global minima value
+            more likely (when applied to smoothing). If None (default), the value of `rho` will
+            be selected following [4]_, with the value being 1.3 if ``len(data)`` is less than
+            100, otherwise 2.
+        n_samples : int, optional
+            Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
+            analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
+            (N, `n_samples`) Rademacher random variables (ie. either -1 or 1).
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,)
+            The baseline calculated with the optimum parameter.
+        params : dict
+            A dictionary with the following items:
+
+            * 'optimal_parameter': float
+                The `lam` value that minimized the computed metric.
+            * 'metric': numpy.ndarray, shape (P,)
+                The computed metric for each `lam` value tested.
+            * 'method_params': dict
+                A dictionary containing the output parameters for the optimal fit.
+                Items will depend on the selected `method`.
+            * 'fidelity': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'U-curve'. The computed non-normalized
+                fidelity term for each `lam` value tested. For
+                most algorithms within pybaselines, this is equivalent to the weighted residual
+                sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
+            * 'penalty': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'U-curve'. The computed non-normalized penalty
+                values for each `lam` value tested.
+            * 'wrss': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
+                squares (eg. ``sum(weights * (data - baseline)**2)``) for each `lam` value tested.
+            * 'trace': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'GCV' or 'BIC. The computed trace of the smoother
+                matrix for each `lam` value tested, which signifies the effective dimension
+                for the system.
+
+        Raises
+        ------
+        ValueError
+            Raised if `opt_method` is 'GCV' and the input `rho` is less than 1.
+        NotImplementedError
+            Raised if `method` is 'beads' and `opt_method` is 'GCV' or 'BIC'.
+
+        See Also
+        --------
+        Baseline.optimize_extended_range
+
+        Notes
+        -----
+        `opt_method` 'U-Curve' requires that the sum of the normalized penalty and fidelity values
+        is roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
+        `min_value` and `max_value` such that penalty continually decreases and fidelity
+        continually increases as `lam` increases.
+
+        For `opt_method` 'U-Curve', the multipliers on `lam` used in methods `drpls` or `aspls`,
+        ``(1 - eta * weights)`` and ``alpha``, respectively, are omitted from the penalty term.
+        Otherwise, the penalty term shows little change with varying `lam` and gives bad results.
+        Likewise, for method='iasls', the penalty term from `lam_1` is omitted since its gradient
+        with respect to `lam` is assumed to be 0. More advanced optimization varying both `lam`
+        and `lam_1` is possible, but not supported within this method.
+
+        Uses a grid search for optimization since the objective functions for all supported
+        `opt_method` inputs are highly non-smooth (ie. many local minima) when performing
+        baseline correction, due to the reliance of calculated weights on the input `lam`.
+        Scalar minimization using :func:`scipy.optimize.minimize_scalar` was found to
+        perform okay in most cases, but it would also not allow some methods like 'U-Curve'
+        which requires calculating with all `lam` values before computing the objective.
+
+        The range of values to test is generated using
+        ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
+        the range of tested values.
+
+        References
+        ----------
+        .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+                using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
+                of Electronics and Information Engineers, 2016, 53(3), 124-131.
+        .. [2] Belge, M., et al. Efficient determination of multiple regularization parameters in
+                a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+        .. [3] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+                coefficient models. TEST, 2014, 23, 153-194.
+        .. [4] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
+                smoothing. Computational Statistics, 2016, 31, 269-289.
+
+        """
+        y, baseline_func, _, method_kws, fitting_object = self._setup_optimizer(
+            data, method, (whittaker, morphological, spline, classification, misc),
+            method_kwargs, copy_kwargs=False
+        )
+        method = method.lower()
+        if 'lam' in method_kws:
+            # TODO maybe just warn and pop out instead? Would need to copy input kwargs in that
+            # case so that the original input is not modified
+            raise ValueError('lam must not be specified within method_kwargs')
+
+        lam_range = _param_grid(min_value, max_value, step, polynomial_fit=False)
+        selected_method = opt_method.lower().replace('-', '_').replace('_', '')
+        if selected_method in ('ucurve',):
+            baseline, params = _optimize_ucurve(
+                y, selected_method, method, method_kws, baseline_func, fitting_object, lam_range,
+                euclidean
+            )
+        elif selected_method in ('gcv', 'bic'):
+            baseline, params = _optimize_ed(
+                y, selected_method, method, method_kws, baseline_func, fitting_object, lam_range,
+                rho, n_samples
+            )
+        else:
+            raise ValueError(f'{opt_method} is not a supported opt_method input')
+
+        return baseline, params
+
 
 _optimizers_wrapper = _class_wrapper(_Optimizers)
+
+
+def _param_grid(min_value, max_value, step, polynomial_fit=False):
+    """
+    Creates a range of parameters to use for grid optimization.
+
+    Parameters
+    ----------
+    min_value : int or float
+        The minimum parameter value. If `polynomial_fit` is True, `min_value` must be an
+        integer. Otherwise, `min_value` should be the exponent to raise to the power of
+        10 (eg. a `min_value` value of 2 designates a `lam` value of 10**2).
+    max_value : int or float, optional
+        The maximum parameter value for the range. If `polynomial_fit` is True, `max_value`
+        must be an integer. Otherwise, `min_value` should be the exponent to raise to the
+        power of 10 (eg. a `max_value` value of 5 designates a `lam` value of 10**5).
+    step : int or float
+        If `polynomial_fit` is True, `step` must be an integer. Otherwise, `step` should
+        be the exponent to raise to the power of 10 (eg. a `step` value of 1
+        designates a `lam` value of 10**1).
+    polynomial_fit : bool, optional
+        Whether the parameters define polynomial degrees. Default is False.
+
+    Returns
+    -------
+    values : numpy.ndarray
+        The range of parameters.
+
+    Raises
+    ------
+    TypeError
+        Raised if using a polynomial method and `min_value`, `max_value`, or
+        `step` is not an integer.
+    ValueError
+        Raised if using a Whittaker-smoothing-based method and `min_value`,
+        `max_value`, or `step` is greater than 15.
+
+    Notes
+    -----
+    The complete range of values for the grid is generated using
+    ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included.
+
+    """
+    if polynomial_fit:
+        if any(not isinstance(val, int) for val in (min_value, max_value, step)):
+            raise TypeError((
+                'min_value, max_value, and step must all be integers when'
+                ' using a polynomial method'
+            ))
+    else:
+        if any(val > 15 for val in (min_value, max_value, step)):
+            raise ValueError((
+                'min_value, max_value, and step should be the power of 10 to use '
+                '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
+                'thus should not be greater than 15'
+            ))
+
+    if step == 0 or min_value == max_value:
+        do_optimization = False
+    else:
+        do_optimization = True
+        if polynomial_fit:
+            values = np.arange(min_value, max_value, step)
+        else:
+            # explicitly set float dtype so that input dtypes are uninportant for arange step size
+            values = 10.0**np.arange(min_value, max_value, step, dtype=float)
+        # double check that values has at least two items; otherwise skip the optimization
+        if values.size < 2:
+            do_optimization = False
+
+    if not do_optimization:
+        warnings.warn(
+            ('min_value, max_value, and step were set such that only a single value '
+             'was fit'), ParameterWarning, stacklevel=2
+        )
+        values = np.array([min_value])
+        if not polynomial_fit:
+            values = 10.0**values
+
+    return values
+
+
+def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_obj,
+                     lam_range, euclidean):
+    """
+    Performs U-curve optimization based on the fit fidelity and penalty.
+
+    Parameters
+    ----------
+    y : _type_
+        _description_
+    opt_method : _type_
+        _description_
+    method : _type_
+        _description_
+    method_kws : _type_
+        _description_
+    baseline_func : _type_
+        _description_
+    baseline_obj : _Algorithm
+        _description_
+    lam_range : _type_
+        _description_
+    euclidean : bool, optional
+        _description_. Default is False.
+
+    Returns
+    -------
+    _type_
+        _description_
+
+    References
+    ----------
+    .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction using
+           Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
+           Electronics and Information Engineers, 2016, 53(3), 124-131.
+    .. [2] Andriyana, Y., et al. P-splines quantile regression estimation in varying coefficient
+           models. TEST, 2014, 23(1), 153-194.
+
+    """
+    if 'pspline' in method or method in ('mixture_model', 'irsqr'):
+        spline_fit = True
+    else:
+        spline_fit = False
+
+    using_drpls = 'drpls' in method
+    using_beads = method == 'beads'
+    if using_beads:
+        param_key = 'alpha'
+    else:
+        param_key = 'lam'
+        # some methods have different defaults, so have to inspect them
+        method_signature = inspect.signature(baseline_func).parameters
+        diff_order = method_kws.get(
+            'diff_order', method_signature['diff_order'].default
+        )
+
+    n_lams = len(lam_range)
+    penalty = np.empty(n_lams)
+    fidelity = np.empty(n_lams)
+    for i, lam in enumerate(lam_range):
+        fit_baseline, fit_params = baseline_func(y, **{param_key: lam}, **method_kws)
+        if using_beads:
+            fit_penalty = sum(fit_params['penalty'])
+            fit_fidelity = fit_params['fidelity']
+        else:
+            if spline_fit:
+                penalized_object = fit_params['result'].tck[1]  # the spline coefficients
+            else:
+                # have to ensure sort order of the fit baseline since
+                # diff(y_ordered) != diff(y_disordered); spline coefficients are always
+                # sorted since they correspond to sorted x-values
+                penalized_object = _sort_array(fit_baseline, baseline_obj._sort_order)
+
+            # Park, et al. multiplied the penalty by lam (Equation 8), but I think that may have
+            # been a typo since it otherwise favors low lam values and does not produce a
+            # penalty plot shown in Figure 4 in the Park, et al. reference
+            partial_penalty = np.diff(penalized_object, diff_order)
+            fit_penalty = partial_penalty @ partial_penalty
+
+            residual = y - fit_baseline
+            if 'weights' in fit_params:
+                fit_fidelity = fit_params['weights'] @ residual**2
+            else:
+                fit_fidelity = residual @ residual
+
+            if using_drpls:
+                if spline_fit:  # still need to sort the baseline
+                    additional_fidelity = np.diff(
+                        _sort_array(fit_baseline, baseline_obj._sort_order), 1
+                    )
+                else:
+                    additional_fidelity = np.diff(penalized_object, 1)
+                fit_fidelity += additional_fidelity @ additional_fidelity
+
+        penalty[i] = fit_penalty
+        fidelity[i] = fit_fidelity
+
+    # add fidelity and penalty to params before potentially normalizing
+    params = {'fidelity': fidelity, 'penalty': penalty}
+    if lam_range.size > 1:
+        penalty = (penalty - penalty.min()) / (penalty.max() - penalty.min())
+        fidelity = (fidelity - fidelity.min()) / (fidelity.max() - fidelity.min())
+    if euclidean:
+        metric = np.sqrt(fidelity**2 + penalty**2)
+    else:  # graph distance from the origin, ie. only travelling along x and y axes
+        metric = fidelity + penalty
+
+    best_lam = lam_range[np.argmin(metric)]
+    baseline, best_params = baseline_func(y, **{param_key: best_lam}, **method_kws)
+    params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
+
+    return baseline, params
+
+
+def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
+                  lam_range, rho, n_samples):
+    """
+    Optimizes the regularization coefficient using criteria based on the effective dimension.
+
+    Parameters
+    ----------
+    y : _type_
+        _description_
+    opt_method : {'gcv', 'bic'}
+        _description_
+    method : _type_
+        _description_
+    method_kws : _type_
+        _description_
+    baseline_func : _type_
+        _description_
+    baseline_obj : _Algorithm
+        _description_
+    lam_range : _type_
+        _description_
+    rho : _type_, optional
+        _description_. Default is None.
+    n_samples : _type_, optional
+        _description_.
+
+    Returns
+    -------
+    _type_
+        _description_
+
+    Raises
+    ------
+    ValueError
+        _description_
+    NotImplementedError
+        _description_
+
+    """
+    use_gcv = opt_method == 'gcv'
+    if use_gcv:
+        if rho is None:
+            # selection of rho based on https://doi.org/10.1007/s00180-015-0577-7
+            rho = 1.3 if baseline_obj._size < 100 else 2.
+        else:
+            if rho < 1:
+                raise ValueError('rho must be >= 1')
+
+    if method == 'beads':  # only supported for L-curve-based optimization options
+        raise NotImplementedError(
+            'optimize_pls does not support the beads method for GCV or BIC opt_method inputs'
+        )
+
+    n_lams = len(lam_range)
+    min_metric = np.inf
+    metrics = np.empty(n_lams)
+    traces = np.empty(n_lams)
+    wrss = np.empty(n_lams)
+    for i, lam in enumerate(lam_range):
+        fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
+
+        trace = fit_params['result'].effective_dimension(n_samples)
+        # TODO should fidelity calc be directly added to the result objects so that this
+        # can be handled directly?
+        fit_wrss = fit_params['weights'] @ (y - fit_baseline)**2
+        if use_gcv:
+            # GCV = (1/N) * RSS / (1 - rho * trace / N)**2 == RSS * N / (N - rho * trace)**2
+            # Note that some papers use different terms for fidelity (eg. RSS / N vs just RSS),
+            # within the actual minimized equation, but both Woltring
+            # (https://doi.org/10.1016/0141-1195(86)90098-7) and Eilers
+            # (https://doi.org/10.1021/ac034173t) use the same GCV score
+            # formulation for penalized splines and Whittaker smoothing, respectively (using a
+            # fidelity term of just RSS), so this should be correct
+            metric = fit_wrss * baseline_obj._size / (baseline_obj._size - rho * trace)**2
+        else:
+            # BIC = -2 * l + ln(N) * ED, where l == log likelihood and
+            # ED == effective dimension ~ trace
+            # log likelhood of Whittaker/P-Spline smoothing can be approximated from the result
+            # of fitting with lam=0, ie. RSS / N (see Eilers's original 1996 P-Spline paper)
+            # For Gaussian errors: BIC ~ N * ln(RSS / N) + ln(N) * trace
+            metric = (
+                baseline_obj._size * np.log(fit_wrss / baseline_obj._size)
+                + np.log(baseline_obj._size) * trace
+            )
+
+        if metric < min_metric:
+            min_metric = metric
+            best_lam = lam
+            baseline = fit_baseline
+            best_params = fit_params
+
+        metrics[i] = metric
+        traces[i] = trace
+        wrss[i] = fit_wrss
+
+    params = {
+        'optimal_parameter': best_lam, 'metric': metrics, 'trace': traces,
+        'wrss': wrss, 'method_params': best_params
+    }
+
+    return baseline, params
 
 
 @_optimizers_wrapper
@@ -750,7 +1190,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
 
 @_optimizers_wrapper
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
-                            height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=8,
+                            height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=9,
                             step=1, pad_kwargs=None, method_kwargs=None):
     """
     Extends data and finds the best parameter value for the given baseline method.
@@ -994,6 +1434,9 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
     ----------
     data : array-like, shape (N,)
         The y-values of the measured data, with N data points.
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
     method : str, optional
         A string indicating the algorithm to use for fitting the baseline; can be any
         non-optimizer algorithm in pybaselines. Default is 'asls'.
@@ -1054,5 +1497,142 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
     ----------
     .. [4] Liland, K., et al. Customized baseline correction. Chemometrics and
             Intelligent Laboratory Systems, 2011, 109(1), 51-56.
+
+    """
+
+
+@_optimizers_wrapper
+def optimize_pls(data, method='arpls', opt_method='U-Curve', min_value=4, max_value=7, step=0.5,
+                 method_kwargs=None, euclidean=False, rho=None, n_samples=0, x_data=None):
+    """
+    Optimizes the regularization parameter for penalized least squares methods.
+
+    Parameters
+    ----------
+    data : array-like, shape (N,)
+        The y-values of the measured data, with N data points.
+    method : str, optional
+        A string indicating the Whittaker-smoothing or spline method
+        to use for fitting the baseline. Default is 'arpls'.
+    opt_method : {'U-Curve', 'GCV', 'BIC'}, optional
+        The optimization method used to optimize `lam`. Supported methods are:
+
+        * 'U-Curve'
+        * 'GCV'
+        * 'BIC'
+
+        Details on each optimization method are in the Notes section below.
+    min_value : int or float, optional
+        The minimum value for the `lam` value to use with the indicated method. Should
+        be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
+        designates a `lam` value of 10**2). Default is 4.
+    max_value : int or float, optional
+        The maximum value for the `lam` value to use with the indicated method. Should
+        be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
+        designates a `lam` value of 10**3). Default is 7.
+    step : int or float, optional
+        The step size for iterating the parameter value from `min_value` to `max_value`.
+        Should be the exponent to raise to the power of 10 (eg. a `step` value of 1
+        designates a `lam` value of 10**1). Default is 0.5.
+    method_kwargs : dict, optional
+        A dictionary of keyword arguments to pass to the selected `method` function.
+        Default is None, which will use an empty dictionary.
+    euclidean : bool, optional
+        Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
+        is the minimum of the sum of the normalized fidelity and penalty values [1]_, which is
+        equivalent to the minimum graph distance from the origin. If True, the metric is the
+        euclidean distance from the origin, similar to [2]_ and [3]_.
+    rho : float, optional
+        Only used if `opt_method` is 'GCV'. The stabilization parameter for the modified
+        generalized cross validation (mGCV) criteria. A value of 1 defines normal GCV, while
+        higher values of `rho` stabilize the scores to make a single, global minima value
+        more likely (when applied to smoothing). If None (default), the value of `rho` will
+        be selected following [4]_, with the value being 1.3 if ``len(data)`` is less than
+        100, otherwise 2.
+    n_samples : int, optional
+        Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
+        analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
+        (N, `n_samples`) Rademacher random variables (ie. either -1 or 1).
+    x_data : array-like, shape (N,), optional
+        The x-values of the measured data. Default is None, which will create an
+        array from -1 to 1 with N points.
+
+    Returns
+    -------
+    baseline : numpy.ndarray, shape (N,)
+        The baseline calculated with the optimum parameter.
+    params : dict
+        A dictionary with the following items:
+
+        * 'optimal_parameter': float
+            The `lam` value that minimized the computed metric.
+        * 'metric': numpy.ndarray, shape (P,)
+            The computed metric for each `lam` value tested.
+        * 'method_params': dict
+            A dictionary containing the output parameters for the optimal fit.
+            Items will depend on the selected `method`.
+        * 'fidelity': numpy.ndarray, shape (P,)
+            Only returned if `opt_method` is 'U-curve'. The computed non-normalized
+            fidelity term for each `lam` value tested. For
+            most algorithms within pybaselines, this is equivalent to the weighted residual
+            sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
+        * 'penalty': numpy.ndarray, shape (P,)
+            Only returned if `opt_method` is 'U-curve'. The computed non-normalized penalty
+            values for each `lam` value tested.
+        * 'wrss': numpy.ndarray, shape (P,)
+            Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
+            squares (eg. ``sum(weights * (data - baseline)**2)``) for each `lam` value tested.
+        * 'trace': numpy.ndarray, shape (P,)
+            Only returned if `opt_method` is 'GCV' or 'BIC. The computed trace of the smoother
+            matrix for each `lam` value tested, which signifies the effective dimension
+            for the system.
+
+    Raises
+    ------
+    ValueError
+        Raised if `opt_method` is 'GCV' and the input `rho` is less than 1.
+    NotImplementedError
+        Raised if `method` is 'beads' and `opt_method` is 'GCV' or 'BIC'.
+
+    See Also
+    --------
+    pybaselines.optimizers.optimize_extended_range
+
+    Notes
+    -----
+    `opt_method` 'U-Curve' requires that the sum of the normalized penalty and fidelity values
+    is roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
+    `min_value` and `max_value` such that penalty continually decreases and fidelity
+    continually increases as `lam` increases.
+
+    For `opt_method` 'U-Curve', the multipliers on `lam` used in methods `drpls` or `aspls`,
+    ``(1 - eta * weights)`` and ``alpha``, respectively, are omitted from the penalty term.
+    Otherwise, the penalty term shows little change with varying `lam` and gives bad results.
+    Likewise, for method='iasls', the penalty term from `lam_1` is omitted since its gradient
+    with respect to `lam` is assumed to be 0. More advanced optimization varying both `lam`
+    and `lam_1` is possible, but not supported within this method.
+
+    Uses a grid search for optimization since the objective functions for all supported
+    `opt_method` inputs are highly non-smooth (ie. many local minima) when performing
+    baseline correction, due to the reliance of calculated weights on the input `lam`.
+    Scalar minimization using :func:`scipy.optimize.minimize_scalar` was found to
+    perform okay in most cases, but it would also not allow some methods like 'U-Curve'
+    which requires calculating with all `lam` values before computing the objective.
+
+    The range of values to test is generated using
+    ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
+    the range of tested values.
+
+    References
+    ----------
+    .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+            using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
+            of Electronics and Information Engineers, 2016, 53(3), 124-131.
+    .. [2] Belge, M., et al. Efficient determination of multiple regularization parameters in
+            a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+    .. [3] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+            coefficient models. TEST, 2014, 23, 153-194.
+    .. [4] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
+            smoothing. Computational Statistics, 2016, 31, 269-289.
 
     """

@@ -57,6 +57,7 @@ from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import jit, trapezoid
 from ._validation import _check_scalar, _check_scalar_variable
 from ._weighting import _safe_std_mean
+from .results import WhittakerResult
 from .utils import (
     _MIN_FLOAT, ParameterWarning, _convert_coef, _interp_inplace, gaussian, estimate_window,
     pad_edges, relative_difference
@@ -794,6 +795,9 @@ class _Classification(_Algorithm):
                 as False.
             * 'weights': numpy.ndarray, shape (N,)
                 The weight array used for fitting the data.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Notes
         -----
@@ -839,7 +843,10 @@ class _Classification(_Algorithm):
             whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
             overwrite_b=True, overwrite_ab=True
         )
-        params = {'mask': mask, 'weights': whittaker_weights}
+        params = {
+            'mask': mask, 'weights': whittaker_weights,
+            'result': WhittakerResult(whittaker_system, whittaker_weights)
+        }
 
         return baseline, params
 
@@ -890,12 +897,18 @@ class _Classification(_Algorithm):
         -------
         baseline : numpy.ndarray, shape (N,)
             The calculated baseline.
-        dict
+        params : dict
             A dictionary with the following items:
 
             * 'mask': numpy.ndarray, shape (N,)
                 The boolean array designating baseline points as True and peak points
                 as False.
+            * 'weights': numpy.ndarray, shape (N,)
+                The weight array used for fitting the data. Only returned if `lam` is a
+                positive value.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations. Only returned if `lam` is a positive value.
 
         Raises
         ------
@@ -948,16 +961,24 @@ class _Classification(_Algorithm):
         mask = np.zeros(self._shape, dtype=bool)
         mask[np.unique(total_vertices)] = True
         np.logical_and(mask, weight_array, out=mask)
+
+        params = {'mask': mask}
         if lam is not None and lam != 0:
-            _, _, whittaker_system = self._setup_whittaker(y, lam, diff_order, mask)
+            _, whittaker_weights, whittaker_system = self._setup_whittaker(
+                y, lam, diff_order, mask
+            )
             baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(mask), mask * y,
+                whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
                 overwrite_b=True, overwrite_ab=True
             )
+            params.update({
+                'weights': whittaker_weights,
+                'result': WhittakerResult(whittaker_system, whittaker_weights)
+            })
         else:
             baseline = np.interp(self.x, self.x[mask], y[mask])
 
-        return baseline, {'mask': mask}
+        return baseline, params
 
 
 _classification_wrapper = _class_wrapper(_Classification)
@@ -1683,17 +1704,17 @@ def _haar(num_points, scale=2):
     wavelet : numpy.ndarray
         The Haar wavelet.
 
+    Raises
+    ------
+    TypeError
+        Raised if `scale` is not an integer.
+
     Notes
     -----
     This implementation is only designed to work for integer scales.
 
     Matches pywavelets's Haar implementation after applying patches from pywavelets
     issue #365 and pywavelets pull request #580.
-
-    Raises
-    ------
-    TypeError
-        Raised if `scale` is not an integer.
 
     References
     ----------

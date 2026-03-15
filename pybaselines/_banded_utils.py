@@ -7,9 +7,13 @@ Created on December 8, 2021
 """
 
 import numpy as np
-from scipy.linalg import solve_banded, solveh_banded
+from scipy.linalg import (
+    cholesky_banded, cho_solve_banded, get_blas_funcs, solve_banded, solveh_banded
+)
 
-from ._banded_solvers import solve_banded_penta
+from scipy.sparse.linalg import factorized
+
+from ._banded_solvers import penta_factorize, penta_factorize_solve, solve_banded_penta
 from ._compat import _HAS_NUMBA, dia_object, diags, identity
 from ._validation import _check_lam
 
@@ -83,6 +87,7 @@ def _lower_to_full(ab):
         The full, symmetric banded array.
 
     """
+    ab = np.atleast_2d(ab)
     ab_rows, ab_columns = ab.shape
     ab_full = np.concatenate((np.zeros((ab_rows - 1, ab_columns)), ab))
     ab_full[:ab_rows - 1] = ab[1:][::-1]
@@ -224,7 +229,7 @@ def _sparse_to_banded(matrix):
     ):
         # offsets are typically negative to positive, but can get flipped during conversion
         # between sparse formats; LAPACK's banded format matches SciPy's diagonal data format
-        # when offsets are from positve to negative
+        # when offsets are from positive to negative
         if upper == diag_matrix.offsets[0]:
             ab = diag_matrix.data
         else:
@@ -234,6 +239,170 @@ def _sparse_to_banded(matrix):
         ab[upper - diag_matrix.offsets, :sparse_columns] = diag_matrix.data
 
     return ab, (abs(lower), upper)
+
+
+def _banded_to_sparse(ab, lower=True, sparse_format='csc'):
+    """
+    Converts a banded matrix into its square sparse version.
+
+    Parameters
+    ----------
+    ab : numpy.ndarray, shape (M, N)
+        The banded matrix in LAPACK format, either with its full band structure (ie.
+        ``M == 2 * num_bands + 1``) or only the lower bands (``M == num_bands + 1``).
+    lower : bool, optional
+        False indicates that `ab` represents the full band structure,
+        while True (default) indicates `ab` is in lower format.
+    sparse_format : str, optional
+        The format for the output sparse array or matrix. Default is 'csc'.
+
+    Returns
+    -------
+    matrix : scipy.sparse.spmatrix or scipy.sparse.sparray, shape (N, N)
+        The sparse, banded matrix.
+
+    Notes
+    -----
+    The input `ab` banded matrix is assumed to have equal numbers of upper
+    and lower diagonals.
+
+    """
+    ab = np.atleast_2d(ab)
+    rows, columns = ab.shape
+    if lower:
+        ab_full = _lower_to_full(ab)
+        bands = rows - 1
+    else:
+        ab_full = ab
+        bands = rows // 2
+
+    matrix = dia_object(
+        (ab_full, np.arange(bands, -bands - 1, -1)), shape=(columns, columns),
+    ).asformat(sparse_format)
+
+    return matrix
+
+
+def _banded_dot_vector_full(ab, x, ab_lu, a_full_shape):
+    """
+    Computes the dot product of the matrix `a` in banded format (`ab`) with the vector `x`.
+
+    Parameters
+    ----------
+    ab : array-like, shape (`n_lower` + `n_upper` + 1, N)
+        The banded matrix.
+    x : array-like, shape (N,)
+        The vector.
+    ab_lu : Container[int, int]
+        The number of lower (`n_lower`) and upper (`n_upper`) diagonals in `ab`.
+    a_full_shape : Container[int, int]
+        The number of rows and columns in the full `a` matrix.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The dot product of `ab` and `x`.
+
+    Notes
+    -----
+    The function is faster if the input `ab` matrix is Fortran-ordered (has the
+    F_CONTIGUOUS numpy flag), since the underlying 'gbmv' BLAS function is
+    implemented in Fortran.
+
+    """
+    matrix = np.asarray(ab)
+    vector = np.asarray(x)
+
+    gbmv = get_blas_funcs(['gbmv'], (matrix, vector))[0]
+    # gbmv computes y = alpha * a * x + beta * y where a is the banded matrix
+    # (in compressed form), x is the input vector, y is the output vector, and alpha
+    # and beta are scalar multipliers
+    output = gbmv(
+        m=a_full_shape[0],  # number of rows of `a` matrix in full form
+        n=a_full_shape[1],  # number of columns of `a` matrix in full form
+        kl=ab_lu[0],  # sub-diagonals
+        ku=ab_lu[1],  # super-diagonals
+        alpha=1.0,  # alpha, required
+        a=matrix,  # `a` matrix in compressed form
+        x=vector,  # `x` vector
+        # trans=False,  # transpose a, optional; may allow later
+    )
+
+    return output
+
+
+def _banded_dot_vector_lower(ab, x):
+    """
+    Computes the dot product of the matrix `a` in lower banded format (`ab`) with the vector `x`.
+
+    Parameters
+    ----------
+    ab : array-like, shape (`n_lower` + 1, N)
+        The banded matrix.
+    x : array-like, shape (N,)
+        The vector.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The dot product of `ab` and `x`.
+
+    Notes
+    -----
+    The function is faster if the input `ab` matrix is Fortran-ordered (has the
+    F_CONTIGUOUS numpy flag), since the underlying 'sbmv' BLAS function is
+    implemented in Fortran.
+
+    """
+    matrix = np.asarray(ab)
+    vector = np.asarray(x)
+
+    sbmv = get_blas_funcs(['sbmv'], (matrix, vector))[0]
+    # sbmv computes y = alpha * a * x + beta * y where a is the symmetric banded matrix
+    # (in compressed lower form), x is the input vector, y is the output vector, and alpha
+    # and beta are scalar multipliers
+    output = sbmv(
+        k=matrix.shape[0] - 1,  # number of bands
+        alpha=1.0,  # alpha, required
+        a=matrix,  # `a` matrix in compressed form
+        x=vector,  # `x` vector
+        lower=1,  # using lower banded format
+    )
+
+    return output
+
+
+def _banded_dot_vector(ab, x, lower=True):
+    """
+    Computes ``A @ x`` given `A` in banded format (`ab`) with the vector `x`.
+
+    Parameters
+    ----------
+    ab : array-like, shape (`n_lower` + `n_upper` + 1, N) or (`n_lower` + 1, N)
+        The banded matrix. Can either be in lower format or full. If given a full
+        banded matrix, assumes the number of lower (`n_lower`) and upper (`n_upper`)
+        diagonals are the same. If that assumption does not hold true, then must use
+        ``_banded_dot_vector_full`` directly.
+    x : array-like, shape (N,)
+        The vector.
+    lower : bool, optional
+        False indicates that `ab` represents the full band structure,
+        while True (default) indicates `ab` is in lower format.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The dot product of `ab` and `x`.
+
+    """
+    if lower:
+        output = _banded_dot_vector_lower(ab, x)
+    else:
+        rows, columns = ab.shape
+        bands = rows // 2
+        output = _banded_dot_vector_full(ab, x, (bands, bands), (columns, columns))
+
+    return output
 
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
@@ -567,7 +736,7 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
     Raises
     ------
     ValueError
-        Raised if `diff_order` is greater or equal to `data_size`.
+        Raised if `diff_order` is not greater than `data_size`.
 
     Notes
     -----
@@ -582,7 +751,7 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
 
     """
     if data_size <= diff_order:
-        raise ValueError('data size must be greater than or equal to the difference order.')
+        raise ValueError('data size must be greater than the difference order.')
     penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
     penalty_matrix = dia_object(
         (penalty_bands, np.arange(diff_order, -diff_order - 1, -1)), shape=(data_size, data_size),
@@ -862,3 +1031,86 @@ class PenalizedSystem:
         self.penalty = self.penalty[::-1]
         self.original_diagonals = self.original_diagonals[::-1]
         self.reversed = not self.reversed
+
+    def update_lam(self, lam):
+        """
+        Updates the penalty with a new regularization parameter.
+
+        Parameters
+        ----------
+        lam : float
+            The new regularization parameter to apply to the penalty.
+
+        """
+        new_lam = _check_lam(lam, allow_zero=False)
+        self.penalty *= (new_lam / self.lam)
+        self.main_diagonal = self.penalty[self.main_diagonal_index].copy()
+        self.lam = new_lam
+
+    def factorize(self, lhs, overwrite_ab=False, check_finite=False):
+        """
+        Calculates the factorization of ``A`` for the linear equation ``A x = b``.
+
+        Parameters
+        ----------
+        lhs : array-like, shape (M, N)
+            The left-hand side of the equation, in banded format. `lhs` is assumed to be
+            some slight modification of `self.penalty` in the same format (reversed, lower,
+            number of bands, etc. are all the same).
+        overwrite_ab : bool, optional
+            Whether to overwrite `lhs` during factorization. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite. Default is False.
+
+        Returns
+        -------
+        factorization : numpy.ndarray or Callable
+            The factorization of `lhs`.
+
+        """
+        if self.using_penta:
+            factorization = penta_factorize(
+                lhs, solver=self.penta_solver, overwrite_ab=overwrite_ab
+            )
+        elif self.lower:
+            factorization = cholesky_banded(
+                lhs, lower=True, overwrite_ab=overwrite_ab, check_finite=check_finite
+            )
+        else:
+            factorization = factorized(_banded_to_sparse(lhs, self.lower, sparse_format='csc'))
+
+        return factorization
+
+    def factorized_solve(self, factorization, rhs, overwrite_b=False, check_finite=False):
+        """
+        Solves ``A x = b`` given the factorization of ``A``.
+
+        Parameters
+        ----------
+        factorization : numpy.ndarray or Callable
+            The factorization of ``A``, output by :meth:`PenalizedSystem.factorize`.
+        rhs : array-like, shape (N,) or (N, M)
+            The right-hand side of the equation.
+        overwrite_b : bool, optional
+            Whether to overwrite `rhs` when using any of the solvers. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite. Default is False.
+
+        Returns
+        -------
+        output : numpy.ndarray, shape (N,) or (N, M)
+            The solution to the linear system, `x`.
+
+        """
+        if self.using_penta:
+            output = penta_factorize_solve(
+                factorization, rhs, solver=self.penta_solver, overwrite_b=overwrite_b
+            )
+        elif self.lower:
+            output = cho_solve_banded(
+                (factorization, True), rhs, overwrite_b=overwrite_b, check_finite=check_finite
+            )
+        else:
+            output = factorization(rhs)
+
+        return output

@@ -13,6 +13,7 @@ from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_openin
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_lam, _check_half_window
+from .results import PSplineResult, WhittakerResult
 from .utils import _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
 
 
@@ -88,6 +89,9 @@ class _Morphological(_Algorithm):
                 The weight array used for fitting the data.
             * 'half_window': int
                 The half window used for the morphological calculations.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -179,7 +183,10 @@ class _Morphological(_Algorithm):
             overwrite_ab=True, overwrite_b=True
         )
 
-        params = {'weights': weight_array, 'half_window': half_wind}
+        params = {
+            'weights': weight_array, 'half_window': half_wind,
+            'result': WhittakerResult(whittaker_system, weight_array)
+        }
         return baseline, params
 
     @_Algorithm._register
@@ -725,6 +732,9 @@ class _Morphological(_Algorithm):
                 The weight array used for fitting the data.
             * 'half_window': int
                 The half window used for the morphological calculations.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -787,10 +797,14 @@ class _Morphological(_Algorithm):
             # TODO should this use np.isclose instead?
             weight_array = np.where(spline_fit == optimal_opening, 1 - p, p)
 
-        pspline.penalty = (_check_lam(lam) / lam_smooth) * pspline.penalty
+        pspline.update_lam(lam)
         baseline = pspline.solve_pspline(spline_fit, weight_array)
+        params = {
+            'half_window': half_window, 'weights': weight_array,
+            'result': PSplineResult(pspline, weight_array)
+        }
 
-        return baseline, {'half_window': half_window, 'weights': weight_array}
+        return baseline, params
 
     @_Algorithm._register(sort_keys=('signal',))
     def jbcd(self, data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1,

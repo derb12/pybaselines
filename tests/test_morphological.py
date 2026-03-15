@@ -51,7 +51,7 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpls baseline."""
 
     func_name = 'mpls'
-    checked_keys = ('half_window', 'weights')
+    checked_keys = ('half_window', 'weights', 'result')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -98,6 +98,16 @@ class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin):
         """Ignores the warning emitted by inputting tol within RecreationMixin.test_recreation."""
         with pytest.warns(DeprecationWarning):
             super().test_recreation()
+
+    @pytest.mark.parametrize('p', (0, 0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
 
 
 class TestMor(MorphologicalTester):
@@ -184,7 +194,7 @@ class TestMpspline(MorphologicalTester, InputWeightsMixin, RecreationMixin):
     """Class for testing mpspline baseline."""
 
     func_name = 'mpspline'
-    checked_keys = ('half_window', 'weights')
+    checked_keys = ('half_window', 'weights', 'result')
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
@@ -202,6 +212,16 @@ class TestMpspline(MorphologicalTester, InputWeightsMixin, RecreationMixin):
         """Ensures p values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
+
+    @pytest.mark.parametrize('p', (0, 0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
 
 
 class TestJBCD(MorphologicalTester):

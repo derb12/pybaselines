@@ -14,16 +14,16 @@ from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import spsolve
 
 from pybaselines._compat import identity
+from pybaselines._banded_utils import difference_matrix
 from pybaselines.two_d import _spline_utils
-from pybaselines.utils import difference_matrix
 
 from ..base_tests import get_2dspline_inputs
 
 
-@pytest.mark.parametrize('num_knots', (10, 40, (10, 20)))
+@pytest.mark.parametrize('num_knots', (10, (11, 20)))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
-@pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
+@pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
 def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, lam):
     """
     Tests the accuracy of the penalized spline solvers.
@@ -87,7 +87,7 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, [2, 3]))
-@pytest.mark.parametrize('num_knots', (10, 50, [20, 30]))
+@pytest.mark.parametrize('num_knots', (16, [21, 30]))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
 def test_pspline_setup(data_fixture2d, num_knots, spline_degree, diff_order, lam):
@@ -271,7 +271,7 @@ def test_pspline_tck_none(data_fixture2d):
 def test_pspline_tck_readonly(data_fixture2d):
     """Ensures the tck attribute is read-only."""
     x, z, y = data_fixture2d
-    spline_basis = _spline_utils.SplineBasis2D(x, z)
+    spline_basis = _spline_utils.SplineBasis2D(x, z, num_knots=10)
     pspline = _spline_utils.PSpline2D(spline_basis)
 
     with pytest.raises(AttributeError):

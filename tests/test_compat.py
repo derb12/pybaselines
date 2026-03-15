@@ -381,3 +381,45 @@ def test_diags(sparse_format, dtype):
         assert sparse.isspmatrix(output)
     else:
         assert not sparse.isspmatrix(output)
+
+
+def test_allow_1d_slice():
+    """Uses version checking rather than brute force to ensure sparse slicing is available.
+
+    The actual implementation in pybaselines directly checks if 1d slicing can be done on
+    sparse matrices/arrays, which should be slightly more robust than a simple version check, but
+    they should match regardless.
+
+    """
+    try:
+        _scipy_version = [int(val) for val in scipy.__version__.lstrip('v').split('.')[:2]]
+    except Exception as e:
+        # raise the exception so that version parsing can be changed if needed
+        raise ValueError('Issue parsing SciPy version') from e
+
+    # sparse matrices always supported making 1d slices, while sparse arrays didn't support
+    # 1d slicing until scipy version 1.15.0
+    if sparse.isspmatrix(_compat.diags(np.ones(5))):
+        expected = True
+    else:
+        expected = (_scipy_version[0] > 1 or (_scipy_version[0] == 1 and _scipy_version[1] >= 15))
+
+    output = _compat._allows_1d_slice()
+
+    assert expected == output
+
+
+@pytest.mark.parametrize('sparse_format', ('csc', 'csr', 'dia'))
+def test_sparse_col_index(sparse_format):
+    """Ensures sparse matrix column indexing works as expected."""
+    matrix = np.arange(20, dtype=float).reshape(5, 4)
+    sparse_matrix = _compat.csr_object(matrix).asformat(sparse_format)
+
+    expected_shape = (matrix.shape[0],)
+    for col_index in range(matrix.shape[1]):
+        expected_col = matrix[:, col_index]
+        output = _compat._sparse_col_index(sparse_matrix, col_index)
+
+        assert_allclose(output, expected_col, rtol=1e-15, atol=1e-15)
+        assert output.shape == expected_shape
+        assert isinstance(output, np.ndarray)

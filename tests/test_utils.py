@@ -958,3 +958,30 @@ def test_estimate_polyorder_failures(data_fixture):
         utils.estimate_polyorder(y, x, min_value=5, max_value=5)
     with pytest.raises(ValueError):
         utils.estimate_polyorder(y, x, min_value=5, max_value=4)
+
+
+def test_get_rng():
+    """Ensures _get_rng works with integers or existing generators."""
+    seed = 123
+
+    assert_allclose(
+        utils._get_rng(seed).normal(0.5, 0.5, 5),
+        np.random.default_rng(seed).normal(0.5, 0.5, 5), rtol=1e-16, atol=1e-16
+    )
+
+    expected_rng = np.random.default_rng(seed)
+    output_rng = utils._get_rng(expected_rng)
+    assert output_rng is expected_rng
+    # call order matters, so create new generator within accuracy test
+    assert_allclose(
+        output_rng.normal(0.5, 0.5, 5),
+        np.random.default_rng(seed).normal(0.5, 0.5, 5), rtol=1e-16, atol=1e-16
+    )
+
+    expected_rng2 = np.random.RandomState(seed)
+    output_rng2 = utils._get_rng(expected_rng2)
+    assert output_rng2 is expected_rng2
+    assert_allclose(
+        output_rng2.normal(0.5, 0.5, 5),
+        np.random.RandomState(seed).normal(0.5, 0.5, 5), rtol=1e-16, atol=1e-16
+    )

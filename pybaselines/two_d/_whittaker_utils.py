@@ -173,7 +173,7 @@ class PenalizedSystem2D:
         weights : numpy.ndarray
             The weights for each y-value. Will also be added to the diagonal of the
             penalty.
-        penalty : numpy.ndarray
+        penalty : scipy.sparse.spmatrix or scipy.sparse.sparray
             The penalty to use for solving. Default is None which uses the object's
             penalty.
         rhs_extra : float or numpy.ndarray, optional
@@ -198,6 +198,22 @@ class PenalizedSystem2D:
         return self.direct_solve(lhs, rhs)
 
     def direct_solve(self, lhs, rhs):
+        """
+        Solves the linear system ``lhs @ x = rhs``.
+
+        Parameters
+        ----------
+        lhs : scipy.sparse.spmatrix or scipy.sparse.sparray
+            The left hand side of the equation.
+        rhs : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
+            The right hand side of the equation.
+
+        Returns
+        -------
+        scipy.sparse.spmatrix or scipy.sparse.sparray
+            The solution to the linear system, with the same shape as `rhs`.
+
+        """
         return spsolve(lhs, rhs)
 
     def add_diagonal(self, value):
@@ -211,7 +227,7 @@ class PenalizedSystem2D:
 
         Returns
         -------
-        scipy.sparse.spmatrix
+        scipy.sparse.spmatrix or scipy.sparse.sparray
             The penalty matrix with the main diagonal updated.
 
         """
@@ -561,10 +577,9 @@ class WhittakerSystem2D(PenalizedSystem2D):
             The y-values for fitting the spline.
         weights : numpy.ndarray, shape (M, N)
             The weights for each y-value.
-        penalty : numpy.ndarray, shape (``M * N``, ``M * N``)
-            The finite difference penalty matrix, in LAPACK's lower banded format (see
-            :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
-            format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
+        penalty : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
+            The finite difference penalty matrix with shape (``M * N``, ``M * N``). Default
+            is None, which will use the object's penalty.
         rhs_extra : float or numpy.ndarray, shape (``M * N``,), optional
             If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
             of the equation before solving. Default is None, which adds nothing.
@@ -577,10 +592,10 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         Notes
         -----
-        Uses the more efficient algorithm from Eilers's paper, although the memory usage
-        is higher than the straigtforward method when the number of eigenvalues is high; however,
-        it is significantly faster and memory efficient when the number of eigenvalues is lower,
-        which will be the more typical use case.
+        Uses the more efficient algorithm from Eilers's paper, as a generalized linear array
+        model, although the memory usage is higher than the straightforward method when the
+        number of eigenvalues is high; however, it is significantly faster and memory efficient
+        when the number of eigenvalues is lower, which will be the more typical use case.
 
         References
         ----------
@@ -667,7 +682,6 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         """
         if not self._using_svd:
-            # Could maybe just output a matrix of ones?
             raise ValueError(
                 'Cannot calculate degrees of freedom when not using eigendecomposition'
             )

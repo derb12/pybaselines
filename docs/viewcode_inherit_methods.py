@@ -35,6 +35,11 @@ def find_super_method(app, modname):
         have a value resembling `('def', 90, 140))`, and the key "Baseline" would have a value
         resembling `('class', 14, 80)`.
 
+    Raises
+    ------
+    RuntimeError
+        Raised if an issue occurred when retrieving the tags from `modname`.
+
     Notes
     -----
     The "viewcode_follow_imported_members" toggle for sphinx.ext.viewcode can find the
@@ -74,8 +79,8 @@ def find_super_method(app, modname):
         analyzer.find_tags()
         code = analyzer.code
         tags = analyzer.tags
-    except Exception:
-        return
+    except Exception as e:
+        raise RuntimeError('Error within custom viewcode-inherit-methods extension') from e
 
     if 'two_d' in modname:
         new_obj = 'Baseline2D'

@@ -17,6 +17,7 @@ from ._banded_utils import _add_diagonals, _shift_rows, _sparse_to_banded, diff_
 from ._compat import dia_object, jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
+from .results import PSplineResult
 from .utils import (
     ParameterWarning, _mollifier_kernel, _sort_array, gaussian, pad_edges, padded_convolve,
     relative_difference, _MIN_FLOAT
@@ -90,6 +91,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -195,7 +199,8 @@ class _Spline(_Algorithm):
             residual = y - baseline
 
         params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1]
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult(pspline, weight_array)
         }
 
         baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
@@ -253,6 +258,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -283,7 +291,10 @@ class _Spline(_Algorithm):
             old_coef = pspline.coef
             weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -412,6 +423,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -451,7 +465,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -471,8 +488,8 @@ class _Spline(_Algorithm):
             Default is 1e1.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
-            than the baseline will be given `p` weight, and values less than the baseline
-            will be given `1 - p` weight. Default is 1e-2.
+            than the baseline will be given ``p**2`` weight, and values less than the baseline
+            will be given ``(1 - p)**2`` weight. Default is 1e-2.
         lam_1 : float, optional
             The smoothing parameter for the first derivative of the residual. Default is 1e-4.
         num_knots : int, optional
@@ -499,11 +516,19 @@ class _Spline(_Algorithm):
 
             * 'weights': numpy.ndarray, shape (N,)
                 The weight array used for fitting the data.
+
+                .. versionchanged:: 1.3.0
+                    Prior to version 1.3.0, the returned weights were the non-squared
+                    values (ie. ``p`` or ``1 - p``).
+
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -513,6 +538,13 @@ class _Spline(_Algorithm):
         See Also
         --------
         Baseline.iasls
+
+        Notes
+        -----
+        Although both ``pspline_iasls`` and :meth:`~.Baseline.pspline_asls` use `p` for defining
+        the weights, the appropriate `p` value for ``pspline_iasls`` will be approximately equal
+        to the square root of the value used for ``pspline_asls`` when `p` is small since
+        ``pspline_iasls`` uses squared weights.
 
         References
         ----------
@@ -556,15 +588,18 @@ class _Spline(_Algorithm):
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve_pspline(y, weight_array**2, rhs_extra=partial_rhs)
-            new_weights = _weighting._asls(y, baseline, p)
+            baseline = pspline.solve_pspline(y, weight_array, rhs_extra=partial_rhs)
+            new_weights = _weighting._asls(y, baseline, p)**2
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult(pspline, weight_array, rhs_extra=d1_penalty)
+        }
 
         return baseline, params
 
@@ -615,6 +650,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -648,7 +686,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -695,6 +736,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -725,7 +769,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -776,6 +823,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -817,10 +867,8 @@ class _Spline(_Algorithm):
                 diff_n_diagonals * np.interp(interp_pts, self.x, weight_array),
                 pspline.num_bands, pspline.num_bands
             )
-            baseline = pspline.solve_pspline(
-                y, weight_array,
-                penalty=_add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
-            )
+            penalty = _add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
+            baseline = pspline.solve_pspline(y, weight_array, penalty=penalty)
             new_weights, exit_early = _weighting._drpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -832,7 +880,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': PSplineResult(pspline, weight_array, penalty=penalty)
+        }
 
         return baseline, params
 
@@ -879,6 +930,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -910,7 +964,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -979,6 +1036,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1031,7 +1091,7 @@ class _Spline(_Algorithm):
                 pspline.penalty * np.interp(interp_pts, self.x, alpha_array),
                 pspline.num_bands, pspline.num_bands
             )
-            baseline = pspline.solve_pspline(y, weight_array, alpha_penalty)
+            baseline = pspline.solve_pspline(y, weight_array, penalty=alpha_penalty)
             new_weights, residual, exit_early = _weighting._aspls(
                 y, baseline, asymmetric_coef, alternate_weighting
             )
@@ -1047,7 +1107,8 @@ class _Spline(_Algorithm):
             alpha_array = abs_d / abs_d.max()
 
         params = {
-            'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1]
+            'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult(pspline, weight_array, penalty=alpha_penalty)
         }
 
         return baseline, params
@@ -1105,6 +1166,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1146,7 +1210,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -1218,6 +1285,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1281,7 +1351,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 
@@ -1354,6 +1427,9 @@ class _Spline(_Algorithm):
                 The weight array used for fitting the data.
             * 'half_window': int
                 The half window used for the morphological calculations.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1417,7 +1493,10 @@ class _Spline(_Algorithm):
         )
         baseline = pspline.solve_pspline(y, weight_array)
 
-        params = {'weights': weight_array, 'half_window': half_wind}
+        params = {
+            'weights': weight_array, 'half_window': half_wind,
+            'result': PSplineResult(pspline, weight_array)
+        }
         return baseline, params
 
     @_Algorithm._register(sort_keys=('weights',))
@@ -1473,6 +1552,9 @@ class _Spline(_Algorithm):
                 `max_iter_2`, `tol_2`), and shape K is the maximum of the number of
                 iterations for the threshold and the maximum number of iterations for all of
                 the fits of the various threshold values (related to `max_iter` and `tol`).
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -1530,7 +1612,8 @@ class _Spline(_Algorithm):
             beta = 1 - weight_mean
 
         params = {
-            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1]
+            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
+            'result': PSplineResult(pspline, baseline_weights)
         }
 
         return baseline, params
@@ -1584,6 +1667,9 @@ class _Spline(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': PSplineResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         See Also
         --------
@@ -1625,7 +1711,10 @@ class _Spline(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': PSplineResult(pspline, weight_array)
+        }
 
         return baseline, params
 

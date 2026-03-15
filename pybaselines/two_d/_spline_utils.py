@@ -144,7 +144,7 @@ class SplineBasis2D:
         return self._basis
 
     def _make_btwb(self, weights):
-        """Computes ``Basis.T @ Weights @ Basis`` using a more efficient method.
+        """Computes ``Basis.T @ Weights @ Basis`` as a generalized linear array model.
 
         Returns
         -------
@@ -158,6 +158,11 @@ class SplineBasis2D:
 
         """
         # do not save intermediate results since they are memory intensive for high number of bases
+        # Note to self: F is fully dense, such that B.T @ W @ B + P is also fully dense; it is
+        # still kept as a sparse system since solving the dense system is slower and
+        # significantly more memory intensive, even with scipy.linalg.solve with assume_a='sym' or
+        # 'pos'; using solve[h]_banded also offers no significant speed up, although memory usage
+        # is comparable to spsolve
         F = csr_object(
             np.transpose(
                 (self._G_r.T @ weights @ self._G_c).reshape((
@@ -173,6 +178,13 @@ class SplineBasis2D:
     def tk(self):
         """
         The knots and spline degree for the spline.
+
+        Returns
+        -------
+        knots : tuple[numpy.ndarray, numpy.ndarray]
+            The knots for the spline along the rows and columns.
+        spline_degree : numpy.ndarray([int, int])
+            The degree of the spline for the rows and columns.
 
         Notes
         -----
@@ -274,9 +286,7 @@ class PSpline2D(PenalizedSystem2D):
 
         Solves the linear equation ``(B.T @ W @ B + P) c = B.T @ W @ y`` for the spline
         coefficients, `c`, given the spline basis, `B`, the weights (diagonal of `W`), the
-        penalty `P`, and `y`, and returns the resulting spline, ``B @ c``. Attempts to
-        calculate ``B.T @ W @ B`` and ``B.T @ W @ y`` as a banded system to speed up
-        the calculation.
+        penalty `P`, and `y`, and returns the resulting spline, ``B @ c``.
 
         Parameters
         ----------
@@ -284,10 +294,9 @@ class PSpline2D(PenalizedSystem2D):
             The y-values for fitting the spline.
         weights : numpy.ndarray, shape (M, N)
             The weights for each y-value.
-        penalty : numpy.ndarray, shape (``M * N``, ``M * N``)
-            The finite difference penalty matrix, in LAPACK's lower banded format (see
-            :func:`scipy.linalg.solveh_banded`) if `lower_only` is True or the full banded
-            format (see :func:`scipy.linalg.solve_banded`) if `lower_only` is False.
+        penalty : scipy.sparse.spmatrix or scipy.sparse.sparray, shape (``P * Q``, ``P * Q``)
+            The finite difference penalty matrix. Default is None, which will use the
+            object's penalty.
         rhs_extra : float or numpy.ndarray, shape (``M * N``,), optional
             If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
             of the equation before solving. Default is None, which adds nothing.
@@ -300,10 +309,11 @@ class PSpline2D(PenalizedSystem2D):
 
         Notes
         -----
-        Uses the more efficient algorithm from Eilers's paper, although the memory usage
-        is higher than the straigtforward method when the number of knots is high; however,
-        it is significantly faster and memory efficient when the number of knots is lower,
-        which will be the more typical use case.
+        Uses the more efficient algorithm from Eilers's paper, as a generalized linear array
+        model, although the memory usage is higher than the straightforward method when the
+        number of knots is high since reshaping and transposing cannot be done in sparse format;
+        however, it is significantly faster and memory efficient when the number of knots is
+        lower, which will be the more typical use case.
 
         References
         ----------
@@ -331,8 +341,18 @@ class PSpline2D(PenalizedSystem2D):
         The knots, spline coefficients, and spline degree to reconstruct the spline.
 
         Convenience function for easily reconstructing the last solved spline with outside
-        modules, such as with SciPy's `NdBSpline`, to allow for other usages such as evaulating
+        modules, such as with SciPy's `NdBSpline`, to allow for other usages such as evaluating
         with different x- and z-values.
+
+        Returns
+        -------
+        knots : tuple[numpy.ndarray, numpy.ndarray]
+            The knots for the spline along the rows and columns.
+        coef : numpy.ndarray, shape (M, N)
+            The spline coeffieicnts. Has a shape of (`M`, `N`), corresponding to the number
+            of basis functions along the rows and columns.
+        spline_degree : numpy.ndarray([int, int])
+            The degree of the spline for the rows and columns.
 
         Raises
         ------
@@ -348,7 +368,7 @@ class PSpline2D(PenalizedSystem2D):
             pspline = Pspline2D(x, z, ...)
             pspline_fit = pspline.solve(...)
             XZ = np.array(np.meshgrid(x, z)).T  # same as zipping the meshgrid and rearranging
-            fit = NdBSpline(pspline.tck)(XZ)  # fit == pspline_fit
+            fit = NdBSpline(*pspline.tck)(XZ)  # fit == pspline_fit
 
         """
         if self.coef is None:

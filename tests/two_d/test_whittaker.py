@@ -18,7 +18,7 @@ class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    checked_keys = ('weights', 'tol_history')
+    checked_keys = ('weights', 'tol_history', 'result')
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -75,6 +75,16 @@ class TestAsLS(EigenvalueMixin, WhittakerTester):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
 
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p`` or ``1 - p``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p, atol=1e-15, rtol=0)
+            | np.isclose(weights, 1 - p, atol=1e-15, rtol=0)
+        ).all()
+
 
 class TestIAsLS(WhittakerTester):
     """Class for testing iasls baseline."""
@@ -103,6 +113,16 @@ class TestIAsLS(WhittakerTester):
             self.class_func(self.y, lam=1e2, diff_order=[1, 2])
         with pytest.raises(ValueError):
             self.class_func(self.y, lam=1e2, diff_order=[2, 1])
+
+    @pytest.mark.parametrize('p', (0.01, 0.2))
+    def test_output_binary_weights(self, p):
+        """Ensures all weights are either ``p**2`` or ``(1 - p)**2``."""
+        _, params = self.class_func(self.y, p=p)
+        weights = params['weights']
+        assert (
+            np.isclose(weights, p**2, atol=1e-15, rtol=0)
+            | np.isclose(weights, (1 - p)**2, atol=1e-15, rtol=0)
+        ).all()
 
 
 class TestAirPLS(EigenvalueMixin, WhittakerTester):
@@ -174,7 +194,7 @@ class TestAsPLS(WhittakerTester):
     """Class for testing aspls baseline."""
 
     func_name = 'aspls'
-    checked_keys = ('weights', 'alpha', 'tol_history')
+    checked_keys = ('weights', 'alpha', 'tol_history', 'result')
     weight_keys = ('weights', 'alpha')
     required_repeated_kwargs = {'lam': 1e2, 'tol': 1e-1}
 

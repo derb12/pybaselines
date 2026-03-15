@@ -12,6 +12,7 @@ from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _shift_rows, diff_penalty_diagonals
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
+from .results import WhittakerResult
 from .utils import _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 
 
@@ -74,6 +75,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 ``tol`` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -152,7 +156,10 @@ class _Whittaker(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult(whittaker_system, weight_array)
+        }
 
         return baseline, params
 
@@ -168,8 +175,8 @@ class _Whittaker(_Algorithm):
 
         .. math::
 
-            (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
-            = (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1) y
+            (W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
+            = (W + \lambda_1 D_1^{\mathsf{T}} D_1) y
 
         where y is the input data, :math:`D_d` is the finite difference matrix of order d,
         :math:`D_1` is the first-order finite difference matrix, W is the diagonal matrix
@@ -181,8 +188,8 @@ class _Whittaker(_Algorithm):
         .. math::
 
             w_i = \left\{\begin{array}{cr}
-                p & y_i > v_i \\
-                1 - p & y_i \le v_i
+                p^2 & y_i > v_i \\
+                (1 - p)^2 & y_i \le v_i
             \end{array}\right.
 
         Parameters
@@ -194,8 +201,8 @@ class _Whittaker(_Algorithm):
             Default is 1e6.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
-            than the baseline will be given `p` weight, and values less than the baseline
-            will be given `1 - p` weight. Default is 1e-2.
+            than the baseline will be given ``p**2`` weight, and values less than the baseline
+            will be given ``(1 - p)**2`` weight. Default is 1e-2.
         lam_1 : float, optional
             The smoothing parameter for the first derivative of the residual. Default is 1e-4.
         max_iter : int, optional
@@ -218,11 +225,19 @@ class _Whittaker(_Algorithm):
 
             * 'weights': numpy.ndarray, shape (N,)
                 The weight array used for fitting the data.
+
+                .. versionchanged:: 1.3.0
+                    Prior to version 1.3.0, the returned weights were the non-squared
+                    values (ie. ``p`` or ``1 - p``).
+
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -231,10 +246,9 @@ class _Whittaker(_Algorithm):
 
         Notes
         -----
-        Although both ``iasls`` and :meth:`~.Baseline.asls` use ``p`` for defining the weights,
-        the appropriate ``p`` value for ``iasls`` will be approximately equal to the square root
-        of the value used for ``asls`` since ``iasls`` squares the weights within its linear
-        equation.
+        Although both ``iasls`` and :meth:`~.Baseline.asls` use `p` for defining the weights,
+        the appropriate `p` value for ``iasls`` will be approximately equal to the square root
+        of the value used for ``asls`` when `p` is small since ``iasls`` uses squared weights.
 
         Omits the outer loop described by the reference implementation of the IAsLs algorithm,
         in which the baseline fitting is repeated after subtracting the baseline from the data.
@@ -317,8 +331,10 @@ class _Whittaker(_Algorithm):
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
-        diff_1_diags = diff_penalty_diagonals(self._size, 1, whittaker_system.lower, 1)
-        whittaker_system.add_penalty(lambda_1 * diff_1_diags)
+        residual_penalty = lambda_1 * diff_penalty_diagonals(
+            self._size, 1, whittaker_system.lower, padding=diff_order - 1
+        )
+        whittaker_system.add_penalty(residual_penalty)
 
         # fast calculation of lam_1 * (D_1.T @ D_1) @ y
         d1_y = y.copy()
@@ -328,19 +344,23 @@ class _Whittaker(_Algorithm):
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            weight_squared = weight_array**2
             baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_squared), weight_squared * y + d1_y,
+                whittaker_system.add_diagonal(weight_array), weight_array * y + d1_y,
                 overwrite_b=True
             )
-            new_weights = _weighting._asls(y, baseline, p)
+            new_weights = _weighting._asls(y, baseline, p)**2
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult(
+                whittaker_system, weight_array, rhs_extra=residual_penalty
+            )
+        }
 
         return baseline, params
 
@@ -404,6 +424,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Notes
         -----
@@ -469,7 +492,10 @@ class _Whittaker(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': WhittakerResult(whittaker_system, weight_array)
+        }
 
         return baseline, params
 
@@ -530,6 +556,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         References
         ----------
@@ -572,7 +601,10 @@ class _Whittaker(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult(whittaker_system, weight_array)
+        }
 
         return baseline, params
 
@@ -617,6 +649,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -650,9 +685,9 @@ class _Whittaker(_Algorithm):
             penalty_with_weights = _shift_rows(
                 diff_n_diagonals * weight_array, diff_order, diff_order
             )
+            lhs = whittaker_system.penalty + penalty_with_weights
             baseline = whittaker_system.solve(
-                whittaker_system.penalty + penalty_with_weights, weight_array * y,
-                overwrite_ab=True, overwrite_b=True, l_and_u=lower_upper_bands
+                lhs, weight_array * y, overwrite_b=True, l_and_u=lower_upper_bands
             )
             new_weights, exit_early = _weighting._drpls(y, baseline, i)
             if exit_early:
@@ -665,7 +700,10 @@ class _Whittaker(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': WhittakerResult(whittaker_system, weight_array, lhs=lhs)
+        }
 
         return baseline, params
 
@@ -706,6 +744,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         References
         ----------
@@ -731,7 +772,10 @@ class _Whittaker(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': WhittakerResult(whittaker_system, weight_array)
+        }
 
         return baseline, params
 
@@ -794,6 +838,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -837,7 +884,7 @@ class _Whittaker(_Algorithm):
             lhs = whittaker_system.penalty * alpha_array
             lhs[whittaker_system.main_diagonal_index] += weight_array
             baseline = whittaker_system.solve(
-                _shift_rows(lhs, diff_order, diff_order), weight_array * y, overwrite_ab=True,
+                _shift_rows(lhs, diff_order, diff_order), weight_array * y,
                 overwrite_b=True, l_and_u=lower_upper_bands
             )
             new_weights, residual, exit_early = _weighting._aspls(
@@ -855,7 +902,8 @@ class _Whittaker(_Algorithm):
             alpha_array = abs_d / abs_d.max()
 
         params = {
-            'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1]
+            'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult(whittaker_system, weight_array, lhs=lhs)
         }
 
         return baseline, params
@@ -912,6 +960,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -953,7 +1004,10 @@ class _Whittaker(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult(whittaker_system, weight_array)
+        }
 
         return baseline, params
 
@@ -1020,6 +1074,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -1077,7 +1134,10 @@ class _Whittaker(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult(whittaker_system, weight_array)
+        }
 
         return baseline, params
 
@@ -1129,6 +1189,9 @@ class _Whittaker(_Algorithm):
                 `max_iter_2`, `tol_2`), and shape K is the maximum of the number of
                 iterations for the threshold and the maximum number of iterations for all of
                 the fits of the various threshold values (related to `max_iter` and `tol`).
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         References
         ----------
@@ -1180,7 +1243,8 @@ class _Whittaker(_Algorithm):
             beta = 1 - weight_mean
 
         params = {
-            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1]
+            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
+            'result': WhittakerResult(whittaker_system, weight_array)
         }
 
         return baseline, params
@@ -1229,6 +1293,9 @@ class _Whittaker(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Notes
         -----
@@ -1267,7 +1334,10 @@ class _Whittaker(_Algorithm):
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': WhittakerResult(whittaker_system, weight_array)
+        }
 
         return baseline, params
 

@@ -127,6 +127,7 @@ Optimizing Algorithms
    Baseline.optimize_extended_range
    Baseline.adaptive_minmax
    Baseline.custom_bc
+   Baseline.optimize_pls
 
 Miscellaneous Algorithms
 ------------------------

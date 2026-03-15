@@ -343,7 +343,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N (w_i (y_i - v_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{N - d} (\Delta^d v_i)^2
     + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - v_i))^2
 
@@ -351,17 +351,40 @@ Linear system:
 
 .. math::
 
-    (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
-    = (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1) y
+    (W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
+    = (W + \lambda_1 D_1^{\mathsf{T}} D_1) y
 
 Weighting:
 
 .. math::
 
     w_i = \left\{\begin{array}{cr}
-        p & y_i > v_i \\
-        1 - p & y_i \le v_i
+        p^2 & y_i > v_i \\
+        (1 - p)^2 & y_i \le v_i
     \end{array}\right.
+
+.. note::
+
+    Within literature, IAsLs uses the linear equation
+
+    .. math::
+
+        (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
+        = (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1) y
+
+    with the weighting scheme
+
+    .. math::
+
+        w_i = \left\{\begin{array}{cr}
+            p & y_i > v_i \\
+            1 - p & y_i \le v_i
+        \end{array}\right.
+
+    These are equivalent to the linear equation and weighting scheme listed above when
+    incorporating the squaring of the weights directly within the weighting scheme. The
+    simplified functional form using squared weights is used in pybaselines for consistency
+    with all other algorithms.
 
 
 .. plot::

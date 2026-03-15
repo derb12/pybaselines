@@ -11,6 +11,7 @@ import numpy as np
 from .. import _weighting
 from .._compat import diags
 from .._validation import _check_optional_array, _check_scalar_variable
+from ..results import WhittakerResult2D
 from ..utils import _MIN_FLOAT, relative_difference
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
@@ -77,6 +78,9 @@ class _Whittaker(_Algorithm2D):
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -109,7 +113,10 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'tol_history': tol_history[:i + 1]}
+        params = {
+            'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult2D(whittaker_system, weight_array)
+        }
         if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
@@ -140,8 +147,8 @@ class _Whittaker(_Algorithm2D):
             baselines. Default is 1e6.
         p : float, optional
             The penalizing weighting factor. Must be between 0 and 1. Values greater
-            than the baseline will be given `p` weight, and values less than the baseline
-            will be given `1 - p` weight. Default is 1e-2.
+            than the baseline will be given ``p**2`` weight, and values less than the baseline
+            will be given ``(1 - p)**2`` weight. Default is 1e-2.
         lam_1 : float or Sequence[float, float], optional
             The smoothing parameter for the rows and columns, respectively, of the first
             derivative of the residual. Default is 1e-4.
@@ -166,16 +173,30 @@ class _Whittaker(_Algorithm2D):
 
             * 'weights': numpy.ndarray, shape (M, N)
                 The weight array used for fitting the data.
+
+                .. versionchanged:: 1.3.0
+                    Prior to version 1.3.0, the returned weights were the non-squared
+                    values (ie. ``p`` or ``1 - p``).
+
             * 'tol_history': numpy.ndarray
                 An array containing the calculated tolerance values for
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
         ValueError
             Raised if `p` is not between 0 and 1 or if `diff_order` is less than 2.
+
+        Notes
+        -----
+        Although both ``iasls`` and :meth:`~.Baseline2D.asls` use `p` for defining the weights,
+        the appropriate `p` value for ``iasls`` will be approximately equal to the square root
+        of the value used for ``asls`` when `p` is small since ``iasls`` uses squared weights.
 
         References
         ----------
@@ -203,15 +224,20 @@ class _Whittaker(_Algorithm2D):
         p1_y = penalized_system_1.penalty @ y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(y, weight_array**2, rhs_extra=p1_y)
-            new_weights = _weighting._asls(y, baseline, p)
+            baseline = whittaker_system.solve(y, weight_array, rhs_extra=p1_y)
+            new_weights = _weighting._asls(y, baseline, p)**2
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
             weight_array = new_weights
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult2D(
+                whittaker_system, weight_array, rhs_extra=penalized_system_1.penalty
+            )
+        }
 
         return baseline, params
 
@@ -273,6 +299,9 @@ class _Whittaker(_Algorithm2D):
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         References
         ----------
@@ -303,7 +332,10 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'tol_history': tol_history[:i]}
+        params = {
+            'tol_history': tol_history[:i],
+            'result': WhittakerResult2D(whittaker_system, weight_array)
+        }
         if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
@@ -368,6 +400,9 @@ class _Whittaker(_Algorithm2D):
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         References
         ----------
@@ -394,7 +429,10 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'tol_history': tol_history[:i + 1]}
+        params = {
+            'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult2D(whittaker_system, weight_array)
+        }
         if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
@@ -450,6 +488,9 @@ class _Whittaker(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -476,9 +517,8 @@ class _Whittaker(_Algorithm2D):
         weight_matrix = diags(weight_array, format='csr')
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = whittaker_system.direct_solve(
-                partial_penalty + weight_matrix @ partial_penalty_2, weight_array * y
-            )
+            lhs = partial_penalty + weight_matrix @ partial_penalty_2
+            baseline = whittaker_system.direct_solve(lhs, weight_array * y)
             new_weights, exit_early = _weighting._drpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -491,7 +531,10 @@ class _Whittaker(_Algorithm2D):
             weight_array = new_weights
             weight_matrix.setdiag(weight_array)
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i]}
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': WhittakerResult2D(whittaker_system, weight_array, lhs=lhs)
+        }
 
         return baseline, params
 
@@ -549,6 +592,9 @@ class _Whittaker(_Algorithm2D):
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         References
         ----------
@@ -576,7 +622,10 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'tol_history': tol_history[:i]}
+        params = {
+            'tol_history': tol_history[:i],
+            'result': WhittakerResult2D(whittaker_system, weight_array)
+        }
         if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
@@ -650,6 +699,9 @@ class _Whittaker(_Algorithm2D):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -712,7 +764,8 @@ class _Whittaker(_Algorithm2D):
             alpha_matrix.setdiag(alpha_array)
 
         params = {
-            'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1]
+            'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult2D(whittaker_system, weight_array, penalty=penalty)
         }
 
         return baseline, params
@@ -785,6 +838,9 @@ class _Whittaker(_Algorithm2D):
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Raises
         ------
@@ -830,7 +886,10 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'tol_history': tol_history[:i + 1]}
+        params = {
+            'tol_history': tol_history[:i + 1],
+            'result': WhittakerResult2D(whittaker_system, weight_array)
+        }
         if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
@@ -905,6 +964,9 @@ class _Whittaker(_Algorithm2D):
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         References
         ----------
@@ -957,7 +1019,10 @@ class _Whittaker(_Algorithm2D):
                 break
             beta = 1 - weight_mean
 
-        params = {'tol_history': tol_history[:i + 2, :max(i, j_max) + 1]}
+        params = {
+            'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
+            'result': WhittakerResult2D(whittaker_system, weight_array)
+        }
         if whittaker_system._using_svd:
             params['weights'] = baseline_weights
             if return_dof:
@@ -1028,6 +1093,9 @@ class _Whittaker(_Algorithm2D):
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
 
         Notes
         -----
@@ -1067,7 +1135,10 @@ class _Whittaker(_Algorithm2D):
                 break
             weight_array = new_weights
 
-        params = {'tol_history': tol_history[:i]}
+        params = {
+            'tol_history': tol_history[:i],
+            'result': WhittakerResult2D(whittaker_system, weight_array)
+        }
         if whittaker_system._using_svd:
             params['weights'] = weight_array
             if return_dof:
