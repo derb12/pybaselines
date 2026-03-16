@@ -64,15 +64,15 @@ def _iasls(y, baseline, p):
     weights : numpy.ndarray, shape (N,)
         The calculated weights.
 
-    References
-    ----------
-    He, S., et al. Baseline correction for raman spectra using an improved
-    asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
-
     Notes
     -----
     Equivalent to ``_asls(y, baseline, p)**2``, but faster since the square is only
     applied to two scalars rather than the entire array.
+
+    References
+    ----------
+    He, S., et al. Baseline correction for raman spectra using an improved
+    asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
 
     """
     weights = np.where(y > baseline, p**2, (1 - p)**2)
