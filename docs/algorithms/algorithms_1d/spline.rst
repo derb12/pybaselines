@@ -498,7 +498,7 @@ Minimized function:
 
     \sum\limits_{i}^N w_i (y_i - v(x_i))^2
     + \lambda \sum\limits_{i}^{M - d}(1 - \eta w_{i,intp}) (\Delta^d c_i)^2
-    + \sum\limits_{i}^{M - 1} (\Delta^1 (c_i))^2
+    + \sum\limits_{i}^{N - 1} (\Delta^1 v(x_i))^2
 
 where :math:`\eta` is a value between 0 and 1 that controls the
 effective value of :math:`\lambda`. :math:`w_{intp}` are the weights, :math:`w`,
@@ -509,7 +509,8 @@ Linear system:
 
 .. math::
 
-    (B^{\mathsf{T}}W B + D_1^{\mathsf{T}} D_1 + \lambda (I - \eta W_{intp}) D_d^{\mathsf{T}} D_d) c = B^{\mathsf{T}} W y
+    (B^{\mathsf{T}}W B + B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B + \lambda (I - \eta W_{intp}) D_d^{\mathsf{T}} D_d) c
+    = B^{\mathsf{T}} W y
 
 where :math:`I` is the identity matrix.
 

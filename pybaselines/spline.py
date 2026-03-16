@@ -13,8 +13,8 @@ from scipy.ndimage import grey_opening
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._banded_utils import _add_diagonals, _shift_rows, _sparse_to_banded, diff_penalty_diagonals
-from ._compat import dia_object, jit, trapezoid
+from ._banded_utils import _add_diagonals, _shift_rows, _sparse_to_banded, diff_penalty_matrix
+from ._compat import jit, trapezoid
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import PSplineResult
@@ -572,12 +572,9 @@ class _Spline(_Algorithm):
         )
 
         # B.T @ D_1.T @ D_1 @ B and B.T @ D_1.T @ D_1 @ y
-        d1_penalty = _check_lam(lam_1) * diff_penalty_diagonals(self._size, 1, lower_only=False)
         d1_penalty = (
             pspline.basis.basis.T
-            @ dia_object(
-                (d1_penalty, np.array([1, 0, -1])), shape=(self._size, self._size)
-            ).tocsr()
+            @ (_check_lam(lam_1) * diff_penalty_matrix(self._size, 1))
         )
         partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array
@@ -854,18 +851,26 @@ class _Spline(_Algorithm):
             data, weights, spline_degree, num_knots, True, diff_order, lam,
             allow_lower=False, reverse_diags=False
         )
-        # B.T @ W @ B + P_1 + (I - eta * W) @ P_n -> B.T @ W @ B + P_1 + P_n - eta * W @ P_n
+        # B.T @ W @ B + B.T @ P_1 @ B + (I - eta * W) @ P_n
+        # -> B.T @ W @ B + B.T @ P_1 @ B + P_n - eta * W @ P_n
         # reverse P_n for the eta * W @ P_n calculation to match the original diagonal
-        # structure of the sparse matrix
+        # structure of the sparse matrix after multiplication with interpolated weights
         diff_n_diagonals = -eta * pspline.penalty[::-1]
-        pspline.add_penalty(diff_penalty_diagonals(pspline.basis._num_bases, 1, False))
+        # save bands from here since adding B.T @ P_1 @ B may change band structure later
+        shifted_bands = pspline.num_bands
+
+        # B.T @ P_1 @ B + P_n
+        d1_penalty = _sparse_to_banded(
+            pspline.basis.basis.T @ diff_penalty_matrix(self._size, 1) @ pspline.basis.basis
+        )[0]
+        pspline.add_penalty(d1_penalty)
 
         interp_pts = _basis_midpoints(pspline.basis.knots, pspline.basis.spline_degree)
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             diff_n_w_diagonals = _shift_rows(
                 diff_n_diagonals * np.interp(interp_pts, self.x, weight_array),
-                pspline.num_bands, pspline.num_bands
+                shifted_bands, shifted_bands
             )
             penalty = _add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
             baseline = pspline.solve_pspline(y, weight_array, penalty=penalty)

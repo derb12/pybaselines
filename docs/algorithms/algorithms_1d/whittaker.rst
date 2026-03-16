@@ -506,8 +506,8 @@ drpls (Doubly Reweighted Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline.drpls` uses a single weighting function that is designed to account
-for noisy data, similar to arpls. Further, it takes into account both the
-first and second derivatives of the baseline and uses a parameter :math:`\eta`
+for noisy data, similar to arpls. Further, it adds an additional penalty on the
+first derivative of the baseline, and uses a parameter :math:`\eta`
 to adjust the fit in peak versus non-peak regions.
 
 Minimized function:
@@ -516,7 +516,7 @@ Minimized function:
 
     \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{N - d}(1 - \eta w_i) (\Delta^d v_i)^2
-    + \sum\limits_{i}^{N - 1} (\Delta^1 (v_i))^2
+    + \sum\limits_{i}^{N - 1} (\Delta^1 v_i)^2
 
 where :math:`\eta` is a value between 0 and 1 that controls the
 effective value of :math:`\lambda`.
