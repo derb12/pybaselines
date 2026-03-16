@@ -39,11 +39,43 @@ def _asls(y, baseline, p):
 
     Eilers, P. Parametric Time Warping. Analytical Chemistry, 2004, 76(2), 404-411.
 
+    """
+    weights = np.where(y > baseline, p, 1 - p)
+    return weights
+
+
+def _iasls(y, baseline, p):
+    """
+    The weighting for the improved asymmetric least squares algorithm (iasls).
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,)
+        The measured data.
+    baseline : numpy.ndarray, shape (N,)
+        The calculated baseline.
+    p : float
+        The penalizing weighting factor. Must be between 0 and 1. Values greater
+        than the baseline will be given `p` weight, and values less than the baseline
+        will be given `1 - p` weight.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,)
+        The calculated weights.
+
+    References
+    ----------
     He, S., et al. Baseline correction for raman spectra using an improved
     asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
 
+    Notes
+    -----
+    Equivalent to ``_asls(y, baseline, p)**2``, but faster since the square is only
+    applied to two scalars rather than the entire array.
+
     """
-    weights = np.where(y > baseline, p, 1 - p)
+    weights = np.where(y > baseline, p**2, (1 - p)**2)
     return weights
 
 

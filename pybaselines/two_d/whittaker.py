@@ -225,7 +225,7 @@ class _Whittaker(_Algorithm2D):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = whittaker_system.solve(y, weight_array, rhs_extra=p1_y)
-            new_weights = _weighting._asls(y, baseline, p)**2
+            new_weights = _weighting._iasls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

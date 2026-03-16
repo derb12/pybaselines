@@ -230,6 +230,61 @@ def test_asls_all_below(p, one_d):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
+@pytest.mark.parametrize('p', (0.01, 0.99))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_iasls_normal(p, one_d):
+    """Ensures iasls weighting works as intented for a normal baseline."""
+    if one_d:
+        y_data, baseline = baseline_1d_normal()
+    else:
+        y_data, baseline = baseline_2d_normal()
+
+    weights = _weighting._iasls(y_data, baseline, p)
+    expected_weights = np.where(y_data > baseline, p**2, (1 - p)**2)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    # ensure all weights are between 0 and 1
+    assert ((weights >= 0) & (weights <= 1)).all()
+
+    # also test against _asls, which should just be the sqrt of _iasls
+    expected_weights_2 = _weighting._asls(y_data, baseline, p)**2
+    assert_allclose(weights, expected_weights_2, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('p', (0.01, 0.99))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_iasls_all_above(p, one_d):
+    """Ensures iasls weighting works as intented for a baseline with all points above the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_above()
+    else:
+        y_data, baseline = baseline_2d_all_above()
+    weights = _weighting._iasls(y_data, baseline, p)
+    expected_weights = np.full_like(y_data, (1 - p)**2)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('p', (0.01, 0.99))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_iasls_all_below(p, one_d):
+    """Ensures iasls weighting works as intented for a baseline with all points below the data."""
+    if one_d:
+        y_data, baseline = baseline_1d_all_below()
+    else:
+        y_data, baseline = baseline_2d_all_below()
+    weights = _weighting._iasls(y_data, baseline, p)
+    expected_weights = np.full_like(y_data, p**2)
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
 def expected_airpls(y, baseline, iteration, normalize_weights):
     """
     The weighting for adaptive iteratively reweighted penalized least squares (airPLS).
