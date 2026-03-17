@@ -54,7 +54,7 @@ An example of data with added baseline and Gaussian peaks is shown below.
     sigma_scale = 1 / 15
     added_window = int(x.shape[0] * width_scale)
 
-    # the added baseline and guassian peaks
+    # the added baseline and gaussian peaks
     added_left, added_right = _get_edges(y, added_window, extrapolate_window=30)
     added_gaussian = gaussian(
         np.linspace(-added_window / 2, added_window / 2, added_window),
@@ -207,7 +207,7 @@ added linear regions is selected as the optimal parameter.
 It should be noted that the optimal ``lam`` value obtained from
 :meth:`~.Baseline.optimize_extended_range` cannot be directly used for fitting
 other data using the same method since the optimal ``lam`` value corresponds
-to the padded data; since ``lam`` has a dependance on data size, the optimal ``lam``
+to the padded data; since ``lam`` has a dependence on data size, the optimal ``lam``
 value for fitting non-padded data will be slightly lower than the optimal value
 obtained from :meth:`~.Baseline.optimize_extended_range`.
 

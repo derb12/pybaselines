@@ -867,7 +867,7 @@ def test_fill_skips():
     y_actual = 2 + 5 * x
     y_calc = y_actual.copy()
     # `skips` slices y[left:right] where y_slice[0] and y_slice[-1] are actual values
-    # and inbetween will be calculated using interpolation; fill in the sections
+    # and in-between will be calculated using interpolation; fill in the sections
     # [left+1:right-1] in y_calc with zeros, and then check that they are returned to
     # the correct value by _fill_skips
     skips = np.array([[0, 5], [8, 14], [16, x.shape[0]]], dtype=np.intp)

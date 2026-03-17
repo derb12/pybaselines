@@ -293,7 +293,7 @@ def test_np_ge_2():
 
 @pytest.mark.parametrize('dtype', (float, int))
 def test_dia_object(dtype):
-    """Ensures the compatibilty for dia_matrix and dia_array works as intended."""
+    """Ensures the compatibility for dia_matrix and dia_array works as intended."""
     data = np.array([
         [1, 2, 0],
         [4, 5, 6],
@@ -320,7 +320,7 @@ def test_dia_object(dtype):
 
 @pytest.mark.parametrize('dtype', (float, int))
 def test_csr_object(dtype):
-    """Ensures the compatibilty for csr_matrix and csr_array works as intended."""
+    """Ensures the compatibility for csr_matrix and csr_array works as intended."""
     row = np.array([0, 1, 1, 2])
     col = np.array([0, 0, 2, 0])
     data = np.array([3, 5, 7, 9])

@@ -473,7 +473,7 @@ def test_beads_diff_matrix_calculation(beads_data, filter_type, freq_cutoff):
     )
 
     assert_allclose(ATMA_actual.toarray(), (A.T @ sparse_DTD @ A).toarray())
-    # also check without tranposing A since A is symmetric and that's what is used in pybaselines
+    # also check without transposing A since A is symmetric and that's what is used in pybaselines
     assert_allclose(ATMA_actual.toarray(), (A @ sparse_DTD @ A).toarray())
 
     # now check banded result; banded calculation also uses A instead of A.T
@@ -505,7 +505,7 @@ def test_beads_BTB(beads_data, filter_type, freq_cutoff):
     """
     Check that B.T @ B calculation is correct for sparse and banded matrices.
 
-    The calculation used in pybaselines does not use the tranpose of B since it
+    The calculation used in pybaselines does not use the transpose of B since it
     should be symmetric.
 
     """
@@ -543,7 +543,7 @@ def test_beads_ATb(beads_data, filter_type, freq_cutoff):
     """
     Check that the lam_0 * A.T @ b calculation is correct.
 
-    The calculation used in pybaselines does not use the tranpose of A since it
+    The calculation used in pybaselines does not use the transpose of A since it
     should be symmetric, and it puts lam_0 into b to skip a multiplication step.
 
     """
@@ -557,7 +557,7 @@ def test_beads_ATb(beads_data, filter_type, freq_cutoff):
     # first just check A.T @ b
     ATb_actual = A.T @ b
 
-    # check that the tranpose is unnessesary since A is symmetric
+    # check that the transpose is unnecessary since A is symmetric
     assert_allclose(ATb_actual, A @ b)
 
     # check the banded solution

@@ -5,7 +5,7 @@ Improving Performance
 pybaselines was designed for performant single-threaded, single-process usage. This page
 gives tips for improving the performance when fitting multiple datasets.
 
-* For datasets that share the same independant variable, it is more efficient to reuse the
+* For datasets that share the same independent variable, it is more efficient to reuse the
   same :class:`~.Baseline` or :class:`~.Baseline2D` object rather than creating a new object for
   each method call since much of the setup only needs to be done once and can be reused otherwise,
   as shown in :ref:`this example <sphx_glr_generated_examples_general_plot_reuse_baseline.py>`.

@@ -227,7 +227,7 @@ class _Polynomial(_Algorithm2D):
                  use_original=False, mask_initial_peaks=True, return_coef=False,
                  num_std=1., max_cross=None):
         """
-        The improved modofied polynomial (IModPoly) baseline algorithm.
+        The improved modified polynomial (IModPoly) baseline algorithm.
 
         Parameters
         ----------

@@ -211,7 +211,7 @@ def pentapy_ptrans2(mat_flat, rhs):
     we[1] = (rhs[1] - we[3] * mat_flat[0, 1] - we[2] * ro[1]) / ps[1]
     we[0] = (rhs[0] - we[2] * mat_flat[0, 0] - we[1] * ro[0]) / ps[0]
 
-    # Foreward substitution
+    # Forward substitution
     result[0] = we[0]
     result[1] = we[1] - si[1] * result[0]
 
@@ -677,7 +677,7 @@ def test_unknown_solver_fails():
 def test_ill_conditioned_fails(solver):
     """Ensures extremely ill-conditioned matrices produce failures in the solvers.
 
-    The solvers shoud technically not fail if the lhs is positive definite or diagonally
+    The solvers should technically not fail if the lhs is positive definite or diagonally
     dominant (does not require either condition to work though; see Case 1 in Section
     4 of [1]_). However, since they do not do partial pivoting or other conditioning, they
     are more prone to numerical failure as the condition number increases when compared to

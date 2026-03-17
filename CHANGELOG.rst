@@ -82,7 +82,7 @@ Other Changes
 * Updated lowest supported Python version to 3.9
 * Updated lowest supported dependency versions: NumPy 1.20, SciPy 1.6,
   pentapy 1.1, and Numba 0.53
-* Allow inputting ``assymetric_coef`` for ``aspls`` and ``pspline_aspls`` to modify shape of the
+* Allow inputting ``asymmetric_coef`` for ``aspls`` and ``pspline_aspls`` to modify shape of the
   weighting curve.
 * Added ``normalize_weights`` for ``airpls`` to normalize weights between 0 and 1, which is set to
   True by default. The new, corrected ``airpls`` weighting makes all negative residuals have weights
@@ -149,7 +149,7 @@ New Features
   levels of stiffness in different regions.
 * Added a penalized spline version of mpls (pspline_mpls) to pybaselines.spline.
 * Updated spline.mixture_model to use expectation-maximization rather than the previous
-  nieve approach of fitting the histogram of the residuals with the probability density
+  naive approach of fitting the histogram of the residuals with the probability density
   function. Should reduce calculation times.
 * Added a function for penalized spline (P-spline) smoothing to pybaselines.utils,
   `pybaselines.utils.pspline_smooth`, which will return a tuple of the smoothed input and
@@ -216,7 +216,7 @@ Other Changes
 
 * Officially list Python 3.11 as supported.
 * Added default `half_window` values for snip and noise_median.
-* collab_pls accomodates `alpha` for aspls and pspline_aspls; the `alpha` parameter is
+* collab_pls accommodates `alpha` for aspls and pspline_aspls; the `alpha` parameter is
   calculated for the entire dataset in the same way as the weights and is then fixed when
   fitting each of the individual data entries.
 * Improved input validation.
@@ -226,7 +226,7 @@ Other Changes
 Deprecations/Breaking Changes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* Removed the ability to pass addtional keyword arguments to algorithms in
+* Removed the ability to pass additional keyword arguments to algorithms in
   pybaselines.optimizers, which was deprecated in version 0.8.0.
 * Removed the deprecated pybaselines.window module, which was formally deprecated in version 0.8.
 * Moved the `PENTAPY_SOLVER` constant from pybaselines.utils to the new pybaselines.config module.
@@ -661,7 +661,7 @@ Bug Fixes
 * Fixed poly_order calculation for optimizers.adaptive_minmax when poly_order was a
   single item within a container.
 * Potential fix for namespace error with utils; accessing pybaselines.utils gave an
-  attribute error in very specific envinronments, so changed the import order in
+  attribute error in very specific environments, so changed the import order in
   pybaselines.__init__ to potentially fix it. Updated the quick start example in case
   the fix is not correct so that the example will still work.
 * Increased minimum NumPy version to 1.14 to use rcond=None with numpy.linalg.lstsq.

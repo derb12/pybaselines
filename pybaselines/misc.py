@@ -284,7 +284,7 @@ class _Misc(_Algorithm):
 
         Notes
         -----
-        If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the proceedure recommended in [1]_
+        If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the procedure recommended in [1]_
         to base the `lam_d` values on the inverse of the L1 norm values of the `d'th` derivative
         of `data`. In detail, it is assumed that `lam_0`, `lam_1`, and `lam_2` are approximately
         related by some constant `alpha` such that ``lam_0 = alpha / ||data||_1``,
@@ -468,7 +468,7 @@ def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
         alpha=1.0,  # alpha, required
         a=matrix,  # `a` matrix in compressed form
         x=vector,  # `x` vector
-        # trans=False,  # tranpose a, optional; may allow later
+        # trans=False,  # transpose a, optional; may allow later
     )
 
     return output
@@ -565,14 +565,14 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
     b : array-like, shape (`b_lu[0]` + `b_lu[1]` + 1, N)
         The second banded matrix.
     a_lu : Container[int, int]
-        A container of intergers designating the number lower and upper diagonals of `a`.
+        A container of integers designating the number lower and upper diagonals of `a`.
     b_lu : Container[int, int]
-        A container of intergers designating the number lower and upper diagonals of `b`.
+        A container of integers designating the number lower and upper diagonals of `b`.
     a_full_shape : Container[int, int]
-        A container of intergers designating the number of rows and columns in the full
+        A container of integers designating the number of rows and columns in the full
         matrix representation of `a`.
     b_full_shape : Container[int, int]
-        A container of intergers designating the number of rows and columns in the full
+        A container of integers designating the number of rows and columns in the full
         matrix representation of `b`.
     symmetric_output : bool, optional
         Whether the output matrix is known to be symmetric. If True, will only calculate
@@ -835,7 +835,7 @@ def _beads_loss(x, use_v2=True, eps_1=1e-6):
         The array of the absolute value of an n-order derivative of the signal.
     use_v2 : bool, optional
         If True (default), approximates the absolute loss using logarithms. If False,
-        uses the square root of the sqaured values.
+        uses the square root of the squared values.
     eps_1 : float, optional
         A small, positive value used to prevent issues when the first or second order
         derivatives are close to zero. Default is 1e-6.
@@ -874,7 +874,7 @@ def _beads_weighting(x, use_v2=True, eps_1=1e-6):
         The array of the absolute value of an n-order derivative of the signal.
     use_v2 : bool, optional
         If True (default), approximates the absolute loss using logarithms. If False,
-        uses the square root of the sqaured values.
+        uses the square root of the squared values.
     eps_1 : float, optional
         A small, positive value used to prevent issues when the first or second order
         derivatives are close to zero. Default is 1e-6.
@@ -974,7 +974,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         filter is ``2 * filter_type``. Default is 1 (second order filter).
     use_v2_loss : bool, optional
         If True (default), approximates the absolute loss using logarithms. If False,
-        uses the square root of the sqaured values.
+        uses the square root of the squared values.
     max_iter : int, optional
         The maximum number of iterations. Default is 50.
     tol : float, optional
@@ -1122,7 +1122,7 @@ def _process_lams(y, alpha, lam_0, lam_1, lam_2):
 
     Notes
     -----
-    Follows the proceedure recommended in [1]_ to base the `lam_d` values on the inverse of
+    Follows the procedure recommended in [1]_ to base the `lam_d` values on the inverse of
     the L1 norm values of the `d'th` derivative of `y`. In detail, it is assumed that
     `lam_0`, `lam_1`, and `lam_2` are related by some constant `alpha` such that
     ``lam_0 = alpha / ||y||_1``, ``lam_1 = alpha / ||y'||_1``, and
@@ -1188,7 +1188,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         filter is ``2 * filter_type``. Default is 1 (second order filter).
     use_v2_loss : bool, optional
         If True (default), approximates the absolute loss using logarithms. If False,
-        uses the square root of the sqaured values.
+        uses the square root of the squared values.
     max_iter : int, optional
         The maximum number of iterations. Default is 50.
     tol : float, optional
@@ -1441,7 +1441,7 @@ def beads(data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry
 
     Notes
     -----
-    If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the proceedure recommended in [4]_
+    If any of `lam_0`, `lam_1`, or `lam_2` are None, uses the procedure recommended in [4]_
     to base the `lam_d` values on the inverse of the L1 norm values of the `d'th` derivative
     of `data`. In detail, it is assumed that `lam_0`, `lam_1`, and `lam_2` are related by
     some constant `alpha` such that ``lam_0 = alpha / ||data||_1``,

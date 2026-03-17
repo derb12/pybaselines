@@ -57,11 +57,11 @@ class _Algorithm2D:
         Parameters
         ----------
         x_data : array-like, shape (M,), optional
-            The x-values of the measured data (independant variable for the rows). Default is
+            The x-values of the measured data (independent variable for the rows). Default is
             None, which will create an array from -1 to 1 during the first function call with
             length equal to the number of rows in the input data.
         z_data : array-like, shape (N,), optional
-            The z-values of the measured data (independant variable for the columns). Default is
+            The z-values of the measured data (independent variable for the columns). Default is
             None, which will create an array from -1 to 1 during the first function call with
             length equal to the number of columns in the input data.
         check_finite : bool, optional
@@ -221,7 +221,7 @@ class _Algorithm2D:
         """
         if isinstance(solver, bool) or solver not in {1, 2, 3, 4}:
             # catch True since it can be interpreted as in {1, 2, 3, 4}; would likely
-            # not cause issues downsteam, but just eliminate that possibility
+            # not cause issues downstream, but just eliminate that possibility
             raise ValueError('banded_solver must be an integer with a value in (1, 2, 3, 4)')
         # note that self._pentapy_solver is not set here since it is unused in 2D
         self._banded_solver = solver
@@ -941,7 +941,7 @@ class _Algorithm2D:
             The modules to search for the indicated `method` function.
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the fitting function. Default
-            is None, which uses an emtpy dictionary.
+            is None, which uses an empty dictionary.
         copy_kwargs : bool, optional
             If True (default), will copy the input `method_kwargs` so that the input
             dictionary is not modified within the function.

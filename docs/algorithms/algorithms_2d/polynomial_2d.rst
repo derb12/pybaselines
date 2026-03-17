@@ -83,7 +83,7 @@ without masking.
             np.arange(y.shape[0]), np.arange(y.shape[1]), indexing='ij'
         )
 
-        # 4 total plots: 2 countours and 2 projections
+        # 4 total plots: 2 contours and 2 projections
         row_names = ('Raw Data', 'Baseline Corrected')
         for i, dataset in enumerate((y, y - fit_baseline)):
             fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))

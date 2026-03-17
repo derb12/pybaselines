@@ -33,10 +33,10 @@ def pytest_addoption(parser):
         gil_enabled = True
 
     # potential combos:
-    # gil enabled but overriden with input = 1 -> run
+    # gil enabled but overridden with input = 1 -> run
     # gil enabled and input is 0 or not set -> skip
     # gil disabled and input is 1 or not set -> run
-    # gil disabled but overriden with input = 0 -> skip
+    # gil disabled but overridden with input = 0 -> skip
     # set default variable so that default is to test if gil is disabled
     parser.addoption(
         "--test_threading",

@@ -290,7 +290,7 @@ threshold, and peak regions are iteratively interpolated until the baseline is b
 cwt_br (Continuous Wavelet Transform Baseline Recognition)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.cwt_br` identifies baseline segments by performing a continous wavelet
+:meth:`~.Baseline.cwt_br` identifies baseline segments by performing a continuous wavelet
 transform (CWT) on the input data at various scales, and picks the scale with the first
 local minimum in the Shannon entropy. The threshold for baseline points is obtained by fitting
 a Gaussian to the histogram of the CWT at the optimal scale, and the final baseline is fit
@@ -330,7 +330,7 @@ fabc (Fully Automatic Baseline Correction)
 
 :meth:`~.Baseline.fabc` identifies baseline segments by thresholding the squared first derivative
 of the data, similar to :meth:`~.Baseline.dietrich`. However, fabc approximates the first derivative
-using a continous wavelet transform with the Haar wavelet, which is more robust to noise
+using a continuous wavelet transform with the Haar wavelet, which is more robust to noise
 than the numerical derivative in Dietrich's method. The baseline is then fit using
 Whittaker smoothing with all baseline points having a weight of 1 and all other points
 a weight of 0.

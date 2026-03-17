@@ -429,7 +429,7 @@ def test_setup_spline_spline_basis(small_data, num_knots, spline_degree, penaliz
     assert fitter._spline_basis.basis.shape[0] == len(small_data)
     # num_knots == number of inner knots with min and max points counting as
     # the first and last inner knots; then add `degree` extra knots
-    # on each end to accomodate the final polynomial on each end; therefore,
+    # on each end to accommodate the final polynomial on each end; therefore,
     # total number of knots = num_knots + 2 * degree; the number of basis
     # functions is total knots - (degree + 1), so the ultimate
     # shape of the basis matrix should be num_knots + degree - 1

@@ -225,7 +225,7 @@ def _make_design_matrix(x, knots, spline_degree):
 
 def _slow_design_matrix(x, knots, spline_degree):
     """
-    A nieve way of constructing the B-spline basis matrix by evaluating each basis individually.
+    A naive way of constructing the B-spline basis matrix by evaluating each basis individually.
 
     Parameters
     ----------
@@ -248,7 +248,7 @@ def _slow_design_matrix(x, knots, spline_degree):
     coeffs = np.zeros(num_bases)
     # TODO this is still quite slow and memory intensive; could make something similar
     # to __make_design_matrix that is still fast enough without numba; could make a cached
-    # version, but would need to be able to use knots and x without cacheing them since numpy
+    # version, but would need to be able to use knots and x without caching them since numpy
     # arrays are not hashable -> use an inner function probably; also has the benefit that
     # cache gets automatically deleted once basis is created; a cached version would probably
     # also be faster than the current numba version of _deBoor (assuming numba allows inner
@@ -330,7 +330,7 @@ def _spline_knots(x, num_knots=10, spline_degree=3, penalized=True):
         # knots as inner knots
         dx = (x_max - x_min) / (num_knots - 1)
         # calculate inner knots separately to ensure x_min and x_max are correct;
-        # otherwise, they can be slighly off due to floating point errors
+        # otherwise, they can be slightly off due to floating point errors
         inner_knots = np.linspace(x_min, x_max, num_knots)
         knots = np.concatenate((
             np.linspace(x_min - spline_degree * dx, x_min - dx, spline_degree),
@@ -374,7 +374,7 @@ def _spline_basis(x, knots, spline_degree=3):
     """
     Constructs the spline basis matrix.
 
-    Chooses the fastest constuction route based on the available options.
+    Chooses the fastest construction route based on the available options.
 
     Parameters
     ----------

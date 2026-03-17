@@ -4,7 +4,7 @@ Sorting Data
 ------------
 
 Some types of characterization data, such as FTIR and XPS, are typically expressed
-with their x-values in decending order. Rather than having to ensure
+with their x-values in descending order. Rather than having to ensure
 users rearrange their data into ascending order before using pybaselines,
 the :class:`~.Baseline` object handles this internally and returns values in the
 same order as the input x-values. This is especially important if other parameters

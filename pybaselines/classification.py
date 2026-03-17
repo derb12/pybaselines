@@ -496,7 +496,7 @@ class _Classification(_Algorithm):
         # use dof=1 since sampling a subset of the data
         std = _padded_rolling_std(y, half_window, 1)
         if threshold is None:
-            # scales fairly well with y and gaurantees baseline segments are created;
+            # scales fairly well with y and guarantees baseline segments are created;
             # picked 15% since it seems to work better than 10%
             threshold_val = np.percentile(std, 15)
         elif callable(threshold):
@@ -802,7 +802,7 @@ class _Classification(_Algorithm):
         Notes
         -----
         The classification of baseline points is similar to :meth:`~.Baseline.dietrich`, except that
-        this method approximates the first derivative using a continous wavelet transform
+        this method approximates the first derivative using a continuous wavelet transform
         with the Haar wavelet, which is more robust than the numerical derivative in
         Dietrich's method.
 
@@ -1086,7 +1086,7 @@ def _averaged_interp(x, y, mask, interp_half_window=0):
     Returns
     -------
     output : numpy.ndarray
-        A copy of the input `y` array with peak values in `mask` calculcated using linear
+        A copy of the input `y` array with peak values in `mask` calculated using linear
         interpolation.
 
     """
@@ -1915,7 +1915,7 @@ def fabc(data, lam=1e6, scale=None, num_std=3.0, diff_order=2, min_length=2, wei
     Notes
     -----
     The classification of baseline points is similar to :meth:`~.Baseline.dietrich`, except that
-    this method approximates the first derivative using a continous wavelet transform
+    this method approximates the first derivative using a continuous wavelet transform
     with the Haar wavelet, which is more robust than the numerical derivative in
     Dietrich's method.
 

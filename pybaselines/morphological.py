@@ -870,7 +870,7 @@ class _Morphological(_Algorithm):
                 The half window used for the morphological calculations.
             * 'tol_history': numpy.ndarray, shape (K, 2)
                 An array containing the calculated tolerance values for each
-                iteration. Index 0 are the tolerence values for the relative change in
+                iteration. Index 0 are the tolerance values for the relative change in
                 the signal, and index 1 are the tolerance values for the relative change
                 in the baseline. The length of the array is the number of iterations
                 completed, K. If the last values in the array are greater than the input
@@ -1576,7 +1576,7 @@ def jbcd(data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1, g
             The half window used for the morphological calculations.
         * 'tol_history': numpy.ndarray, shape (K, 2)
             An array containing the calculated tolerance values for each
-            iteration. Index 0 are the tolerence values for the relative change in
+            iteration. Index 0 are the tolerance values for the relative change in
             the signal, and index 1 are the tolerance values for the relative change
             in the baseline. The length of the array is the number of iterations
             completed, K. If the last values in the array are greater than the input

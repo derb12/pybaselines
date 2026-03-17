@@ -385,7 +385,7 @@ def _update_params(func, params, data, **kwargs):
     Returns
     -------
     baseline : numpy.ndarray
-        The calculated basline.
+        The calculated baseline.
 
     """
     baseline, baseline_params = func(data, **kwargs)

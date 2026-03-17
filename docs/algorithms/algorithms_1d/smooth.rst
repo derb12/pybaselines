@@ -182,7 +182,7 @@ kernel. Note that this method does not perform well for tightly-grouped peaks.
 snip (Statistics-sensitive Non-linear Iterative Peak-clipping)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.snip` iteratively takes the element-wise minimimum of each value
+:meth:`~.Baseline.snip` iteratively takes the element-wise minimum of each value
 and the average of the values at the left and right edge of a window centered
 at the value. The size of the half-window is incrementally increased from 1 to the
 specified maximum size, which should be set to approximately half of the

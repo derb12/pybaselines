@@ -244,7 +244,7 @@ class _Polynomial(_Algorithm):
     def imodpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                  use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1.):
         """
-        The improved modofied polynomial (IModPoly) baseline algorithm.
+        The improved modified polynomial (IModPoly) baseline algorithm.
 
         Parameters
         ----------
@@ -546,7 +546,7 @@ class _Polynomial(_Algorithm):
             save time. The shape of the array of kernels is (len(`x_data`), `total_points`).
             If True (default), will recalculate the kernels each iteration, which uses very
             little memory, but is slower. Can usually set to False unless `x_data` and`total_points`
-            are quite large and the function causes memory issues when cacheing the kernels. If
+            are quite large and the function causes memory issues when caching the kernels. If
             numba is installed, there is no significant time difference since the calculations are
             sped up.
         delta : float, optional
@@ -648,7 +648,7 @@ class _Polynomial(_Algorithm):
         windows, fits, skips = _determine_fits(self.x, self._size, total_points, float(delta))
 
         # np.polynomial.polynomial.polyvander returns a Fortran-ordered array, which
-        # is not continguous when indexed (ie. vandermonde[i]) and issues a warning
+        # is not contiguous when indexed (ie. vandermonde[i]) and issues a warning
         # when using numba, so convert Vandermonde matrix to C-ordering; without Numba,
         # there is no major slowdown using the non-contiguous array
         if _HAS_NUMBA:
@@ -870,7 +870,7 @@ class _Polynomial(_Algorithm):
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray, shape (J, K)
                 An array containing the calculated tolerance values for each iteration
-                of both threshold values and fit values. Index 0 are the tolerence values
+                of both threshold values and fit values. Index 0 are the tolerance values
                 for the difference in up-down ratios, index 1 are the tolerance values for
                 the relative change in the threshold, and indices >= 2 are the tolerance values
                 for each fit. All values that were not used in fitting have values of 0. Shape J
@@ -1119,7 +1119,7 @@ def modpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=Non
 def imodpoly(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=None,
              use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1):
     """
-    The improved modofied polynomial (IModPoly) baseline algorithm.
+    The improved modified polynomial (IModPoly) baseline algorithm.
 
     Parameters
     ----------
@@ -1874,7 +1874,7 @@ def _determine_fits(x, num_x, total_points, delta):
 
     """
     # faster to allocate array and return only filled in sections
-    # rather than constanly appending to a list
+    # rather than constantly appending to a list
     if delta > 0:
         check_fits = True
         fits = np.empty(num_x, dtype=np.intp)
@@ -1905,7 +1905,7 @@ def _determine_fits(x, num_x, total_points, delta):
         x_val = x[i]
         if check_fits:
             # use x[i+1] rather than x[i] since it ensures that the last value within
-            # the range x_last_fit + delta is used; x[i+1] is also guranteed to be >= x[i]
+            # the range x_last_fit + delta is used; x[i+1] is also guaranteed to be >= x[i]
             if x[i + 1] < skip_range:
                 if not skip_start:
                     skip_start = i
@@ -2009,7 +2009,7 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         save time. The shape of the array of kernels is (len(`x_data`), `total_points`).
         If True (default), will recalculate the kernels each iteration, which uses very
         little memory, but is slower. Can usually set to False unless `x_data` and`total_points`
-        are quite large and the function causes memory issues when cacheing the kernels. If
+        are quite large and the function causes memory issues when caching the kernels. If
         numba is installed, there is no significant time difference since the calculations are
         sped up.
     delta : float, optional
@@ -2226,7 +2226,7 @@ def goldindec(data, x_data=None, poly_order=2, tol=1e-3, max_iter=250, weights=N
             The weight array used for fitting the data.
         * 'tol_history': numpy.ndarray, shape (J, K)
             An array containing the calculated tolerance values for each iteration
-            of both threshold values and fit values. Index 0 are the tolerence values
+            of both threshold values and fit values. Index 0 are the tolerance values
             for the difference in up-down ratios, index 1 are the tolerance values for
             the relative change in the threshold, and indices >= 2 are the tolerance values
             for each fit. All values that were not used in fitting have values of 0. Shape J

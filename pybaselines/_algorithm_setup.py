@@ -860,7 +860,7 @@ class _Algorithm:
             The modules to search for the indicated `method` function.
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the fitting function. Default
-            is None, which uses an emtpy dictionary.
+            is None, which uses an empty dictionary.
         copy_kwargs : bool, optional
             If True (default), will copy the input `method_kwargs` so that the input
             dictionary is not modified within the function.

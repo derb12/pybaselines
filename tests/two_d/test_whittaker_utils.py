@@ -168,7 +168,7 @@ def test_penalized_system_add_penalty(diff_order):
 
 
 def test_face_splitting():
-    """Ensures the face-splittng algorithms works as intended."""
+    """Ensures the face-splitting algorithms works as intended."""
     basis = np.array([
         [1., 2, 3],
         [4, 5, 6],
@@ -451,7 +451,7 @@ def test_solve_whittaker_system_eigenvalues(data_fixture2d, num_eigens, diff_ord
     """
     Tests the accuracy of the Whittaker system solver when using eigendecomposition.
 
-    Uses the nieve way to solve 2D Whittaker system as the expected result, which
+    Uses the naive way to solve 2D Whittaker system as the expected result, which
     uses the flattened `y` and weight values, while pybaselines uses the second, more efficient
     method in Eiler's paper which directly uses the 2D `y` and weights.
 

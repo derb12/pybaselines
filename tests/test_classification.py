@@ -18,9 +18,9 @@ from .base_tests import BaseTester, InputWeightsMixin, ensure_deprecation
 from .data import PYWAVELETS_HAAR
 
 
-def _nieve_rolling_std(data, half_window, ddof=0):
+def _naive_rolling_std(data, half_window, ddof=0):
     """
-    A nieve approach for a rolling standard deviation.
+    A naive approach for a rolling standard deviation.
 
     Used for ensuring faster, more complex approaches are correct.
 
@@ -55,7 +55,7 @@ def _nieve_rolling_std(data, half_window, ddof=0):
 @pytest.mark.parametrize('ddof', (0, 1))
 def test_rolling_std(y_scale, half_window, ddof):
     """
-    Test the rolling standard deviation calculation against a nieve implementation.
+    Test the rolling standard deviation calculation against a naive implementation.
 
     Also tests different y-scales while using the same noise level, since some
     implementations have numerical instability when values are small/large compared
@@ -68,7 +68,7 @@ def test_rolling_std(y_scale, half_window, ddof):
     # can have slightly different values at the edges
     compare_slice = slice(half_window, -half_window)
 
-    actual_rolled_std = _nieve_rolling_std(y, half_window, ddof)
+    actual_rolled_std = _naive_rolling_std(y, half_window, ddof)
     calc_rolled_std = classification._rolling_std(
         np.pad(y, half_window, 'reflect'), half_window, ddof
     )[half_window:-half_window]
@@ -81,7 +81,7 @@ def test_rolling_std(y_scale, half_window, ddof):
 @pytest.mark.parametrize('ddof', (0, 1))
 def test_padded_rolling_std(y_scale, half_window, ddof):
     """
-    Test the padded rolling standard deviation calculation against a nieve implementation.
+    Test the padded rolling standard deviation calculation against a naive implementation.
 
     Also tests different y-scales while using the same noise level, since some
     implementations have numerical instability when values are small/large compared
@@ -94,7 +94,7 @@ def test_padded_rolling_std(y_scale, half_window, ddof):
     # can have slightly different values at the edges
     compare_slice = slice(half_window, -half_window)
 
-    actual_rolled_std = _nieve_rolling_std(y, half_window, ddof)
+    actual_rolled_std = _naive_rolling_std(y, half_window, ddof)
     calc_rolled_std = classification._padded_rolling_std(y, half_window, ddof)
 
     assert_allclose(calc_rolled_std[compare_slice], actual_rolled_std[compare_slice])
@@ -222,7 +222,7 @@ def test_haar(scale, window_size):
         assert_allclose(haar_wavelet[half_window], 0., 0, 1e-14)
 
     # the wavelet should be reflected around the mid-point; total area should
-    # be 0, and the area for [:mid_point] and [-mid_moint:] should be equivalent
+    # be 0, and the area for [:mid_point] and [-mid_point:] should be equivalent
     # and equal to (scale // 2) / sqrt(scale), where sqrt(scale) is due to
     # normalization.
     assert_allclose(haar_wavelet.sum(), 0., 0, 1e-14)
@@ -418,7 +418,7 @@ def rubberband_data(x_data):
 
     Notes
     -----
-    Produces a baseline such that the convex hull produces a sitution where the
+    Produces a baseline such that the convex hull produces a situation where the
     minimum and maximum index occur on the same value, mirroring issue 29.
 
     """
@@ -542,7 +542,7 @@ class TestRubberband(ClassificationTester):
         Ensures indexing is handled correctly by the rubberband baseline.
 
         Addresses issue 29 where the indexing had failed due to the min and max index
-        values occuring on the same value.
+        values occurring on the same value.
 
         """
         data = rubberband_data(self.x)

@@ -184,8 +184,8 @@ class TestRIA(SmoothTester):
         assert area_output['tol_history'][-1] > low_tol
 
 
-def nieve_directional_min_moving_avg(y, data_len, half_window):
-    """A simpler version of pybaselines.smooth.nieve_directional_min_moving_avg for testing."""
+def naive_directional_min_moving_avg(y, data_len, half_window):
+    """A simpler version of pybaselines.smooth.naive_directional_min_moving_avg for testing."""
     output = y.copy()
     for i in range(1, data_len - 1):
         if i - half_window < 0:
@@ -209,7 +209,7 @@ def test_directional_min_moving_avg(half_window):
     len_y = len(y)
     y_input = y.copy()
 
-    expected = nieve_directional_min_moving_avg(y, len_y, half_window)
+    expected = naive_directional_min_moving_avg(y, len_y, half_window)
     output = smooth._directional_min_moving_avg(y_input, len_y, half_window)
 
     assert_allclose(output, expected, rtol=1e-12, atol=1e-12)
@@ -217,7 +217,7 @@ def test_directional_min_moving_avg(half_window):
     assert_allclose(y_input, expected, rtol=1e-12, atol=1e-12)
 
     # now do the second direction
-    expected = nieve_directional_min_moving_avg(expected[::-1], len_y, half_window)[::-1]
+    expected = naive_directional_min_moving_avg(expected[::-1], len_y, half_window)[::-1]
     output = smooth._directional_min_moving_avg(y_input[::-1], len_y, half_window)[::-1]
 
     assert_allclose(output, expected, rtol=1e-12, atol=1e-12)

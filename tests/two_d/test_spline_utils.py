@@ -28,7 +28,7 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
     """
     Tests the accuracy of the penalized spline solvers.
 
-    Uses the nieve way to solve 2D PSplines from Eilers's paper as the expected result, which
+    Uses the naive way to solve 2D PSplines from Eilers's paper as the expected result, which
     uses the flattened `y` and weight values, while pybaselines uses the second, more efficient
     method in Eiler's paper which directly uses the 2D `y` and weights.
 

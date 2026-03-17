@@ -125,7 +125,7 @@ def dia_object(*args, dtype=None, **kwargs):
     Returns
     -------
     scipy.sparse.dia_matrix or scipy.sparse.dia_array
-        A sparse diagonal matrix if the intalled scipy version is older than 1.12,
+        A sparse diagonal matrix if the installed scipy version is older than 1.12,
         otherwise a sparse diagonal array.
 
     """
@@ -151,7 +151,7 @@ def csr_object(*args, dtype=None, **kwargs):
     Returns
     -------
     scipy.sparse.csr_matrix or scipy.sparse.csr_array
-        A sparse csr matrix if the intalled scipy version is older than 1.12,
+        A sparse csr matrix if the installed scipy version is older than 1.12,
         otherwise a sparse csr array.
 
     """
@@ -170,7 +170,7 @@ def identity(size, format=None, **kwargs):
     size : int
         The length of the rows and columns of the sparse matrix.
     format : str, optional
-        The sparse format to use for the identiy matrix. Default is None, which
+        The sparse format to use for the identity matrix. Default is None, which
         will use the default of the underlying functions.
     **kwargs
         Additional keyword arguments to pass to the creation functions.
@@ -210,7 +210,7 @@ def diags(data, offsets=0, dtype=None, **kwargs):
     Returns
     -------
     scipy.sparse.spmatrix or scipy.sparse.sparray
-        The sparse identiy matrix.
+        The sparse identity matrix.
 
     Notes
     -----

@@ -141,7 +141,7 @@ if __name__ == '__main__':
         if key == reference_key:
             continue
         relative_speedup = 100 * (values[0] - reference_times[0]) / values[0]
-        # use propogation of errors to estimate relative speedup error
+        # use propagation of errors to estimate relative speedup error
         speedup_err = (
             (100 / values[0])
             * np.sqrt(reference_times[1]**2 + reference_times[0]**2 * values[1]**2 / values[0]**2)

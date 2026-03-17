@@ -244,7 +244,7 @@ class TestAirPLS(WhittakerTester):
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
         Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
+        would propagate the nan or inf, and will create only a single value to check
         for finite-ness.
 
         """
@@ -253,7 +253,7 @@ class TestAirPLS(WhittakerTester):
             baseline, params = self.class_func(y, tol=-1, max_iter=3000)
 
         assert np.isfinite(baseline).all()
-        # ensure last tolerence calculation was finite as a double-check that
+        # ensure last tolerance calculation was finite as a double-check that
         # this test is actually doing what it should be doing
         assert np.isfinite(params['tol_history'][-1])
         assert np.isfinite(params['weights']).all()
@@ -287,7 +287,7 @@ class TestArPLS(WhittakerTester):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline).all()
-        # ensure last tolerence calculation was finite as a double-check that
+        # ensure last tolerance calculation was finite as a double-check that
         # this test is actually doing what it should be doing
         assert np.isfinite(params['tol_history'][-1])
         assert np.isfinite(params['weights']).all()
@@ -332,7 +332,7 @@ class TestDrPLS(WhittakerTester):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline).all()
-        # ensure last tolerence calculation was finite as a double-check that
+        # ensure last tolerance calculation was finite as a double-check that
         # this test is actually doing what it should be doing
         assert np.isfinite(params['tol_history'][-1])
         assert np.isfinite(params['weights']).all()
@@ -381,7 +381,7 @@ class TestIArPLS(WhittakerTester):
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
         Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
+        would propagate the nan or inf, and will create only a single value to check
         for finite-ness.
 
         """
@@ -390,7 +390,7 @@ class TestIArPLS(WhittakerTester):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline).all()
-        # ensure last tolerence calculation was finite as a double-check that
+        # ensure last tolerance calculation was finite as a double-check that
         # this test is actually doing what it should be doing
         assert np.isfinite(params['tol_history'][-1])
         assert np.isfinite(params['weights']).all()
@@ -585,7 +585,7 @@ class TestLSRPLS(WhittakerTester):
         Use data without noise since the lack of noise makes it easier to induce failure.
         Set tol to -1 so that it is never reached, and set max_iter to a high value.
         Uses np.isfinite on the dot product of the baseline since the dot product is fast,
-        would propogate the nan or inf, and will create only a single value to check
+        would propagate the nan or inf, and will create only a single value to check
         for finite-ness.
 
         """
@@ -594,7 +594,7 @@ class TestLSRPLS(WhittakerTester):
             baseline, params = self.class_func(y, tol=-1, max_iter=1000)
 
         assert np.isfinite(baseline).all()
-        # ensure last tolerence calculation was finite as a double-check that
+        # ensure last tolerance calculation was finite as a double-check that
         # this test is actually doing what it should be doing
         assert np.isfinite(params['tol_history'][-1])
         assert np.isfinite(params['weights']).all()

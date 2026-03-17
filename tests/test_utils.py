@@ -817,7 +817,7 @@ def test_pspline_smooth(data_fixture, diff_order, num_knots, spline_degree):
 
 @pytest.mark.parametrize('two_d', (True, False))
 def test_estimate_window(small_data2d, two_d):
-    """Ensures estimate_window has the correct outputs for the dimesions of the input."""
+    """Ensures estimate_window has the correct outputs for the dimensions of the input."""
     data = small_data2d
     if not two_d:
         data = data.flatten()

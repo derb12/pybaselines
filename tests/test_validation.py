@@ -531,12 +531,12 @@ def test_check_array_check_finite():
 def test_check_array_order():
     """Ensures the array order is correctly set in _check_array."""
     array = np.ones((5, 2))
-    intial_c_contiguous = array.flags['C_CONTIGUOUS']
-    intial_f_contiguous = array.flags['F_CONTIGUOUS']
+    initial_c_contiguous = array.flags['C_CONTIGUOUS']
+    initial_f_contiguous = array.flags['F_CONTIGUOUS']
 
     output = _validation._check_array(array, order=None, ensure_1d=False)
-    assert output.flags['C_CONTIGUOUS'] == intial_c_contiguous
-    assert output.flags['F_CONTIGUOUS'] == intial_f_contiguous
+    assert output.flags['C_CONTIGUOUS'] == initial_c_contiguous
+    assert output.flags['F_CONTIGUOUS'] == initial_f_contiguous
 
     output = _validation._check_array(array, order='C', ensure_1d=False)
     assert output.flags['C_CONTIGUOUS']
@@ -608,12 +608,12 @@ def test_check_sized_array_order():
     """Ensures the array order is correctly set in _check_sized_array."""
     array = np.ones((5, 2))
     length = array.shape[-1]
-    intial_c_contiguous = array.flags['C_CONTIGUOUS']
-    intial_f_contiguous = array.flags['F_CONTIGUOUS']
+    initial_c_contiguous = array.flags['C_CONTIGUOUS']
+    initial_f_contiguous = array.flags['F_CONTIGUOUS']
 
     output = _validation._check_sized_array(array, length, order=None, ensure_1d=False)
-    assert output.flags['C_CONTIGUOUS'] == intial_c_contiguous
-    assert output.flags['F_CONTIGUOUS'] == intial_f_contiguous
+    assert output.flags['C_CONTIGUOUS'] == initial_c_contiguous
+    assert output.flags['F_CONTIGUOUS'] == initial_f_contiguous
 
     output = _validation._check_sized_array(array, length, order='C', ensure_1d=False)
     assert output.flags['C_CONTIGUOUS']

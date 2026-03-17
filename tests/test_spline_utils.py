@@ -20,7 +20,7 @@ from pybaselines import _banded_utils, _spline_utils
 from pybaselines._compat import diags, _HAS_NUMBA
 
 
-def _nieve_basis_matrix(x, knots, spline_degree):
+def _naive_basis_matrix(x, knots, spline_degree):
     """Simple function for creating the basis matrix for a spline."""
     num_bases = len(knots) - spline_degree - 1
     basis = np.empty((num_bases, len(x)))
@@ -121,7 +121,7 @@ def test_spline_basis(data_fixture, num_knots, spline_degree, source):
         basis_func = _spline_utils._slow_design_matrix
 
     basis = basis_func(x, knots, spline_degree)
-    expected_basis = _nieve_basis_matrix(x, knots, spline_degree)
+    expected_basis = _naive_basis_matrix(x, knots, spline_degree)
 
     assert basis.shape == (len(x), len(knots) - spline_degree - 1)
 
@@ -709,7 +709,7 @@ def test_numba_btb_bty(data_fixture, spline_degree, num_knots):
 
     expected_ab, _ = _banded_utils._sparse_to_banded(expected_lhs)
     if expected_ab.shape[0] != ab_full.shape[0]:
-        # diagonals became 0 and were truncated from the sparse object's data attritube
+        # diagonals became 0 and were truncated from the sparse object's data attribute
         expected_ab = _banded_utils._pad_diagonals(
             expected_ab, ab_full.shape[0] - expected_ab.shape[0], lower_only=False
         )

@@ -97,7 +97,7 @@ class _Smooth(_Algorithm):
             The y-values of the measured data, with N data points.
         max_half_window : int or Sequence[int, int], optional
             The maximum number of iterations. Should be set such that
-            `max_half_window` is approxiamtely ``(w-1)/2``, where ``w`` is the index-based
+            `max_half_window` is approximately ``(w-1)/2``, where ``w`` is the index-based
             width of a feature or peak. `max_half_window` can also be a sequence of
             two integers for asymmetric peaks, with the first item corresponding to
             the `max_half_window` of the peak's left edge, and the second item
@@ -305,11 +305,11 @@ class _Smooth(_Algorithm):
 
             * 'half_window': list(int)
                 A list of the half windows at which the exit criteria was reached.
-                Has a length of 1 if the main exit criteria was intially reached,
+                Has a length of 1 if the main exit criteria was initially reached,
                 otherwise has a length of 2.
             * 'converged': list(bool or None)
                 A list of the convergence status. Has a length of 1 if the main
-                exit criteria was intially reached, otherwise has a length of 2.
+                exit criteria was initially reached, otherwise has a length of 2.
                 Each convergence status is True if the main exit criteria was
                 reached, False if the second exit criteria was reached, and None
                 if `max_half_window` is reached before either exit criteria.
@@ -323,7 +323,7 @@ class _Smooth(_Algorithm):
         over-smoothed data can cause the exit criteria to be reached later than optimal.
 
         The half-window at which convergence occurs is roughly close to the index-based
-        full-width-at-half-maximum of a peak or feature, but can vary. Therfore, it is
+        full-width-at-half-maximum of a peak or feature, but can vary. Therefore, it is
         better to set a `min_half_window` that is smaller than expected to not miss the
         exit criteria.
 
@@ -818,7 +818,7 @@ def snip(data, max_half_window=None, decreasing=False, smooth_half_window=None,
         The y-values of the measured data, with N data points.
     max_half_window : int or Sequence[int, int], optional
         The maximum number of iterations. Should be set such that
-        `max_half_window` is approxiamtely ``(w-1)/2``, where ``w`` is the index-based
+        `max_half_window` is approximately ``(w-1)/2``, where ``w`` is the index-based
         width of a feature or peak. `max_half_window` can also be a sequence of
         two integers for asymmetric peaks, with the first item corresponding to
         the `max_half_window` of the peak's left edge, and the second item
@@ -1028,11 +1028,11 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
 
         * 'half_window': list(int)
             A list of the half windows at which the exit criteria was reached.
-            Has a length of 1 if the main exit criteria was intially reached,
+            Has a length of 1 if the main exit criteria was initially reached,
             otherwise has a length of 2.
         * 'converged': list(bool or None)
             A list of the convergence status. Has a length of 1 if the main
-            exit criteria was intially reached, otherwise has a length of 2.
+            exit criteria was initially reached, otherwise has a length of 2.
             Each convergence status is True if the main exit criteria was
             reached, False if the second exit criteria was reached, and None
             if `max_half_window` is reached before either exit criteria.
@@ -1046,7 +1046,7 @@ def swima(data, min_half_window=3, max_half_window=None, smooth_half_window=None
     over-smoothed data can cause the exit criteria to be reached later than optimal.
 
     The half-window at which convergence occurs is roughly close to the index-based
-    full-width-at-half-maximum of a peak or feature, but can vary. Therfore, it is
+    full-width-at-half-maximum of a peak or feature, but can vary. Therefore, it is
     better to set a `min_half_window` that is smaller than expected to not miss the
     exit criteria.
 
@@ -1206,7 +1206,7 @@ def ria(data, x_data=None, half_window=None, max_iter=500, tol=1e-2, side='both'
 @jit(nopython=True, cache=True)
 def _directional_min_moving_avg(y, data_len, half_window):
     """
-    Calculates the miniumum of a moving average and current value and modifies in-place.
+    Calculates the minimum of a moving average and current value and modifies in-place.
 
     Since the data is modified in-place, the smoothing has a directional
     effect that is canceled out by calling this function a second time with

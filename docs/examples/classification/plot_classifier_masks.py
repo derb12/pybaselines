@@ -73,5 +73,5 @@ plt.show()
 
 # %%
 # After comparing the two masks, it is clear that the higher half_window value
-# mis-identified the small peaks as belonging to the baseline. Thus, the smaller
+# misidentified the small peaks as belonging to the baseline. Thus, the smaller
 # half_window is the better parameter.

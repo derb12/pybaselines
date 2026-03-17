@@ -135,7 +135,7 @@ class DummyModule:
         return data, {}
 
     @staticmethod
-    def repitition_changes(data, x_data=None):
+    def repetition_changes(data, x_data=None):
         """
         Changes the output with repeated calls.
 
@@ -315,7 +315,7 @@ class DummyAlgorithm:
         return data, {}
 
     @dummy_wrapper
-    def repitition_changes(self, data):
+    def repetition_changes(self, data):
         """Changes the output with repeated calls."""
         output = (data * self.calls, {})
         self.calls += 1
@@ -428,7 +428,7 @@ class TestBaseTesterWorks(BaseTester):
         assert not self.two_d
 
     def test_reverse_array(self):
-        """Ensures the reverse_array funcion works correctly."""
+        """Ensures the reverse_array function works correctly."""
         assert_allclose(self.reverse_array(self.y), self.y[..., ::-1])
 
 
@@ -455,7 +455,7 @@ class TestBaseTesterWorks2d(BaseTester):
         assert self.two_d
 
     def test_reverse_array(self):
-        """Ensures the reverse_array funcion works correctly."""
+        """Ensures the reverse_array function works correctly."""
         assert_allclose(self.reverse_array(self.y), self.y[..., ::-1])
 
 
@@ -565,7 +565,7 @@ class TestBaseTesterFailures(BaseTester, SetFuncMixin):
 
     def test_repeated_fits(self):
         """Ensures no wrapper fails."""
-        with self.set_func('repitition_changes'):
+        with self.set_func('repetition_changes'):
             with pytest.raises(AssertionError):
                 super().test_repeated_fits()
 
@@ -650,7 +650,7 @@ class TestBaseTesterFailures(BaseTester, SetFuncMixin):
         already confirmed to work as intended on a 6-core CPU.
 
         """
-        with self.set_func('repitition_changes'):
+        with self.set_func('repetition_changes'):
             try:
                 super().test_threading()
             except AssertionError:
@@ -661,7 +661,7 @@ class TestBaseTesterFailures(BaseTester, SetFuncMixin):
                 )
 
     def test_non_unique_x(self):
-        """Ensures failues of test_non_unique_x."""
+        """Ensures failures of test_non_unique_x."""
         with self.set_func('interp_x', attributes={'requires_unique_x': True}):
             # very iffy hack here to catch pytest saying that this test failed, which is
             # what should happen; just want to check logic flow of BaseTester.test_non_unique_x
@@ -834,7 +834,7 @@ class TestBaseTester2DWorks(BaseTester2D):
         assert not self.three_d
 
     def test_reverse_array(self):
-        """Ensures the reverse_array funcion works correctly."""
+        """Ensures the reverse_array function works correctly."""
         assert_allclose(self.reverse_array(self.y), self.y[..., ::-1, ::-1])
 
 
@@ -862,7 +862,7 @@ class TestBaseTester2DWorks3d(BaseTester2D):
         assert self.three_d
 
     def test_reverse_array(self):
-        """Ensures the reverse_array funcion works correctly."""
+        """Ensures the reverse_array function works correctly."""
         assert_allclose(self.reverse_array(self.y), self.y[..., ::-1, ::-1])
 
 
@@ -890,7 +890,7 @@ class TestBaseTester2DFailures(BaseTester2D, SetFuncMixin):
 
     def test_repeated_fits(self):
         """Ensures no wrapper fails."""
-        with self.set_func('repitition_changes'):
+        with self.set_func('repetition_changes'):
             with pytest.raises(AssertionError):
                 super().test_repeated_fits()
 
@@ -958,7 +958,7 @@ class TestBaseTester2DFailures(BaseTester2D, SetFuncMixin):
         already confirmed to work as intended on a 6-core CPU.
 
         """
-        with self.set_func('repitition_changes'):
+        with self.set_func('repetition_changes'):
             try:
                 super().test_threading()
             except AssertionError:
@@ -969,7 +969,7 @@ class TestBaseTester2DFailures(BaseTester2D, SetFuncMixin):
                 )
 
     def test_non_unique_xz(self):
-        """Ensures failues of test_non_unique_xz."""
+        """Ensures failures of test_non_unique_xz."""
         with self.set_func('interp_x', attributes={'requires_unique_xz': True}):
             # very iffy hack here to catch pytest saying that this test failed, which is
             # what should happen; just want to check logic flow of BaseTester2D.test_non_unique_xz

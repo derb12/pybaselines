@@ -248,7 +248,7 @@ def changing_dataset(data_size=1000, dataset_size=100, two_d=False):
     data_size : int, optional
         The number of points for the data. Default is 1000.
     dataset_size : int, optional
-        The number of data within the datasset. Default is 100.
+        The number of data within the dataset. Default is 100.
 
     Returns
     -------
@@ -287,7 +287,7 @@ def changing_dataset2d(data_size=(40, 33), dataset_size=20, three_d=False):
         is (50, 40), which uses different numbers so that any issues caused
         by not having a square matrix will be seen.
     dataset_size : int, optional
-        The number of data within the datasset. Default is 20.
+        The number of data within the dataset. Default is 20.
 
     Returns
     -------

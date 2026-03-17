@@ -630,7 +630,7 @@ class _Spline(_Algorithm):
             will be an array with size equal to N and all values set to 1.
         normalize_weights : bool, optional
             If True, will normalize the computed weights between 0 and 1 to potentially
-            improve the numerical stabilty. Set to False (default) to use the original
+            improve the numerical stability. Set to False (default) to use the original
             implementation, which sets weights for all negative residuals to be greater than 1.
 
         Returns
@@ -1550,7 +1550,7 @@ class _Spline(_Algorithm):
                 The weight array used for fitting the data.
             * 'tol_history': numpy.ndarray, shape (J, K)
                 An array containing the calculated tolerance values for each iteration of
-                both threshold values and fit values. Index 0 are the tolerence values for
+                both threshold values and fit values. Index 0 are the tolerance values for
                 the difference in the peak proportion, and indices >= 1 are the tolerance values
                 for each fit. All values that were not used in fitting have values of 0. Shape J
                 is 2 plus the number of iterations for the threshold to converge (related to
@@ -1595,7 +1595,7 @@ class _Spline(_Algorithm):
                     tol_2 = np.inf  # ensure it exits outer loop
                     break
                 # Paper used norm(old - new) / norm(new) rather than old in the denominator,
-                # but I use old in the denominator instead to be consistant with all other
+                # but I use old in the denominator instead to be consistent with all other
                 # algorithms; does not make a major difference
                 calc_difference = relative_difference(baseline, new_baseline)
                 tol_history[i + 1, j] = calc_difference
@@ -2241,7 +2241,7 @@ def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
         array from -1 to 1 with N points.
     normalize_weights : bool, optional
         If True, will normalize the computed weights between 0 and 1 to potentially
-        improve the numerical stabilty. Set to False (default) to use the original
+        improve the numerical stability. Set to False (default) to use the original
         implementation, which sets weights for all negative residuals to be greater than 1.
 
     Returns
@@ -2876,7 +2876,7 @@ def pspline_brpls(data, x_data=None, lam=1e3, num_knots=100, spline_degree=3, di
             The weight array used for fitting the data.
         * 'tol_history': numpy.ndarray, shape (J, K)
             An array containing the calculated tolerance values for each iteration of
-            both threshold values and fit values. Index 0 are the tolerence values for
+            both threshold values and fit values. Index 0 are the tolerance values for
             the difference in the peak proportion, and indices >= 1 are the tolerance values
             for each fit. All values that were not used in fitting have values of 0. Shape J
             is 2 plus the number of iterations for the threshold to converge (related to

@@ -5,7 +5,7 @@ Functional Interface (Legacy)
 ----------------------
 
 The :class:`~.Baseline` class was introduced in pybaselines version 1.0 and is the
-recommened way to use all of the different baseline correction algorithms provided by
+recommended way to use all of the different baseline correction algorithms provided by
 pybaselines due to not having to import multiple functions from different modules and the
 benefit that comes from reusing the same Baseline object for multiples fits, as shown in
 :ref:`this example <sphx_glr_generated_examples_general_plot_reuse_baseline.py>`.
@@ -15,7 +15,7 @@ older code before the class-based interface was introduced, as well as to provid
 interface for users who are new to object-oriented programming or programming in general. Use of
 this legacy functional interface is discouraged but will not be deprecated in the foreseeable future.
 
-For users who want to migrate from the legacy functional interface to the recommened class-based
+For users who want to migrate from the legacy functional interface to the recommended class-based
 interface of pybaselines, simply follow the example below.
 
 .. code-block:: python

@@ -812,7 +812,7 @@ class WhittakerResult2D(WhittakerResult):
         -------
         numpy.ndarray or scipy.sparse.csc_array or scipy.sparse.csc_matrix
             The left hand side of the hat matrix. If using SVD, then the output is a numpy
-            array; otherwise, it is a sparse object wit CSC format.
+            array; otherwise, it is a sparse object with CSC format.
 
         """
         if self._hat_lhs is None:

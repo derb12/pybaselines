@@ -91,7 +91,7 @@ plt.legend()
 # Now, put together all the results to show the change in the baseline
 # as `half_window` increases. Note how the `half_window` value can be considered
 # as the approximate "stiffness" of the baseline. For small `half_window` values,
-# the baseline has more flexibility to fit inbetween the peaks, while the largest
+# the baseline has more flexibility to fit in between the peaks, while the largest
 # `half_window` value is too stiff to account for the localized curvature of the
 # baseline.
 plt.figure()

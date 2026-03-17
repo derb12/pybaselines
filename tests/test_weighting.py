@@ -144,7 +144,7 @@ def test_safe_std_mean_allow_nan(run_enum):
 
     _safe_std should allow the calculated standard deviation to be nan if there is
     more than one item in the array, since that would indicate that nan or inf is
-    in the array and nan propogation would not want to be stopped in those cases.
+    in the array and nan propagation would not want to be stopped in those cases.
 
     """
     if run_enum:
@@ -182,7 +182,7 @@ def test_quantile_weighting(quantile, one_d):
 @pytest.mark.parametrize('p', (0.01, 0.99))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_asls_normal(p, one_d):
-    """Ensures asls weighting works as intented for a normal baseline."""
+    """Ensures asls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -201,7 +201,7 @@ def test_asls_normal(p, one_d):
 @pytest.mark.parametrize('p', (0.01, 0.99))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_asls_all_above(p, one_d):
-    """Ensures asls weighting works as intented for a baseline with all points above the data."""
+    """Ensures asls weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -217,7 +217,7 @@ def test_asls_all_above(p, one_d):
 @pytest.mark.parametrize('p', (0.01, 0.99))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_asls_all_below(p, one_d):
-    """Ensures asls weighting works as intented for a baseline with all points below the data."""
+    """Ensures asls weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:
@@ -233,7 +233,7 @@ def test_asls_all_below(p, one_d):
 @pytest.mark.parametrize('p', (0.01, 0.99))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_iasls_normal(p, one_d):
-    """Ensures iasls weighting works as intented for a normal baseline."""
+    """Ensures iasls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -256,7 +256,7 @@ def test_iasls_normal(p, one_d):
 @pytest.mark.parametrize('p', (0.01, 0.99))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_iasls_all_above(p, one_d):
-    """Ensures iasls weighting works as intented for a baseline with all points above the data."""
+    """Ensures iasls weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -272,7 +272,7 @@ def test_iasls_all_above(p, one_d):
 @pytest.mark.parametrize('p', (0.01, 0.99))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_iasls_all_below(p, one_d):
-    """Ensures iasls weighting works as intented for a baseline with all points below the data."""
+    """Ensures iasls weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:
@@ -302,7 +302,7 @@ def expected_airpls(y, baseline, iteration, normalize_weights):
         instead of 0.
     normalize_weights : bool
         If True, will normalize the computed weights between 0 and 1 to improve
-        the numerical stabilty. Set to False to use the original implementation, which
+        the numerical stability. Set to False to use the original implementation, which
         sets weights for all negative residuals to be greater than 1.
 
     Returns
@@ -338,7 +338,7 @@ def expected_airpls(y, baseline, iteration, normalize_weights):
 @pytest.mark.parametrize('one_d', (True, False))
 @pytest.mark.parametrize('normalize', (True, False))
 def test_airpls_normal(iteration, one_d, normalize):
-    """Ensures airpls weighting works as intented for a normal baseline."""
+    """Ensures airpls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -371,7 +371,7 @@ def test_airpls_normal(iteration, one_d, normalize):
 @pytest.mark.parametrize('one_d', (True, False))
 @pytest.mark.parametrize('normalize', (True, False))
 def test_airpls_all_above(iteration, one_d, normalize):
-    """Ensures airpls weighting works as intented for a baseline with all points above the data."""
+    """Ensures airpls weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -393,7 +393,7 @@ def test_airpls_all_above(iteration, one_d, normalize):
 @pytest.mark.parametrize('one_d', (True, False))
 @pytest.mark.parametrize('normalize', (True, False))
 def test_airpls_all_below(iteration, one_d, normalize):
-    """Ensures airpls weighting works as intented for a baseline with all points below the data."""
+    """Ensures airpls weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:
@@ -484,7 +484,7 @@ def expected_arpls(y, baseline):
 
 @pytest.mark.parametrize('one_d', (True, False))
 def test_arpls_normal(one_d):
-    """Ensures arpls weighting works as intented for a normal baseline."""
+    """Ensures arpls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -503,7 +503,7 @@ def test_arpls_normal(one_d):
 
 @pytest.mark.parametrize('one_d', (True, False))
 def test_arpls_all_above(one_d):
-    """Ensures arpls weighting works as intented for a baseline with all points above the data."""
+    """Ensures arpls weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -519,7 +519,7 @@ def test_arpls_all_above(one_d):
 
 @pytest.mark.parametrize('one_d', (True, False))
 def test_arpls_all_below(one_d):
-    """Ensures arpls weighting works as intented for a baseline with all points below the data."""
+    """Ensures arpls weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:
@@ -578,7 +578,7 @@ def test_arpls_overflow(one_d):
     else:
         assert_allclose(weights[overflow_index, overflow_index], 0.0, atol=1e-14)
 
-    # weights should still be the same as the nieve calculation regardless of exponential overflow
+    # weights should still be the same as the naive calculation regardless of exponential overflow
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
@@ -620,7 +620,7 @@ def expected_drpls(y, baseline, iteration):
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_drpls_normal(iteration, one_d):
-    """Ensures drpls weighting works as intented for a normal baseline."""
+    """Ensures drpls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -640,7 +640,7 @@ def test_drpls_normal(iteration, one_d):
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_drpls_all_above(iteration, one_d):
-    """Ensures drpls weighting works as intented for a baseline with all points above the data."""
+    """Ensures drpls weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -657,7 +657,7 @@ def test_drpls_all_above(iteration, one_d):
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_drpls_all_below(iteration, one_d):
-    """Ensures drpls weighting works as intented for a baseline with all points below the data."""
+    """Ensures drpls weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:
@@ -728,7 +728,7 @@ def expected_iarpls(y, baseline, iteration):
     std = np.std(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
     # the exponential term is used to change the shape of the weighting from a logistic curve
     # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
-    # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
+    # the maximum iteration to 100 still achieves this purpose while avoiding unnecessary
     # overflow for high iterations
     inner = (np.exp(iteration) / std) * (residual - 2 * std)
     weights = 0.5 * (1 - (inner / np.sqrt(1 + inner**2)))
@@ -738,7 +738,7 @@ def expected_iarpls(y, baseline, iteration):
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_iarpls_normal(iteration, one_d):
-    """Ensures iarpls weighting works as intented for a normal baseline."""
+    """Ensures iarpls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -758,7 +758,7 @@ def test_iarpls_normal(iteration, one_d):
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_iarpls_all_above(iteration, one_d):
-    """Ensures iarpls weighting works as intented for a baseline with all points above the data."""
+    """Ensures iarpls weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -775,7 +775,7 @@ def test_iarpls_all_above(iteration, one_d):
 @pytest.mark.parametrize('iteration', (1, 10))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_iarpls_all_below(iteration, one_d):
-    """Ensures iarpls weighting works as intented for a baseline with all points below the data."""
+    """Ensures iarpls weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:
@@ -859,7 +859,7 @@ def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
 @pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
 @pytest.mark.parametrize('alternate_weighting', (True, False))
 def test_aspls_normal(one_d, asymmetric_coef, alternate_weighting):
-    """Ensures aspls weighting works as intented for a normal baseline."""
+    """Ensures aspls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -885,7 +885,7 @@ def test_aspls_normal(one_d, asymmetric_coef, alternate_weighting):
 @pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
 @pytest.mark.parametrize('alternate_weighting', (True, False))
 def test_aspls_all_above(one_d, asymmetric_coef, alternate_weighting):
-    """Ensures aspls weighting works as intented for a baseline with all points above the data."""
+    """Ensures aspls weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -909,7 +909,7 @@ def test_aspls_all_above(one_d, asymmetric_coef, alternate_weighting):
 @pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
 @pytest.mark.parametrize('alternate_weighting', (True, False))
 def test_aspls_all_below(one_d, asymmetric_coef, alternate_weighting):
-    """Ensures aspls weighting works as intented for a baseline with all points below the data."""
+    """Ensures aspls weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:
@@ -975,7 +975,7 @@ def test_aspls_overflow(one_d, asymmetric_coef, alternate_weighting):
     else:
         assert_allclose(weights[overflow_index, overflow_index], 0.0, atol=1e-14)
 
-    # weights should still be the same as the nieve calculation regardless of exponential overflow
+    # weights should still be the same as the naive calculation regardless of exponential overflow
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert_allclose(residual, expected_residual, rtol=1e-12, atol=1e-12)
 
@@ -1024,7 +1024,7 @@ def expected_psalsa(y, baseline, p, k, shape_y):
 @pytest.mark.parametrize('k', (0.5, 2))
 @pytest.mark.parametrize('p', (0.01, 0.99))
 def test_psalsa_normal(one_d, k, p):
-    """Ensures psalsa weighting works as intented for a normal baseline."""
+    """Ensures psalsa weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -1044,7 +1044,7 @@ def test_psalsa_normal(one_d, k, p):
 @pytest.mark.parametrize('k', (0.5, 2))
 @pytest.mark.parametrize('p', (0.01, 0.99))
 def test_psalsa_all_above(one_d, k, p):
-    """Ensures psalsa weighting works as intented for a baseline with all points above the data."""
+    """Ensures psalsa weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -1062,7 +1062,7 @@ def test_psalsa_all_above(one_d, k, p):
 @pytest.mark.parametrize('k', (0.5, 2))
 @pytest.mark.parametrize('p', (0.01, 0.99))
 def test_psalsa_all_below(one_d, k, p):
-    """Ensures psalsa weighting works as intented for a baseline with all points below the data."""
+    """Ensures psalsa weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:
@@ -1100,7 +1100,7 @@ def test_psalsa_overflow(one_d, k, p):
     # sanity check to ensure overflow actually should occur
     with pytest.warns(RuntimeWarning):
         expected_weights = expected_psalsa(y_data, baseline, p, k, y_data.shape)
-    # weights in nieve approach should still be finite since overflow only occurs in regions
+    # weights in naive approach should still be finite since overflow only occurs in regions
     # where the exponential value is not actually used
     assert np.isfinite(expected_weights).all()
 
@@ -1114,7 +1114,7 @@ def test_psalsa_overflow(one_d, k, p):
         assert_allclose(weights[overflow_index], 1 - p, atol=1e-14)
     else:
         assert_allclose(weights[overflow_index, overflow_index], 1 - p, atol=1e-14)
-    # weights should still be the same as the nieve calculation regardless of exponential overflow
+    # weights should still be the same as the naive calculation regardless of exponential overflow
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
@@ -1170,7 +1170,7 @@ def expected_derpsalsa(y, baseline, p, k, shape_y, partial_weights):
 @pytest.mark.parametrize('k', (0.5, 2))
 @pytest.mark.parametrize('p', (0.01, 0.99))
 def test_derpsalsa_normal(k, p):
-    """Ensures derpsalsa weighting works as intented for a normal baseline."""
+    """Ensures derpsalsa weighting works as intended for a normal baseline."""
     y_data, baseline = baseline_1d_normal()
 
     diff_y_1 = np.gradient(y_data)
@@ -1195,7 +1195,7 @@ def test_derpsalsa_normal(k, p):
 @pytest.mark.parametrize('k', (0.5, 2))
 @pytest.mark.parametrize('p', (0.01, 0.99))
 def test_derpsalsa_all_above(k, p):
-    """Ensures derpsalsa weighting works as intented for a baseline completely above the data."""
+    """Ensures derpsalsa weighting works as intended for a baseline completely above the data."""
     y_data, baseline = baseline_1d_all_above()
 
     diff_y_1 = np.gradient(y_data)
@@ -1218,7 +1218,7 @@ def test_derpsalsa_all_above(k, p):
 @pytest.mark.parametrize('k', (0.5, 2))
 @pytest.mark.parametrize('p', (0.01, 0.99))
 def test_derpsalsa_all_below(k, p):
-    """Ensures derpsalsa weighting works as intented for a baseline completely below the data."""
+    """Ensures derpsalsa weighting works as intended for a baseline completely below the data."""
     y_data, baseline = baseline_1d_all_below()
 
     diff_y_1 = np.gradient(y_data)
@@ -1267,7 +1267,7 @@ def expected_brpls(y, baseline, beta):
     """
     residual = y - baseline
     # exclude residual == 0 to ensure mean and sigma are both nonzero since both
-    # are used within the demoninator
+    # are used within the denominator
     neg_residual = residual[residual < 0]
     pos_residual = residual[residual > 0]
 
@@ -1289,7 +1289,7 @@ def expected_brpls(y, baseline, beta):
 @pytest.mark.parametrize('one_d', (True, False))
 @pytest.mark.parametrize('beta', (0.1, 0.5, 0.9))
 def test_brpls_normal(one_d, beta):
-    """Ensures brpls weighting works as intented for a normal baseline."""
+    """Ensures brpls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -1308,7 +1308,7 @@ def test_brpls_normal(one_d, beta):
 
 @pytest.mark.parametrize('one_d', (True, False))
 def test_brpls_all_above(one_d):
-    """Ensures brpls weighting works as intented for a baseline with all points above the data."""
+    """Ensures brpls weighting works as intended for a baseline with all points above the data."""
     beta = 0.5
     if one_d:
         y_data, baseline = baseline_1d_all_above()
@@ -1327,7 +1327,7 @@ def test_brpls_all_above(one_d):
 
 @pytest.mark.parametrize('one_d', (True, False))
 def test_brpls_all_below(one_d):
-    """Ensures brpls weighting works as intented for a baseline with all points below the data."""
+    """Ensures brpls weighting works as intended for a baseline with all points below the data."""
     beta = 0.5
     if one_d:
         y_data, baseline = baseline_1d_all_below()
@@ -1409,7 +1409,7 @@ def test_brpls_overflow(one_d, beta, positive, dtype):
             expected_weights[overflow_index, overflow_index], expected_value, atol=1e-14
         )
 
-    # weights should still be the same as the nieve calculation regardless
+    # weights should still be the same as the naive calculation regardless
     # of overflow; have to use relatively high rtol to cover float32 cases
     assert_allclose(weights, expected_weights, rtol=5e-6, atol=1e-10)
 
@@ -1507,7 +1507,7 @@ def expected_lsrpls(y, baseline, iteration, alternate_weighting):
 @pytest.mark.parametrize('one_d', (True, False))
 @pytest.mark.parametrize('alternate_weighting', (True, False))
 def test_lsrpls_normal(iteration, one_d, alternate_weighting):
-    """Ensures lsrpls weighting works as intented for a normal baseline."""
+    """Ensures lsrpls weighting works as intended for a normal baseline."""
     if one_d:
         y_data, baseline = baseline_1d_normal()
     else:
@@ -1532,7 +1532,7 @@ def test_lsrpls_normal(iteration, one_d, alternate_weighting):
 @pytest.mark.parametrize('one_d', (True, False))
 @pytest.mark.parametrize('alternate_weighting', (True, False))
 def test_lsrpls_all_above(iteration, one_d, alternate_weighting):
-    """Ensures lsrpls weighting works as intented for a baseline with all points above the data."""
+    """Ensures lsrpls weighting works as intended for a baseline with all points above the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_above()
     else:
@@ -1550,7 +1550,7 @@ def test_lsrpls_all_above(iteration, one_d, alternate_weighting):
 @pytest.mark.parametrize('one_d', (True, False))
 @pytest.mark.parametrize('alternate_weighting', (True, False))
 def test_lsrpls_all_below(iteration, one_d, alternate_weighting):
-    """Ensures lsrpls weighting works as intented for a baseline with all points below the data."""
+    """Ensures lsrpls weighting works as intended for a baseline with all points below the data."""
     if one_d:
         y_data, baseline = baseline_1d_all_below()
     else:

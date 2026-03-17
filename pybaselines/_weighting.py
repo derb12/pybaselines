@@ -94,7 +94,7 @@ def _airpls(y, baseline, iteration, normalize_weights=False):
         instead of 0.
     normalize_weights : bool, optional
         If True, will normalize the computed weights between 0 and 1 to improve
-        the numerical stabilty. Set to False (default) to use the original implementation, which
+        the numerical stability. Set to False (default) to use the original implementation, which
         sets weights for all negative residuals to be greater than 1.
 
     Returns
@@ -137,7 +137,7 @@ def _airpls(y, baseline, iteration, normalize_weights=False):
 
     # the exponential of the iteration term is used to make weights more binary at higher
     # iterations (ie. the largest residuals control the weighting); setting the maximum
-    # iteration to 50 still acheives this purpose while avoiding unnecessarily high
+    # iteration to 50 still achieves this purpose while avoiding unnecessarily high
     # weights at high iterations which causes numerical instability
     # TODO a better way to address the high weighting would be to normalize the weights by
     # dividing by the max weight since the original airpls weighting sets all weights for
@@ -165,7 +165,7 @@ def _safe_std_mean(array, **kwargs):
     """
     Calculates the standard deviation and mean and protects against nan and 0.
 
-    Used to prevent propogating nan or dividing by 0 when using the standard deviation.
+    Used to prevent propagating nan or dividing by 0 when using the standard deviation.
 
     Parameters
     ----------
@@ -296,7 +296,7 @@ def _drpls(y, baseline, iteration):
     std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since sampling subset
     # the exponential term is used to change the shape of the weighting from a logistic curve
     # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
-    # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
+    # the maximum iteration to 100 still achieves this purpose while avoiding unnecessary
     # overflow for high iterations
     inner = (np.exp(min(iteration, 100)) / std) * (residual - (2 * std - mean))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
@@ -348,7 +348,7 @@ def _iarpls(y, baseline, iteration):
     std = _safe_std_mean(neg_residual, ddof=1)[0]  # use dof=1 since only sampling a subset
     # the exponential term is used to change the shape of the weighting from a logistic curve
     # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
-    # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
+    # the maximum iteration to 100 still achieves this purpose while avoiding unnecessary
     # overflow for high iterations
     inner = (np.exp(min(iteration, 100)) / std) * (residual - 2 * std)
     weights = 0.5 * (1 - (inner / np.sqrt(1 + inner**2)))
@@ -442,7 +442,7 @@ def _psalsa(y, baseline, p, k, shape_y):
     """
     residual = y - baseline
     # only use positive residual in exp to avoid exponential overflow warnings
-    # and accidently creating a weight of nan (inf * 0 = nan)
+    # and accidentally creating a weight of nan (inf * 0 = nan)
     weights = np.full(shape_y, 1 - p, dtype=float)
     mask = residual > 0
     weights[mask] = p * np.exp(-residual[mask] / k)
@@ -578,7 +578,7 @@ def _brpls(y, baseline, beta):
     """
     residual = y - baseline
     # exclude residual == 0 to ensure mean and sigma are both nonzero since both
-    # are used within the demoninator
+    # are used within the denominator
     neg_residual = residual[residual < 0].ravel()  # ravel so x.dot(x) == sum(x**2) for 2D too
     pos_residual = residual[residual > 0]
     if neg_residual.size < 2 or pos_residual.size < 2:
@@ -686,7 +686,7 @@ def _lsrpls(y, baseline, iteration, alternate_weighting=False):
     std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since only sampling a subset
     # the exponential term is used to change the shape of the weighting from a logistic curve
     # at low iterations to a step curve at higher iterations (figure 1 in the paper); setting
-    # the maximum iteration to 100 still acheives this purpose while avoiding unnecesarry
+    # the maximum iteration to 100 still achieves this purpose while avoiding unnecessary
     # overflow for high iterations
     inner = (10**(min(iteration, 100)) / std) * (residual - (2 * std - mean))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))

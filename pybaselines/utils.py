@@ -574,7 +574,7 @@ def _interp_inplace(x, y, y_start, y_end):
         The x-values for interpolation. All values are assumed to be valid.
     y : numpy.ndarray
         The y-values. The two endpoints, y[0] and y[-1] are assumed to be valid,
-        and all values inbetween (ie. y[1:-1]) will be replaced by interpolation.
+        and all values in-between (ie. y[1:-1]) will be replaced by interpolation.
     y_start : float, optional
         The initial y-value for interpolation.
     y_end : float, optional
@@ -593,7 +593,7 @@ def _interp_inplace(x, y, y_start, y_end):
 
 def _poly_transform_matrix(num_coefficients, original_domain):
     """
-    Creates the matrix that transforms polynomial coefficents from one domain to another.
+    Creates the matrix that transforms polynomial coefficients from one domain to another.
 
     The polynomial coefficient array `d` computed with `v` can be transformed to the
     coefficient array `c` computed with `x` where ``v = scale * x + offset`` by applying
@@ -845,7 +845,7 @@ def estimate_window(data, increment=1, max_hits=3, window_tol=1e-6,
     return output
 
 
-# maintain optimize_window for backwards compatibilty; may or may not deprecate
+# maintain optimize_window for backwards compatibility; may or may not deprecate
 # since it is very little maintenance burden to keep the name
 def optimize_window(*args, **kwargs):
     """

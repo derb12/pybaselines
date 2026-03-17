@@ -339,7 +339,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
         self.lam = _check_lam(lam, two_d=True)
 
         # initially need num_bases to point to the data shape; maybe set a second
-        # attribute insteaad
+        # attribute instead
         values_rows, vectors_rows = self._calc_eigenvalues(
             self._num_points[0], self.diff_order[0], self._num_bases[0]
         )
@@ -441,7 +441,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
         elif num_eigens > 50:
             warnings.warn(
                 ('For 2D baseline correction, typically only 5-20 eigenvalues are required to '
-                 'fully approximate the baseline, and higher values will cause signifcant '
+                 'fully approximate the baseline, and higher values will cause significant '
                  'slowdown'), ParameterWarning, stacklevel=2
             )
 

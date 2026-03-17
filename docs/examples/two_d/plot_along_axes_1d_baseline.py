@@ -19,7 +19,7 @@ from pybaselines.utils import gaussian
 
 
 def plot_contour_with_projection(X, Z, data):
-    """Plots the countour plot and 3d projection."""
+    """Plots the contour plot and 3d projection."""
     fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
     ax_1 = fig.add_subplot(1, 2, 1)
     ax_1.contourf(X, Z, data, cmap='coolwarm')
@@ -88,7 +88,7 @@ baseline, params = baseline_fitter.individual_axes(
 plot_1d(wavenumber, y - baseline)
 
 # %%
-# Finally, looking at the two dimensional representation of the data again, the dependance
+# Finally, looking at the two dimensional representation of the data again, the dependence
 # of the intensity for each peak with temperature is more easily seen.
 plot_contour_with_projection(X, T, (y - baseline).T)
 

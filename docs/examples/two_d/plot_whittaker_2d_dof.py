@@ -35,7 +35,7 @@ def mean_squared_error(fit_baseline, real_baseline):
 
 
 def plot_contour_with_projection(X, Z, data, title=''):
-    """Plots the countour plot and 3d projection."""
+    """Plots the contour plot and 3d projection."""
     fig = plt.figure(layout='constrained', figsize=plt.figaspect(0.5))
     fig.suptitle(title)
     ax_1 = fig.add_subplot(1, 2, 1, projection='3d')

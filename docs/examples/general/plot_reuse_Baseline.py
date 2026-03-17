@@ -3,7 +3,7 @@
 Fitting Multiple Datasets
 -------------------------
 
-When fitting multiple datasets that all share the same independant variable, pybaselines
+When fitting multiple datasets that all share the same independent variable, pybaselines
 allows saving time by reusing the same :class:`~.Baseline` object to allow only
 performing some of the computationally heavy setup only once. For example,
 :doc:`polynomial methods <../../../algorithms/algorithms_1d/polynomial>` will only compute the
