@@ -91,6 +91,7 @@ doctest = [
 ]
 lint = [
     "ruff",
+    "typos>=1.16.11",  # first version to work with pyproject.toml
 ]
 docs = [
     "sphinx",
@@ -197,3 +198,12 @@ replace = "__version__ = '{new_version}.post1.dev0'"
 filename = "CITATION.cff"
 search = "version: {current_version}"
 replace = "version: {new_version}"
+
+
+# settings for "typos" spell checker IDE plugin and CI job (https://github.com/crate-ci/typos)
+[tool.typos.default.extend-words]
+arange = "arange"  # numpy.arange; default ignored for .py files, but need to cover .rst too
+gaus = "gaus"  # abbreviation for Gaussian
+mor = "mor"  # abbreviation for morphology
+als = "als"  # abbreviation for asymmetric least squares
+nd = "nd"  # abbreviation for N-dimensional

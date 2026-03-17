@@ -135,8 +135,18 @@ jobs:
       run: ruff check .
 
     - name: Doctest
+      id: doctest
       # Run this step if the linting (and only the linting) failed; if a step before linting
       # failed, its outcome would be "skipped", so just need to check for lint's failure. If this
       # passes and linting fails, the job will still report failing, which is the desired outcome
       if: success() || steps.lint.outcome == 'failure'
       run: pytest pybaselines --doctest-modules
+
+    # Uses https://github.com/crate-ci/typos to spell check; note that it can be used as
+    # a GitHub action instead of downloading from PyPI and running, but the action only gives
+    # a pass/fail output, while running the actual program will output where each typo is so
+    # that it is much easier to correct
+    - name: Spell Check
+      # same logic as for doctesting, always want to run this if possible
+      if: success() || steps.lint.outcome == 'failure' || steps.doctest.outcome == 'failure'
+      run: typos
