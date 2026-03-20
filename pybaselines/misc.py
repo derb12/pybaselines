@@ -75,7 +75,7 @@ from scipy.sparse.linalg import splu, spsolve
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import _HAS_NUMBA, dia_object, jit
-from ._validation import _check_array, _check_lam
+from ._validation import _check_array, _check_lam, _check_scalar
 from .utils import _MIN_FLOAT, relative_difference
 
 
@@ -151,7 +151,7 @@ class _Misc(_Algorithm):
     @_Algorithm._register(sort_keys=('signal',))
     def beads(self, data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry=6.0,
               filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
-              eps_1=1e-6, fit_parabola=True, smooth_half_window=None, alpha=1.):
+              eps_1=1e-6, fit_parabola=True, smooth_half_window=None, alpha=1., edge_len=3):
         r"""
         Baseline estimation and denoising with sparsity (BEADS).
 
@@ -353,8 +353,10 @@ class _Misc(_Algorithm):
             raise ValueError('asymmetry must be greater than 0')
 
         if fit_parabola:
-            parabola = _parabola(y0)
+            parabola = _parabola(y0, edge_len=edge_len)
             y = y0 - parabola
+            # in case edges of y0 were outliers, need to also update the fit data
+            y[0] = y[-1] = 0  # TODO later just handle this within _parabola so it can be tested and validated
         else:
             y = y0
         # ensure that 0 + eps_0[1] > 0 to prevent numerical issues
@@ -637,7 +639,7 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
     return output
 
 
-def _parabola(data):
+def _parabola(data, edge_len=3):
     """
     Makes a parabola that fits the input data at the two endpoints.
 
@@ -672,11 +674,33 @@ def _parabola(data):
     # fit is usually not as good since beads expects the endpoints to be 0; may allow
     # setting mean_width as a parameter later
     A = y.min()
-    y1 = y[0] - A
-    y2 = y[-1] - A
     # mean_width = 5
     # y1 = y[:mean_width].mean() - A
     # y2 = y[-mean_width:].mean() - A
+
+    left_y = y[0]
+    right_y = y[-1]
+
+    left_len, right_len = _check_scalar(edge_len, desired_length=2, fill_scalar=True)[0]
+    # add 1 so that indexing includes the expected number of points
+    left_len = int(left_len) + 1 if left_len is not None else 0
+    right_len = int(right_len) + 1 if right_len is not None else 0
+    # TODO make the median absolute filtering into a separate function
+    # idea here is to check wether the endpoint would be classified as an outlier if
+    # added to its surrounding values
+    if left_len > 1:
+        left_med = np.median(y[:left_len])
+        left_mad = np.median(abs(y[:left_len] - left_med))
+        if abs(left_y - left_med) > left_mad:
+            left_y = left_med
+    if right_len > 1:
+        right_med = np.median(y[-right_len:])
+        right_mad = np.median(abs(y[-right_len:] - right_med))
+        if abs(right_y - right_med) > right_mad:
+            right_y = right_med
+
+    y1 = left_y - A
+    y2 = right_y - A
 
     # if parabola == p(x) = A + B * x + C * x**2, find coefficients such that
     # p(x[0]==x1) = y[0] - min(y)==y1, p(x[-1]==x2) = y[-1] - min(y)==y2, and p(x_middle==0) = 0:
