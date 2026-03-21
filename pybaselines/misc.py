@@ -75,7 +75,7 @@ from scipy.sparse.linalg import splu, spsolve
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._compat import _HAS_NUMBA, dia_object, jit
-from ._validation import _check_array, _check_lam
+from ._validation import _check_array, _check_lam, _check_scalar
 from .utils import _MIN_FLOAT, relative_difference
 
 
@@ -151,7 +151,7 @@ class _Misc(_Algorithm):
     @_Algorithm._register(sort_keys=('signal',))
     def beads(self, data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry=6.0,
               filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
-              eps_1=1e-6, fit_parabola=True, smooth_half_window=None, alpha=1.):
+              eps_1=1e-6, fit_parabola=True, smooth_half_window=None, alpha=1., parabola_len=3):
         r"""
         Baseline estimation and denoising with sparsity (BEADS).
 
@@ -247,6 +247,9 @@ class _Misc(_Algorithm):
             If `lam_0`, `lam_1`, or `lam_2` are None, this value is used to calculate them
             using the L1 norm of the zeroth, first, or second derivative of `data`, respectively.
             See notes below for more details. Must be positive. Default is 1.
+        parabola_len : int, optional
+            Size of the window used, at each ends of the data, to prevent issues in `_parabola`
+            when the first and/or last point is an outlier. Default is 3.
 
             .. versionadded:: 1.3.0
 
@@ -353,7 +356,7 @@ class _Misc(_Algorithm):
             raise ValueError('asymmetry must be greater than 0')
 
         if fit_parabola:
-            parabola = _parabola(y0)
+            parabola = _parabola(y0, parabola_len=parabola_len)
             y = y0 - parabola
         else:
             y = y0
@@ -637,7 +640,7 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
     return output
 
 
-def _parabola(data):
+def _parabola(data, parabola_len=3):
     """
     Makes a parabola that fits the input data at the two endpoints.
 
@@ -648,6 +651,9 @@ def _parabola(data):
     ----------
     data : array-like, shape (N,)
         The data values.
+    parabola_len : int, optional
+        Size of the window used, at each ends of the data, to prevent issues when the
+        first and/or last points is an outlier. Default is 3.
 
     Returns
     -------
@@ -672,11 +678,33 @@ def _parabola(data):
     # fit is usually not as good since beads expects the endpoints to be 0; may allow
     # setting mean_width as a parameter later
     A = y.min()
-    y1 = y[0] - A
-    y2 = y[-1] - A
     # mean_width = 5
     # y1 = y[:mean_width].mean() - A
     # y2 = y[-mean_width:].mean() - A
+
+    left_y = y[0]
+    right_y = y[-1]
+
+    left_len, right_len = _check_scalar(parabola_len, desired_length=2, fill_scalar=True)[0]
+    # add 1 so that indexing includes the expected number of points
+    left_len = int(left_len) + 1 if left_len is not None else 0
+    right_len = int(right_len) + 1 if right_len is not None else 0
+    # TODO make the median absolute filtering into a separate function
+    # idea here is to check whether the endpoint would be classified as an outlier if
+    # added to its surrounding values
+    if left_len > 1:
+        left_med = np.median(y[:left_len])
+        left_mad = np.median(abs(y[:left_len] - left_med))
+        if abs(left_y - left_med) > 2 * left_mad / 0.6745:
+            left_y = left_med
+    if right_len > 1:
+        right_med = np.median(y[-right_len:])
+        right_mad = np.median(abs(y[-right_len:] - right_med))
+        if abs(right_y - right_med) > 2 * right_mad / 0.6745:
+            right_y = right_med
+
+    y1 = left_y - A
+    y2 = right_y - A
 
     # if parabola == p(x) = A + B * x + C * x**2, find coefficients such that
     # p(x[0]==x1) = y[0] - min(y)==y1, p(x[-1]==x2) = y[-1] - min(y)==y2, and p(x_middle==0) = 0:
@@ -1347,7 +1375,8 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
 @_misc_wrapper
 def beads(data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry=6.0,
           filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
-          eps_1=1e-6, fit_parabola=True, smooth_half_window=None, x_data=None, alpha=1.):
+          eps_1=1e-6, fit_parabola=True, smooth_half_window=None, x_data=None,
+          alpha=1., parabola_len=3):
     r"""
     Baseline estimation and denoising with sparsity (BEADS).
 
@@ -1416,6 +1445,9 @@ def beads(data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry
         If `lam_0`, `lam_1`, or `lam_2` are None, this value is used to calculate them
         using the L1 norm of the zeroth, first, or second derivative of `data`, respectively.
         See notes below for more details. Must be positive. Default is 1.
+    parabola_len : int, optional
+        Size of the window used, at each ends of the data, to prevent issues in `_parabola`
+        when the first and/or last point is an outlier. Default is 3.
 
         .. versionadded:: 1.3.0
 
