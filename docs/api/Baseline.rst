@@ -73,7 +73,6 @@ Spline Algorithms
 
    Baseline.mixture_model
    Baseline.irsqr
-   Baseline.corner_cutting
    Baseline.pspline_asls
    Baseline.pspline_iasls
    Baseline.pspline_airpls
@@ -115,6 +114,7 @@ Baseline/Peak Classification Algorithms
    Baseline.cwt_br
    Baseline.fabc
    Baseline.rubberband
+   Baseline.corner_cutting
 
 Optimizing Algorithms
 ---------------------

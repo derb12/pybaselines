@@ -433,3 +433,31 @@ slightly reduced, as seen below.
             y, segments=segments, lam=100, smooth_half_window=smooth_half_window
         )
         ax.plot(baseline, 'g--')
+
+
+corner_cutting (Corner-Cutting Method)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline.corner_cutting` iteratively removes corner points and then creates
+a quadratic Bezier spline from the remaining points. Continuity between
+the individual Bezier curves is maintained by adding control points halfway
+between all but the first and last non-corner points.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    figure, axes, handles = create_plots(data, baselines)
+    for i, (ax, y) in enumerate(zip(axes, data)):
+        if i == 1:
+            max_iter = 12
+        elif i == 3:
+            max_iter = 11
+        else:
+            max_iter = 100
+
+        baseline, params = baseline_fitter.corner_cutting(y, max_iter=max_iter)
+        ax.plot(baseline, 'g--')

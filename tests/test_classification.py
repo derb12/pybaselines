@@ -6,6 +6,8 @@ Created on July 3, 2021
 
 """
 
+import inspect
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
@@ -298,6 +300,9 @@ class ClassificationTester(BaseTester, InputWeightsMixin):
     @ensure_deprecation(1, 4)
     def test_kwargs_deprecation(self):
         """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
+        if 'kwargs' not in inspect.signature(self.class_func).parameters:
+            return  # skip for methods without **kwargs
+
         with pytest.warns(DeprecationWarning):
             output, _ = self.class_func(self.y, **self.kwargs, mode='edge')
         output_2, _ = self.class_func(self.y, **self.kwargs, pad_kwargs={'mode': 'edge'})
@@ -581,3 +586,22 @@ class TestRubberband(ClassificationTester):
         if lam > 0:
             additional_keys.extend(['weights', 'result'])
         super().test_output(additional_keys=additional_keys, lam=lam)
+
+
+class TestCornerCutting(ClassificationTester):
+    """
+    Class for testing corner_cutting baseline.
+
+    Has lower tolerance values for some tests since it is not currently perfectly repeatable.
+
+    """
+
+    func_name = 'corner_cutting'
+
+    def test_no_x(self):
+        """Ensures that function output is similar when no x is input."""
+        super().test_no_x(rtol=1e-3)
+
+    def test_list_input(self):
+        """Ensures that function works the same for both array and list inputs."""
+        super().test_list_input(rtol=1e-5)

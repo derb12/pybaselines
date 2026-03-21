@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines import _spline_utils, morphological, spline, Baseline
+from pybaselines import _spline_utils, classification, morphological, spline, Baseline
 
 from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
 
@@ -167,24 +167,21 @@ class TestIRSQR(IterativeSplineTester):
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
 
-class TestCornerCutting(SplineTester):
-    """
-    Class for testing corner_cutting baseline.
+@ensure_deprecation(1, 5)
+def test_corner_cutting_move(data_fixture):
+    """Ensures a deprecation warning is emitted when `spline.corner_cutting` is called."""
+    x, y = data_fixture
+    with pytest.warns(
+        DeprecationWarning, match='"corner_cutting" was moved to pybaselines.classification'
+    ):
+        output, params = spline.corner_cutting(y, x)
 
-    Has lower tolerance values for some tests since it is not currently perfectly repeatable.
+    classification_output, classification_params = classification.corner_cutting(y, x)
 
-    """
-
-    func_name = 'corner_cutting'
-    requires_unique_x = True
-
-    def test_no_x(self):
-        """Ensures that function output is similar when no x is input."""
-        super().test_no_x(rtol=1e-3)
-
-    def test_list_input(self):
-        """Ensures that function works the same for both array and list inputs."""
-        super().test_list_input(rtol=1e-5)
+    assert_allclose(output, classification_output, rtol=1e-10, atol=1e-12)
+    for k, v in params.items():
+        assert k in classification_params
+        assert_allclose(v, classification_params[k], rtol=1e-10, atol=1e-12)
 
 
 class TestPsplineAsLS(IterativeSplineTester, WhittakerComparisonMixin):
