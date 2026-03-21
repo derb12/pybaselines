@@ -16,6 +16,7 @@ import pytest
 
 import pybaselines
 from pybaselines import Baseline, Baseline2D
+from pybaselines.two_d._algorithm_setup import _Algorithm2D
 
 
 def ensure_deprecation(deprecation_major, deprecation_minor):
@@ -123,6 +124,53 @@ def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_
 
     """
     return height * gaussian(x, 1, center_x, sigma_x) * gaussian(z, 1, center_z, sigma_z)
+
+
+class _Poly2D(_Algorithm2D):
+    """A class that provides a 2D polynomial method for testing purposes."""
+
+    @_Algorithm2D._register(reshape_baseline=True)
+    def poly(self, data, poly_order=2, weights=None, max_cross=None):
+        """
+        Computes a polynomial fit to the data.
+
+        The `poly` method was deprecated in pybaselines version 1.3.0, but this method is
+        retained for testing purposes since NumPy doesn't provide a straightforward 2D
+        analogue of `np.polynomial.Polynomial.fit`.
+
+        Parameters
+        ----------
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
+        weights : array-like, shape (M, N), optional
+            The weighting array. If None (default), then will be an array with
+            shape equal to (M, N) and all values set to 1.
+        max_cross : int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (M, N)
+            The calculated baseline.
+        dict
+            An empty dictionary so that `_Algorithm2D._register` does not throw an error. No
+            parameters are of concern for this testing class.
+
+        """
+        y, weight_array, pseudo_inverse = self._setup_polynomial(
+            data, weights, poly_order, calc_vander=True, calc_pinv=True, max_cross=max_cross
+        )
+        sqrt_w = np.sqrt(weight_array)
+
+        coef = pseudo_inverse @ (sqrt_w * y)
+        baseline = self._polynomial.vandermonde @ coef
+
+        return baseline, {}
 
 
 def get_data(include_noise=True, num_points=1000, two_d=False):

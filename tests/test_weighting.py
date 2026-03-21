@@ -6,9 +6,9 @@ from numpy.testing import assert_allclose
 import pytest
 from scipy.special import erf
 
-from pybaselines import _weighting, utils, Baseline2D
+from pybaselines import _weighting, utils
 
-from .base_tests import get_data, get_data2d
+from .base_tests import get_data, get_data2d, _Poly2D
 
 
 def baseline_1d_normal():
@@ -49,9 +49,7 @@ def baseline_2d_normal():
 
     """
     x_data, z_data, y_data = get_data2d()
-    baseline = Baseline2D(x_data, z_data, check_finite=False, assume_sorted=True).poly(
-        y_data, poly_order=1
-    )[0]
+    baseline = _Poly2D(x_data, z_data).poly(y_data, poly_order=1)[0]
     return y_data, baseline
 
 

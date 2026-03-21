@@ -309,7 +309,12 @@ class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
         poly_order = 2
         tol = 1e-3
 
-        poly_baseline = polynomial.poly(self.y, self.x, poly_order, weights=weights)[0]
+        # Numpy polynomials are defined as minimizing ``(w * (y - y_fit))^2``
+        # whereas pybaselines uses ``w * (y - y_fit)^2``, so use sqrt(weights) for the NumPy call
+        poly_baseline = np.polynomial.Polynomial.fit(
+            self.x, self.y, poly_order,
+            w=np.sqrt(weights) if weights is not None else None
+        )(self.x)
         penalized_poly_1 = self.class_func(
             self.y, poly_order, cost_function='s_huber', threshold=1e10, weights=weights
         )[0]

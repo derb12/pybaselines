@@ -15,7 +15,7 @@ import pytest
 from pybaselines.two_d import polynomial
 
 from ..base_tests import (
-    BasePolyTester2D, InputWeightsMixin, MaskingMixin, RecreationMixin, ensure_deprecation
+    BasePolyTester2D, InputWeightsMixin, MaskingMixin, RecreationMixin, ensure_deprecation, _Poly2D
 )
 from ..data import STATSMODELS_QUANTILES_2D
 
@@ -152,7 +152,7 @@ class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
         ----------
         .. [1] Mazet, V., et al. Background removal from spectra by designing and
                minimising a non-quadratic cost function. Chemometrics and Intelligent
-               Laboratory Systems, 2005, 76(2), 121–133.
+               Laboratory Systems, 2005, 76(2), 121-133.
 
         """
         if weight_enum == 0:
@@ -176,9 +176,7 @@ class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
         poly_order = 2
         tol = 1e-3
 
-        poly_baseline = polynomial._Polynomial(self.x, self.z).poly(
-            self.y, poly_order, weights=weights
-        )[0]
+        poly_baseline = _Poly2D(self.x, self.z).poly(self.y, poly_order, weights=weights)[0]
         penalized_poly_1 = self.class_func(
             self.y, poly_order, cost_function='s_huber',
             threshold=1e10, weights=weights

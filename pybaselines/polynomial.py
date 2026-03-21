@@ -134,7 +134,7 @@ class _Polynomial(_Algorithm):
         """
         warnings.warn(
             ('"poly" is deprecated and will be removed in version 1.5. Use '
-            '"numpy.polynomial.Polynomial.fit(x_data, data, poly_order, w=numpy.sqrt(weights))" '
+            '"numpy.polynomial.Polynomial.fit(x_data, data, poly_order, w=numpy.sqrt(weights))(x_data)" '  # noqa: E501
             'instead'), DeprecationWarning, stacklevel=3
         )
         y, weight_array, pseudo_inverse = self._setup_polynomial(
