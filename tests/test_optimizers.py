@@ -169,7 +169,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         'method',
         (
             'asls', 'iasls', 'airpls', 'mpls', 'arpls', 'drpls', 'iarpls', 'aspls', 'psalsa',
-            'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg', 'goldindec',
+            'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'quant_reg', 'goldindec',
             'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'dietrich', 'cwt_br', 'fabc',
             'pspline_asls', 'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
             'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa', 'rubberband',
@@ -584,7 +584,7 @@ class TestCustomBC(OptimizersTester):
     @pytest.mark.parametrize(
         'method',
         (
-            'poly', 'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'asls', 'airpls', 'arpls',
+            'modpoly', 'imodpoly', 'penalized_poly', 'loess', 'asls', 'airpls', 'arpls',
             'mpls', 'mor', 'imor', 'mixture_model', 'irsqr', 'corner_cutting', 'pspline_asls',
             'pspline_airpls', 'noise_median', 'snip', 'dietrich', 'std_distribution', 'fabc'
         )

@@ -135,6 +135,7 @@ class TestBaseline:
         cls.algorithm = None
 
     @ensure_deprecation(1, 5)  # remove the warnings filters after version 1.5
+    @pytest.mark.filterwarnings('ignore:"poly" is deprecated')
     @pytest.mark.filterwarnings('ignore:"pspline_mpls" is deprecated')
     @pytest.mark.filterwarnings('ignore:"interp_pts" is deprecated')
     @pytest.mark.parametrize('method_and_class', _ALL_CLASSES_AND_METHODS)

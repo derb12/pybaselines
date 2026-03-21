@@ -38,6 +38,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 
+import warnings
+
 import numpy as np
 
 from .. import _weighting
@@ -54,6 +56,9 @@ class _Polynomial(_Algorithm2D):
     def poly(self, data, poly_order=2, weights=None, return_coef=False, max_cross=None):
         """
         Computes a polynomial fit to the data.
+
+        .. deprecated:: 1.3.0
+            ``poly`` is deprecated and will be removed in version 1.5.0.
 
         Parameters
         ----------
@@ -96,6 +101,11 @@ class _Polynomial(_Algorithm2D):
         the data, which is not a correct representation of the baseline.
 
         """
+        warnings.warn(
+            '"poly" is deprecated and will be removed in version 1.5.', DeprecationWarning,
+            stacklevel=3
+        )
+
         y, weight_array, pseudo_inverse = self._setup_polynomial(
             data, weights, poly_order, calc_vander=True, calc_pinv=True, max_cross=max_cross
         )

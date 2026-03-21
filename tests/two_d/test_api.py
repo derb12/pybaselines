@@ -14,7 +14,7 @@ import pytest
 
 from pybaselines.two_d import api, morphological, optimizers, polynomial, smooth, spline, whittaker
 
-from ..base_tests import get_data2d, check_param_keys
+from ..base_tests import get_data2d, check_param_keys, ensure_deprecation
 
 
 _ALL_CLASSES = (
@@ -139,6 +139,8 @@ class TestBaseline2D:
         cls.y = None
         cls.algorithm = None
 
+    @ensure_deprecation(1, 5)  # remove the warnings filters after version 1.5
+    @pytest.mark.filterwarnings('ignore:"poly" is deprecated')
     @pytest.mark.parametrize('method_and_class', _ALL_CLASSES_AND_METHODS)
     def test_all_methods(self, method_and_class):
         """Ensures all available methods work the same when accessing through Baseline class."""

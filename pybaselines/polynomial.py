@@ -92,6 +92,10 @@ class _Polynomial(_Algorithm):
         """
         Computes a polynomial fit to the data.
 
+        .. deprecated:: 1.3.0
+            ``poly`` is deprecated and will be removed in version 1.5.0. Use
+            :meth:`numpy.polynomial.polynomial.Polynomial.fit` instead.
+
         Parameters
         ----------
         data : array-like, shape (N,)
@@ -128,6 +132,11 @@ class _Polynomial(_Algorithm):
         the data, which is not a correct representation of the baseline.
 
         """
+        warnings.warn(
+            ('"poly" is deprecated and will be removed in version 1.5. Use '
+            '"numpy.polynomial.Polynomial.fit(x_data, data, poly_order, w=numpy.sqrt(weights))" '
+            'instead'), DeprecationWarning, stacklevel=3
+        )
         y, weight_array, pseudo_inverse = self._setup_polynomial(
             data, weights, poly_order, calc_vander=True, calc_pinv=True
         )

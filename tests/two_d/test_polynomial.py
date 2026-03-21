@@ -14,7 +14,9 @@ import pytest
 
 from pybaselines.two_d import polynomial
 
-from ..base_tests import BasePolyTester2D, InputWeightsMixin, MaskingMixin, RecreationMixin
+from ..base_tests import (
+    BasePolyTester2D, InputWeightsMixin, MaskingMixin, RecreationMixin, ensure_deprecation
+)
 from ..data import STATSMODELS_QUANTILES_2D
 
 
@@ -42,10 +44,17 @@ class IterativePolynomialTester(PolynomialTester):
             assert params['tol_history'].size == max_iter + 1
 
 
+@pytest.mark.filterwarnings('ignore:"poly" is deprecated and will be removed in version 1.5.')
 class TestPoly(PolynomialTester, MaskingMixin):
     """Class for testing regular polynomial baseline."""
 
     func_name = 'poly'
+
+    @ensure_deprecation(1, 5)
+    def test_method_deprecation(self):
+        """Ensures the deprecation warning is emitted if this method is used."""
+        with pytest.warns(DeprecationWarning, match='"poly" is deprecated'):
+            self.class_func(data=self.y)
 
 
 class TestModPoly(IterativePolynomialTester, MaskingMixin):
