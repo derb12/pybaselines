@@ -55,11 +55,10 @@ Eigendecomposition
 By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.1017/asb.2025.10061>`_,
 the dimensionality of the system can be reduced by using eigendecomposition on each of the two
 penalty matrices, :math:`D_{d_r}^{\mathsf{T}} D_{d_r}` and :math:`D_{d_c}^{\mathsf{T}} D_{d_c}`. (Note that speeding up
-Whittaker smoothing using `factorization in 1D <https://doi.org/10.1016/j.csda.2006.11.038>`_ and using the
-`analytical eigenvalues in nD (great paper) <https://doi.org/10.1016/j.csda.2009.09.020>`_ are established
-methods, although they require using a fixed difference order, and, in the second case, of using
-different boundary conditions that unfortunately do not translate well from smoothing to baseline correction).
-The general eigendecomposition of the penalty matrix gives
+Whittaker smoothing using the
+`analytical eigenvalues in nD (great paper) <https://doi.org/10.1016/j.csda.2009.09.020>`_ is another established
+method, but requires using different boundary conditions that unfortunately do not translate well from
+smoothing to baseline correction). The general eigendecomposition of the penalty matrix gives
 
 .. math::
 
