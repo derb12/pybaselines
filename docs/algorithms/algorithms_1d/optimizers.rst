@@ -219,12 +219,12 @@ and can use any Whittaker-smoothing-based or spline method. The general idea is 
 multiple sets of data should be better able to estimate the overall baseline rather
 than individually fitting each set of data.
 
-There are two ways the collab_pls function can fit datasets. The dataset can be averaged
-and then fit once with the selected method, and then the output weights are used to
-individually fit each set of data. The other method individually fits each set of data,
-averages the weighting, and then uses the averaged weights to individually fit each set
-of data. The figure below shows the comparison of the baselines fit by the collab_pls
-algorithm versus the individual baselines from the mpls method.
+There are two ways the collab_pls function can fit datasets. In the first way, the dataset is averaged
+and fit once with the selected method, and then the output weights are used to
+individually fit each set of data. The other way individually fits each set of data,
+averages the output weights, and then uses the averaged weights to individually fit each set
+of data. The figure below shows the comparison of the baselines fit by the `collab_pls`
+algorithm versus the individual baselines from the :meth:`~.Baseline.mpls` method.
 
 .. plot::
    :align: center
