@@ -214,7 +214,7 @@ class _Whittaker(_Algorithm2D):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data.ravel())
-            weights = _weighting._asls(data, baseline.reshape(self._shape), p)
+            weights = _weighting._iasls(data, baseline.reshape(self._shape), p)
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
