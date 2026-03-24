@@ -42,8 +42,8 @@ import warnings
 
 import numpy as np
 
-from .. import _weighting
 from ..utils import _MIN_FLOAT, _convert_coef2d, relative_difference
+from .. import _nd, _weighting
 from ._algorithm_setup import _Algorithm2D
 
 

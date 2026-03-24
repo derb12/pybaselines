@@ -459,7 +459,7 @@ class _Algorithm:
         return y, weight_array, whittaker_system
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=True,
-                          calc_pinv=False, copy_weights=False):
+                          calc_pinv=False, copy_weights=False, max_cross=None):
         """
         Sets the starting parameters for doing polynomial fitting.
 
@@ -481,6 +481,9 @@ class _Algorithm:
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
+        max_cross : None, optional
+            Not used within this method, simply added to have the same call signature
+            as `_Algorithm2D._setup_polynomial`.
 
         Returns
         -------
