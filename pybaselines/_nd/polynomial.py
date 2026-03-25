@@ -5,7 +5,7 @@ Created on March 11, 2026
 @author: Donald Erb
 
 
-The function penalized_poly and associated helper functions were adapted from MATLAB code from
+The function penalized_poly and associated loss functions were adapted from MATLAB code from
 https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction
 (accessed March 18, 2021), which was licensed under the BSD-2-clause below.
 
@@ -38,99 +38,534 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 
+from functools import partial, wraps
+
 import numpy as np
 
 from .. import _weighting
 from ..utils import _MIN_FLOAT, relative_difference, _convert_coef, _convert_coef2d
 
 
-def modpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
-            use_original=False, mask_initial_peaks=False, return_coef=False, max_cross=None):
-    y, weight_array, pseudo_inverse = self._setup_polynomial(
-        data, weights, poly_order, calc_vander=True, calc_pinv=True, copy_weights=True,
-        max_cross=max_cross
-    )
+def _register_wrapper(func=None, **register_kwargs):
+    """
+    Allows passing through `_register` keywords to the fitting object.
 
-    sqrt_w = np.sqrt(weight_array)
-    if use_original:
-        y0 = y
+    Parameters
+    ----------
+    func : callable, optional
+        The function that is being decorated. Default is None, which returns a partial function.
+    **register_kwargs
+        Keyword arguments to pass to the `_register` method.
 
-    coef = pseudo_inverse @ (sqrt_w * y)
-    baseline = self._polynomial.vandermonde @ coef
-    if mask_initial_peaks:
-        # use baseline + deviation since without deviation, half of y should be above baseline
-        weight_array[baseline + np.std(y - baseline) < y] = 0
+    Returns
+    -------
+    callable
+        The wrapped method.
+
+    Notes
+    -----
+    Within the inner function, `self` can be either `pybaselines._algorithm_setup._Algorithm`
+    or `pybaselines.two_d._algorithm_setup._Algorithm2D`.
+
+    """
+    if func is None:
+        return partial(_register_wrapper, **register_kwargs)
+
+    @wraps(func)
+    def inner(self, *args, **kwargs):
+        return self._register(func, **register_kwargs)(self, *args, **kwargs)
+    return inner
+
+
+class _PolynomialNDMixin:
+    """A mixin class for providing polynomial methods for 1D and 2D."""
+
+    @_register_wrapper(sort_keys=('weights',), reshape_keys=('weights',))
+    def modpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
+                use_original=False, mask_initial_peaks=False, return_coef=False, max_cross=None):
+        """
+        The modified polynomial (ModPoly) baseline algorithm.
+
+        Parameters
+        ----------
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        max_iter : int, optional
+            The maximum number of iterations. Default is 250.
+        weights : array-like, shape (M, N), optional
+            The weighting array. If None (default), then will be an array with
+            shape equal to (M, N) and all values set to 1.
+        use_original : bool, optional
+            If False (default), will compare the baseline of each iteration with
+            the y-values of that iteration [1]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [2]_.
+        mask_initial_peaks : bool, optional
+            If True, will mask any data where the initial baseline fit + the standard
+            deviation of the residual is less than measured data [3]_. Default is False.
+        return_coef : bool, optional
+            If True, will convert the polynomial coefficients for the fit baseline to
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
+        max_cross : int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
+                Only if `return_coef` is True. The array of polynomial parameters
+                for the baseline, in increasing order. Can be used to create a
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
+
+        Notes
+        -----
+        Algorithm originally developed in [2]_ and then slightly modified in [1]_.
+
+        References
+        ----------
+        .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
+            fitting with automatic threshold. Chemometrics and Intelligent
+            Laboratory Systems, 2006, 82, 59-65.
+        .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
+            from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
+            1363-1367.
+        .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+            Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
+            2007, 61(11), 1225-1232.
+
+        """
+        y, weight_array, pseudo_inverse = self._setup_polynomial(
+            data, weights, poly_order, calc_vander=True, calc_pinv=True, copy_weights=True,
+            max_cross=max_cross
+        )
+
         sqrt_w = np.sqrt(weight_array)
-        pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
+        if use_original:
+            y0 = y
 
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        baseline_old = baseline
-        y = np.minimum(y0 if use_original else y, baseline)
         coef = pseudo_inverse @ (sqrt_w * y)
         baseline = self._polynomial.vandermonde @ coef
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
+        if mask_initial_peaks:
+            # use baseline + deviation since without deviation, half of y should be above baseline
+            weight_array[baseline + np.std(y - baseline) < y] = 0
+            sqrt_w = np.sqrt(weight_array)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        if hasattr(self, 'z'):
-            params['coef'] = _convert_coef2d(
-                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
-            )
-        else:
-            params['coef'] = _convert_coef(coef, self.x_domain)
+        tol_history = np.empty(max_iter)
+        for i in range(max_iter):
+            baseline_old = baseline
+            y = np.minimum(y0 if use_original else y, baseline)
+            coef = pseudo_inverse @ (sqrt_w * y)
+            baseline = self._polynomial.vandermonde @ coef
+            calc_difference = relative_difference(baseline_old, baseline)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
 
-    return baseline, params
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        if return_coef:
+            if hasattr(self, 'z'):
+                params['coef'] = _convert_coef2d(
+                    coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
+                )
+            else:
+                params['coef'] = _convert_coef(coef, self.x_domain)
 
+        return baseline, params
 
-def imodpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
-             use_original=False, mask_initial_peaks=True, return_coef=False,
-             num_std=1., max_cross=None):
-    if num_std < 0:
-        raise ValueError('num_std must be greater than or equal to 0')
+    @_register_wrapper(sort_keys=('weights',), reshape_keys=('weights',))
+    def imodpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
+                 use_original=False, mask_initial_peaks=True, return_coef=False,
+                 num_std=1., max_cross=None):
+        """
+        The improved modified polynomial (IModPoly) baseline algorithm.
 
-    y, weight_array, pseudo_inverse = self._setup_polynomial(
-        data, weights, poly_order, calc_vander=True, calc_pinv=True,
-        copy_weights=True, max_cross=max_cross
-    )
-    sqrt_w = np.sqrt(weight_array)
-    if use_original:
-        y0 = y
+        Parameters
+        ----------
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        max_iter : int, optional
+            The maximum number of iterations. Default is 250.
+        weights : array-like, shape (M, N), optional
+            The weighting array. If None (default), then will be an array with
+            shape equal to (M, N) and all values set to 1.
+        use_original : bool, optional
+            If False (default), will compare the baseline of each iteration with
+            the y-values of that iteration [1]_ when choosing minimum values. If True,
+            will compare the baseline with the original y-values given by `data` [2]_.
+        mask_initial_peaks : bool, optional
+            If True (default), will mask any data where the initial baseline fit +
+            the standard deviation of the residual is less than measured data [3]_.
+        return_coef : bool, optional
+            If True, will convert the polynomial coefficients for the fit baseline to
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
+        num_std : float, optional
+            The number of standard deviations to include when thresholding. Default
+            is 1. Must be greater or equal to 0.
+        max_cross : int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
 
-    coef = pseudo_inverse @ (sqrt_w * y)
-    baseline = self._polynomial.vandermonde @ coef
-    deviation = np.std(sqrt_w * (y - baseline))
-    if mask_initial_peaks:
-        weight_array[baseline + deviation < y] = 0
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
+                Only if `return_coef` is True. The array of polynomial parameters
+                for the baseline, in increasing order. Can be used to create a
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `num_std` is less than 0.
+
+        Notes
+        -----
+        Algorithm originally developed in [3]_.
+
+        References
+        ----------
+        .. [1] Gan, F., et al. Baseline correction by improved iterative polynomial
+            fitting with automatic threshold. Chemometrics and Intelligent
+            Laboratory Systems, 2006, 82, 59-65.
+        .. [2] Lieber, C., et al. Automated method for subtraction of fluorescence
+            from biological raman spectra. Applied Spectroscopy, 2003, 57(11),
+            1363-1367.
+        .. [3] Zhao, J., et al. Automated Autofluorescence Background Subtraction
+            Algorithm for Biomedical Raman Spectroscopy, Applied Spectroscopy,
+            2007, 61(11), 1225-1232.
+
+        """
+        if num_std < 0:
+            raise ValueError('num_std must be greater than or equal to 0')
+
+        y, weight_array, pseudo_inverse = self._setup_polynomial(
+            data, weights, poly_order, calc_vander=True, calc_pinv=True,
+            copy_weights=True, max_cross=max_cross
+        )
         sqrt_w = np.sqrt(weight_array)
-        pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
+        if use_original:
+            y0 = y
 
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
         coef = pseudo_inverse @ (sqrt_w * y)
         baseline = self._polynomial.vandermonde @ coef
-        new_deviation = np.std(sqrt_w * (y - baseline))
-        # use new_deviation as dividing term in relative difference
-        calc_difference = relative_difference(new_deviation, deviation)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        deviation = new_deviation
+        deviation = np.std(sqrt_w * (y - baseline))
+        if mask_initial_peaks:
+            weight_array[baseline + deviation < y] = 0
+            sqrt_w = np.sqrt(weight_array)
+            pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        if hasattr(self, 'z'):
-            params['coef'] = _convert_coef2d(
-                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
-            )
-        else:
-            params['coef'] = _convert_coef(coef, self.x_domain)
+        tol_history = np.empty(max_iter)
+        for i in range(max_iter):
+            y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
+            coef = pseudo_inverse @ (sqrt_w * y)
+            baseline = self._polynomial.vandermonde @ coef
+            new_deviation = np.std(sqrt_w * (y - baseline))
+            # use new_deviation as dividing term in relative difference
+            calc_difference = relative_difference(new_deviation, deviation)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
+            deviation = new_deviation
 
-    return baseline, params
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        if return_coef:
+            if hasattr(self, 'z'):
+                params['coef'] = _convert_coef2d(
+                    coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
+                )
+            else:
+                params['coef'] = _convert_coef(coef, self.x_domain)
+
+        return baseline, params
+
+    @_register_wrapper(sort_keys=('weights',), reshape_keys=('weights',))
+    def penalized_poly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
+                       cost_function='asymmetric_truncated_quadratic', threshold=None,
+                       alpha_factor=0.99, return_coef=False, max_cross=None):
+        """
+        Fits a polynomial baseline using a non-quadratic cost function.
+
+        The non-quadratic cost functions penalize residuals with larger values,
+        giving a more robust fit compared to normal least-squares.
+
+        Parameters
+        ----------
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        max_iter : int, optional
+            The maximum number of iterations. Default is 250.
+        weights : array-like, shape (M, N), optional
+            The weighting array. If None (default), then will be an array with
+            shape equal to (M, N) and all values set to 1.
+        cost_function : str, optional
+            The non-quadratic cost function to minimize. Must indicate symmetry of the
+            method by prepending 'a' or 'asymmetric' for asymmetric loss, and 's' or
+            'symmetric' for symmetric loss. Default is 'asymmetric_truncated_quadratic'.
+            Available methods, and their associated reference, are:
+
+            * 'asymmetric_truncated_quadratic'[1]_
+            * 'symmetric_truncated_quadratic'[1]_
+            * 'asymmetric_huber'[1]_
+            * 'symmetric_huber'[1]_
+            * 'asymmetric_indec'[2]_
+            * 'symmetric_indec'[2]_
+
+        threshold : float, optional
+            The threshold value for the loss method, where the function goes from
+            quadratic loss (such as used for least squares) to non-quadratic. For
+            symmetric loss methods, residual values with absolute value less than
+            threshold will have quadratic loss. For asymmetric loss methods, residual
+            values less than the threshold will have quadratic loss. Default is None,
+            which sets `threshold` to one-tenth of the standard deviation of the input
+            data.
+        alpha_factor : float, optional
+            A value between 0 and 1 that controls the value of the penalty. Default is
+            0.99. Typically should not need to change this value.
+        return_coef : bool, optional
+            If True, will convert the polynomial coefficients for the fit baseline to
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
+        max_cross : int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
+                Only if `return_coef` is True. The array of polynomial parameters
+                for the baseline, in increasing order. Can be used to create a
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `alpha_factor` is not between 0 and 1.
+
+        Notes
+        -----
+        In baseline literature, this procedure is sometimes called "backcor".
+
+        References
+        ----------
+        .. [1] Mazet, V., et al. Background removal from spectra by designing and
+            minimising a non-quadratic cost function. Chemometrics and Intelligent
+            Laboratory Systems, 2005, 76(2), 121-133.
+        .. [2] Liu, J., et al. Goldindec: A Novel Algorithm for Raman Spectrum Baseline
+            Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
+
+        """
+        if not 0 < alpha_factor <= 1:
+            raise ValueError('alpha_factor must be between 0 and 1')
+        symmetric_loss, method = _identify_loss_method(cost_function)
+        loss_function = {
+            'huber': _huber_loss,
+            'truncated_quadratic': _truncated_quadratic_loss,
+            'indec': _indec_loss
+        }[method]
+
+        y, weight_array, pseudo_inverse = self._setup_polynomial(
+            data, weights, poly_order, calc_vander=True, calc_pinv=True, max_cross=max_cross
+        )
+        if threshold is None:
+            threshold = np.std(y) / 10
+        loss_kwargs = {
+            'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
+        }
+
+        sqrt_w = np.sqrt(weight_array)
+        y = sqrt_w * y
+
+        coef = pseudo_inverse @ y
+        baseline = self._polynomial.vandermonde @ coef
+        tol_history = np.empty(max_iter)
+        for i in range(max_iter):
+            baseline_old = baseline
+            coef = pseudo_inverse @ (y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
+            baseline = self._polynomial.vandermonde @ coef
+            calc_difference = relative_difference(baseline_old, baseline)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
+
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        if return_coef:
+            if hasattr(self, 'z'):
+                params['coef'] = _convert_coef2d(
+                    coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
+                )
+            else:
+                params['coef'] = _convert_coef(coef, self.x_domain)
+
+        return baseline, params
+
+    @_register_wrapper(sort_keys=('weights',), reshape_keys=('weights',))
+    def quant_reg(self, data, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
+                  weights=None, eps=None, return_coef=False, max_cross=None):
+        """
+        Approximates the baseline of the data using quantile regression.
+
+        Parameters
+        ----------
+        data : array-like, shape (M, N)
+            The y-values of the measured data.
+        poly_order : int or Sequence[int, int], optional
+            The polynomial orders for the rows and columns. If a single value is given, will use
+            that for both rows and columns. Default is 2.
+        quantile : float, optional
+            The quantile at which to fit the baseline. Default is 0.05.
+        tol : float, optional
+            The exit criteria. Default is 1e-6. For extreme quantiles (`quantile` < 0.01
+            or `quantile` > 0.99), may need to use a lower value to get a good fit.
+        max_iter : int, optional
+            The maximum number of iterations. Default is 250. For extreme quantiles
+            (`quantile` < 0.01 or `quantile` > 0.99), may need to use a higher value to
+            ensure convergence.
+        weights : array-like, shape (M, N), optional
+            The weighting array. If None (default), then will be an array with
+            shape equal to (M, N) and all values set to 1.
+        eps : float, optional
+            A small value added to the square of the residual to prevent dividing by 0.
+            Default is None, which uses the square of the maximum-absolute-value of the
+            fit each iteration multiplied by 1e-6.
+        return_coef : bool, optional
+            If True, will convert the polynomial coefficients for the fit baseline to
+            a form that fits the `x_data` and `z_data` values and return them in the params
+            dictionary. Default is False, since the conversion takes time.
+        max_cross : int, optional
+            The maximum degree for the cross terms. For example, if `max_cross` is 1, then
+            ``x * z**2``, ``x**2 * z``, and ``x**2 * z**2`` would all be set to 0. Default is
+            None, which does not limit the cross terms.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
+                Only if `return_coef` is True. The array of polynomial parameters
+                for the baseline, in increasing order. Can be used to create a
+                polynomial using :func:`numpy.polynomial.polynomial.polyval2d`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `quantile` is not between 0 and 1.
+
+        Notes
+        -----
+        Application of quantile regression for baseline fitting as described in [1]_.
+
+        Performs quantile regression using iteratively reweighted least squares (IRLS)
+        as described in [2]_.
+
+        References
+        ----------
+        .. [1] Komsta, Ł. Comparison of Several Methods of Chromatographic
+                Baseline Removal with a New Approach Based on Quantile Regression.
+                Chromatographia, 2011, 73, 721-731.
+        .. [2] Schnabel, S., et al. Simultaneous estimation of quantile curves using
+                quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
+
+        """
+        # TODO provide a way to estimate best poly_order based on AIC like in Komsta? could be
+        # useful for all polynomial methods; maybe could be an optimizer function
+        if not 0 < quantile < 1:
+            raise ValueError('quantile must be between 0 and 1.')
+
+        y, weight_array = self._setup_polynomial(
+            data, weights, poly_order, calc_vander=True, max_cross=max_cross
+        )
+        sqrt_w = np.sqrt(weight_array)
+        baseline_old = y
+        tol_history = np.empty(max_iter + 1)
+        for i in range(max_iter + 1):
+            coef = np.linalg.lstsq(
+                self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
+            )[0]
+            baseline = self._polynomial.vandermonde @ coef
+            # relative_difference(baseline_old, baseline, 1) gives nearly same result and
+            # the l2 norm is faster to calculate, so use that instead of l1 norm
+            calc_difference = relative_difference(baseline_old, baseline)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
+            sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+            baseline_old = baseline
+
+        params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
+        if return_coef:
+            if hasattr(self, 'z'):
+                params['coef'] = _convert_coef2d(
+                    coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
+                )
+            else:
+                params['coef'] = _convert_coef(coef, self.x_domain)
+
+        return baseline, params
 
 
 # adapted from (https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction);
@@ -334,90 +769,3 @@ def _identify_loss_method(loss_method):
     else:
         symmetric = True
     return symmetric, '_'.join(split_method)
-
-
-def penalized_poly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
-                   cost_function='asymmetric_truncated_quadratic', threshold=None,
-                   alpha_factor=0.99, return_coef=False, max_cross=None):
-    if not 0 < alpha_factor <= 1:
-        raise ValueError('alpha_factor must be between 0 and 1')
-    symmetric_loss, method = _identify_loss_method(cost_function)
-    loss_function = {
-        'huber': _huber_loss,
-        'truncated_quadratic': _truncated_quadratic_loss,
-        'indec': _indec_loss
-    }[method]
-
-    y, weight_array, pseudo_inverse = self._setup_polynomial(
-        data, weights, poly_order, calc_vander=True, calc_pinv=True, max_cross=max_cross
-    )
-    if threshold is None:
-        threshold = np.std(y) / 10
-    loss_kwargs = {
-        'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
-    }
-
-    sqrt_w = np.sqrt(weight_array)
-    y = sqrt_w * y
-
-    coef = pseudo_inverse @ y
-    baseline = self._polynomial.vandermonde @ coef
-    tol_history = np.empty(max_iter)
-    for i in range(max_iter):
-        baseline_old = baseline
-        coef = pseudo_inverse @ (y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
-        baseline = self._polynomial.vandermonde @ coef
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-
-    params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        if hasattr(self, 'z'):
-            params['coef'] = _convert_coef2d(
-                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
-            )
-        else:
-            params['coef'] = _convert_coef(coef, self.x_domain)
-
-    return baseline, params
-
-
-def quant_reg(self, data, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
-              weights=None, eps=None, return_coef=False, max_cross=None):
-    # TODO provide a way to estimate best poly_order based on AIC like in Komsta? could be
-    # useful for all polynomial methods; maybe could be an optimizer function
-    if not 0 < quantile < 1:
-        raise ValueError('quantile must be between 0 and 1.')
-
-    y, weight_array = self._setup_polynomial(
-        data, weights, poly_order, calc_vander=True, max_cross=max_cross
-    )
-    sqrt_w = np.sqrt(weight_array)
-    baseline_old = y
-    tol_history = np.empty(max_iter + 1)
-    for i in range(max_iter + 1):
-        coef = np.linalg.lstsq(
-            self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
-        )[0]
-        baseline = self._polynomial.vandermonde @ coef
-        # relative_difference(baseline_old, baseline, 1) gives nearly same result and
-        # the l2 norm is faster to calculate, so use that instead of l1 norm
-        calc_difference = relative_difference(baseline_old, baseline)
-        tol_history[i] = calc_difference
-        if calc_difference < tol:
-            break
-        sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
-        baseline_old = baseline
-
-    params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
-    if return_coef:
-        if hasattr(self, 'z'):
-            params['coef'] = _convert_coef2d(
-                coef, *self._polynomial.poly_order, self.x_domain, self.z_domain
-            )
-        else:
-            params['coef'] = _convert_coef(coef, self.x_domain)
-
-    return baseline, params

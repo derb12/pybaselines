@@ -84,7 +84,7 @@ from ._compat import _HAS_NUMBA, jit
 from .utils import ParameterWarning, _convert_coef, _interp_inplace, relative_difference
 
 
-class _Polynomial(_Algorithm):
+class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
     """A base class for all polynomial algorithms."""
 
     @_Algorithm._register(sort_keys=('weights',))
@@ -150,7 +150,6 @@ class _Polynomial(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',))
     def modpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                 use_original=False, mask_initial_peaks=False, return_coef=False):
         """
@@ -217,13 +216,12 @@ class _Polynomial(_Algorithm):
             2007, 61(11), 1225-1232.
 
         """
-        return polynomial_nd.modpoly(
-            self, data, poly_order=poly_order, tol=tol, max_iter=max_iter, weights=weights,
+        return super().modpoly(
+            data, poly_order=poly_order, tol=tol, max_iter=max_iter, weights=weights,
             use_original=use_original, mask_initial_peaks=mask_initial_peaks,
             return_coef=return_coef
         )
 
-    @_Algorithm._register(sort_keys=('weights',))
     def imodpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                  use_original=False, mask_initial_peaks=True, return_coef=False, num_std=1.):
         """
@@ -298,8 +296,8 @@ class _Polynomial(_Algorithm):
             2007, 61(11), 1225-1232.
 
         """
-        return polynomial_nd.imodpoly(
-            self, data, poly_order=poly_order, tol=tol, max_iter=max_iter, weights=weights,
+        return super().imodpoly(
+            data, poly_order=poly_order, tol=tol, max_iter=max_iter, weights=weights,
             use_original=use_original, mask_initial_peaks=mask_initial_peaks,
             return_coef=return_coef, num_std=num_std
         )
@@ -307,7 +305,6 @@ class _Polynomial(_Algorithm):
     # adapted from
     # https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction;
     # see license above
-    @_Algorithm._register(sort_keys=('weights',))
     def penalized_poly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                        cost_function='asymmetric_truncated_quadratic', threshold=None,
                        alpha_factor=0.99, return_coef=False):
@@ -396,8 +393,8 @@ class _Polynomial(_Algorithm):
             Correction. Applied Spectroscopy, 2015, 69(7), 834-842.
 
         """
-        return polynomial_nd.penalized_poly(
-            self, data, poly_order=poly_order, tol=tol, max_iter=max_iter, weights=weights,
+        return super().penalized_poly(
+            data, poly_order=poly_order, tol=tol, max_iter=max_iter, weights=weights,
             cost_function=cost_function, threshold=threshold, alpha_factor=alpha_factor,
             return_coef=return_coef
         )
@@ -623,7 +620,6 @@ class _Polynomial(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',))
     def quant_reg(self, data, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
                   weights=None, eps=None, return_coef=False):
         """
@@ -696,8 +692,8 @@ class _Polynomial(_Algorithm):
                 quantile sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
 
         """
-        return polynomial_nd.quant_reg(
-            self, data, poly_order=poly_order, quantile=quantile, tol=tol, max_iter=max_iter,
+        return super().quant_reg(
+            data, poly_order=poly_order, quantile=quantile, tol=tol, max_iter=max_iter,
             weights=weights, eps=eps, return_coef=return_coef
         )
 
