@@ -252,8 +252,8 @@ class _Algorithm2D:
         )
         self.banded_solver = value
 
-    def _return_results(self, baseline, params, dtype, sort_keys=(), ensure_2d=False,
-                        reshape_baseline=False, reshape_keys=(), skip_sorting=False):
+    def _return_results(self, baseline, params, dtype, sort_keys=(), ensure_dims=True,
+                        reshape_keys=(), skip_sorting=False):
         """
         Re-orders the input baseline and parameters based on the x ordering.
 
@@ -270,13 +270,10 @@ class _Algorithm2D:
         sort_keys : Iterable, optional
             An iterable of keys corresponding to the values in `params` that need
             re-ordering. Default is ().
-        ensure_2d : bool, optional
+        ensure_dims : bool, optional
             If True (default), will raise an error if the shape of `array` is not a two dimensional
             array with shape (M, N) or a three dimensional array with shape (M, N, 1), (M, 1, N),
             or (1, M, N).
-        reshape_baseline : bool, optional
-            If True, will reshape the output baseline back into the shape of the input data. If
-            False (default), will not modify the output baseline shape.
         reshape_keys : tuple, optional
             The keys within the output parameter dictionary that will need reshaped to match the
             shape of the data. For example, used to convert weights for polynomials from 1D back
@@ -293,11 +290,12 @@ class _Algorithm2D:
             The input `params` after re-ordering the values for `sort_keys`.
 
         """
-        if reshape_baseline:
-            if ensure_2d:
-                baseline = baseline.reshape(self._shape)
-            else:
-                baseline = baseline.reshape(-1, *self._shape)
+        ndims = baseline.ndim
+        if ndims == 1 and ensure_dims:  # raveled to 1D within the method
+            baseline = baseline.reshape(self._shape)
+        elif ndims == 2 and not ensure_dims:  # 3D input raveled to (P, M * N)
+            baseline = baseline.reshape(-1, *self._shape)
+
         for key in reshape_keys:
             if key in params:
                 # TODO can any params be non-2d that need reshaped?
@@ -316,8 +314,8 @@ class _Algorithm2D:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), ensure_2d=True, reshape_baseline=False,
-                  reshape_keys=(), skip_sorting=False, require_unique_xz=False):
+    def _register(cls, func=None, *, sort_keys=(), ensure_dims=True, reshape_keys=(),
+                  skip_sorting=False, require_unique=False):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -332,13 +330,10 @@ class _Algorithm2D:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        ensure_2d : bool, optional
+        ensure_dims : bool, optional
             If True (default), will raise an error if the shape of `array` is not a two dimensional
             array with shape (M, N) or a three dimensional array with shape (M, N, 1), (M, 1, N),
             or (1, M, N).
-        reshape_baseline : bool, optional
-            If True, will reshape the output baseline back into the shape of the input data. If
-            False (default), will not modify the output baseline shape.
         reshape_keys : tuple, optional
             The keys within the output parameter dictionary that will need reshaped to match the
             shape of the data. For example, used to convert weights for polynomials from 1D back
@@ -346,7 +341,7 @@ class _Algorithm2D:
         skip_sorting : bool, optional
             If True, will skip sorting the output baseline. The keys in `sort_keys` will
             still be sorted. Default is False.
-        require_unique_xz : bool, optional
+        require_unique : bool, optional
             If True, will check ``self.x`` and ``self.z`` to ensure all values are unique and will
             raise an error if non-unique values are present. Default is False, which skips the
             check.
@@ -361,9 +356,9 @@ class _Algorithm2D:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, ensure_2d=ensure_2d,
-                reshape_baseline=reshape_baseline, reshape_keys=reshape_keys,
-                skip_sorting=skip_sorting, require_unique_xz=require_unique_xz
+                cls._register, sort_keys=sort_keys, ensure_dims=ensure_dims,
+                reshape_keys=reshape_keys, skip_sorting=skip_sorting,
+                require_unique=require_unique
             )
 
         @wraps(func)
@@ -387,17 +382,17 @@ class _Algorithm2D:
                     axis = -1
                 y = _check_sized_array(
                     data, expected_shape, check_finite=self._check_finite, ensure_1d=False,
-                    axis=axis, name='data', ensure_2d=ensure_2d, two_d=True
+                    axis=axis, name='data', ensure_2d=ensure_dims, two_d=True
                 )
             else:
                 y, self.x, self.z = _yxz_arrays(
-                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_2d
+                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_dims
                 )
 
             if not has_x:
                 self._shape = (y.shape[-2], self._shape[1])
                 self.x = np.linspace(-1, 1, self._shape[0])
-            elif require_unique_xz and not self._validated_x:
+            elif require_unique and not self._validated_x:
                 if np.any(self.x[1:] == self.x[:-1]):
                     raise ValueError('x-values must be unique for the selected method')
                 else:
@@ -405,7 +400,7 @@ class _Algorithm2D:
             if not has_z:
                 self._shape = (self._shape[0], y.shape[-1])
                 self.z = np.linspace(-1, 1, self._shape[1])
-            elif require_unique_xz and not self._validated_z:
+            elif require_unique and not self._validated_z:
                 if np.any(self.z[1:] == self.z[:-1]):
                     raise ValueError('z-values must be unique for the selected method')
                 else:
@@ -424,9 +419,8 @@ class _Algorithm2D:
             baseline, params = func(self, y, *args, **kwargs)
 
             return self._return_results(
-                baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_2d=ensure_2d,
-                reshape_baseline=reshape_baseline, reshape_keys=reshape_keys,
-                skip_sorting=skip_sorting
+                baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_dims=ensure_dims,
+                reshape_keys=reshape_keys, skip_sorting=skip_sorting
             )
 
         return inner

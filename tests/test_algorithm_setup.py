@@ -842,14 +842,14 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
             }
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm._register(require_unique_x=False)
+        @_algorithm_setup._Algorithm._register(require_unique=False)
         def func3(self, data, *args, **kwargs):
-            """For ensuring require_unique_x works as intedended."""
+            """For ensuring require_unique works as intedended."""
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm._register(require_unique_x=True)
+        @_algorithm_setup._Algorithm._register(require_unique=True)
         def func4(self, data, *args, **kwargs):
-            """For ensuring require_unique_x works as intedended."""
+            """For ensuring require_unique works as intedended."""
             return 1 * data, {}
 
     if change_order:
@@ -911,6 +911,59 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
     assert not new_algorithm._validated_x
     with pytest.raises(ValueError):
         out = new_algorithm.func4(y)
+
+
+@pytest.mark.parametrize('input_x', (True, False))
+def test_algorithm_register_2d(data_fixture, input_x):
+    """Ensures 2D data is allowed for 1D algorithms only when specified.
+
+    Also checks _Algorithm setup when given 2D data as the first call.
+
+    """
+    _, expected_y = get_data()
+
+    class SubClass(_algorithm_setup._Algorithm):
+
+        @_algorithm_setup._Algorithm._register
+        def func(self, data, *args, **kwargs):
+            """Errors if input is not 1D."""
+            assert data.ndim == 1
+            assert data.shape == expected_y.shape
+            return data, {}
+
+        @_algorithm_setup._Algorithm._register(ensure_dims=False)
+        def func2(self, data, *args, **kwargs):
+            """Allows 2D data."""
+            assert data.ndim == 2
+            assert data.shape[1:] == expected_y.shape
+            return data, {}
+
+    x_, y_1d = data_fixture
+    x = None
+    if input_x:
+        x = x_
+        initial_size = len(x)
+        initial_shape = (len(x),)
+    else:
+        initial_size = None
+        initial_shape = (None,)
+
+    input_y = np.stack((y_1d, y_1d), axis=0)
+    assert input_y.shape == (2, *y_1d.shape)  # sanity check for correct setup
+
+    algorithm = SubClass(x)
+    assert algorithm._shape == initial_shape
+    assert algorithm._size == initial_size
+
+    with pytest.raises(ValueError, match='input data must be a one dimensional'):
+        algorithm.func(input_y)
+    assert algorithm._shape == initial_shape
+
+    # should run without issues and set stored shape correctly
+    output, _ = algorithm.func2(input_y)
+    assert algorithm._shape == y_1d.shape
+    assert algorithm._size == y_1d.size
+    assert output.shape == input_y.shape
 
 
 def test_class_wrapper():

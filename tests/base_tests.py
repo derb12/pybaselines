@@ -129,7 +129,7 @@ def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_
 class _Poly2D(_Algorithm2D):
     """A class that provides a 2D polynomial method for testing purposes."""
 
-    @_Algorithm2D._register(reshape_baseline=True)
+    @_Algorithm2D._register
     def poly(self, data, poly_order=2, weights=None, max_cross=None):
         """
         Computes a polynomial fit to the data.

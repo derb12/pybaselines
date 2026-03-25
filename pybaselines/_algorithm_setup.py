@@ -269,8 +269,8 @@ class _Algorithm:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), ensure_1d=True, skip_sorting=False,
-                  require_unique_x=False):
+    def _register(cls, func=None, *, sort_keys=(), ensure_dims=True, skip_sorting=False,
+                  require_unique=False, reshape_keys=None):
         """
         Wraps a baseline function to validate inputs and correct outputs.
 
@@ -285,15 +285,18 @@ class _Algorithm:
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
             sort order of :attr:`.x`. Default is ().
-        ensure_1d : bool, optional
+        ensure_dims : bool, optional
             If True (default), will raise an error if the shape of `array` is not a one dimensional
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
         skip_sorting : bool, optional
             If True, will skip sorting the inputs and outputs, which is useful for algorithms that
             use other algorithms so that sorting is already internally done. Default is False.
-        require_unique_x : bool, optional
+        require_unique : bool, optional
             If True, will check ``self.x`` to ensure all values are unique and will raise an error
             if non-unique values are present. Default is False, which skips the check.
+        reshape_keys : None, optional
+            Not used within this method, simply added to have the same call signature
+            as `_Algorithm2D._register`.
 
         Returns
         -------
@@ -305,8 +308,8 @@ class _Algorithm:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, ensure_1d=ensure_1d, skip_sorting=skip_sorting,
-                require_unique_x=require_unique_x
+                cls._register, sort_keys=sort_keys, ensure_dims=ensure_dims,
+                skip_sorting=skip_sorting, require_unique=require_unique
             )
 
         @wraps(func)
@@ -316,11 +319,11 @@ class _Algorithm:
                     raise TypeError('"data" and "x_data" cannot both be None')
                 input_y = True
                 y, self.x = _yx_arrays(
-                    data, check_finite=self._check_finite, ensure_1d=ensure_1d
+                    data, check_finite=self._check_finite, ensure_1d=ensure_dims
                 )
                 self._size = y.shape[-1]
             else:
-                if require_unique_x and not self._validated_x:
+                if require_unique and not self._validated_x:
                     if np.any(self.x[1:] == self.x[:-1]):
                         raise ValueError('x-values must be unique for the selected method')
                     else:
@@ -328,7 +331,7 @@ class _Algorithm:
                 if data is not None:
                     input_y = True
                     y = _check_sized_array(
-                        data, self._size, check_finite=self._check_finite, ensure_1d=ensure_1d,
+                        data, self._size, check_finite=self._check_finite, ensure_1d=ensure_dims,
                         name='data'
                     )
                 else:

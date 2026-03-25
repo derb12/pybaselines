@@ -26,7 +26,7 @@ from ._algorithm_setup import _Algorithm2D
 class _Optimizers(_Algorithm2D):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm2D._register(ensure_2d=False, skip_sorting=True)
+    @_Algorithm2D._register(ensure_dims=False, skip_sorting=True)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).

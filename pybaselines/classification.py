@@ -67,7 +67,7 @@ from .utils import (
 class _Classification(_Algorithm):
     """A base class for all classification algorithms."""
 
-    @_Algorithm._register(sort_keys=('mask',), require_unique_x=True)
+    @_Algorithm._register(sort_keys=('mask',), require_unique=True)
     def golotvin(self, data, half_window=None, num_std=2.0, sections=32, smooth_half_window=None,
                  interp_half_window=5, weights=None, min_length=2, pad_kwargs=None, **kwargs):
         """
@@ -165,7 +165,7 @@ class _Classification(_Algorithm):
 
         return baseline, {'mask': mask}
 
-    @_Algorithm._register(sort_keys=('mask',), require_unique_x=True)
+    @_Algorithm._register(sort_keys=('mask',), require_unique=True)
     def dietrich(self, data, smooth_half_window=None, num_std=3.0, interp_half_window=5,
                  poly_order=5, max_iter=50, tol=1e-3, weights=None, return_coef=False,
                  min_length=2, pad_kwargs=None, **kwargs):
@@ -299,7 +299,7 @@ class _Classification(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('mask',), require_unique_x=True)
+    @_Algorithm._register(sort_keys=('mask',), require_unique=True)
     def std_distribution(self, data, half_window=None, interp_half_window=5,
                          fill_half_window=3, num_std=1.1, smooth_half_window=None,
                          weights=None, pad_kwargs=None, **kwargs):
@@ -399,7 +399,7 @@ class _Classification(_Algorithm):
 
         return baseline, {'mask': mask}
 
-    @_Algorithm._register(sort_keys=('mask',), require_unique_x=True)
+    @_Algorithm._register(sort_keys=('mask',), require_unique=True)
     def fastchrom(self, data, half_window=None, threshold=None, min_fwhm=None,
                   interp_half_window=5, smooth_half_window=None, weights=None,
                   max_iter=100, min_length=2, pad_kwargs=None, **kwargs):
@@ -850,7 +850,7 @@ class _Classification(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('mask',), require_unique_x=True)
+    @_Algorithm._register(sort_keys=('mask',), require_unique=True)
     def rubberband(self, data, segments=1, lam=None, diff_order=2, weights=None,
                    smooth_half_window=None, pad_kwargs=None, **kwargs):
         """
@@ -980,7 +980,7 @@ class _Classification(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('mask',), require_unique_x=True)
+    @_Algorithm._register(sort_keys=('mask',), require_unique=True)
     def corner_cutting(self, data, max_iter=100, weights=None):
         """
         Iteratively removes corner points and creates a Bezier spline from the remaining points.

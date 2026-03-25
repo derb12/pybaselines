@@ -127,9 +127,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
-    )
+    @_Algorithm2D._register(sort_keys=('weights',), reshape_keys=('weights',))
     def iasls(self, data, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
               weights=None, diff_order=2):
         """
@@ -443,9 +441,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights',), reshape_keys=('weights',), reshape_baseline=True
-    )
+    @_Algorithm2D._register(sort_keys=('weights',), reshape_keys=('weights',))
     def drpls(self, data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
         Doubly reweighted penalized least squares (drPLS) baseline.
@@ -636,9 +632,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(
-        sort_keys=('weights', 'alpha'), reshape_keys=('weights', 'alpha'), reshape_baseline=True
-    )
+    @_Algorithm2D._register(sort_keys=('weights', 'alpha'), reshape_keys=('weights', 'alpha'))
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
               weights=None, alpha=None, asymmetric_coef=2., alternate_weighting=True):
         """

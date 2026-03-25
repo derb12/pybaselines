@@ -711,8 +711,7 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
         )
     output, output_params = algorithm._return_results(
         baseline, params, dtype=output_dtype, sort_keys=('a', 'd'),
-        reshape_baseline=reshape_baseline, reshape_keys=('c', 'd'),
-        ensure_2d=not three_d
+        reshape_keys=('c', 'd'), ensure_dims=not three_d
     )
 
     if not change_order and (output_dtype is None or baseline.dtype == output_dtype):
@@ -770,7 +769,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
             }
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm2D._register(reshape_baseline=True)
+        @_algorithm_setup._Algorithm2D._register
         def func2(self, data, *args, **kwargs):
             """For checking reshaping output baseline."""
             expected_x, expected_z, expected_y = get_data2d()
@@ -823,14 +822,14 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm2D._register(require_unique_xz=False)
+        @_algorithm_setup._Algorithm2D._register(require_unique=False)
         def func5(self, data, *args, **kwargs):
-            """For ensuring require_unique_xz works as intedended."""
+            """For ensuring require_unique works as intended."""
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm2D._register(require_unique_xz=True)
+        @_algorithm_setup._Algorithm2D._register(require_unique=True)
         def func6(self, data, *args, **kwargs):
-            """For ensuring require_unique_xz works as intedended."""
+            """For ensuring require_unique works as intended."""
             return 1 * data, {}
 
     if change_order:
@@ -1004,6 +1003,74 @@ def test_algorithm_register_1d_fails(data_fixture):
         algorithm.func(y_2d_transposed)
     with pytest.raises(ValueError, match='input data must be a two dimensional'):
         algorithm.func2(y_2d_transposed)
+
+
+@pytest.mark.parametrize('input_x', (True, False))
+@pytest.mark.parametrize('input_z', (True, False))
+def test_algorithm_register_3d(data_fixture2d, input_x, input_z):
+    """Ensures 3D data is allowed for 2D algorithms only when specified.
+
+    Also checks _Algorithm2D setup when given 3D data as the first call.
+
+    """
+    _, _, expected_y = get_data2d()
+
+    class SubClass(_algorithm_setup._Algorithm2D):
+
+        @_algorithm_setup._Algorithm2D._register
+        def func(self, data, *args, **kwargs):
+            """Errors if input is not 2D."""
+            assert data.ndim == 2
+            assert data.shape == expected_y.shape
+            return data, {}
+
+        @_algorithm_setup._Algorithm2D._register(ensure_dims=False)
+        def func2(self, data, *args, **kwargs):
+            """Allows 3D data."""
+            assert data.ndim == 3
+            assert data.shape[1:] == expected_y.shape
+            return data, {}
+
+        @_algorithm_setup._Algorithm2D._register(ensure_dims=False)
+        def func3(self, data, *args, **kwargs):
+            """For checking reshaping output baseline for 3D input raveled on last axis."""
+            assert data.ndim == 3
+            assert data.shape[1:] == expected_y.shape
+
+            return 1 * data.reshape(data.shape[0], -1), {}
+
+    x_, z_, y_2d = data_fixture2d
+    x = None
+    z = None
+    initial_shape = [None, None]
+    if input_x:
+        x = x_
+        initial_shape[0] = len(x)
+    if input_z:
+        z = z_
+        initial_shape[1] = len(z)
+    initial_shape = tuple(initial_shape)
+    initial_size = None if None in initial_shape else y_2d.size
+
+    input_y = np.stack((y_2d, y_2d), axis=0)
+    assert input_y.shape == (2, *y_2d.shape)  # sanity check for correct setup
+
+    algorithm = SubClass(x, z)
+    assert algorithm._shape == initial_shape
+    assert algorithm._size == initial_size
+
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func(input_y)
+    assert algorithm._shape == initial_shape
+
+    # should run without issues and set stored shape correctly
+    output, _ = algorithm.func2(input_y)
+    assert algorithm._shape == y_2d.shape
+    assert algorithm._size == y_2d.size
+    assert output.shape == input_y.shape
+
+    output2, _ = algorithm.func3(input_y)
+    assert output2.shape == input_y.shape
 
 
 def test_override_x(algorithm):

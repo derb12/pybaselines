@@ -186,7 +186,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
         if dimensions == 2 and 1 in output.shape:
             output = output.ravel()
         elif dimensions != 1:
-            raise ValueError('must be a one dimensional array')
+            raise ValueError('input data must be a one dimensional array')
     elif two_d:
         if dimensions < 2 or (dimensions == 2 and 1 in output.shape):
             raise ValueError(
@@ -198,7 +198,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
                 flat_dims = ~np.equal(output_shape, 1)
                 output = output.reshape(output_shape[flat_dims])
             elif dimensions != 2:
-                raise ValueError('must be a two dimensional array')
+                raise ValueError('input data must be a two dimensional array')
     elif ensure_2d and not two_d:
         raise ValueError('two_d must be True if using ensure_2d')
 

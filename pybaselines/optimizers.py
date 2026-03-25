@@ -26,7 +26,7 @@ from .utils import ParameterWarning, _check_scalar, _get_edges, _sort_array, gau
 class _Optimizers(_Algorithm):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm._register(ensure_1d=False, skip_sorting=True)
+    @_Algorithm._register(ensure_dims=False, skip_sorting=True)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).
