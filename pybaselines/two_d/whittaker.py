@@ -20,7 +20,7 @@ from ._whittaker_utils import PenalizedSystem2D
 class _Whittaker(_Algorithm2D):
     """A base class for all Whittaker-smoothing-based algorithms."""
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None,
              num_eigens=(10, 10), return_dof=False):
         """
@@ -127,7 +127,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',), reshape_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def iasls(self, data, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
               weights=None, diff_order=2):
         """
@@ -239,7 +239,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                num_eigens=(10, 10), return_dof=False, normalize_weights=False):
         """
@@ -344,7 +344,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def arpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
               num_eigens=(10, 10), return_dof=False):
         """
@@ -441,7 +441,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',), reshape_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def drpls(self, data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
         Doubly reweighted penalized least squares (drPLS) baseline.
@@ -534,7 +534,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                num_eigens=(10, 10), return_dof=False):
         """
@@ -632,7 +632,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights', 'alpha'), reshape_keys=('weights', 'alpha'))
+    @_Algorithm2D._handle_io(sort_keys=('weights', 'alpha'), reshape_keys=('weights', 'alpha'))
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
               weights=None, alpha=None, asymmetric_coef=2., alternate_weighting=True):
         """
@@ -764,7 +764,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
                weights=None, num_eigens=(10, 10), return_dof=False):
         """
@@ -894,7 +894,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def brpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, max_iter_2=50,
               tol_2=1e-3, weights=None, num_eigens=(10, 10), return_dof=False):
         """
@@ -1027,7 +1027,7 @@ class _Whittaker(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def lsrpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
               num_eigens=(10, 10), return_dof=False, alternate_weighting=False):
         """

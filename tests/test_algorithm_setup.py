@@ -791,9 +791,9 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
 @pytest.mark.parametrize('skip_sorting', (True, False))
-def test_algorithm_register(assume_sorted, output_dtype, change_order, list_input, skip_sorting):
+def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, list_input, skip_sorting):
     """
-    Ensures the _register wrapper method returns the correctly sorted outputs.
+    Ensures the _handle_io wrapper method returns the correctly sorted outputs.
 
     The input y-values within the wrapped function should be correctly sorted
     if `assume_sorted` is False, while the output baseline should always match
@@ -808,7 +808,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
 
     class SubClass(_algorithm_setup._Algorithm):
         # 'a' values will be sorted and 'b' values will be kept the same
-        @_algorithm_setup._Algorithm._register(sort_keys=('a',))
+        @_algorithm_setup._Algorithm._handle_io(sort_keys=('a',))
         def func(self, data, *args, **kwargs):
             """For checking sorting of output parameters."""
             expected_x = np.arange(20)
@@ -825,7 +825,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
             }
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm._register(sort_keys=('a',), skip_sorting=skip_sorting)
+        @_algorithm_setup._Algorithm._handle_io(sort_keys=('a',), skip_sorting=skip_sorting)
         def func2(self, data, *args, **kwargs):
             """For checking skip_sorting."""
             expected_x = np.arange(20)
@@ -842,12 +842,12 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
             }
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm._register(require_unique=False)
+        @_algorithm_setup._Algorithm._handle_io(require_unique=False)
         def func3(self, data, *args, **kwargs):
             """For ensuring require_unique works as intedended."""
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm._register(require_unique=True)
+        @_algorithm_setup._Algorithm._handle_io(require_unique=True)
         def func4(self, data, *args, **kwargs):
             """For ensuring require_unique works as intedended."""
             return 1 * data, {}
@@ -914,7 +914,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, list_inpu
 
 
 @pytest.mark.parametrize('input_x', (True, False))
-def test_algorithm_register_2d(data_fixture, input_x):
+def test_algorithm_handle_io_2d(data_fixture, input_x):
     """Ensures 2D data is allowed for 1D algorithms only when specified.
 
     Also checks _Algorithm setup when given 2D data as the first call.
@@ -924,14 +924,14 @@ def test_algorithm_register_2d(data_fixture, input_x):
 
     class SubClass(_algorithm_setup._Algorithm):
 
-        @_algorithm_setup._Algorithm._register
+        @_algorithm_setup._Algorithm._handle_io
         def func(self, data, *args, **kwargs):
             """Errors if input is not 1D."""
             assert data.ndim == 1
             assert data.shape == expected_y.shape
             return data, {}
 
-        @_algorithm_setup._Algorithm._register(ensure_dims=False)
+        @_algorithm_setup._Algorithm._handle_io(ensure_dims=False)
         def func2(self, data, *args, **kwargs):
             """Allows 2D data."""
             assert data.ndim == 2

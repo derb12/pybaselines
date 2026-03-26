@@ -15,7 +15,7 @@ from ._algorithm_setup import _Algorithm2D
 class _Smooth(_Algorithm2D):
     """A base class for all smoothing algorithms."""
 
-    @_Algorithm2D._register
+    @_Algorithm2D._handle_io
     def noise_median(self, data, half_window=None, smooth_half_window=None, sigma=None,
                      pad_kwargs=None, **kwargs):
         """

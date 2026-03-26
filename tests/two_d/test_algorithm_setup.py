@@ -734,9 +734,9 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('skip_sorting', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
-def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sorting, list_input):
+def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sorting, list_input):
     """
-    Ensures the _register wrapper method returns the correctly sorted and shaped outputs.
+    Ensures the _handle_io wrapper method returns the correctly sorted and shaped outputs.
 
     The input y-values within the wrapped function should be correctly sorted
     if `assume_sorted` is False, while the output baseline should always match
@@ -749,7 +749,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
     class SubClass(_algorithm_setup._Algorithm2D):
         # 'a' values will be sorted and 'b' values will be kept the same
-        @_algorithm_setup._Algorithm2D._register(sort_keys=('a', 'd'), reshape_keys=('c', 'd'))
+        @_algorithm_setup._Algorithm2D._handle_io(sort_keys=('a', 'd'), reshape_keys=('c', 'd'))
         def func(self, data, *args, **kwargs):
             """For checking sorting and reshaping output parameters."""
             expected_x, expected_z, expected_y = get_data2d()
@@ -769,7 +769,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
             }
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm2D._register
+        @_algorithm_setup._Algorithm2D._handle_io
         def func2(self, data, *args, **kwargs):
             """For checking reshaping output baseline."""
             expected_x, expected_z, expected_y = get_data2d()
@@ -783,7 +783,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
             return 1 * data.flatten(), {}
 
-        @_algorithm_setup._Algorithm2D._register
+        @_algorithm_setup._Algorithm2D._handle_io
         def func3(self, data, *args, **kwargs):
             """For checking empty decorator."""
             expected_x, expected_z, expected_y = get_data2d()
@@ -797,7 +797,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm2D._register(
+        @_algorithm_setup._Algorithm2D._handle_io(
             sort_keys=('a', 'd'), reshape_keys=('c', 'd'), skip_sorting=skip_sorting
         )
         def func4(self, data, *args, **kwargs):
@@ -822,12 +822,12 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm2D._register(require_unique=False)
+        @_algorithm_setup._Algorithm2D._handle_io(require_unique=False)
         def func5(self, data, *args, **kwargs):
             """For ensuring require_unique works as intended."""
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm2D._register(require_unique=True)
+        @_algorithm_setup._Algorithm2D._handle_io(require_unique=True)
         def func6(self, data, *args, **kwargs):
             """For ensuring require_unique works as intended."""
             return 1 * data, {}
@@ -926,17 +926,17 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         out = new_algorithm.func6(y)
 
 
-def test_algorithm_register_no_data_fails():
+def test_algorithm_handle_io_no_data_fails():
     """Ensures an error is raised if the input data is None."""
 
     class SubClass(_algorithm_setup._Algorithm2D):
 
-        @_algorithm_setup._Algorithm2D._register
+        @_algorithm_setup._Algorithm2D._handle_io
         def func(self, data, *args, **kwargs):
             """For checking empty decorator."""
             return data, {}
 
-        @_algorithm_setup._Algorithm2D._register()
+        @_algorithm_setup._Algorithm2D._handle_io()
         def func2(self, data, *args, **kwargs):
             """For checking closed decorator."""
             return data, {}
@@ -947,17 +947,17 @@ def test_algorithm_register_no_data_fails():
         SubClass().func2()
 
 
-def test_algorithm_register_1d_fails(data_fixture):
+def test_algorithm_handle_io_1d_fails(data_fixture):
     """Ensures an error is raised if 1D data is used for 2D algorithms."""
 
     class SubClass(_algorithm_setup._Algorithm2D):
 
-        @_algorithm_setup._Algorithm2D._register
+        @_algorithm_setup._Algorithm2D._handle_io
         def func(self, data, *args, **kwargs):
             """For checking empty decorator."""
             return data, {}
 
-        @_algorithm_setup._Algorithm2D._register()
+        @_algorithm_setup._Algorithm2D._handle_io()
         def func2(self, data, *args, **kwargs):
             """For checking closed decorator."""
             return data, {}
@@ -1007,7 +1007,7 @@ def test_algorithm_register_1d_fails(data_fixture):
 
 @pytest.mark.parametrize('input_x', (True, False))
 @pytest.mark.parametrize('input_z', (True, False))
-def test_algorithm_register_3d(data_fixture2d, input_x, input_z):
+def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z):
     """Ensures 3D data is allowed for 2D algorithms only when specified.
 
     Also checks _Algorithm2D setup when given 3D data as the first call.
@@ -1017,21 +1017,21 @@ def test_algorithm_register_3d(data_fixture2d, input_x, input_z):
 
     class SubClass(_algorithm_setup._Algorithm2D):
 
-        @_algorithm_setup._Algorithm2D._register
+        @_algorithm_setup._Algorithm2D._handle_io
         def func(self, data, *args, **kwargs):
             """Errors if input is not 2D."""
             assert data.ndim == 2
             assert data.shape == expected_y.shape
             return data, {}
 
-        @_algorithm_setup._Algorithm2D._register(ensure_dims=False)
+        @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=False)
         def func2(self, data, *args, **kwargs):
             """Allows 3D data."""
             assert data.ndim == 3
             assert data.shape[1:] == expected_y.shape
             return data, {}
 
-        @_algorithm_setup._Algorithm2D._register(ensure_dims=False)
+        @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=False)
         def func3(self, data, *args, **kwargs):
             """For checking reshaping output baseline for 3D input raveled on last axis."""
             assert data.ndim == 3

@@ -18,7 +18,7 @@ from ._algorithm_setup import _Algorithm2D
 class _Polynomial(_Algorithm2D, _PolynomialNDMixin):
     """A base class for all polynomial algorithms."""
 
-    @_Algorithm2D._register(sort_keys=('weights',), reshape_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def poly(self, data, poly_order=2, weights=None, return_coef=False, max_cross=None):
         """
         Computes a polynomial fit to the data.

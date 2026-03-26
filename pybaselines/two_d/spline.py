@@ -21,7 +21,7 @@ from ._whittaker_utils import PenalizedSystem2D
 class _Spline(_Algorithm2D):
     """A base class for all spline algorithms."""
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def mixture_model(self, data, lam=1e3, p=1e-2, num_knots=25, spline_degree=3, diff_order=3,
                       max_iter=50, tol=1e-3, weights=None, symmetric=False):
         """
@@ -194,7 +194,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def irsqr(self, data, lam=1e3, quantile=0.05, num_knots=25, spline_degree=3,
               diff_order=3, max_iter=100, tol=1e-6, weights=None, eps=None):
         """
@@ -288,7 +288,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_asls(self, data, lam=1e3, p=1e-2, num_knots=25, spline_degree=3, diff_order=2,
                      max_iter=50, tol=1e-3, weights=None):
         """
@@ -385,7 +385,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_iasls(self, data, lam=1e3, p=1e-2, lam_1=1e-4, num_knots=25,
                       spline_degree=3, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
@@ -514,7 +514,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_airpls(self, data, lam=1e3, num_knots=25, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None, normalize_weights=False):
         """
@@ -607,7 +607,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_arpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                       max_iter=50, tol=1e-3, weights=None):
         """
@@ -693,7 +693,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_iarpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                        max_iter=50, tol=1e-3, weights=None):
         """
@@ -780,7 +780,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_psalsa(self, data, lam=1e3, p=0.5, k=None, num_knots=25, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -887,7 +887,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_brpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                       max_iter=50, tol=1e-3, max_iter_2=50, tol_2=1e-3, weights=None):
         """
@@ -1009,7 +1009,7 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_lsrpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                        max_iter=50, tol=1e-3, weights=None, alternate_weighting=False):
         """

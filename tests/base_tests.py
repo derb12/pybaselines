@@ -129,7 +129,7 @@ def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_
 class _Poly2D(_Algorithm2D):
     """A class that provides a 2D polynomial method for testing purposes."""
 
-    @_Algorithm2D._register
+    @_Algorithm2D._handle_io
     def poly(self, data, poly_order=2, weights=None, max_cross=None):
         """
         Computes a polynomial fit to the data.
@@ -158,7 +158,7 @@ class _Poly2D(_Algorithm2D):
         baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
         dict
-            An empty dictionary so that `_Algorithm2D._register` does not throw an error. No
+            An empty dictionary so that `_Algorithm2D._handle_io` does not throw an error. No
             parameters are of concern for this testing class.
 
         """

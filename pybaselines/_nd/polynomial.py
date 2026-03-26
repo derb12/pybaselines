@@ -38,49 +38,17 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 
-from functools import partial, wraps
-
 import numpy as np
 
 from .. import _weighting
 from ..utils import _MIN_FLOAT, relative_difference, _convert_coef, _convert_coef2d
-
-
-def _register_wrapper(func=None, **register_kwargs):
-    """
-    Allows passing through `_register` keywords to the fitting object.
-
-    Parameters
-    ----------
-    func : callable, optional
-        The function that is being decorated. Default is None, which returns a partial function.
-    **register_kwargs
-        Keyword arguments to pass to the `_register` method.
-
-    Returns
-    -------
-    callable
-        The wrapped method.
-
-    Notes
-    -----
-    Within the inner function, `self` can be either `pybaselines._algorithm_setup._Algorithm`
-    or `pybaselines.two_d._algorithm_setup._Algorithm2D`.
-
-    """
-    if func is None:
-        return partial(_register_wrapper, **register_kwargs)
-
-    @wraps(func)
-    def inner(self, *args, **kwargs):
-        return self._register(func, **register_kwargs)(self, *args, **kwargs)
-    return inner
+from ._algorithm_setup import _handle_io
 
 
 class _PolynomialNDMixin:
     """A mixin class for providing polynomial methods for 1D and 2D."""
 
-    @_register_wrapper(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def modpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                 use_original=False, mask_initial_peaks=False, return_coef=False, max_cross=None):
         """
@@ -191,7 +159,7 @@ class _PolynomialNDMixin:
 
         return baseline, params
 
-    @_register_wrapper(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def imodpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                  use_original=False, mask_initial_peaks=True, return_coef=False,
                  num_std=1., max_cross=None):
@@ -315,7 +283,7 @@ class _PolynomialNDMixin:
 
         return baseline, params
 
-    @_register_wrapper(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def penalized_poly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                        cost_function='asymmetric_truncated_quadratic', threshold=None,
                        alpha_factor=0.99, return_coef=False, max_cross=None):
@@ -453,7 +421,7 @@ class _PolynomialNDMixin:
 
         return baseline, params
 
-    @_register_wrapper(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def quant_reg(self, data, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
                   weights=None, eps=None, return_coef=False, max_cross=None):
         """

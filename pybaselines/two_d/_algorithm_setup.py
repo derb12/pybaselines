@@ -314,10 +314,10 @@ class _Algorithm2D:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), ensure_dims=True, reshape_keys=(),
-                  skip_sorting=False, require_unique=False):
+    def _handle_io(cls, func=None, *, sort_keys=(), ensure_dims=True, reshape_keys=(),
+                   skip_sorting=False, require_unique=False):
         """
-        Wraps a baseline function to validate inputs and correct outputs.
+        Wraps a baseline method to validate inputs and correct outputs.
 
         The input data is converted to a numpy array, validated to ensure the length is
         consistent, and ordered to match the input x ordering. The outputs are corrected
@@ -326,10 +326,10 @@ class _Algorithm2D:
         Parameters
         ----------
         func : Callable, optional
-            The function that is being decorated. Default is None, which returns a partial function.
+            The method that is being decorated. Default is None, which returns a partial function.
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
-            sort order of :attr:`.x`. Default is ().
+            sort order of ``self.x`` and ``self.z``. Default is ().
         ensure_dims : bool, optional
             If True (default), will raise an error if the shape of `array` is not a two dimensional
             array with shape (M, N) or a three dimensional array with shape (M, N, 1), (M, 1, N),
@@ -356,7 +356,7 @@ class _Algorithm2D:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, ensure_dims=ensure_dims,
+                cls._handle_io, sort_keys=sort_keys, ensure_dims=ensure_dims,
                 reshape_keys=reshape_keys, skip_sorting=skip_sorting,
                 require_unique=require_unique
             )
@@ -460,7 +460,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M ,N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._handle_io`.
         lam : float or Sequence[float, float], optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
@@ -537,7 +537,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._handle_io`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
@@ -628,7 +628,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._handle_io`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
@@ -718,7 +718,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._handle_io`.
         half_window : int or Sequence[int, int], optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
@@ -770,7 +770,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._handle_io`.
         half_window : int or Sequence[int, int], optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
@@ -820,7 +820,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._handle_io`.
         weights : array-like, shape (M, N), optional
             The weighting array. If None (default), then will be an array with
             shape equal to (M, N) and all values set to 1.
@@ -928,7 +928,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._handle_io`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
         modules : Sequence[module, ...]
@@ -978,7 +978,7 @@ class _Algorithm2D:
         ----------
         y : numpy.ndarray, shape (M, N)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm2D._register`.
+            array by :meth:`~._Algorithm2D._handle_io`.
 
         Returns
         -------

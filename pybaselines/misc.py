@@ -82,7 +82,7 @@ from .utils import _MIN_FLOAT, relative_difference
 class _Misc(_Algorithm):
     """A base class for all miscellaneous algorithms."""
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def interp_pts(self, data=None, baseline_points=(), interp_method='linear'):
         """
         Creates a baseline by interpolating through input points.
@@ -148,7 +148,7 @@ class _Misc(_Algorithm):
 
         return baseline, {}
 
-    @_Algorithm._register(sort_keys=('signal',))
+    @_Algorithm._handle_io(sort_keys=('signal',))
     def beads(self, data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry=6.0,
               filter_type=1, cost_function=2, max_iter=50, tol=1e-2, eps_0=1e-6,
               eps_1=1e-6, fit_parabola=True, smooth_half_window=None, alpha=1., parabola_len=3):

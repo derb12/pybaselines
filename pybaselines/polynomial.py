@@ -87,7 +87,7 @@ from .utils import ParameterWarning, _convert_coef, _interp_inplace, relative_di
 class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
     """A base class for all polynomial algorithms."""
 
-    @_Algorithm._register(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',))
     def poly(self, data, poly_order=2, weights=None, return_coef=False):
         """
         Computes a polynomial fit to the data.
@@ -399,7 +399,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             return_coef=return_coef
         )
 
-    @_Algorithm._register(sort_keys=('weights', 'coef'), require_unique=True)
+    @_Algorithm._handle_io(sort_keys=('weights', 'coef'), require_unique=True)
     def loess(self, data, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
               tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False,
               num_std=1, use_original=False, weights=None, return_coef=False,
@@ -697,7 +697,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             weights=weights, eps=eps, return_coef=return_coef
         )
 
-    @_Algorithm._register(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',))
     def goldindec(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                   cost_function='asymmetric_indec', peak_ratio=0.5, alpha_factor=0.99,
                   tol_2=1e-3, tol_3=1e-6, max_iter_2=100, return_coef=False):

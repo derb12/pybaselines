@@ -17,7 +17,7 @@ from ._algorithm_setup import _Algorithm2D
 class _Morphological(_Algorithm2D):
     """A base class for all morphological algorithms."""
 
-    @_Algorithm2D._register
+    @_Algorithm2D._handle_io
     def mor(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         A Morphological based (Mor) baseline algorithm.
@@ -62,7 +62,7 @@ class _Morphological(_Algorithm2D):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm2D._register
+    @_Algorithm2D._handle_io
     def imor(self, data, half_window=None, tol=1e-3, max_iter=200, window_kwargs=None, **kwargs):
         """
         An Improved Morphological based (IMor) baseline algorithm.
@@ -124,7 +124,7 @@ class _Morphological(_Algorithm2D):
         params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
         return baseline, params
 
-    @_Algorithm2D._register
+    @_Algorithm2D._handle_io
     def rolling_ball(self, data, half_window=None, smooth_half_window=None,
                      pad_kwargs=None, window_kwargs=None, **kwargs):
         """
@@ -192,7 +192,7 @@ class _Morphological(_Algorithm2D):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm2D._register
+    @_Algorithm2D._handle_io
     def tophat(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         Estimates the baseline using a top-hat transformation (morphological opening).

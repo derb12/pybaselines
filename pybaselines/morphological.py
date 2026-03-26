@@ -20,7 +20,7 @@ from .utils import _mollifier_kernel, _sort_array, pad_edges, padded_convolve, r
 class _Morphological(_Algorithm):
     """A base class for all morphological algorithms."""
 
-    @_Algorithm._register(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',))
     def mpls(self, data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_iter=None,
              weights=None, window_kwargs=None, **kwargs):
         r"""
@@ -189,7 +189,7 @@ class _Morphological(_Algorithm):
         }
         return baseline, params
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def mor(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         A Morphological based (Mor) baseline algorithm.
@@ -265,7 +265,7 @@ class _Morphological(_Algorithm):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def imor(self, data, half_window=None, tol=1e-3, max_iter=200, window_kwargs=None, **kwargs):
         """
         An Improved Morphological based (IMor) baseline algorithm.
@@ -326,7 +326,7 @@ class _Morphological(_Algorithm):
         params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
         return baseline, params
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def amormol(self, data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None,
                 window_kwargs=None, **kwargs):
         """
@@ -407,7 +407,7 @@ class _Morphological(_Algorithm):
         params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
         return baseline[data_bounds], params
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def mormol(self, data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=None,
                pad_kwargs=None, window_kwargs=None, **kwargs):
         """
@@ -493,7 +493,7 @@ class _Morphological(_Algorithm):
         params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
         return baseline[data_bounds], params
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def rolling_ball(self, data, half_window=None, smooth_half_window=None,
                      pad_kwargs=None, window_kwargs=None, **kwargs):
         """
@@ -559,7 +559,7 @@ class _Morphological(_Algorithm):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def mwmv(self, data, half_window=None, smooth_half_window=None,
              pad_kwargs=None, window_kwargs=None, **kwargs):
         """
@@ -623,7 +623,7 @@ class _Morphological(_Algorithm):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def tophat(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         Estimates the baseline using a top-hat transformation (morphological opening).
@@ -672,7 +672,7 @@ class _Morphological(_Algorithm):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._register(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',))
     def mpspline(self, data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0,
                  num_knots=100, spline_degree=3, diff_order=2, weights=None,
                  pad_kwargs=None, window_kwargs=None, **kwargs):
@@ -806,7 +806,7 @@ class _Morphological(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('signal',))
+    @_Algorithm._handle_io(sort_keys=('signal',))
     def jbcd(self, data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1,
              gamma_mult=0.909, diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3,
              robust_opening=True, window_kwargs=None, **kwargs):

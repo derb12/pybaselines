@@ -26,7 +26,7 @@ from .utils import ParameterWarning, _check_scalar, _get_edges, _sort_array, gau
 class _Optimizers(_Algorithm):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm._register(ensure_dims=False, skip_sorting=True)
+    @_Algorithm._handle_io(ensure_dims=False, skip_sorting=True)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).
@@ -141,7 +141,7 @@ class _Optimizers(_Algorithm):
 
         return baselines, params
 
-    @_Algorithm._register(skip_sorting=True)
+    @_Algorithm._handle_io(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
                                 height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=9,
                                 step=1, pad_kwargs=None, method_kwargs=None):
@@ -388,7 +388,7 @@ class _Optimizers(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(skip_sorting=True)
+    @_Algorithm._handle_io(skip_sorting=True)
     def adaptive_minmax(self, data, poly_order=None, method='modpoly', weights=None,
                         constrained_fraction=0.01, constrained_weight=1e5,
                         estimation_poly_order=2, method_kwargs=None):
@@ -517,7 +517,7 @@ class _Optimizers(_Algorithm):
 
         return np.maximum.reduce(baselines), params
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def custom_bc(self, data, method='asls', regions=((None, None),), sampling=1, lam=None,
                   diff_order=2, method_kwargs=None):
         """
@@ -671,7 +671,7 @@ class _Optimizers(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(skip_sorting=True)
+    @_Algorithm._handle_io(skip_sorting=True)
     def optimize_pls(self, data, method='arpls', opt_method='U-Curve', min_value=4, max_value=7,
                      step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
         """

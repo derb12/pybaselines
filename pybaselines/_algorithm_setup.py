@@ -269,10 +269,10 @@ class _Algorithm:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), ensure_dims=True, skip_sorting=False,
-                  require_unique=False, reshape_keys=None):
+    def _handle_io(cls, func=None, *, sort_keys=(), ensure_dims=True, skip_sorting=False,
+                   require_unique=False, reshape_keys=None):
         """
-        Wraps a baseline function to validate inputs and correct outputs.
+        Wraps a baseline method to validate inputs and correct outputs.
 
         The input data is converted to a numpy array, validated to ensure the length is
         consistent, and ordered to match the input x ordering. The outputs are corrected
@@ -281,10 +281,10 @@ class _Algorithm:
         Parameters
         ----------
         func : Callable, optional
-            The function that is being decorated. Default is None, which returns a partial function.
+            The method that is being decorated. Default is None, which returns a partial function.
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
-            sort order of :attr:`.x`. Default is ().
+            sort order of ``self.x``. Default is ().
         ensure_dims : bool, optional
             If True (default), will raise an error if the shape of `array` is not a one dimensional
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
@@ -292,11 +292,11 @@ class _Algorithm:
             If True, will skip sorting the inputs and outputs, which is useful for algorithms that
             use other algorithms so that sorting is already internally done. Default is False.
         require_unique : bool, optional
-            If True, will check ``self.x`` to ensure all values are unique and will raise an error
+            If True, will check `self.x` to ensure all values are unique and will raise an error
             if non-unique values are present. Default is False, which skips the check.
         reshape_keys : None, optional
             Not used within this method, simply added to have the same call signature
-            as `_Algorithm2D._register`.
+            as `_Algorithm2D._handle_io`.
 
         Returns
         -------
@@ -308,7 +308,7 @@ class _Algorithm:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, ensure_dims=ensure_dims,
+                cls._handle_io, sort_keys=sort_keys, ensure_dims=ensure_dims,
                 skip_sorting=skip_sorting, require_unique=require_unique
             )
 
@@ -394,7 +394,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         lam : float, optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
@@ -470,7 +470,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -548,7 +548,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -637,7 +637,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
@@ -692,7 +692,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         half_window : int, optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
@@ -759,7 +759,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -859,7 +859,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
         modules : Sequence[module, ...]
@@ -917,7 +917,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
 
         Returns
         -------
