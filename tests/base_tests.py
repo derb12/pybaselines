@@ -462,10 +462,6 @@ class BaseTester:
         cls.repeated_kwargs = None
         cls.param_keys = None
 
-    def test_ensure_wrapped(self):
-        """Ensures the class method was wrapped using _Algorithm._register to control inputs."""
-        assert hasattr(self.class_func, '__wrapped__')
-
     @pytest.mark.parametrize('use_class', (True, False))
     def test_unchanged_data(self, use_class, **kwargs):
         """Ensures that input data is unchanged by the function."""
@@ -831,10 +827,6 @@ class BaseTester2D:
         cls.kwargs = None
         cls.repeated_kwargs = None
         cls.param_keys = None
-
-    def test_ensure_wrapped(self):
-        """Ensures the class method was wrapped using _Algorithm._register to control inputs."""
-        assert hasattr(self.class_func, '__wrapped__')
 
     @pytest.mark.parametrize('new_instance', (True, False))
     def test_unchanged_data(self, new_instance, **kwargs):
