@@ -12,6 +12,7 @@ import numpy as np
 from scipy.ndimage import grey_closing, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
+from ._nd.morphological import _MorphologicalNDMixin
 from ._validation import _check_lam, _check_half_window
 from .results import PSplineResult, WhittakerResult
 from .utils import (
@@ -19,7 +20,7 @@ from .utils import (
 )
 
 
-class _Morphological(_Algorithm):
+class _Morphological(_Algorithm, _MorphologicalNDMixin):
     """A base class for all morphological algorithms."""
 
     @_Algorithm._handle_io(sort_keys=('weights',))
@@ -215,7 +216,7 @@ class _Morphological(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
         dict
             A dictionary with the following items:
@@ -261,13 +262,8 @@ class _Morphological(_Algorithm):
         >>> plt.show()
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
-        opening = grey_opening(y, [2 * half_wind + 1])
-        baseline = np.minimum(opening, _avg_opening(y, half_wind, opening))
+        return super().mor(data, half_window=half_window, window_kwargs=window_kwargs, **kwargs)
 
-        return baseline, {'half_window': half_wind}
-
-    @_Algorithm._handle_io
     def imor(self, data, half_window=None, tol=1e-3, max_iter=200, window_kwargs=None, **kwargs):
         """
         An Improved Morphological based (IMor) baseline algorithm.
@@ -295,9 +291,9 @@ class _Morphological(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'half_window': int
@@ -314,19 +310,10 @@ class _Morphological(_Algorithm):
         Morphological Operations. Applied Spectroscopy, 2018, 72(5), 731-739.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
-        baseline = y
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline_new = np.minimum(y, _avg_opening(baseline, half_wind))
-            calc_difference = relative_difference(baseline, baseline_new)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            baseline = baseline_new
-
-        params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
-        return baseline, params
+        return super().imor(
+            data, half_window=half_window, tol=tol, max_iter=max_iter,
+            window_kwargs=window_kwargs, **kwargs
+        )
 
     @_Algorithm._handle_io
     def amormol(self, data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None,
@@ -649,7 +636,7 @@ class _Morphological(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
         dict
             A dictionary with the following items:
@@ -669,10 +656,7 @@ class _Morphological(_Algorithm):
         Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
-        baseline = grey_opening(y, [2 * half_wind + 1])
-
-        return baseline, {'half_window': half_wind}
+        return super().tophat(data, half_window=half_window, window_kwargs=window_kwargs, **kwargs)
 
     @_Algorithm._handle_io(sort_keys=('weights',))
     def mpspline(self, data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0,

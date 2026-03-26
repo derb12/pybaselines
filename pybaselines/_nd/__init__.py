@@ -13,4 +13,4 @@ Created on March 11, 2026
 
 """
 
-from . import polynomial
+from . import morphological, polynomial

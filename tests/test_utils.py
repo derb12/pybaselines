@@ -841,6 +841,39 @@ def test_estimate_window(small_data2d, two_d):
 
 
 @pytest.mark.parametrize('two_d', (True, False))
+def test_make_window(small_data2d, two_d):
+    """Ensures _make_window has the correct outputs for the dimensions of the input."""
+    data = small_data2d
+    if not two_d:
+        data = data.flatten()
+
+    # _make_window is always called after _setup_morphological, so
+    # the half-window will always be set correctly as an int in 1D and
+    # np.array([int, int]) for 2D
+    half_window = 5
+    if two_d:
+        half_window = np.array([half_window, half_window])
+        expected_window = 2 * half_window + 1
+    else:
+        expected_window = [2 * half_window + 1]
+
+    output = utils._make_window(data, half_window)
+
+    assert len(output) == data.ndim
+    assert isinstance(output, np.ndarray if two_d else list)
+    assert_array_equal(output, expected_window)
+
+    # can also check that ints are correctly converted to 2d, even though it
+    # shouldn't be used this way internally
+    if two_d:
+        half_window_int = 5
+        expected_window_int = [2 * half_window_int + 1] * 2
+        output = utils._make_window(data, half_window_int)
+        assert isinstance(output, list)
+        assert_array_equal(output, expected_window_int)
+
+
+@pytest.mark.parametrize('two_d', (True, False))
 @pytest.mark.parametrize('input_opening', (True, False))
 def test_average_opening(small_data2d, two_d, input_opening):
     """Ensures _average_opening has the correct outputs for the dimensions of the input."""
