@@ -9,7 +9,7 @@ Created on March 5, 2021
 from math import ceil
 
 import numpy as np
-from scipy.ndimage import grey_opening
+from scipy.ndimage import grey_dilation, grey_erosion, grey_opening
 from scipy.signal import convolve
 from scipy.special import binom
 from scipy.stats import skew
@@ -870,6 +870,39 @@ def optimize_window(*args, **kwargs):
 
     """
     return estimate_window(*args, **kwargs)
+
+
+def _avg_opening(y, half_window, opening=None):
+    """
+    Averages the dilation and erosion of a morphological opening on data.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,) or shape (M, N)
+        The array of the measured data. Can be one or two dimensional.
+    half_window : int or numpy.ndarray([int, int]), optional
+        The half window size to use for the operations.
+    opening : numpy.ndarray, shape (N,) or shape (M, N), optional
+        The output of ``scipy.ndimage.grey_opening(y, window_size)``. Default is
+        None, which will compute the value.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N,) or shape (M, N)
+        The average of the dilation and erosion of the opening.
+
+    References
+    ----------
+    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
+    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64 595-600.
+
+    """
+    window_size = 2 * half_window + 1
+    if isinstance(half_window, int):
+        window_size = [window_size] * y.ndim
+    if opening is None:
+        opening = grey_opening(y, window_size)
+    return 0.5 * (grey_dilation(opening, window_size) + grey_erosion(opening, window_size))
 
 
 def _inverted_sort(sort_order):

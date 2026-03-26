@@ -7,10 +7,10 @@ Created on April 8, 2023
 """
 
 import numpy as np
-from scipy.ndimage import grey_dilation, grey_erosion, grey_opening, uniform_filter
+from scipy.ndimage import grey_opening, uniform_filter
 
 from .._validation import _check_half_window
-from ..utils import relative_difference
+from ..utils import _avg_opening, relative_difference
 from ._algorithm_setup import _Algorithm2D
 
 
@@ -241,38 +241,3 @@ class _Morphological(_Algorithm2D):
         baseline = grey_opening(y, 2 * half_wind + 1)
 
         return baseline, {'half_window': half_wind}
-
-
-def _avg_opening(y, half_window, opening=None):
-    """
-    Averages the dilation and erosion of a morphological opening on data.
-
-    Parameters
-    ----------
-    y : numpy.ndarray, shape (M, N)
-        The array of the measured data.
-    half_window : numpy.ndarray([int, int]), optional
-        The half window size for the rows and columns, respectively, to use for the operations.
-    opening : numpy.ndarray, optional
-        The output of scipy.ndimage.grey_opening(y, window_size). Default is
-        None, which will compute the value.
-
-    Returns
-    -------
-    numpy.ndarray, shape (M, N)
-        The average of the dilation and erosion of the opening.
-
-    References
-    ----------
-    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
-    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64 595-600.
-
-    """
-    # TODO should find a way to merge this with its 1D counterpart
-    window_size = 2 * half_window + 1
-    if opening is None:
-        opening = grey_opening(y, window_size)
-    return 0.5 * (
-        grey_dilation(opening, window_size)
-        + grey_erosion(opening, window_size)
-    )

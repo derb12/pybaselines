@@ -10,6 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.interpolate import BSpline
+from scipy.ndimage import grey_dilation, grey_erosion, grey_opening
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils, utils
@@ -837,6 +838,34 @@ def test_estimate_window(small_data2d, two_d):
     else:
         assert isinstance(output, int)
     assert_allclose(output_opt, output, rtol=1e-12, atol=0)
+
+
+@pytest.mark.parametrize('two_d', (True, False))
+@pytest.mark.parametrize('input_opening', (True, False))
+def test_average_opening(small_data2d, two_d, input_opening):
+    """Ensures _average_opening has the correct outputs for the dimensions of the input."""
+    data = small_data2d
+    if not two_d:
+        data = data.flatten()
+
+    # _average_opening is always called after _setup_morphological, so
+    # the half-window will always be set correctly as an int in 1D and
+    # np.array([int, int]) for 2D
+    half_window = 5
+    if two_d:
+        half_window = np.array([half_window, half_window])
+        window = 2 * half_window + 1
+    else:
+        window = [2 * half_window + 1]
+    opening_ = grey_opening(data, window)
+
+    expected_output = 0.5 * (grey_dilation(opening_, window) + grey_erosion(opening_, window))
+
+    output = utils._avg_opening(data, half_window, opening=opening_ if input_opening else None)
+
+    assert output.shape == data.shape
+    assert isinstance(output, np.ndarray)
+    assert_allclose(output, expected_output, rtol=1e-14, atol=1e-14)
 
 
 @pytest.mark.parametrize('data_size', (500, 1000, 1001))

@@ -9,12 +9,14 @@ Created on March 5, 2021
 import warnings
 
 import numpy as np
-from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
+from scipy.ndimage import grey_closing, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._validation import _check_lam, _check_half_window
 from .results import PSplineResult, WhittakerResult
-from .utils import _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
+from .utils import (
+    _avg_opening, _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
+)
 
 
 class _Morphological(_Algorithm):
@@ -933,37 +935,6 @@ class _Morphological(_Algorithm):
 
 
 _morphological_wrapper = _class_wrapper(_Morphological)
-
-
-def _avg_opening(y, half_window, opening=None):
-    """
-    Averages the dilation and erosion of a morphological opening on data.
-
-    Parameters
-    ----------
-    y : numpy.ndarray, shape (N,)
-        The array of the measured data.
-    half_window : int, optional
-        The half window size to use for the operations.
-    opening : numpy.ndarray, optional
-        The output of scipy.ndimage.grey_opening(y, window_size). Default is
-        None, which will compute the value.
-
-    Returns
-    -------
-    numpy.ndarray, shape (N,)
-        The average of the dilation and erosion of the opening.
-
-    References
-    ----------
-    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
-    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64 595-600.
-
-    """
-    window_size = 2 * half_window + 1
-    if opening is None:
-        opening = grey_opening(y, [window_size])
-    return 0.5 * (grey_dilation(opening, [window_size]) + grey_erosion(opening, [window_size]))
 
 
 @_morphological_wrapper
