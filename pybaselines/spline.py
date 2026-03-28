@@ -126,7 +126,7 @@ class _Spline(_Algorithm):
         y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
         if weights is not None:
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
         else:
             # perform 2 iterations: first is a least-squares fit and second is initial
             # reweighted fit; 2 fits are needed to get weights to have a decent starting
@@ -139,7 +139,7 @@ class _Spline(_Algorithm):
                     ParameterWarning, stacklevel=2
                 )
             for _ in range(2):
-                baseline = pspline.solve_pspline(y, weight_array)
+                baseline = pspline.solve(y, weight_array)
                 weight_array = _weighting._asls(y, baseline, p)
 
         residual = y - baseline
@@ -194,7 +194,7 @@ class _Spline(_Algorithm):
                 fraction_positive = positive_sum / total_sum
 
             weight_array = posterior_prob_noise
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             residual = y - baseline
 
         params = {
@@ -282,7 +282,7 @@ class _Spline(_Algorithm):
         old_coef = np.zeros(self._spline_basis._num_bases)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             calc_difference = relative_difference(old_coef, pspline.coef)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -378,7 +378,7 @@ class _Spline(_Algorithm):
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -506,7 +506,7 @@ class _Spline(_Algorithm):
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve_pspline(y, weight_array, rhs_extra=partial_rhs)
+            baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
             new_weights = _weighting._iasls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -591,7 +591,7 @@ class _Spline(_Algorithm):
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
                 y, baseline, i, normalize_weights
             )
@@ -676,7 +676,7 @@ class _Spline(_Algorithm):
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights, exit_early = _weighting._arpls(y, baseline)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -794,7 +794,7 @@ class _Spline(_Algorithm):
                 shifted_bands, shifted_bands
             )
             penalty = _add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
-            baseline = pspline.solve_pspline(y, weight_array, penalty=penalty)
+            baseline = pspline.solve(y, weight_array, penalty=penalty)
             new_weights, exit_early = _weighting._drpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -879,7 +879,7 @@ class _Spline(_Algorithm):
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights, exit_early = _weighting._iarpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -1017,7 +1017,7 @@ class _Spline(_Algorithm):
                 pspline.penalty * np.interp(interp_pts, self.x, alpha_array),
                 pspline.num_bands, pspline.num_bands
             )
-            baseline = pspline.solve_pspline(y, weight_array, penalty=alpha_penalty)
+            baseline = pspline.solve(y, weight_array, penalty=alpha_penalty)
             new_weights, residual, exit_early = _weighting._aspls(
                 y, baseline, asymmetric_coef, alternate_weighting
             )
@@ -1128,7 +1128,7 @@ class _Spline(_Algorithm):
             k = _check_scalar_variable(k, variable_name='k')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -1269,7 +1269,7 @@ class _Spline(_Algorithm):
         partial_weights = diff_1_weights * diff_2_weights
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights = _weighting._derpsalsa(y, baseline, p, k, self._shape, partial_weights)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -1417,7 +1417,7 @@ class _Spline(_Algorithm):
         _, weight_array, pspline = self._setup_spline(
             y, w, spline_degree, num_knots, True, diff_order, lam
         )
-        baseline = pspline.solve_pspline(y, weight_array)
+        baseline = pspline.solve(y, weight_array)
 
         params = {
             'weights': weight_array, 'half_window': half_wind,
@@ -1509,7 +1509,7 @@ class _Spline(_Algorithm):
         # use baseline_weights to track which weights produced the output baseline
         for i in range(max_iter_2 + 1):
             for j in range(max_iter + 1):
-                new_baseline = pspline.solve_pspline(y, weight_array)
+                new_baseline = pspline.solve(y, weight_array)
                 new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
                 if exit_early:
                     j -= 1  # reduce j so that output tol_history indexing is correct
@@ -1626,7 +1626,7 @@ class _Spline(_Algorithm):
         )
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = pspline.solve_pspline(y, weight_array)
+            baseline = pspline.solve(y, weight_array)
             new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct

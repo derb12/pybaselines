@@ -849,6 +849,32 @@ class PenalizedSystem:
             lam, diff_order, allow_lower, reverse_diags, allow_penta, padding=padding
         )
 
+    @property
+    def tot_bases(self):
+        """
+        The total number of basis functions for the system.
+
+        Returns
+        -------
+        int
+            The total number of basis functions for the system.
+
+        """
+        return self._num_bases
+
+    @property
+    def shape(self):
+        """
+        The shape of the data being fit by the penalized system.
+
+        Returns
+        -------
+        tuple[int]
+            The shape of the data that the system corresponds to.
+
+        """
+        return (self._num_bases,)
+
     def add_penalty(self, penalty):
         """
         Updates `self.penalty` with an additional penalty and updates the bands.
@@ -983,7 +1009,50 @@ class PenalizedSystem:
             Whether to check if the inputs are finite when using
             :func:`scipy.linalg.solveh_banded` or :func:`scipy.linalg.solve_banded`.
             Default is False.
-        l_and_u : Container[int, int], optional
+        l_and_u : tuple[int, int], optional
+            The number of lower and upper bands in `lhs` when using
+            :func:`scipy.linalg.solve_banded`. Default is None, which uses
+            (``len(lhs) // 2``, ``len(lhs) // 2``).
+
+        Returns
+        -------
+        output : numpy.ndarray, shape (N,)
+            The solution to the linear system, `x`.
+
+        Notes
+        -----
+        This should be modified in subclasses so that `solve` will do whatever extra logic
+        is required to arrange the equation into ``A @ x = rhs`` format and subsequently
+        call `direct_solve`.
+
+        """
+        return self.direct_solve(
+            lhs, rhs, overwrite_ab=overwrite_ab, overwrite_b=overwrite_b,
+            check_finite=check_finite, l_and_u=l_and_u
+        )
+
+    def direct_solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False,
+                     check_finite=False, l_and_u=None):
+        """
+        Solves the equation ``A @ x = rhs``, given `A` in banded format as `lhs`.
+
+        Parameters
+        ----------
+        lhs : array-like, shape (M, N)
+            The left-hand side of the equation, in banded format. `lhs` is assumed to be
+            some slight modification of `self.penalty` in the same format (reversed, lower,
+            number of bands, etc. are all the same).
+        rhs : array-like, shape (N,)
+            The right-hand side of the equation.
+        overwrite_ab : bool, optional
+            Whether to overwrite `lhs` when using any of the solvers. Default is False.
+        overwrite_b : bool, optional
+            Whether to overwrite `rhs` when using any of the solvers. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite when using
+            :func:`scipy.linalg.solveh_banded` or :func:`scipy.linalg.solve_banded`.
+            Default is False.
+        l_and_u : tuple[int, int], optional
             The number of lower and upper bands in `lhs` when using
             :func:`scipy.linalg.solve_banded`. Default is None, which uses
             (``len(lhs) // 2``, ``len(lhs) // 2``).
@@ -1088,7 +1157,7 @@ class PenalizedSystem:
         Parameters
         ----------
         factorization : numpy.ndarray or Callable
-            The factorization of ``A``, output by :meth:`PenalizedSystem.factorize`.
+            The factorization of ``A``, output by :meth:`~.PenalizedSystem.factorize`.
         rhs : array-like, shape (N,) or (N, M)
             The right-hand side of the equation.
         overwrite_b : bool, optional

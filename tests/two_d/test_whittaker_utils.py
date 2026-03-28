@@ -81,6 +81,8 @@ def test_penalized_system_setup(small_data2d, diff_order, lam):
     )
 
     assert_array_equal(penalized_system._num_bases, num_bases)
+    assert penalized_system.tot_bases == np.prod(num_bases)
+    assert_array_equal(penalized_system.shape, num_bases)
 
     assert issparse(penalized_system.penalty)
     assert_allclose(
@@ -251,6 +253,8 @@ def test_whittaker_system_setup_no_eigenvalues(small_data2d, diff_order, lam):
     )
 
     assert_array_equal(penalized_system._num_bases, num_bases)
+    assert penalized_system.tot_bases == np.prod(num_bases)
+    assert_array_equal(penalized_system.shape, num_bases)
 
     assert issparse(penalized_system.penalty)
     assert_allclose(
@@ -290,7 +294,9 @@ def test_whittaker_system_setup_eigenvalues(data_fixture2d, num_eigens, diff_ord
         y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
     )
 
-    assert_array_equal(whittaker_system._num_bases, num_eigens)
+    assert_array_equal(whittaker_system._num_bases, (num_eigens_r, num_eigens_c))
+    assert_array_equal(whittaker_system.tot_bases, np.prod((num_eigens_r, num_eigens_c)))
+    assert_array_equal(whittaker_system.shape, y.shape)
 
     eigenvalues_rows, expected_basis_rows = eig_banded(
         diff_penalty_diagonals(y.shape[0], diff_order_r, lower_only=True),

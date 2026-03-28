@@ -1185,7 +1185,7 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     weight_array = _check_optional_array(
         len(y), weights, dtype=float, order='C', check_finite=check_finite
     )
-    y_smooth = pspline.solve_pspline(y, weight_array)
+    y_smooth = pspline.solve(y, weight_array)
 
     return y_smooth, pspline.tck
 

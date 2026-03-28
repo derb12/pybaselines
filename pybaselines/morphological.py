@@ -762,7 +762,7 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         # overestimated baseline; could alternatively just fit a p-spline to
         # 0.5 * (grey_closing(y, 3) + grey_opening(y, 3)), which averages noisy data better;
         # could add it as a boolean parameter
-        spline_fit = pspline.solve_pspline(
+        spline_fit = pspline.solve(
             y, weights=(y == grey_closing(y, 3)).astype(float, copy=False)
         )
         if weights is None:
@@ -784,7 +784,7 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
             weight_array = np.where(spline_fit == optimal_opening, 1 - p, p)
 
         pspline.update_lam(lam)
-        baseline = pspline.solve_pspline(spline_fit, weight_array)
+        baseline = pspline.solve(spline_fit, weight_array)
         params = {
             'half_window': half_window, 'weights': weight_array,
             'result': PSplineResult(pspline, weight_array)

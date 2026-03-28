@@ -122,6 +122,9 @@ def test_pspline_setup(data_fixture2d, num_knots, spline_degree, diff_order, lam
     assert spline_basis.basis_c.shape == (len(z), len(knots_c) - spline_degree_z - 1)
     assert_array_equal(spline_basis._num_bases, num_bases)
     assert_array_equal(pspline._num_bases, num_bases)
+    assert_array_equal(pspline._num_bases, num_bases)
+    assert pspline.tot_bases == np.prod(num_bases)
+    assert pspline.shape == (len(x), len(z))
 
     assert issparse(spline_basis.basis_r)
     assert issparse(spline_basis.basis_c)

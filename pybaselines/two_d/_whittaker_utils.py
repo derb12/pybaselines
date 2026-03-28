@@ -97,6 +97,32 @@ class PenalizedSystem2D:
         self._num_bases = data_size
         self.reset_diagonals(lam, diff_order)
 
+    @property
+    def tot_bases(self):
+        """
+        The total number of basis functions for the system.
+
+        Returns
+        -------
+        int
+            The total number of basis functions for the system.
+
+        """
+        return np.prod(self._num_bases)
+
+    @property
+    def shape(self):
+        """
+        The shape of the data being fit by the penalized system.
+
+        Returns
+        -------
+        tuple[int, int]
+            The shape of the data that the system corresponds to.
+
+        """
+        return self._num_bases
+
     def add_penalty(self, penalty):
         """
         Updates `self.penalty` with an additional penalty and updates the bands.
@@ -197,7 +223,7 @@ class PenalizedSystem2D:
 
         return self.direct_solve(lhs, rhs)
 
-    def direct_solve(self, lhs, rhs):
+    def direct_solve(self, lhs, rhs, **kwargs):
         """
         Solves the linear system ``lhs @ x = rhs``.
 
@@ -207,6 +233,9 @@ class PenalizedSystem2D:
             The left hand side of the equation.
         rhs : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
             The right hand side of the equation.
+        **kwargs
+            Additional keyword arguments that are ignored but allow a consistent method call
+            between `PenalizedSystem.direct_solve` and `PenalizedSystem2D.direct_solve`.
 
         Returns
         -------
@@ -311,6 +340,19 @@ class WhittakerSystem2D(PenalizedSystem2D):
             self._using_svd = True
         self.reset_diagonals(lam, diff_order)
 
+    @property
+    def shape(self):
+        """
+        The shape of the data being fit by the penalized system.
+
+        Returns
+        -------
+        tuple[int, int]
+            The shape of the data that the system corresponds to.
+
+        """
+        return self._num_points
+
     def reset_diagonals(self, lam=1, diff_order=2):
         """
         Resets the diagonals of the system and all of the attributes.
@@ -338,8 +380,6 @@ class WhittakerSystem2D(PenalizedSystem2D):
         )
         self.lam = _check_lam(lam, two_d=True)
 
-        # initially need num_bases to point to the data shape; maybe set a second
-        # attribute instead
         values_rows, vectors_rows = self._calc_eigenvalues(
             self._num_points[0], self.diff_order[0], self._num_bases[0]
         )

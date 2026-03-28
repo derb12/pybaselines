@@ -471,6 +471,8 @@ def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
     )
 
     assert penalized_system._num_bases == data_size
+    assert penalized_system.shape == (data_size,)
+    assert penalized_system.tot_bases == data_size
     assert_array_equal(penalized_system.original_diagonals, expected_penalty)
     assert_array_equal(penalized_system.penalty, expected_padded_penalty)
     assert penalized_system.reversed == reverse_diags
@@ -532,6 +534,8 @@ def test_penalized_system_setup(diff_order, allow_lower, reverse_diags):
         data_size, lam=1, diff_order=0, allow_penta=False
     )
     assert initial_system._num_bases == data_size
+    assert initial_system.shape == (data_size,)
+    assert initial_system.tot_bases == data_size
 
     for padding in range(-1, 3):
         penalized_system = _banded_utils.PenalizedSystem(
