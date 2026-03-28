@@ -483,7 +483,7 @@ class _Spline(_Algorithm2D):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data.ravel())
-            weights = _weighting._asls(data, baseline.reshape(self._shape), p)
+            weights = _weighting._iasls(data, baseline.reshape(self._shape), p)
 
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam

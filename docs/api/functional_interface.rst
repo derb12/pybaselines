@@ -52,6 +52,6 @@ Modules
 ----------------------
 
 No functional interface is provided for 2D baseline correction since the :class:`~.Baseline2D`
-class was implemented after the creation on the :class:`~.Baseline` class when the 1D functional
+class was implemented after the creation of the :class:`~.Baseline` class when the 1D functional
 interface was already considered legacy. There are no current plans to implement a functional
 interface for 2D algorithms.

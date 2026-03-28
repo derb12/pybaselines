@@ -373,7 +373,7 @@ around this, some commercial spectroscopy software use a `patented method
 the data into a convex shape so that the rubberband method still works. pybaselines
 uses an alternate approach of allowing splitting the data in segments, in order
 to reduce the concavity of each individual section; it is less user-friendly
-than Bruker's method but works well enough for data with similar baselines and
+than the patented method but works well enough for data with similar baselines and
 peak positions.
 
 .. note::

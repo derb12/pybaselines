@@ -29,6 +29,7 @@ def sparse_iasls(data, lam, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, diff_orde
     penalty_matrix = lam * _banded_utils.diff_penalty_matrix(num_y, diff_order) + d1_penalty
     weight_matrix = diags(weight_array)
     for _ in range(max_iter + 1):
+        # note: intentionally using asls weighting here to follow the W.T @ W used in literature
         lhs = weight_matrix.T @ weight_matrix + penalty_matrix
         baseline = spsolve(lhs, (weight_matrix.T @ weight_matrix + d1_penalty) @ y)
         new_weights = _weighting._asls(y, baseline, p)

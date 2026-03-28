@@ -327,7 +327,7 @@ class _Whittaker(_Algorithm):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data)
-            weights = _weighting._asls(data, baseline, p)
+            weights = _weighting._iasls(data, baseline, p)
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
