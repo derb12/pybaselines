@@ -89,6 +89,42 @@ def test_penalized_system_factorized_solve(small_data2d, diff_order, lam):
     assert_allclose(output.ravel(), expected_result, rtol=1e-8, atol=1e-8)
 
 
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
+@pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
+def test_penalized_system_direct_solve(small_data2d, diff_order, lam):
+    """Tests the direct_solve method of a PenalizedSystem2D object."""
+    *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
+        lam=lam, diff_order=diff_order
+    )
+
+    num_bases = small_data2d.shape
+
+    D1 = difference_matrix(num_bases[0], diff_order_x)
+    D2 = difference_matrix(num_bases[1], diff_order_z)
+
+    P1 = lam_x * kron(D1.T @ D1, identity(num_bases[1]))
+    P2 = lam_z * kron(identity(num_bases[0]), D2.T @ D2)
+    penalty = P1 + P2
+
+    penalized_system = _whittaker_utils.PenalizedSystem2D(
+        small_data2d.shape, lam=lam, diff_order=diff_order
+    )
+
+    weights = np.random.default_rng(0).normal(0.8, 0.05, small_data2d.size)
+    weights = np.clip(weights, 1e-12, 1).astype(float, copy=False).ravel()
+
+    penalty.setdiag(penalty.diagonal() + weights)
+    expected_result = spsolve(penalty, weights * small_data2d.ravel())
+
+    penalized_system.add_diagonal(weights)
+
+    output = penalized_system.direct_solve(
+        penalized_system.penalty, weights * small_data2d.ravel()
+    )
+
+    assert_allclose(output.ravel(), expected_result, rtol=1e-8, atol=1e-8)
+
+
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
 def test_penalized_system_setup(small_data2d, diff_order, lam):
@@ -287,6 +323,42 @@ def test_whittaker_system_factorized_solve_no_eigenvalues(small_data2d, diff_ord
     factorization = penalized_system.factorize(penalized_system.penalty)
     assert callable(factorization)
     output = penalized_system.factorized_solve(factorization, weights * small_data2d.ravel())
+
+    assert_allclose(output.ravel(), expected_result, rtol=1e-8, atol=1e-8)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
+@pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
+def test_whittaker_system_direct_solve_no_eigenvalues(small_data2d, diff_order, lam):
+    """Tests direct_solve method of WhittakerSystem2D when not using SVD."""
+    *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
+        lam=lam, diff_order=diff_order
+    )
+
+    num_bases = small_data2d.shape
+
+    D1 = difference_matrix(num_bases[0], diff_order_x)
+    D2 = difference_matrix(num_bases[1], diff_order_z)
+
+    P1 = lam_x * kron(D1.T @ D1, identity(num_bases[1]))
+    P2 = lam_z * kron(identity(num_bases[0]), D2.T @ D2)
+    penalty = P1 + P2
+
+    penalized_system = _whittaker_utils.WhittakerSystem2D(
+        small_data2d.shape, lam=lam, diff_order=diff_order, num_eigens=None
+    )
+    assert penalized_system.coef is None
+
+    weights = np.random.default_rng(0).normal(0.8, 0.05, small_data2d.size)
+    weights = np.clip(weights, 1e-12, 1).astype(float, copy=False).ravel()
+
+    penalty.setdiag(penalty.diagonal() + weights)
+    expected_result = spsolve(penalty, weights * small_data2d.ravel())
+
+    penalized_system.add_diagonal(weights)
+    output = penalized_system.direct_solve(
+        penalized_system.penalty, weights * small_data2d.ravel()
+    )
 
     assert_allclose(output.ravel(), expected_result, rtol=1e-8, atol=1e-8)
 
@@ -686,6 +758,74 @@ def test_whittaker_system_factorized_solve_eigenvalues(data_fixture2d, num_eigen
         assert_allclose(output.ravel(), expected_coeffs, rtol=1e-8, atol=1e-8)
 
     # going through factorized_solve should not set coefficients
+    assert whittaker_system.coef is None
+
+
+@pytest.mark.parametrize('num_eigens', (5, 8, (5, 8)))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, (2, 3)))
+@pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
+def test_whittaker_system_direct_solve_eigenvalues(data_fixture2d, num_eigens, diff_order, lam):
+    """Tests direct_solve method of WhittakerSystem2D when using eigendecomposition."""
+    x, z, y = data_fixture2d
+    (
+        num_eigens_r, num_eigens_c, _, _,
+        lam_x, lam_z, diff_order_x, diff_order_z
+    ) = get_2dspline_inputs(num_knots=num_eigens, lam=lam, diff_order=diff_order)
+
+    eigenvalues_rows, basis_r = eig_banded(
+        diff_penalty_diagonals(y.shape[0], diff_order_x, lower_only=True),
+        lower=True, overwrite_a_band=True, select='i', select_range=(0, num_eigens_r - 1)
+    )
+    penalty_rows = kron(
+        lam_x * dia_object((eigenvalues_rows, 0), shape=(num_eigens_r, num_eigens_r)),
+        identity(num_eigens_c)
+    )
+
+    eigenvalues_cols, basis_c = eig_banded(
+        diff_penalty_diagonals(y.shape[1], diff_order_z, lower_only=True),
+        lower=True, overwrite_a_band=True, select='i', select_range=(0, num_eigens_c - 1)
+    )
+    penalty_cols = kron(
+        identity(num_eigens_r),
+        lam_z * dia_object((eigenvalues_cols, 0), shape=(num_eigens_c, num_eigens_c))
+    )
+    penalty = penalty_rows + penalty_cols
+
+    num_bases = (basis_r.shape[1], basis_c.shape[1])
+    weights = np.random.default_rng(0).normal(0.8, 0.05, y.size)
+    weights = np.clip(weights, 0, 1, dtype=float)
+
+    basis = kron(basis_r, basis_c)
+    CWT = basis.multiply(
+        np.repeat(weights.ravel(), num_bases[0] * num_bases[1]).reshape(len(x) * len(z), -1)
+    ).T
+
+    expected_coeffs = solve(
+        (CWT @ basis + penalty).toarray(), CWT @ y.ravel(),
+        lower=True, overwrite_a=True, overwrite_b=True, check_finite=False, assume_a='pos'
+    )
+
+    whittaker_system = _whittaker_utils.WhittakerSystem2D(
+        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
+    )
+    assert whittaker_system.coef is None
+
+    lhs = whittaker_system._make_btwb(weights.reshape(y.shape))
+    np.fill_diagonal(lhs, lhs.diagonal() + whittaker_system.penalty)
+
+    rhs = (
+        whittaker_system.basis_r.T @ (weights.reshape(y.shape) * y) @ whittaker_system.basis_c
+    ).ravel()
+    output = whittaker_system.direct_solve(lhs, rhs)
+    # TODO same concern about eigenvector signs as in test_whittaker_system_solve_eigenvalues
+    if 1 in (diff_order_x, diff_order_z):
+        assert_allclose(
+            np.abs(output.ravel()), np.abs(expected_coeffs), rtol=1e-8, atol=1e-8
+        )
+    else:
+        assert_allclose(output.ravel(), expected_coeffs, rtol=1e-8, atol=1e-8)
+
+    # going through direct_solve should not set coefficients
     assert whittaker_system.coef is None
 
 

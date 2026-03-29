@@ -315,6 +315,46 @@ def test_pspline_factorize_solve(data_fixture, num_knots, spline_degree, diff_or
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
 @pytest.mark.parametrize('lower_only', (True, False))
+def test_pspline_direct_solve(data_fixture, num_knots, spline_degree, diff_order, lower_only):
+    """Tests the direct_solve method of a PSpline object."""
+    x, y = data_fixture
+    # ensure x and y are floats
+    x = x.astype(float)
+    y = y.astype(float)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+    num_bases = basis.shape[1]
+    penalty_matrix = _banded_utils.diff_penalty_matrix(num_bases, diff_order=diff_order)
+
+    lhs_sparse = basis.T @ diags(weights, format='csr') @ basis + penalty_matrix
+    rhs = basis.T @ (weights * y)
+    expected_coeffs = spsolve(lhs_sparse, rhs)
+
+    lhs_banded = _banded_utils._sparse_to_banded(lhs_sparse)[0]
+    if lower_only:
+        lhs_banded = lhs_banded[len(lhs_banded) // 2:]
+
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree
+    )
+    pspline = _spline_utils.PSpline(
+        spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
+    )
+
+    output = pspline.direct_solve(lhs_banded, rhs)
+    assert_allclose(output, expected_coeffs, rtol=1e-10, atol=1e-12)
+
+    # going through direct_solve should not set coefficients
+    assert pspline.coef is None
+
+
+@pytest.mark.parametrize('num_knots', (20, 101))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+@pytest.mark.parametrize('lower_only', (True, False))
 @pytest.mark.parametrize('has_numba', (True, False))
 def test_pspline_make_btwb(data_fixture, num_knots, spline_degree, diff_order, lower_only,
                            has_numba):
