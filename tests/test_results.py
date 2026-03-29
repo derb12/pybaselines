@@ -663,21 +663,6 @@ def test_whittaker_result_two_d_no_weights(data_fixture2d, num_eigens):
     assert_allclose(result_obj._weights, np.ones(expected_shape), rtol=1e-16, atol=0)
 
 
-def test_whittaker_result_two_d_lhs_penalty_raises(data_fixture2d):
-    """Ensures an exception is raised if both `lhs` and `penalty` are supplied."""
-    x, z, y = data_fixture2d
-    weights = np.random.default_rng(0).normal(0.8, 0.05, y.shape)
-    weights = np.clip(weights, 0, 1, dtype=float)
-
-    penalized_system = WhittakerSystem2D(y.shape)
-
-    with pytest.raises(ValueError, match='both `lhs` and `penalty` cannot'):
-        results.WhittakerResult2D(
-            penalized_system, weights, lhs=penalized_system.penalty,
-            penalty=penalized_system.penalty
-        )
-
-
 @pytest.mark.parametrize('shape', ((30, 21), (15, 40)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, (1, 2)))
 @pytest.mark.parametrize('large_lam', (True, False))

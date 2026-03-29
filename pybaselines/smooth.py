@@ -711,7 +711,7 @@ class _Smooth(_Algorithm):
 
         if lam_smooth is not None and lam_smooth > 0:
             _, _, whittaker_system = self._setup_whittaker(data, lam_smooth, diff_order=2)
-            data = whittaker_system.solve(whittaker_system.add_diagonal(1.), data)
+            data = whittaker_system.solve(data, weights=1)
 
         for i, (left_idx, right_idx) in enumerate(zip(indices[:-1], indices[1:])):
             y_truncated[i] = data[left_idx:right_idx].min()

@@ -694,8 +694,51 @@ def test_penalized_system_solve(data_fixture, diff_order, allow_lower, allow_pen
         data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
         reverse_diags=False, allow_penta=allow_penta
     )
+    output = penalized_system.solve(y, weights)
+    assert_allclose(output, expected_solution, rtol=1e-6, atol=1e-10)
+
+    # need to reset diagonal for the next test since it directly adds weights
+    # to ihe input penalty's existing diagonal
+    penalized_system.add_diagonal(0)
+
+    # also test inputting a penalty; penalty may potentially overwritten by the
+    # solver here, so needs to be last check
+    output2 = penalized_system.solve(y, weights, penalty=penalized_system.penalty)
+    assert_allclose(output2, expected_solution, rtol=1e-6, atol=1e-10)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('allow_penta', (True, False))
+def test_penalized_system_direct_solve(data_fixture, diff_order, allow_lower, allow_penta):
+    """
+    Tests the direct_solve method of a PenalizedSystem object.
+
+    Solves the equation ``(W + lam * D.T @ D) x = W @ y``, where `W` is the weight
+    matrix, and ``D.T @ D`` is the penalty.
+
+    """
+    x, y = data_fixture
+    data_size = len(y)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, x.size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
+    expected_penalty = _banded_utils.diff_penalty_diagonals(
+        data_size, diff_order=diff_order, lower_only=False
+    )
+    sparse_penalty = dia_object(
+        (lam * expected_penalty, np.arange(diff_order, -(diff_order + 1), -1)),
+        shape=(data_size, data_size)
+    ).tocsr()
+    expected_solution = spsolve(diags(weights, format='csr') + sparse_penalty, weights * y)
+
+    penalized_system = _banded_utils.PenalizedSystem(
+        data_size, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=False, allow_penta=allow_penta
+    )
     penalized_system.add_diagonal(weights)
-    output = penalized_system.solve(penalized_system.penalty, weights * y)
+    output = penalized_system.direct_solve(penalized_system.penalty, weights * y)
 
     assert_allclose(output, expected_solution, rtol=1e-6, atol=1e-10)
 
@@ -724,7 +767,7 @@ def test_whittaker_lam_extremes(data_fixture, diff_order, allow_lower, allow_pen
         data_size, lam=1e13, diff_order=diff_order, allow_lower=allow_lower,
         allow_penta=allow_penta
     )
-    output = penalized_system.solve(penalized_system.add_diagonal(1.), y)
+    output = penalized_system.solve(y, weights=1)
 
     polynomial_fit = np.polynomial.Polynomial.fit(x, y, deg=diff_order - 1)(x)
     # limited by how close to infinity lam can get before it causes numerical instability,
@@ -734,11 +777,8 @@ def test_whittaker_lam_extremes(data_fixture, diff_order, allow_lower, allow_pen
     assert_allclose(output, polynomial_fit, rtol=rtol, atol=1e-10)
 
     # for lam ~ 0, should just approximate the input
-    penalized_system2 = _banded_utils.PenalizedSystem(
-        data_size, lam=1e-8, diff_order=diff_order, allow_lower=allow_lower,
-        reverse_diags=None, allow_penta=allow_penta
-    )
-    output2 = penalized_system.solve(penalized_system2.add_diagonal(1.), y)
+    penalized_system.update_lam(1e-8)
+    output2 = penalized_system.solve(y, weights=1)
     assert_allclose(output2, y, rtol=1e-8, atol=1e-10)
 
 

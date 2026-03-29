@@ -145,10 +145,7 @@ class _Whittaker(_Algorithm):
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights = _weighting._asls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -344,10 +341,7 @@ class _Whittaker(_Algorithm):
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y + d1_y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array, rhs_extra=d1_y)
             new_weights = _weighting._iasls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -476,10 +470,7 @@ class _Whittaker(_Algorithm):
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
                 y, baseline, i, normalize_weights
             )
@@ -587,10 +578,7 @@ class _Whittaker(_Algorithm):
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._arpls(y, baseline)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -686,7 +674,7 @@ class _Whittaker(_Algorithm):
                 diff_n_diagonals * weight_array, diff_order, diff_order
             )
             lhs = whittaker_system.penalty + penalty_with_weights
-            baseline = whittaker_system.solve(
+            baseline = whittaker_system.direct_solve(
                 lhs, weight_array * y, overwrite_b=True, l_and_u=lower_upper_bands
             )
             new_weights, exit_early = _weighting._drpls(y, baseline, i)
@@ -758,10 +746,7 @@ class _Whittaker(_Algorithm):
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._iarpls(y, baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -878,14 +863,11 @@ class _Whittaker(_Algorithm):
             alpha_array = alpha_array[self._sort_order]
         asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
-        lower_upper_bands = (diff_order, diff_order)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             lhs = whittaker_system.penalty * alpha_array
-            lhs[whittaker_system.main_diagonal_index] += weight_array
             baseline = whittaker_system.solve(
-                _shift_rows(lhs, diff_order, diff_order), weight_array * y,
-                overwrite_b=True, l_and_u=lower_upper_bands
+                y, weight_array, penalty=_shift_rows(lhs, diff_order, diff_order)
             )
             new_weights, residual, exit_early = _weighting._aspls(
                 y, baseline, asymmetric_coef, alternate_weighting
@@ -993,10 +975,7 @@ class _Whittaker(_Algorithm):
             k = _check_scalar_variable(k, variable_name='k')
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -1123,10 +1102,7 @@ class _Whittaker(_Algorithm):
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights = _weighting._derpsalsa(y, baseline, p, k, self._shape, partial_weights)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -1211,10 +1187,7 @@ class _Whittaker(_Algorithm):
         # use baseline_weights to track which weights produced the output baseline
         for i in range(max_iter_2 + 1):
             for j in range(max_iter + 1):
-                new_baseline = whittaker_system.solve(
-                    whittaker_system.add_diagonal(weight_array), weight_array * y,
-                    overwrite_b=True
-                )
+                new_baseline = whittaker_system.solve(y, weight_array)
                 new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
                 if exit_early:
                     j -= 1  # reduce j so that output tol_history indexing is correct
@@ -1320,10 +1293,7 @@ class _Whittaker(_Algorithm):
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct

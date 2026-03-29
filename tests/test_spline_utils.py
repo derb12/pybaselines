@@ -704,15 +704,9 @@ def test_compare_to_whittaker(data_fixture, lam, diff_order):
     weights = np.random.default_rng(0).normal(0.8, 0.05, len(y))
     weights = np.clip(weights, 0, 1).astype(float, copy=False)
 
-    main_diag_idx = whittaker_system.main_diagonal_index
-    main_diagonal = whittaker_system.penalty[main_diag_idx]
-    whittaker_system.penalty[main_diag_idx] = main_diagonal + weights
-    whittaker_output = whittaker_system.solve(
-        whittaker_system.penalty, weights * y, overwrite_b=True
-    )
+    whittaker_output = whittaker_system.solve(y, weights=weights)
 
     spline_output = pspline.solve(y, weights=weights)
-    whittaker_output = whittaker_system.solve(whittaker_system.penalty, weights.ravel() * y.ravel())
 
     assert_allclose(spline_output, whittaker_output, rtol=1e-12, atol=1e-12)
 

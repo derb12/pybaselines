@@ -1119,10 +1119,7 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
     penalized_system = PenalizedSystem(len_y, lam=lam, diff_order=diff_order)
     weight_array = _check_optional_array(len_y, weights, check_finite=check_finite)
 
-    y_smooth = penalized_system.solve(
-        penalized_system.add_diagonal(weight_array),
-        weight_array * y, overwrite_ab=True, overwrite_b=True
-    )
+    y_smooth = penalized_system.solve(y, weight_array)
 
     return y_smooth
 

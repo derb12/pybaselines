@@ -664,10 +664,7 @@ class _Optimizers(_Algorithm):
         params['baseline_fit'] = baseline_fit
         if lam is not None and lam != 0:
             _, _, whittaker_system = self._setup_whittaker(y, lam=lam, diff_order=diff_order)
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(1.), baseline,
-                overwrite_ab=True, overwrite_b=True
-            )
+            baseline = whittaker_system.solve(baseline, weights=1)
 
         return baseline, params
 

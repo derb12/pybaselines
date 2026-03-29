@@ -839,10 +839,7 @@ class _Classification(_Algorithm):
                 whittaker_weights = whittaker_weights[self._inverted_order]
 
         whittaker_weights = whittaker_weights.astype(float)
-        baseline = whittaker_system.solve(
-            whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
-            overwrite_b=True, overwrite_ab=True
-        )
+        baseline = whittaker_system.solve(y, whittaker_weights)
         params = {
             'mask': mask, 'weights': whittaker_weights,
             'result': WhittakerResult(whittaker_system, whittaker_weights)
@@ -967,10 +964,7 @@ class _Classification(_Algorithm):
             _, whittaker_weights, whittaker_system = self._setup_whittaker(
                 y, lam, diff_order, mask
             )
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(whittaker_weights), whittaker_weights * y,
-                overwrite_b=True, overwrite_ab=True
-            )
+            baseline = whittaker_system.solve(y, whittaker_weights)
             params.update({
                 'weights': whittaker_weights,
                 'result': WhittakerResult(whittaker_system, whittaker_weights)

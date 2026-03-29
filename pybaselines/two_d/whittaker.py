@@ -759,7 +759,7 @@ class _Whittaker(_Algorithm2D):
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult2D(whittaker_system, weight_array, penalty=penalty)
+            'result': WhittakerResult2D(whittaker_system, weight_array, lhs=penalty)
         }
 
         return baseline, params

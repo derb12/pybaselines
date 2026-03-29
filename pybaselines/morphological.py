@@ -181,10 +181,7 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
             w = _sort_array(w, self._inverted_order)
 
         _, weight_array, whittaker_system = self._setup_whittaker(y, lam, diff_order, w)
-        baseline = whittaker_system.solve(
-            whittaker_system.add_diagonal(weight_array), weight_array * y,
-            overwrite_ab=True, overwrite_b=True
-        )
+        baseline = whittaker_system.solve(y, weight_array)
 
         params = {
             'weights': weight_array, 'half_window': half_wind,
@@ -884,20 +881,15 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
 
         baseline_old = opening
         signal_old = y
-        main_diag_idx = whittaker_system.main_diagonal_index
         partial_rhs_2 = (2 * alpha) * opening
         tol_history = np.empty((max_iter + 1, 2))
         for i in range(max_iter + 1):
-            lhs_1 = gamma * whittaker_system.penalty
-            lhs_1[main_diag_idx] += 1
-            lhs_2 = (2 * beta) * whittaker_system.penalty
-            lhs_2[main_diag_idx] += 1 + 2 * alpha
-
             signal = whittaker_system.solve(
-                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True
+                y - baseline_old, weights=1, penalty=gamma * whittaker_system.penalty
             )
             baseline = whittaker_system.solve(
-                lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True
+                y - signal + partial_rhs_2, weights=1 + 2 * alpha,
+                penalty=(2 * beta) * whittaker_system.penalty
             )
 
             calc_tol_1 = relative_difference(signal_old, signal)
