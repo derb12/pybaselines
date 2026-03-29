@@ -8,7 +8,6 @@ Created on April 25, 2023
 
 import numpy as np
 from scipy.sparse import kron
-from scipy.sparse.linalg import spsolve
 
 from .._compat import csr_object
 from .._spline_utils import _spline_basis, _spline_knots
@@ -146,6 +145,11 @@ class SplineBasis2D:
     def _make_btwb(self, weights):
         """Computes ``Basis.T @ Weights @ Basis`` as a generalized linear array model.
 
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (M, N)
+            The weights for each y-value.
+
         Returns
         -------
         F : scipy.sparse.csr_matrix or scipy.sparse.csr_array
@@ -275,6 +279,26 @@ class PSpline2D(PenalizedSystem2D):
 
         """
         return (len(self.basis.x), len(self.basis.z))
+
+    def _make_btwb(self, weights):
+        """Computes ``Basis.T @ Weights @ Basis`` as a generalized linear array model.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (M, N)
+            The weights for each y-value.
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix or scipy.sparse.csr_array
+            The computed result of ``B.T @ W @ B``.
+
+        Notes
+        -----
+        This is just a shim to connect 1D and 2D PSpline method calls.
+
+        """
+        return self.basis._make_btwb(weights)
 
     def reset_penalty(self, lam=1, diff_order=2):
         """

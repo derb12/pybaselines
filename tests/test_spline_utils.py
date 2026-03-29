@@ -307,6 +307,9 @@ def test_pspline_factorize_solve(data_fixture, num_knots, spline_degree, diff_or
     output = pspline.factorized_solve(output_factorization, rhs)
     assert_allclose(output, expected_coeffs, rtol=1e-10, atol=1e-12)
 
+    # going through factorized_solve should not set coefficients
+    assert pspline.coef is None
+
 
 @pytest.mark.parametrize('num_knots', (20, 101))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))

@@ -9,9 +9,11 @@ Created on April 30, 2023
 import warnings
 
 import numpy as np
-from scipy.linalg import eig_banded, eigh_tridiagonal, solve
-from scipy.sparse import kron
-from scipy.sparse.linalg import spsolve
+from scipy.linalg import (
+    cholesky, cho_solve, eig_banded, eigh_tridiagonal, lu_factor, lu_solve, solve
+)
+from scipy.sparse import issparse, kron
+from scipy.sparse.linalg import factorized, spsolve
 
 from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
 from .._compat import identity
@@ -266,6 +268,91 @@ class PenalizedSystem2D:
     def reset_diagonal(self):
         """Sets the main diagonal of the penalty matrix back to its original value."""
         self.penalty.setdiag(self.main_diagonal)
+
+    def factorize(self, lhs, assume_a='pos', overwrite_a=False, check_finite=False):
+        """
+        Calculates the factorization of ``A`` for the linear equation ``A x = b``.
+
+        Parameters
+        ----------
+        lhs : array-like, shape (M, N)
+            The left-hand side of the equation, in banded format. `lhs` is assumed to be
+            some slight modification of `self.penalty` in the same format (reversed, lower,
+            number of bands, etc. are all the same).
+        assume_a : str, optional
+            Only used if the system is using eigendecomposition. Default is 'pos', which
+            will use factorize `lhs` using :func:`scipy.linalg.cholesky`. Any other value
+            will use :func:`scipy.linalg.lu_factor`.
+        overwrite_a : bool, optional
+            Whether to overwrite `lhs` during factorization. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite. Default is False.
+
+        Returns
+        -------
+        factorization : Callable or tuple[np.ndarray, bool] or tuple[np.ndarray, np.ndarray]
+            The factorization of `lhs`.
+
+        """
+        if issparse(lhs):
+            factorization = factorized(lhs.tocsc())
+        else:
+            # TODO assume_a should probably just be an attribute of the object; for now,
+            # WhittakerSystem2D is always positive definite when using eigendecomposition, so
+            # there's no real reason to support other configurations here
+            if assume_a == 'pos':
+                # note: cholesky is a little slower than scipy.linalg.cho_factor since it fills
+                # in zeros, but cho_factor may be deprecated at some future point (see
+                # https://github.com/scipy/scipy/pull/24759), so just use cholesky; still add
+                # the lower bool that cho_factor would output for use with cho_solve
+                factorization = (
+                    cholesky(lhs, lower=True, overwrite_a=overwrite_a, check_finite=check_finite),
+                    True
+                )
+            else:
+                factorization = lu_factor(lhs, overwrite_a=overwrite_a, check_finite=check_finite)
+
+        return factorization
+
+    def factorized_solve(self, factorization, rhs, assume_a='pos', overwrite_b=False,
+                         check_finite=False):
+        """
+        Solves ``A x = b`` given the factorization of ``A``.
+
+        Parameters
+        ----------
+        factorization : Callable or tuple[np.ndarray, bool] or tuple[np.ndarray, np.ndarray]
+            The factorization of ``A``, output by :meth:`~.PenalizedSystem2D.factorize`.
+        rhs : array-like, shape (N,) or (N, M)
+            The right-hand side of the equation.
+        assume_a : str, optional
+            Only used if the system is using eigendecomposition. Default is 'pos', which
+            will solve using :func:`scipy.linalg.cho_solve`. Any other value
+            will use :func:`scipy.linalg.lu_solve`.
+        overwrite_b : bool, optional
+            Whether to overwrite `rhs` when using any of the solvers. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite. Default is False.
+
+        Returns
+        -------
+        output : numpy.ndarray, shape (N,) or (N, M)
+            The solution to the linear system, `x`.
+
+        """
+        if callable(factorization):
+            output = factorization(rhs)
+        else:
+            if assume_a == 'pos':
+                output = cho_solve(
+                    factorization, rhs, overwrite_b=overwrite_b, check_finite=check_finite
+                )
+            else:
+                output = lu_solve(
+                    factorization, rhs, overwrite_b=overwrite_b, check_finite=check_finite
+                )
+
+        return output
 
 
 class WhittakerSystem2D(PenalizedSystem2D):
@@ -617,12 +704,15 @@ class WhittakerSystem2D(PenalizedSystem2D):
             The y-values for fitting the spline.
         weights : numpy.ndarray, shape (M, N)
             The weights for each y-value.
-        penalty : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
+        penalty : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray, optional
             The finite difference penalty matrix with shape (``M * N``, ``M * N``). Default
             is None, which will use the object's penalty.
         rhs_extra : float or numpy.ndarray, shape (``M * N``,), optional
             If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
             of the equation before solving. Default is None, which adds nothing.
+        assume_a : str, optional
+            The solver to pass to :func:`scipy.linalg.solve`. Default is 'pos' since the methods
+            using eigendecomposition have positive definite left-hand-sides of the equation.
 
         Returns
         -------
@@ -654,10 +744,6 @@ class WhittakerSystem2D(PenalizedSystem2D):
             penalty = self.penalty
 
         lhs = self._make_btwb(weights)
-        # TODO could use cho_factor and save the factorization to call within _calc_dof to make
-        # the call save time since it would only be used after the weights are finalized -> would
-        # only be valid if assume_a is 'pos', which all current methods are but in the future that
-        # may not be guaranteed; better to be explicit and keep it as two separate steps
         np.fill_diagonal(lhs, lhs.diagonal() + penalty)
         self.coef = solve(
             lhs, rhs, lower=True, overwrite_a=True, overwrite_b=True, check_finite=False,

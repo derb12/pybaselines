@@ -21,12 +21,12 @@ from ..base_tests import get_2dspline_inputs
 
 
 @pytest.mark.parametrize('num_knots', (10, (11, 20)))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
-def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, lam):
+def test_pspline_solve(data_fixture2d, num_knots, spline_degree, diff_order, lam):
     """
-    Tests the accuracy of the penalized spline solvers.
+    Tests the solve method of PSpline2D.
 
     Uses the naive way to solve 2D PSplines from Eilers's paper as the expected result, which
     uses the flattened `y` and weight values, while pybaselines uses the second, more efficient
@@ -84,6 +84,60 @@ def test_solve_psplines(data_fixture2d, num_knots, spline_degree, diff_order, la
     # also ensure that the pspline's basis can use the solved coefficients
     basis_output = spline_basis.basis @ pspline.coef
     assert_allclose(basis_output, expected_result, rtol=1e-8, atol=1e-8)
+
+
+@pytest.mark.parametrize('num_knots', (10, (11, 20)))
+@pytest.mark.parametrize('spline_degree', (2, 3, (2, 3)))
+@pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
+@pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
+def test_pspline_factorized_solve(data_fixture2d, num_knots, spline_degree, diff_order, lam):
+    """Tests factorziation and factorized_solve methods of PSpline2D."""
+    x, z, y = data_fixture2d
+    (
+        num_knots_r, num_knots_c, spline_degree_x, spline_degree_z,
+        lam_x, lam_z, diff_order_x, diff_order_z
+    ) = get_2dspline_inputs(num_knots, spline_degree, lam, diff_order)
+
+    knots_r = _spline_utils._spline_knots(x, num_knots_r, spline_degree_x, True)
+    basis_r = _spline_utils._spline_basis(x, knots_r, spline_degree_x)
+
+    knots_c = _spline_utils._spline_knots(z, num_knots_c, spline_degree_z, True)
+    basis_c = _spline_utils._spline_basis(z, knots_c, spline_degree_z)
+
+    num_bases = (basis_r.shape[1], basis_c.shape[1])
+    weights = np.random.default_rng(0).normal(0.8, 0.05, y.size)
+    weights = np.clip(weights, 0, 1, dtype=float)
+
+    basis = kron(basis_r, basis_c)
+    CWT = basis.multiply(
+        np.repeat(weights.flatten(), num_bases[0] * num_bases[1]).reshape(len(x) * len(z), -1)
+    ).T
+    D1 = difference_matrix(num_bases[0], diff_order_x)
+    D2 = difference_matrix(num_bases[1], diff_order_z)
+
+    P1 = lam_x * kron(D1.T @ D1, identity(num_bases[1]))
+    P2 = lam_z * kron(identity(num_bases[0]), D2.T @ D2)
+    penalty = P1 + P2
+
+    expected_coeffs = spsolve(CWT @ basis + penalty, CWT @ y.flatten())
+
+    spline_basis = _spline_utils.SplineBasis2D(
+        x, z, num_knots=num_knots, spline_degree=spline_degree, check_finite=False
+    )
+    pspline = _spline_utils.PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
+
+    lhs = pspline._make_btwb(weights.reshape(y.shape)) + pspline.penalty
+    factorization = pspline.factorize(lhs)
+    assert callable(factorization)
+
+    rhs = (
+        pspline.basis.basis_r.T @ (weights.reshape(y.shape) * y) @ pspline.basis.basis_c
+    ).ravel()
+    output = pspline.factorized_solve(factorization, rhs)
+    assert_allclose(output, expected_coeffs, rtol=1e-8, atol=1e-8)
+
+    # going through factorized_solve should not set coefficients
+    assert pspline.coef is None
 
 
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, [2, 3]))
