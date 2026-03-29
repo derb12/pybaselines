@@ -12,7 +12,11 @@ import pytest
 from scipy.sparse import kron
 
 from pybaselines._compat import identity
-from pybaselines.two_d import Baseline2D, _algorithm_setup, optimizers, polynomial, whittaker
+from pybaselines.two_d import (
+    Baseline2D, _algorithm_setup, optimizers, polynomial, whittaker,
+    _spline_utils, _whittaker_utils
+)
+from pybaselines.results import PSplineResult2D, WhittakerResult2D
 from pybaselines.utils import ParameterWarning, SortingWarning, difference_matrix, estimate_window
 from pybaselines._validation import _check_scalar
 
@@ -63,8 +67,9 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
     )
 
 
+@pytest.mark.parametrize('num_eigens', (None, 3))
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_whittaker_weights(small_data2d, algorithm, weight_enum):
+def test_setup_whittaker_weights(small_data2d, algorithm, num_eigens, weight_enum):
     """Ensures output weight array is correct."""
     if weight_enum == 0:
         # no weights specified
@@ -83,12 +88,19 @@ def test_setup_whittaker_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
 
-    _, weight_array, _ = algorithm._setup_whittaker(
-        small_data2d, lam=1, diff_order=2, weights=weights
+    if num_eigens is not None:
+        desired_weights = desired_weights.reshape(small_data2d.shape)
+        expected_y = small_data2d
+    else:
+        expected_y = small_data2d.ravel()
+
+    y, weight_array, _ = algorithm._setup_whittaker(
+        small_data2d, lam=1, diff_order=2, weights=weights, num_eigens=num_eigens
     )
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert_allclose(y, expected_y, rtol=1e-14, atol=1e-14)
     assert weight_array.dtype == float
 
 
@@ -154,10 +166,11 @@ def test_setup_polynomial_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
 
-    _, weight_array = algorithm._setup_polynomial(small_data2d, weights=weights)
+    y, weight_array = algorithm._setup_polynomial(small_data2d, weights=weights)
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert_allclose(y, small_data2d.ravel(), rtol=1e-14, atol=1e-14)
     assert weight_array.dtype == float
 
 
@@ -544,12 +557,13 @@ def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size).reshape(small_data2d.shape)
 
-    _, weight_array, _ = algorithm._setup_spline(
+    y, weight_array, _ = algorithm._setup_spline(
         small_data2d, lam=1, diff_order=2, weights=weights
     )
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert_allclose(y, small_data2d, rtol=1e-14, atol=1e-14)
     assert weight_array.dtype == float
 
 
@@ -1255,3 +1269,172 @@ def test_wrong_banded_solver_fails(algorithm, banded_solver):
     """Ensures only valid integers between 0 and 4 are allowed as banded_solver inputs."""
     with pytest.raises(ValueError):
         algorithm.banded_solver = banded_solver
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3, (2, 3)))
+@pytest.mark.parametrize('lam', (1, 20, (2, 5)))
+def test_setup_pls_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
+    """Ensures output difference matrix diagonal data is in desired format for _setup_pls."""
+    x, z, y = data_fixture2d
+
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+
+    # intentionally do not input spline_degree here to ensure default behavior is
+    # spline_degree=None -> Whittaker smoothing
+    _, _, whittaker_system, result_class = algorithm._setup_pls(y, lam=lam, diff_order=diff_order)
+    _, _, expected_system = algorithm._setup_whittaker(y, lam=lam, diff_order=diff_order)
+
+    *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
+        lam=lam, diff_order=diff_order
+    )
+
+    D1 = difference_matrix(len(x), diff_order_x)
+    D2 = difference_matrix(len(z), diff_order_z)
+
+    P1 = lam_x * kron(D1.T @ D1, identity(len(z)))
+    P2 = lam_z * kron(identity(len(x)), D2.T @ D2)
+    expected_penalty = P1 + P2
+
+    assert_allclose(
+        whittaker_system.penalty.toarray(),
+        expected_penalty.toarray(),
+        rtol=1e-12, atol=1e-12
+    )
+    assert_allclose(
+        whittaker_system.penalty.toarray(),
+        expected_system.penalty.toarray(),
+        rtol=1e-12, atol=1e-12
+    )
+    assert isinstance(whittaker_system, _whittaker_utils.WhittakerSystem2D)
+    assert result_class is WhittakerResult2D
+
+
+@pytest.mark.parametrize('spline_degree', (None, 3))
+@pytest.mark.parametrize('num_eigens', (None, 3))
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+def test_setup_pls_weights(small_data2d, algorithm, spline_degree, num_eigens, weight_enum):
+    """Ensures output weight array is correct when using _setup_pls."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones(small_data2d.size)
+    elif weight_enum == 1:
+        # uniform 1 weighting
+        weights = np.ones_like(small_data2d)
+        desired_weights = np.ones(small_data2d.size)
+    elif weight_enum == 2:
+        # different weights for all points
+        weights = np.arange(small_data2d.size).reshape(small_data2d.shape)
+        desired_weights = np.arange(small_data2d.size)
+    elif weight_enum == 3:
+        # different weights for all points, and weights input as a list
+        weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
+        desired_weights = np.arange(small_data2d.size)
+
+    if spline_degree is None and num_eigens is None:
+        expected_y = small_data2d.ravel()
+    else:
+        desired_weights = desired_weights.reshape(small_data2d.shape)
+        expected_y = small_data2d
+
+    y, weight_array, penalized_system, result_class = algorithm._setup_pls(
+        small_data2d, lam=1, diff_order=2, weights=weights, spline_degree=spline_degree,
+        num_eigens=num_eigens
+    )
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == float
+    assert_allclose(y, expected_y, rtol=1e-14, atol=1e-14)
+    assert isinstance(
+        penalized_system,
+        _whittaker_utils.WhittakerSystem2D if spline_degree is None else _spline_utils.PSpline2D
+    )
+    assert result_class is WhittakerResult2D if spline_degree is None else PSplineResult2D
+
+
+@pytest.mark.parametrize('num_knots', (10, 30, (20, 30)))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3), None))
+def test_setup_pls_spline_basis(data_fixture2d, num_knots, spline_degree):
+    """Ensures the spline basis function is correctly created through _setup_pls."""
+    x, z, y = data_fixture2d
+    fitter = _algorithm_setup._Algorithm2D(x, z)
+    assert fitter._spline_basis is None
+
+    fitter._setup_pls(
+        y, weights=None, spline_degree=spline_degree, num_knots=num_knots
+    )
+
+    if spline_degree is None:
+        assert fitter._spline_basis is None
+        return
+
+    if isinstance(num_knots, int):
+        num_knots_r = num_knots
+        num_knots_c = num_knots
+    else:
+        num_knots_r, num_knots_c = num_knots
+    if isinstance(spline_degree, int):
+        spline_degree_x = spline_degree
+        spline_degree_z = spline_degree
+    else:
+        spline_degree_x, spline_degree_z = spline_degree
+
+    assert_array_equal(
+        fitter._spline_basis.basis_r.shape,
+        (len(x), num_knots_r + spline_degree_x - 1)
+    )
+    assert_array_equal(
+        fitter._spline_basis.basis_c.shape,
+        (len(z), num_knots_c + spline_degree_z - 1)
+    )
+
+
+@pytest.mark.parametrize('lam', (1, 20, (3, 10)))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3)))
+@pytest.mark.parametrize('num_knots', (20, (21, 30)))
+def test_setup_pls_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree, num_knots):
+    """Ensures output difference matrix diagonal data is in desired format for setup_pls."""
+    x, z, y = data_fixture2d
+
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+    _, _, pspline, result_class = algorithm._setup_pls(
+        y, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+        diff_order=diff_order, lam=lam
+    )
+
+    (
+        num_knots_r, num_knots_c, spline_degree_x, spline_degree_z,
+        lam_x, lam_z, diff_order_x, diff_order_z
+    ) = get_2dspline_inputs(
+        num_knots=num_knots, spline_degree=spline_degree, lam=lam, diff_order=diff_order
+    )
+
+    num_bases_x = num_knots_r + spline_degree_x - 1
+    num_bases_z = num_knots_c + spline_degree_z - 1
+
+    D1 = difference_matrix(num_bases_x, diff_order_x)
+    D2 = difference_matrix(num_bases_z, diff_order_z)
+
+    P1 = lam_x * kron(D1.T @ D1, identity(num_bases_z))
+    P2 = lam_z * kron(identity(num_bases_x), D2.T @ D2)
+    expected_penalty = P1 + P2
+
+    assert_allclose(
+        pspline.penalty.toarray(),
+        expected_penalty.toarray(),
+        rtol=1e-12, atol=1e-12
+    )
+    assert isinstance(pspline, _spline_utils.PSpline2D)
+    assert result_class is PSplineResult2D
+
+    _, _, expected_system = algorithm._setup_spline(
+        y, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+        diff_order=diff_order, lam=lam
+    )
+    assert_allclose(
+        pspline.penalty.toarray(),
+        expected_system.penalty.toarray(),
+        rtol=1e-12, atol=1e-12
+    )

@@ -10,6 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
+from pybaselines.results import PSplineResult2D
 from pybaselines.two_d import Baseline2D, spline
 
 from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin
@@ -50,6 +51,11 @@ class SplineTester(BaseTester2D):
     """Base testing class for spline functions."""
 
     module = spline
+
+    def test_result_obj(self):
+        """Ensures the `result` item in the output params is a PSplineResult2D."""
+        _, params = self.class_func(self.y, **self.kwargs)
+        assert isinstance(params['result'], PSplineResult2D)
 
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):

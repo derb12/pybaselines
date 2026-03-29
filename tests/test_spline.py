@@ -13,6 +13,7 @@ from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import _spline_utils, classification, morphological, spline, Baseline
+from pybaselines.results import PSplineResult
 
 from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
 
@@ -62,6 +63,11 @@ class SplineTester(BaseTester):
             numba_output = self.class_func(self.y)[0]
 
         assert_allclose(numba_output, normal_output, rtol=1e-10, atol=1e-10)
+
+    def test_result_obj(self):
+        """Ensures the `result` item in the output params is a PSplineResult."""
+        _, params = self.class_func(self.y, **self.kwargs)
+        assert isinstance(params['result'], PSplineResult)
 
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):

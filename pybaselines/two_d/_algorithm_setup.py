@@ -12,6 +12,7 @@ import warnings
 
 import numpy as np
 
+from ..results import PSplineResult2D, WhittakerResult2D
 from .._validation import (
     _check_array, _check_half_window, _check_optional_array, _check_scalar_variable,
     _check_sized_array, _yxz_arrays
@@ -513,8 +514,8 @@ class _Algorithm2D:
             self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None), dtype=float
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array2d(weight_array, self._sort_order)
 
         # TODO can probably keep the basis for reuse if using SVD, like _setup_spline does, and
         # retain the unmodified penalties for the rows and columns if possible to skip that
@@ -589,8 +590,8 @@ class _Algorithm2D:
             self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None), dtype=float
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array2d(weight_array, self._sort_order)
         weight_array = weight_array.ravel()
 
         if calc_vander:
@@ -619,8 +620,7 @@ class _Algorithm2D:
         return y, weight_array, pseudo_inverse
 
     def _setup_spline(self, y, weights=None, spline_degree=3, num_knots=10,
-                      penalized=True, diff_order=3, lam=1, make_basis=True, allow_lower=True,
-                      reverse_diags=False, copy_weights=False):
+                      penalized=True, diff_order=3, lam=1, make_basis=True, copy_weights=False):
         """
         Sets the starting parameters for doing spline fitting.
 
@@ -648,12 +648,6 @@ class _Algorithm2D:
             Default is 1.
         make_basis : bool, optional
             If True (default), will create the matrix containing the spline basis functions.
-        allow_lower : boolean, optional
-            If True (default), will include only the lower non-zero diagonals of
-            the squared difference matrix. If False, will include all non-zero diagonals.
-        reverse_diags : boolean, optional
-            If True, will reverse the order of the diagonals of the penalty matrix.
-            Default is False.
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
@@ -683,8 +677,8 @@ class _Algorithm2D:
             self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
             ensure_1d=False, axis=slice(None), dtype=float
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array2d(weight_array, self._sort_order)
         diff_order = _check_scalar_variable(
             diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
         )
@@ -709,6 +703,80 @@ class _Algorithm2D:
         pspline = PSpline2D(self._spline_basis, lam, diff_order)
 
         return y, weight_array, pspline
+
+    def _setup_pls(self, y, weights=None, spline_degree=None, num_knots=10,
+                   diff_order=2, lam=1, allow_lower=True, reverse_diags=False,
+                   copy_weights=False, num_eigens=None):
+        """
+        Sets the starting parameters for methods using penalized least squares.
+
+        Depending on the input of `spline_degree`, will dispatch to either
+        `_setup_whittaker` or `_setup_spline`.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`~._Algorithm._handle_io`.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+        spline_degree : int or None, optional
+            If None (default), denotes that the system is using Whittaker smoothing.
+            Otherwise, the system is a penalized spline with a spline degree of `spline_degree`.
+        num_knots : int, optional
+            The number of interior knots for the splines. Only used if `spline_degree` is
+            not None. Default is 10.
+        diff_order : int, optional
+            The integer differential order for the penalty; must be greater than 0.
+            Default is 2.
+        lam : float, optional
+            The smoothing parameter, lambda. Typical values are between 10 and
+            1e8, but it strongly depends on `diff_order` and the data size.
+            Default is 1.
+        allow_lower : boolean, optional
+            Not used within this method, simply added to have the same call signature
+            as `_Algorithm._setup_pls`.
+        reverse_diags : boolean, optional
+            Not used within this method, simply added to have the same call signature
+            as `_Algorithm._setup_pls`.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+        num_eigens : int or Sequence[int, int] or None
+            Only used if `spline_degree` is None. The number of eigenvalues for the rows
+            and columns, respectively, to use for eigendecomposition. If None, will s
+            olve the linear system using the full analytical solution, which is typically
+            much slower. Default is None.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for fitting the spline to the data.
+        penalized_system : WhittakerSystem2D or PSpline2D
+            The object for solving the penalized least squared system. If `spline_degree`
+            is None, returns a WhittakerSystem2D object;, otherwise, returns a PSpline2D.
+        result_class : WhittakerResult2D or PSplineResult2D
+            The result class for defining the solution. If `spline_degree`
+            is None, returns WhittakerResult2D; otherwise, returns PSplineResult2D.
+
+        """
+        if spline_degree is None:
+            y, weight_array, penalized_system = self._setup_whittaker(
+                y, lam=lam, diff_order=diff_order, weights=weights, copy_weights=copy_weights,
+                num_eigens=num_eigens
+            )
+            result_class = WhittakerResult2D
+        else:
+            y, weight_array, penalized_system = self._setup_spline(
+                y, lam=lam, diff_order=diff_order, weights=weights, copy_weights=copy_weights,
+                spline_degree=spline_degree, num_knots=num_knots, penalized=True, make_basis=True
+            )
+            result_class = PSplineResult2D
+
+        return y, weight_array, penalized_system, result_class
 
     def _setup_morphology(self, y, half_window=None, window_kwargs=None, **kwargs):
         """
@@ -837,8 +905,8 @@ class _Algorithm2D:
             self._shape, weights, check_finite=self._check_finite, dtype=bool,
             ensure_1d=False, axis=slice(None)
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array2d(weight_array, self._sort_order)
         weight_array = weight_array
 
         return y, weight_array

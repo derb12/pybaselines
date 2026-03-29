@@ -29,6 +29,7 @@ from .utils import (
     ParameterWarning, SortingWarning, _determine_sorts, _inverted_sort, _sort_array,
     estimate_window, pad_edges
 )
+from .results import PSplineResult, WhittakerResult
 
 
 class _Algorithm:
@@ -448,8 +449,8 @@ class _Algorithm:
             self._size, weights, copy_input=copy_weights, check_finite=self._check_finite,
             dtype=float
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array(weight_array, self._sort_order)
 
         allow_lower = allow_lower and self.banded_solver < 4
         allow_penta = self.banded_solver < 3
@@ -515,8 +516,8 @@ class _Algorithm:
             self._size, weights, copy_input=copy_weights, check_finite=self._check_finite,
             dtype=float
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array(weight_array, self._sort_order)
 
         if calc_vander:
             if self._polynomial is None:
@@ -603,8 +604,8 @@ class _Algorithm:
             self._size, weights, dtype=float, order='C', copy_input=copy_weights,
             check_finite=self._check_finite
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array(weight_array, self._sort_order)
 
         if not make_basis:
             return y, weight_array
@@ -628,6 +629,79 @@ class _Algorithm:
         )
 
         return y, weight_array, pspline
+
+    def _setup_pls(self, y, weights=None, spline_degree=None, num_knots=10,
+                   diff_order=2, lam=1, allow_lower=True, reverse_diags=False,
+                   copy_weights=False, num_eigens=None):
+        """
+        Sets the starting parameters for methods using penalized least squares.
+
+        Depending on the input of `spline_degree`, will dispatch to either
+        `_setup_whittaker` or `_setup_spline`.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`~._Algorithm._handle_io`.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+        spline_degree : int or None, optional
+            If None (default), denotes that the system is using Whittaker smoothing.
+            Otherwise, the system is a penalized spline with a spline degree of `spline_degree`.
+        num_knots : int, optional
+            The number of interior knots for the splines. Only used if `spline_degree` is
+            not None. Default is 10.
+        diff_order : int, optional
+            The integer differential order for the penalty; must be greater than 0.
+            Default is 2.
+        lam : float, optional
+            The smoothing parameter, lambda. Typical values are between 10 and
+            1e8, but it strongly depends on `diff_order` and the data size.
+            Default is 1.
+        allow_lower : boolean, optional
+            If True (default), will include only the lower non-zero diagonals of
+            the squared difference matrix. If False, will include all non-zero diagonals.
+        reverse_diags : boolean, optional
+            If True, will reverse the order of the diagonals of the penalty matrix.
+            Default is False.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+        num_eigens : None, optional
+            Not used within this method, simply added to have the same call signature
+            as `_Algorithm2D._setup_pls`.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for fitting the spline to the data.
+        penalized_system : PenalizedSystem or PSpline
+            The object for solving the penalized least squared system. If `spline_degree`
+            is None, returns a PenalizedSystem object;, otherwise, returns a PSpline.
+        result_class : WhittakerResult or PSplineResult
+            The result class for defining the solution. If `spline_degree`
+            is None, returns WhittakerResult; otherwise, returns PSplineResult.
+
+        """
+        if spline_degree is None:
+            y, weight_array, penalized_system = self._setup_whittaker(
+                y, lam=lam, diff_order=diff_order, weights=weights, copy_weights=copy_weights,
+                allow_lower=allow_lower, reverse_diags=reverse_diags
+            )
+            result_class = WhittakerResult
+        else:
+            y, weight_array, penalized_system = self._setup_spline(
+                y, lam=lam, diff_order=diff_order, weights=weights, copy_weights=copy_weights,
+                allow_lower=allow_lower, reverse_diags=reverse_diags,
+                spline_degree=spline_degree, num_knots=num_knots, penalized=True, make_basis=True
+            )
+            result_class = PSplineResult
+
+        return y, weight_array, penalized_system, result_class
 
     def _setup_morphology(self, y, half_window=None, window_kwargs=None, **kwargs):
         """
@@ -778,8 +852,8 @@ class _Algorithm:
         weight_array = _check_optional_array(
             self._size, weights, dtype=bool, check_finite=self._check_finite
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array(weight_array, self._sort_order)
 
         return y, weight_array
 

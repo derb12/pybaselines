@@ -11,7 +11,10 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 from pybaselines import Baseline, _algorithm_setup, optimizers, polynomial, whittaker
+from pybaselines._banded_utils import PenalizedSystem
 from pybaselines._compat import dia_object
+from pybaselines._spline_utils import PSpline
+from pybaselines.results import PSplineResult, WhittakerResult
 from pybaselines.utils import ParameterWarning, SortingWarning, estimate_window
 
 from .base_tests import ensure_deprecation, get_data
@@ -1185,3 +1188,119 @@ def test_wrong_banded_solver_fails(algorithm, banded_solver):
     """Ensures only valid integers between 0 and 4 are allowed as banded_solver inputs."""
     with pytest.raises(ValueError):
         algorithm.banded_solver = banded_solver
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('lam', (1, 20))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('reverse_diags', (True, False))
+def test_setup_pls_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
+                                         allow_lower, reverse_diags):
+    """Ensures output difference matrix diagonal data is in desired format for _setup_pls."""
+    if reverse_diags and allow_lower:
+        # this configuration is never used
+        return
+
+    # intentionally do not input spline_degree here to ensure default behavior is
+    # spline_degree=None -> Whittaker smoothing
+    _, _, whittaker_system, result_class = algorithm._setup_pls(
+        small_data, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=reverse_diags
+    )
+    _, _, expected_system = algorithm._setup_whittaker(
+        small_data, lam=lam, diff_order=diff_order, allow_lower=allow_lower,
+        reverse_diags=reverse_diags
+    )
+
+    numpy_diff = np.diff(np.eye(small_data.shape[0]), diff_order, 0)
+    desired_diagonals = dia_object(lam * (numpy_diff.T @ numpy_diff)).data[::-1]
+    if allow_lower and not whittaker_system.using_penta:
+        # only include the lower diagonals
+        desired_diagonals = desired_diagonals[diff_order:]
+
+    # the diagonals should be in the opposite order as the diagonal matrix's data
+    # if reverse_diags is False
+    if reverse_diags or (whittaker_system.using_penta and reverse_diags is not False):
+        desired_diagonals = desired_diagonals[::-1]
+
+    assert_allclose(whittaker_system.penalty, desired_diagonals, 1e-10)
+    assert_allclose(whittaker_system.penalty, expected_system.penalty, 1e-10)
+    assert isinstance(whittaker_system, PenalizedSystem)
+    assert result_class is WhittakerResult
+
+
+@pytest.mark.parametrize('spline_degree', (None, 3))
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+def test_setup_pls_weights(small_data, algorithm, spline_degree, weight_enum):
+    """Ensures output weight array is correct when using _setup_pls."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones_like(small_data)
+    elif weight_enum == 1:
+        # uniform 1 weighting
+        weights = np.ones_like(small_data)
+        desired_weights = weights.copy()
+    elif weight_enum == 2:
+        # different weights for all points
+        weights = np.arange(small_data.shape[0])
+        desired_weights = np.arange(small_data.shape[0])
+    elif weight_enum == 3:
+        # different weights for all points, and weights input as a list
+        weights = np.arange(small_data.shape[0]).tolist()
+        desired_weights = np.arange(small_data.shape[0])
+
+    _, weight_array, penalized_system, result_class = algorithm._setup_pls(
+        small_data, lam=1, diff_order=2, weights=weights, spline_degree=spline_degree
+    )
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == float
+    assert isinstance(penalized_system, PenalizedSystem if spline_degree is None else PSpline)
+    assert result_class is WhittakerResult if spline_degree is None else PSplineResult
+
+
+@pytest.mark.parametrize('num_knots', (5, 15, 100))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, None))
+def test_setup_pls_spline_basis(small_data, num_knots, spline_degree):
+    """Ensures the spline basis function is correctly created through _setup_pls."""
+    fitter = _algorithm_setup._Algorithm(np.arange(len(small_data)))
+    fitter._setup_pls(
+        small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+    )
+    if spline_degree is None:
+        assert fitter._spline_basis is None
+    else:
+        assert fitter._spline_basis.basis.shape[0] == len(small_data)
+        assert fitter._spline_basis.basis.shape[1] == num_knots + spline_degree - 1
+
+
+@pytest.mark.parametrize('lam', (1, 20))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4))
+@pytest.mark.parametrize('num_knots', (5, 50, 100))
+def test_setup_pls_pspline_diff_matrix(small_data, lam, diff_order, spline_degree, num_knots):
+    """Ensures output difference matrix diagonal data is in desired format for setup_pls."""
+    fitter = _algorithm_setup._Algorithm(np.arange(len(small_data)))
+    _, _, pspline, result_class = fitter._setup_pls(
+        small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+        diff_order=diff_order, lam=lam
+    )
+
+    num_bases = num_knots + spline_degree - 1
+    numpy_diff = np.diff(np.eye(num_bases), diff_order, axis=0)
+    desired_diagonals = lam * dia_object(numpy_diff.T @ numpy_diff).data[::-1][diff_order:]
+    if diff_order < spline_degree:
+        padding = np.zeros((spline_degree - diff_order, desired_diagonals.shape[1]))
+        desired_diagonals = np.concatenate((desired_diagonals, padding))
+
+    assert_allclose(pspline.penalty, desired_diagonals, 1e-10, 1e-12)
+    assert isinstance(pspline, PSpline)
+    assert result_class is PSplineResult
+
+    _, _, expected_system = fitter._setup_spline(
+        small_data, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+        diff_order=diff_order, lam=lam
+    )
+    assert_allclose(pspline.penalty, expected_system.penalty, 1e-10, 1e-12)
