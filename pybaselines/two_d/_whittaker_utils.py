@@ -225,7 +225,8 @@ class PenalizedSystem2D:
 
         return self.direct_solve(lhs, rhs)
 
-    def direct_solve(self, lhs, rhs, **kwargs):
+    def direct_solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False, assume_a='pos',
+                     check_finite=False):
         """
         Solves the linear system ``lhs @ x = rhs``.
 
@@ -235,17 +236,30 @@ class PenalizedSystem2D:
             The left hand side of the equation.
         rhs : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
             The right hand side of the equation.
-        **kwargs
-            Additional keyword arguments that are ignored but allow a consistent method call
-            between `PenalizedSystem.direct_solve` and `PenalizedSystem2D.direct_solve`.
+        overwrite_ab : bool, optional
+            Whether to overwrite `lhs` when using any of the solvers. Default is False.
+            Written as 'overwrite_ab' rather than 'overwrite_a' for compatible usage
+            with pybaselines._banded_utils.PenalizedSystem.
+        overwrite_b : bool, optional
+            Whether to overwrite `rhs` when using any of the solvers. Default is False.
+        check_finite : bool, optional
+            Whether to check if the inputs are finite. Default is False.
 
         Returns
         -------
-        scipy.sparse.spmatrix or scipy.sparse.sparray
+        output : numpy.ndarray, shape (N,) or (M, N)
             The solution to the linear system, with the same shape as `rhs`.
 
         """
-        return spsolve(lhs, rhs)
+        if issparse(lhs):
+            output = spsolve(lhs, rhs)
+        else:
+            # set lower=True since it's consistently used elsewhere
+            output = solve(
+                lhs, rhs, lower=True, assume_a=assume_a, overwrite_a=overwrite_ab,
+                overwrite_b=overwrite_b, check_finite=check_finite
+            )
+        return output
 
     def add_diagonal(self, value):
         """
@@ -269,7 +283,7 @@ class PenalizedSystem2D:
         """Sets the main diagonal of the penalty matrix back to its original value."""
         self.penalty.setdiag(self.main_diagonal)
 
-    def factorize(self, lhs, assume_a='pos', overwrite_a=False, check_finite=False):
+    def factorize(self, lhs, assume_a='pos', overwrite_ab=False, check_finite=False):
         """
         Calculates the factorization of ``A`` for the linear equation ``A x = b``.
 
@@ -283,8 +297,10 @@ class PenalizedSystem2D:
             Only used if the system is using eigendecomposition. Default is 'pos', which
             will use factorize `lhs` using :func:`scipy.linalg.cholesky`. Any other value
             will use :func:`scipy.linalg.lu_factor`.
-        overwrite_a : bool, optional
+        overwrite_ab : bool, optional
             Whether to overwrite `lhs` during factorization. Default is False.
+            Written as 'overwrite_ab' rather than 'overwrite_a' for compatible usage
+            with pybaselines._banded_utils.PenalizedSystem.
         check_finite : bool, optional
             Whether to check if the inputs are finite. Default is False.
 
@@ -306,11 +322,11 @@ class PenalizedSystem2D:
                 # https://github.com/scipy/scipy/pull/24759), so just use cholesky; still add
                 # the lower bool that cho_factor would output for use with cho_solve
                 factorization = (
-                    cholesky(lhs, lower=True, overwrite_a=overwrite_a, check_finite=check_finite),
+                    cholesky(lhs, lower=True, overwrite_a=overwrite_ab, check_finite=check_finite),
                     True
                 )
             else:
-                factorization = lu_factor(lhs, overwrite_a=overwrite_a, check_finite=check_finite)
+                factorization = lu_factor(lhs, overwrite_a=overwrite_ab, check_finite=check_finite)
 
         return factorization
 

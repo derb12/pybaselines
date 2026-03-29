@@ -1042,7 +1042,7 @@ class PenalizedSystem:
             The left-hand side of the equation, in banded format. `lhs` is assumed to be
             some slight modification of `self.penalty` in the same format (reversed, lower,
             number of bands, etc. are all the same).
-        rhs : array-like, shape (N,)
+        rhs : array-like, shape (N,) or (M, N)
             The right-hand side of the equation.
         overwrite_ab : bool, optional
             Whether to overwrite `lhs` when using any of the solvers. Default is False.
@@ -1059,7 +1059,7 @@ class PenalizedSystem:
 
         Returns
         -------
-        output : numpy.ndarray, shape (N,)
+        output : numpy.ndarray, shape (N,) or (M, N)
             The solution to the linear system, `x`.
 
         """

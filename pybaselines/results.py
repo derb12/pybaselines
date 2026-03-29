@@ -7,13 +7,40 @@ Created on November 15, 2025
 """
 
 import numpy as np
-from scipy.linalg import solve
 from scipy.sparse import issparse
-from scipy.sparse.linalg import factorized
 
 from ._banded_utils import _banded_to_sparse, _add_diagonals
 from ._compat import diags, _sparse_col_index
 from .utils import _get_rng
+
+
+def _rademacher(shape, rng):
+    """
+    Generates random samples from a Rademacher distribution, ie. equal chances of -1 or 1.
+
+    Parameters
+    ----------
+    shape : int or tuple[int, ...]
+        The shape of the random samples to create.
+    rng : int or numpy.random.Generator or numpy.random.RandomState
+        The integer for the seed of the random number generator or an existing generating
+        object to use for drawing samples.
+
+    Returns
+    -------
+    numpy.ndarray, shape `shape`
+        The generated random samples.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Rademacher_distribution
+
+    Hutchinson, M. A stochastic estimator of the trace of the influence matrix for laplacian
+    smoothing splines. Communications in Statistics - Simulation and Computation, (1990),
+    19(2), 433-450.
+
+    """
+    return _get_rng(rng).choice([-1., 1.], size=shape)
 
 
 class WhittakerResult:
@@ -21,7 +48,10 @@ class WhittakerResult:
     Represents the result of Whittaker smoothing.
 
     Provides methods for extending the solution obtained from baseline algorithms that use
-    Whittaker smoothing. This class should not be initialized by external users.
+    Whittaker smoothing.
+
+    This class should **not** be initialized by external users since its
+    initialization signature may change without notice as internally required.
 
     """
 
@@ -55,59 +85,8 @@ class WhittakerResult:
         self._rhs_extra = rhs_extra
         self._trace = None
         if weights is None:
-            weights = np.ones(self._shape)
+            weights = np.ones(self._penalized_object.shape)
         self._weights = weights
-
-    @property
-    def _shape(self):
-        """The shape of the penalized system.
-
-        Returns
-        -------
-        tuple[int, int]
-            The penalized system's shape.
-
-        """
-        # TODO need to add an attribute to join 1D and 2D PenalizedSystem and PSpline objects
-        # so that this can just access that attribute rather than having to modify for each
-        # subclass
-        return self._basis_shape
-
-    @property
-    def _size(self):
-        """The total size of the penalized system.
-
-        Returns
-        -------
-        int
-            The penalized system's size.
-
-        """
-        return np.prod(self._shape)
-
-    @property
-    def _basis_shape(self):
-        """The shape of the system's basis matrix.
-
-        Returns
-        -------
-        tuple[int, int]
-            The penalized system's basis shape.
-
-        """
-        return self._penalized_object._num_bases
-
-    @property
-    def _basis_size(self):
-        """The total size of the system's basis matrix.
-
-        Returns
-        -------
-        int
-            The system's basis matrix size.
-
-        """
-        return np.prod(self._basis_shape)
 
     @property
     def _lhs(self):
@@ -168,9 +147,9 @@ class WhittakerResult:
             If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
             trace estimation with a matrix of (N, `n_samples`) Rademacher random variables
             (ie. either -1 or 1).
-        rng : int or numpy.random.Generator or numpy.random.RandomState
+        rng : int or numpy.random.Generator or numpy.random.RandomState, optional
             The integer for the seed of the random number generator or an existing generating
-            object to use for the stochastic trace estimation.
+            object to use for the stochastic trace estimation. Default is 1234.
 
         Returns
         -------
@@ -242,14 +221,14 @@ class WhittakerResult:
             if self._rhs_extra is None:
                 # note: about an order of magnitude faster to omit the sparse rhs for the simple
                 # case of lhs @ v = w * y
-                eye = np.zeros(self._size)
-                for i in range(self._size):
+                eye = np.zeros(self._penalized_object.tot_bases)
+                for i in range(self._penalized_object.tot_bases):
                     eye[i] = self._weights[i]
                     trace += self._penalized_object.factorized_solve(factorization, eye)[i]
                     eye[i] = 0
             else:
                 rhs = self._rhs.tocsc()
-                for i in range(self._basis_size):
+                for i in range(self._penalized_object.tot_bases):
                     trace += self._penalized_object.factorized_solve(
                         factorization, _sparse_col_index(rhs, i)
                     )[i]
@@ -257,13 +236,13 @@ class WhittakerResult:
             # prevent needing to calculate analytical solution again
             self._trace = trace
         else:
-            rng_samples = _get_rng(rng).choice([-1., 1.], size=(self._basis_size, n_samples))
+            rng_samples = _rademacher((self._penalized_object.tot_bases, n_samples), rng)
             if self._rhs_extra is None:
                 rhs_u = self._weights[:, None] * rng_samples
             else:
                 rhs_u = self._rhs.tocsr() @ rng_samples
             # H @ u == (W + P)^-1 @ (W @ u)
-            hat_u = self._penalized_object.solve(self._lhs, rhs_u, overwrite_b=True)
+            hat_u = self._penalized_object.direct_solve(self._lhs, rhs_u, overwrite_b=True)
             # stochastic trace is the average of the trace of u.T @ H @ u;
             # trace(A.T @ B) == (A * B).sum() (see
             # https://en.wikipedia.org/wiki/Trace_(linear_algebra)#Trace_of_a_product ),
@@ -279,7 +258,10 @@ class PSplineResult(WhittakerResult):
     Represents the result of penalized spline (P-Spline) smoothing.
 
     Provides methods for extending the solution obtained from baseline algorithms that use
-    P-Spline smoothing. This class should not be initialized by external users.
+    P-Spline smoothing.
+
+    This class should **not** be initialized by external users since its
+    initialization signature may change without notice as internally required.
 
     """
 
@@ -320,18 +302,6 @@ class PSplineResult(WhittakerResult):
         self._btwb_ = None
         if penalty is not None:
             self._penalized_object.penalty = penalty
-
-    @property
-    def _shape(self):
-        """The shape of the penalized system.
-
-        Returns
-        -------
-        tuple[int, int]
-            The penalized system's shape.
-
-        """
-        return (len(self._penalized_object.basis.x),)
 
     @property
     def _lhs(self):
@@ -435,6 +405,9 @@ class PSplineResult(WhittakerResult):
             If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
             trace estimation with a matrix of (N, `n_samples`) Rademacher random variables
             (ie. either -1 or 1).
+        rng : int or numpy.random.Generator or numpy.random.RandomState, optional
+            The integer for the seed of the random number generator or an existing generating
+            object to use for the stochastic trace estimation. Default is 1234.
 
         Returns
         -------
@@ -460,9 +433,6 @@ class PSplineResult(WhittakerResult):
         Simplicity in Algorithms (SOSA), (2021), 142-155.
 
         """
-        # TODO could maybe make default n_samples to None and decide to use analytical or
-        # stochastic trace based on data size; data size > 1000 use stochastic with default
-        # n_samples = 100?
         if n_samples == 0:
             if self._trace is not None:
                 return self._trace
@@ -480,16 +450,18 @@ class PSplineResult(WhittakerResult):
             # hat matrix does not need to be stored in memory
             trace = 0
             factorization = self._penalized_object.factorize(self._lhs)
-            for i in range(self._basis_size):
+            for i in range(self._penalized_object.tot_bases):
                 trace += self._penalized_object.factorized_solve(
                     factorization, _sparse_col_index(rhs, i)
                 )[i]
             # prevent needing to calculate analytical solution again
             self._trace = trace
         else:
-            rng_samples = _get_rng(rng).choice([-1., 1.], size=(self._basis_size, n_samples))
+            rng_samples = _rademacher((self._penalized_object.tot_bases, n_samples), rng)
             # H @ u == (B.T @ W @ B + P)^-1 @ (B.T @ W @ B) @ u
-            hat_u = self._penalized_object.solve(self._lhs, rhs @ rng_samples, overwrite_b=True)
+            hat_u = self._penalized_object.direct_solve(
+                self._lhs, rhs @ rng_samples, overwrite_b=True
+            )
             # stochastic trace is the average of the trace of u.T @ H @ u;
             # trace(u.T @ H @ u) == sum(u * (H @ u))
             trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
@@ -502,7 +474,10 @@ class PSplineResult2D(PSplineResult):
     Represents the result of 2D penalized spline (P-Spline) smoothing.
 
     Provides methods for extending the solution obtained from baseline algorithms that use
-    P-Spline smoothing. This class should not be initialized by external users.
+    P-Spline smoothing.
+
+    This class should **not** be initialized by external users since its
+    initialization signature may change without notice as internally required.
 
     """
 
@@ -541,19 +516,7 @@ class PSplineResult2D(PSplineResult):
         """
         super().__init__(penalized_object, weights=weights, rhs_extra=rhs_extra, penalty=penalty)
         if self._weights.ndim == 1:
-            self._weights = self._weights.reshape(self._shape)
-
-    @property
-    def _shape(self):
-        """The shape of the penalized system.
-
-        Returns
-        -------
-        tuple[int, int]
-            The penalized system's shape.
-
-        """
-        return (len(self._penalized_object.basis.x), len(self._penalized_object.basis.z))
+            self._weights = self._weights.reshape(self._penalized_object.shape)
 
     @property
     def _lhs(self):
@@ -607,11 +570,7 @@ class PSplineResult2D(PSplineResult):
             The sparse object representing the matrix multiplication of ``B.T @ W @ B``.
 
         """
-        # TODO can remove once PSpline and PSpline2D unify their btwb method calls; or
-        # just keep the docstring since the types are different
-        if self._btwb_ is None:
-            self._btwb_ = self._penalized_object.basis._make_btwb(self._weights)
-        return self._btwb_
+        return super()._btwb  # only overridden to note the return type difference
 
     @property
     def tck(self):
@@ -633,83 +592,7 @@ class PSplineResult2D(PSplineResult):
             The degree of the spline for the rows and columns.
 
         """
-        # method only added to document differing output types compared to PSplineResult.tck
-        return super().tck
-
-    def effective_dimension(self, n_samples=0, rng=1234):
-        """
-        Calculates the effective dimension from the trace of the hat matrix.
-
-        For typical P-spline smoothing, the linear equation would be
-        ``(B.T @ W @ B + lam * P) c = B.T @ W @ y`` and ``v = B @ c``. Then the hat matrix
-        would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)`` or, equivalently
-        ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression is preferred
-        since it reduces the dimensionality. The effective dimension for the system
-        can be estimated as the trace of the hat matrix.
-
-        Parameters
-        ----------
-        n_samples : int, optional
-            If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
-            trace estimation with a matrix of (``M * N``, `n_samples`) Rademacher random variables
-            (eg. either -1 or 1).
-
-        Returns
-        -------
-        trace : float
-            The trace of the hat matrix, denoting the effective dimension for
-            the system.
-
-        Raises
-        ------
-        TypeError
-            Raised if `n_samples` is not an integer greater than or equal to 0.
-
-        References
-        ----------
-        Eilers, P., et al. Fast and compact smoothing on large multidimensional grids. Computational
-        Statistics and Data Analysis, 2006, 50(1), 61-76.
-
-        Hutchinson, M. A stochastic estimator of the trace of the influence matrix for laplacian
-        smoothing splines. Communications in Statistics - Simulation and Computation, (1990),
-        19(2), 433-450.
-
-        Meyer, R., et al. Hutch++: Optimal Stochastic Trace Estimation. 2021 Symposium on
-        Simplicity in Algorithms (SOSA), (2021), 142-155.
-
-        """
-        # TODO unify the PSpline and PSpline2D method namings and availability for factorization
-        # and solving so that this can be directly inherited from the PSplineResult object
-        if n_samples == 0:
-            if self._trace is not None:
-                return self._trace
-            use_analytic = True
-            rhs_format = 'csc'
-        else:
-            if n_samples < 0 or not isinstance(n_samples, int):
-                raise TypeError('n_samples must be a non-negative integer')
-            use_analytic = False
-            rhs_format = 'csr'
-
-        rhs = self._rhs.asformat(rhs_format)
-        if use_analytic:
-            # compute each diagonal of the hat matrix separately so that the full
-            # hat matrix does not need to be stored in memory
-            trace = 0
-            factorization = factorized(self._lhs)
-            for i in range(self._basis_size):
-                trace += factorization(_sparse_col_index(rhs, i))[i]
-            # prevent needing to calculate analytical solution again
-            self._trace = trace
-        else:
-            rng_samples = _get_rng(rng).choice([-1., 1.], size=(self._basis_size, n_samples))
-            # H @ u == (B.T @ W @ B + P)^-1 @ (B.T @ W @ B) @ u
-            hat_u = self._penalized_object.direct_solve(self._lhs, rhs @ rng_samples)
-            # stochastic trace is the average of the trace of u.T @ H @ u;
-            # trace(u.T @ H @ u) == sum(u * (H @ u))
-            trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
-
-        return trace
+        return super().tck  # only overridden to note the return type difference
 
 
 class WhittakerResult2D(WhittakerResult):
@@ -717,7 +600,10 @@ class WhittakerResult2D(WhittakerResult):
     Represents the result of 2D Whittaker smoothing.
 
     Provides methods for extending the solution obtained from baseline algorithms that use
-    Whittaker smoothing. This class should not be initialized by external users.
+    Whittaker smoothing.
+
+    This class should **not** be initialized by external users since its
+    initialization signature may change without notice as internally required.
 
     """
 
@@ -762,26 +648,9 @@ class WhittakerResult2D(WhittakerResult):
             self._penalized_object.penalty = penalty
 
         if self._penalized_object._using_svd and self._weights.ndim == 1:
-            self._weights = self._weights.reshape(self._shape)
+            self._weights = self._weights.reshape(self._penalized_object.shape)
         elif not self._penalized_object._using_svd and self._weights.ndim == 2:
             self._weights = self._weights.ravel()
-
-    @property
-    def _shape(self):
-        """The shape of the penalized system.
-
-        Returns
-        -------
-        tuple[int, int]
-            The penalized system's shape.
-
-        """
-        # TODO replace/remove once PenalizedSystem2D and WhittakerSystem2D are unified
-        if hasattr(self._penalized_object, '_num_points'):
-            shape = self._penalized_object._num_points
-        else:
-            shape = self._penalized_object._num_bases
-        return shape
 
     @property
     def _btwb(self):
@@ -856,8 +725,8 @@ class WhittakerResult2D(WhittakerResult):
         dof : numpy.ndarray, shape (P, Q)
             The relative effective degrees of freedom associated with each eigenvector
             used for the fit. Each individual effective degree of freedom value is between
-            0 and 1, with lower values signifying that the eigenvector was less important
-            for the fit.
+            0 and 1, with lower values signifying that the eigenvector contributed less
+            to the fit.
 
         Raises
         ------
@@ -870,8 +739,10 @@ class WhittakerResult2D(WhittakerResult):
             raise ValueError(
                 'Cannot calculate degrees of freedom when not using eigendecomposition'
             )
-        dof = solve(self._lhs, self._btwb, check_finite=False, assume_a='pos')
-        return dof.diagonal().reshape(self._basis_shape)
+        dof = self._penalized_object.direct_solve(
+            self._lhs, self._btwb, check_finite=False, assume_a='pos'
+        )
+        return dof.diagonal().reshape(self._penalized_object._num_bases)
 
     def effective_dimension(self, n_samples=0, rng=1234):
         """
@@ -891,6 +762,9 @@ class WhittakerResult2D(WhittakerResult):
             If 0 (default), will calculate the analytical trace. Otherwise, will use stochastic
             trace estimation with a matrix of (``M * N``, `n_samples`) Rademacher random variables
             (eg. either -1 or 1).
+        rng : int or numpy.random.Generator or numpy.random.RandomState, optional
+            The integer for the seed of the random number generator or an existing generating
+            object to use for the stochastic trace estimation. Default is 1234.
 
         Returns
         -------
@@ -930,9 +804,10 @@ class WhittakerResult2D(WhittakerResult):
             if n_samples < 0 or not isinstance(n_samples, int):
                 raise TypeError('n_samples must be a non-negative integer')
             use_analytic = False
-            rng_samples = _get_rng(rng).choice([-1., 1.], size=(self._basis_size, n_samples))
 
-        if self._penalized_object._using_svd:
+        if not self._penalized_object._using_svd:
+            trace = super().effective_dimension(n_samples=n_samples, rng=rng)
+        else:
             # NOTE the only Whittaker-based algorithms that allow performing SVD for solving
             # all use the simple (W + P) v = w * y formulation, so no need to implement for
             # rhs_extra
@@ -944,43 +819,12 @@ class WhittakerResult2D(WhittakerResult):
                 trace = self.relative_dof().sum()
                 self._trace = trace
             else:
+                rng_samples = _rademacher((self._penalized_object.tot_bases, n_samples), rng)
                 # H @ u == (B.T @ W @ B + P)^-1 @ (B.T @ W @ B) @ u
-                hat_u = solve(
+                hat_u = self._penalized_object.direct_solve(
                     self._lhs, self._rhs @ rng_samples, overwrite_b=True,
                     check_finite=False, assume_a='pos'
                 )
-                # stochastic trace is the average of the trace of u.T @ H @ u;
-                # trace(u.T @ H @ u) == sum(u * (H @ u))
-                trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
-        else:
-            # TODO unify PenalizedSystem and PenalizedSystem2D methods so that this can be
-            # directly inherited from WhittakerResult
-            if use_analytic:
-                # compute each diagonal of the hat matrix separately so that the full
-                # hat matrix does not need to be stored in memory
-                trace = 0
-                factorization = factorized(self._lhs)
-                if self._rhs_extra is None:
-                    # note: about an order of magnitude faster to omit the sparse rhs for the simple
-                    # case of lhs @ v = w * y
-                    eye = np.zeros(self._size)
-                    for i in range(self._size):
-                        eye[i] = self._weights[i]
-                        trace += factorization(eye)[i]
-                        eye[i] = 0
-                else:
-                    rhs = self._rhs.tocsc()
-                    for i in range(self._basis_size):
-                        trace += factorization(_sparse_col_index(rhs, i))[i]
-                self._trace = trace
-
-            else:
-                if self._rhs_extra is None:
-                    rhs_u = self._weights[:, None] * rng_samples
-                else:
-                    rhs_u = self._rhs.tocsr() @ rng_samples
-                # H @ u == (W + P)^-1 @ (W @ u)
-                hat_u = self._penalized_object.direct_solve(self._lhs, rhs_u)
                 # stochastic trace is the average of the trace of u.T @ H @ u;
                 # trace(u.T @ H @ u) == sum(u * (H @ u))
                 trace = np.einsum('ij,ij->', rng_samples, hat_u) / n_samples
