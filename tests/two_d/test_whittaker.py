@@ -31,7 +31,8 @@ class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin):
     def test_result_obj(self):
         """Ensures the `result` item in the output params is a WhittakerResult2D."""
         _, params = self.class_func(self.y, **self.kwargs)
-        assert isinstance(params['result'], WhittakerResult2D)
+        # don't use isinstance since don't want to allow subclasses
+        assert type(params['result']) is WhittakerResult2D
 
 
 class EigenvalueMixin:

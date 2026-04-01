@@ -140,7 +140,8 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
     def test_result_obj(self):
         """Ensures the `result` item in the output params is a WhittakerResult."""
         _, params = self.class_func(self.y, **self.kwargs)
-        assert isinstance(params['result'], WhittakerResult)
+        # don't use isinstance since don't want to allow subclasses
+        assert type(params['result']) is WhittakerResult
 
 
 class TestAsLS(WhittakerTester):

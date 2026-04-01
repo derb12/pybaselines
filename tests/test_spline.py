@@ -67,7 +67,8 @@ class SplineTester(BaseTester):
     def test_result_obj(self):
         """Ensures the `result` item in the output params is a PSplineResult."""
         _, params = self.class_func(self.y, **self.kwargs)
-        assert isinstance(params['result'], PSplineResult)
+        # don't use isinstance since don't want to allow subclasses
+        assert type(params['result']) is PSplineResult
 
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):
