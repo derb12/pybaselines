@@ -642,7 +642,6 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         return baseline, params
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
         Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
@@ -667,9 +666,9 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -690,26 +689,9 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         59, 10933-10943.
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(y, weight_array)
-            new_weights, exit_early = _weighting._iarpls(y, baseline, i)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
+        return super()._iarpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights
+        )
 
     @_Algorithm._handle_io(sort_keys=('weights', 'alpha'))
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,

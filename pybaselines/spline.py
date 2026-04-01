@@ -633,7 +633,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
         """
         return super()._arpls(
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
-            weights=weights, spline_degree=spline_degree, num_knots=num_knots,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
     @_Algorithm._handle_io(sort_keys=('weights',))
@@ -755,7 +755,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
 
         return baseline, params
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def pspline_iarpls(self, data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
                        max_iter=50, tol=1e-3, weights=None):
         """
@@ -786,9 +785,9 @@ class _Spline(_Algorithm, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -816,28 +815,10 @@ class _Spline(_Algorithm, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        return super()._iarpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = pspline.solve(y, weight_array)
-            new_weights, exit_early = _weighting._iarpls(y, baseline, i)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': PSplineResult(pspline, weight_array)
-        }
-
-        return baseline, params
 
     @_Algorithm._handle_io(sort_keys=('weights', 'alpha'))
     def pspline_aspls(self, data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
