@@ -10,6 +10,7 @@ import numpy as np
 
 from .. import _weighting
 from .._compat import diags
+from .._nd._pls import _PLSNDMixin
 from .._validation import _check_optional_array, _check_scalar_variable
 from ..results import WhittakerResult2D
 from ..utils import _MIN_FLOAT, relative_difference
@@ -17,10 +18,9 @@ from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
 
 
-class _Whittaker(_Algorithm2D):
+class _Whittaker(_Algorithm2D, _PLSNDMixin):
     """A base class for all Whittaker-smoothing-based algorithms."""
 
-    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None,
              num_eigens=(10, 10), return_dof=False):
         """
@@ -62,9 +62,9 @@ class _Whittaker(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -98,34 +98,10 @@ class _Whittaker(_Algorithm2D):
         practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-        y, weight_array, whittaker_system = self._setup_whittaker(
-            data, lam, diff_order, weights, num_eigens=num_eigens
+        return super()._asls(
+            data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, num_eigens=num_eigens, return_dof=return_dof
         )
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(y, weight_array)
-            new_weights = _weighting._asls(y, baseline, p)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult2D(whittaker_system, weight_array)
-        }
-        if whittaker_system._using_svd:
-            params['weights'] = weight_array
-            if return_dof:
-                params['dof'] = whittaker_system._calc_dof(weight_array)
-        else:
-            baseline = baseline.reshape(self._shape)
-            params['weights'] = weight_array.reshape(self._shape)
-
-        return baseline, params
 
     @_Algorithm2D._handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def iasls(self, data, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,

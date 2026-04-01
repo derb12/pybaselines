@@ -11,15 +11,15 @@ import numpy as np
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _shift_rows, diff_penalty_diagonals
+from ._nd._pls import _PLSNDMixin
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import WhittakerResult
 from .utils import _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 
 
-class _Whittaker(_Algorithm):
+class _Whittaker(_Algorithm, _PLSNDMixin):
     """A base class for all Whittaker-smoothing-based algorithms."""
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         r"""
         Fits the baseline using the asymmetric least squares (AsLS) algorithm.
@@ -63,9 +63,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -140,25 +140,10 @@ class _Whittaker(_Algorithm):
         >>> plt.show()
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(y, weight_array)
-            new_weights = _weighting._asls(y, baseline, p)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
+        return super()._asls(
+            data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights
+        )
 
     @_Algorithm._handle_io(sort_keys=('weights',))
     def iasls(self, data, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,

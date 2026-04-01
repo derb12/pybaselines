@@ -14,6 +14,7 @@ from scipy.ndimage import grey_opening
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _add_diagonals, _shift_rows, _sparse_to_banded, diff_penalty_matrix
+from ._nd._pls import _PLSNDMixin
 from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import PSplineResult
@@ -23,7 +24,7 @@ from .utils import (
 )
 
 
-class _Spline(_Algorithm):
+class _Spline(_Algorithm, _PLSNDMixin):
     """A base class for all spline algorithms."""
 
     @_Algorithm._handle_io(sort_keys=('weights',))
@@ -297,7 +298,6 @@ class _Spline(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def pspline_asls(self, data, lam=1e3, p=1e-2, num_knots=100, spline_degree=3, diff_order=2,
                      max_iter=50, tol=1e-3, weights=None):
         """
@@ -370,28 +370,10 @@ class _Spline(_Algorithm):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        return super()._asls(
+            data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array)
-            new_weights = _weighting._asls(y, baseline, p)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult(pspline, weight_array)
-        }
-
-        return baseline, params
 
     @_Algorithm._handle_io(sort_keys=('weights',))
     def pspline_iasls(self, data, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
