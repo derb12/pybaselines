@@ -343,7 +343,6 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         return baseline, params
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                normalize_weights=False):
         r"""
@@ -391,9 +390,9 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -451,29 +450,10 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         >>> plt.show()
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        y_l1_norm = np.abs(y).sum()
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(y, weight_array)
-            new_weights, residual_l1_norm, exit_early = _weighting._airpls(
-                y, baseline, i, normalize_weights
-            )
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = residual_l1_norm / y_l1_norm
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
+        return super()._airpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, normalize_weights=normalize_weights
+        )
 
     @_Algorithm._handle_io(sort_keys=('weights',))
     def arpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):

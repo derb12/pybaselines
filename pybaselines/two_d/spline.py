@@ -496,7 +496,6 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
 
         return baseline, params
 
-    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_airpls(self, data, lam=1e3, num_knots=25, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None, normalize_weights=False):
         """
@@ -534,9 +533,9 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -563,31 +562,11 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        return super()._airpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots,
+            normalize_weights=normalize_weights
         )
-        y_l1_norm = np.abs(y).sum()
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = pspline.solve(y, weight_array)
-            new_weights, residual_l1_norm, exit_early = _weighting._airpls(
-                y, baseline, i, normalize_weights
-            )
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = residual_l1_norm / y_l1_norm
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
 
     @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_arpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,

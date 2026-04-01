@@ -215,7 +215,6 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
 
         return baseline, params
 
-    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                num_eigens=(10, 10), return_dof=False, normalize_weights=False):
         """
@@ -257,9 +256,9 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -269,13 +268,13 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
-            * 'result': WhittakerResult2D
-                An object that can use the results of the fit to perform additional
-                calculations.
 
         References
         ----------
@@ -286,39 +285,11 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(
-            data, lam, diff_order, weights, num_eigens=num_eigens
-
+        return super()._airpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, num_eigens=num_eigens, return_dof=return_dof,
+            normalize_weights=normalize_weights
         )
-        y_l1_norm = np.abs(y).sum()
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(y, weight_array)
-            new_weights, residual_l1_norm, exit_early = _weighting._airpls(
-                y, baseline, i, normalize_weights
-            )
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = residual_l1_norm / y_l1_norm
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'tol_history': tol_history[:i],
-            'result': WhittakerResult2D(whittaker_system, weight_array)
-        }
-        if whittaker_system._using_svd:
-            params['weights'] = weight_array
-            if return_dof:
-                params['dof'] = whittaker_system._calc_dof(weight_array)
-        else:
-            baseline = baseline.reshape(self._shape)
-            params['weights'] = weight_array.reshape(self._shape)
-
-        return baseline, params
 
     @_Algorithm2D._handle_io(sort_keys=('weights',))
     def arpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
