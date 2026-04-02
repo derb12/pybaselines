@@ -984,7 +984,6 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             pad_kwargs=pad_kwargs, **kwargs
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def brpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, max_iter_2=50,
               tol_2=1e-3, weights=None):
         """
@@ -1004,7 +1003,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        max_iter_2 : float, optional
+        max_iter_2 : int, optional
             The number of iterations for updating the proportion of data occupied by peaks.
             Default is 50.
         tol_2 : float, optional
@@ -1016,9 +1015,9 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -1043,51 +1042,10 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         2022, 140, 250-257.
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        beta = 0.5
-        j_max = 0
-        baseline = y
-        baseline_weights = weight_array
-        tol_history = np.zeros((max_iter_2 + 2, max(max_iter, max_iter_2) + 1))
-        # implementation note: weight_array must always be updated since otherwise when
-        # reentering the inner loop, new_baseline and baseline would be the same; instead,
-        # use baseline_weights to track which weights produced the output baseline
-        for i in range(max_iter_2 + 1):
-            for j in range(max_iter + 1):
-                new_baseline = whittaker_system.solve(y, weight_array)
-                new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
-                if exit_early:
-                    j -= 1  # reduce j so that output tol_history indexing is correct
-                    tol_2 = np.inf  # ensure it exits outer loop
-                    break
-                # Paper used norm(old - new) / norm(new) rather than old in the denominator,
-                # but I use old in the denominator instead to be consistent with all other
-                # algorithms; does not make a major difference
-                calc_difference = relative_difference(baseline, new_baseline)
-                tol_history[i + 1, j] = calc_difference
-                if calc_difference < tol:
-                    if i == 0 and j == 0:  # for cases where tol == inf
-                        baseline = new_baseline
-                    break
-                baseline_weights = weight_array
-                weight_array = new_weights
-                baseline = new_baseline
-            j_max = max(j, j_max)
-
-            weight_array = new_weights
-            weight_mean = weight_array.mean()
-            calc_difference_2 = abs(beta + weight_mean - 1)
-            tol_history[0, i] = calc_difference_2
-            if calc_difference_2 < tol_2:
-                break
-            beta = 1 - weight_mean
-
-        params = {
-            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
+        return super()._brpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            max_iter_2=max_iter_2, tol_2=tol_2, weights=weights
+        )
 
     @_Algorithm._handle_io(sort_keys=('weights',))
     def lsrpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
