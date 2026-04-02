@@ -8,10 +8,14 @@ Created on March 27, 2026
 
 """
 
+import warnings
+
 import numpy as np
 
 from .. import _weighting
-from ..utils import _mollifier_kernel, pad_edges, padded_convolve, relative_difference
+from ..utils import (
+    ParameterWarning, _mollifier_kernel, gaussian, pad_edges, padded_convolve, relative_difference
+)
 from .._validation import _check_scalar_variable
 from ._algorithm_setup import _handle_io
 
@@ -986,5 +990,195 @@ class _PLSNDMixin:
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
+
+        return baseline, params
+
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    def _mixture_model(self, data, lam=1e5, p=1e-2, num_knots=25, spline_degree=None,
+                       diff_order=3, max_iter=50, tol=1e-3, weights=None,
+                       symmetric=False, num_bins=None):
+        """
+        Considers the data as a mixture model composed of noise and peaks.
+
+        Weights are iteratively assigned by calculating the probability each value in
+        the residual belongs to a normal distribution representing the noise.
+
+        data : array-like, shape (N,) or (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter. Can be a single value or a sequence of floats with length
+            equal to the dimensions of `data`. Larger values will create smoother baselines.
+            Default is 1e5.
+        p : float, optional
+            The penalizing weighting factor. Must be between 0 and 1. Values greater
+            than the baseline will be given `p` weight, and values less than the baseline
+            will be given `1 - p` weight. Used to set the initial weights before performing
+            expectation-maximization. Default is 1e-2.
+        num_knots : int or Sequence[int, int], optional
+            The number of knots for the splines. Can be a single value or a sequence of ints
+            with length equal to the dimensions of `data`. Default is 25. Only used if
+            `spline_degree` is not None.
+        spline_degree : None or int or Sequence[int, int], optional
+            The degree of the splines. Can be a single value or a sequence of ints with
+            length equal to the dimensions of `data`. Default is None, which will use Whittaker
+            smoothing.
+        diff_order : int or Sequence[int, int], optional
+            The order of the difference matrix. Can be a single value or a sequence of ints with
+            length equal to the dimensions of `data`. Must be greater than 0.
+            Default is 3 (third order difference matrix).
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        weights : array-like, shape (N,) or (M, N), optional
+            The weighting array. If None (default), then the initial weights
+            will be an array with the same shape as `data` with all values set to 1.
+        symmetric : bool, optional
+            If False (default), the total mixture model will be composed of one normal
+            distribution for the noise and one uniform distribution for positive non-noise
+            residuals. If True, an additional uniform distribution will be added to the
+            mixture model for negative non-noise residuals. Only need to set `symmetric`
+            to True when peaks are both positive and negative.
+        num_bins : int, optional, deprecated
+
+            .. deprecated:: 1.1.0
+                ``num_bins`` is deprecated since it is no longer necessary for performing
+                the expectation-maximization and will be removed in pybaselines version 1.3.0.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,) or (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,) or (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'result': WhittakerResult or WhittakerResult2D or PSplineResult or PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations. The type depends on the dimensions of `data` and if
+                `spline_degree` was None.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
+
+        Raises
+        ------
+        ValueError
+            Raised if `p` is not between 0 and 1.
+
+        References
+        ----------
+        de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
+        Intelligent Laboratory Systems, 2012, 117, 56-60.
+
+        Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
+        preprint arXiv:1901.06708, 2019.
+
+        """
+        if not 0 < p < 1:
+            raise ValueError('p must be between 0 and 1')
+        if num_bins is not None:
+            warnings.warn(
+                '"num_bins" was deprecated in version 1.1.0 and will be removed in version 1.3.0',
+                DeprecationWarning, stacklevel=2
+            )
+
+        # NOTE mixture_model doesn't currently allow Whittaker smoothing
+        y, weight_array, penalized_system, result_class = self._setup_pls(
+            data, lam=lam, diff_order=diff_order, weights=weights, spline_degree=spline_degree,
+            num_knots=num_knots
+        )
+        # scale y between -1 and 1 so that the residual fit is more numerically stable
+        # TODO is this still necessary now that expectation-maximization is used? -> still
+        # helps to prevent overflows when using gaussian
+        y_domain = np.polynomial.polyutils.getdomain(y.ravel())
+        y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
+
+        if weights is not None:
+            baseline = penalized_system.solve(y, weight_array)
+        else:
+            # perform 2 iterations: first is a least-squares fit and second is initial
+            # reweighted fit; 2 fits are needed to get weights to have a decent starting
+            # distribution for the expectation-maximization
+            if symmetric and not 0.2 < p < 0.8:
+                # p values far away from 0.5 with symmetric=True give bad initial weights
+                # for the expectation maximization
+                warnings.warn(
+                    'should use a p value closer to 0.5 when "symmetric" is True',
+                    ParameterWarning, stacklevel=2
+                )
+            for _ in range(2):
+                baseline = penalized_system.solve(y, weight_array)
+                weight_array = _weighting._asls(y, baseline, p)
+
+        residual = y - baseline
+        # the 0.2 * std(residual) is an "okay" starting sigma estimate
+        sigma = 0.2 * np.std(residual)
+        fraction_noise = 0.5
+        if symmetric:
+            fraction_positive = 0.25
+        else:
+            fraction_positive = 1 - fraction_noise
+        tol_history = np.empty(max_iter + 1)
+        for i in range(max_iter + 1):
+            # expectation part of expectation-maximization -> calc pdfs and
+            # posterior probabilities
+            positive_pdf = np.where(
+                residual >= 0, fraction_positive / max(abs(residual.max()), 1e-6), 0
+            )
+            noise_pdf = (
+                fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
+            )
+            total_pdf = noise_pdf + positive_pdf
+            if symmetric:
+                negative_pdf = np.where(
+                    residual < 0,
+                    (1 - fraction_noise - fraction_positive) / max(abs(residual.min()), 1e-6),
+                    0
+                )
+                total_pdf += negative_pdf
+            posterior_prob_noise = noise_pdf / np.maximum(total_pdf, np.finfo(float).eps)
+
+            calc_difference = relative_difference(weight_array, posterior_prob_noise)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
+
+            # maximization part of expectation-maximization -> update sigma and
+            # fractions of each pdf
+            noise_sum = posterior_prob_noise.sum()
+            # TODO can noise_sum ever be 0? Should terminate early if so
+            sigma = np.sqrt((posterior_prob_noise * residual**2).sum() / noise_sum)
+            if not symmetric:
+                fraction_noise = posterior_prob_noise.mean()
+                fraction_positive = 1 - fraction_noise
+            else:
+                posterior_prob_positive = positive_pdf / total_pdf
+                posterior_prob_negative = negative_pdf / total_pdf
+
+                positive_sum = posterior_prob_positive.sum()
+                negative_sum = posterior_prob_negative.sum()
+                total_sum = noise_sum + positive_sum + negative_sum
+
+                fraction_noise = noise_sum / total_sum
+                fraction_positive = positive_sum / total_sum
+
+            weight_array = posterior_prob_noise
+            baseline = penalized_system.solve(y, weight_array)
+            residual = y - baseline
+
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': result_class(penalized_system, weight_array)
+        }
+
+        baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
 
         return baseline, params

@@ -6,14 +6,13 @@ Created on April 25, 2023
 
 """
 
-import warnings
 
 import numpy as np
 
 from .. import _weighting
 from .._nd._pls import _PLSNDMixin
 from ..results import PSplineResult2D
-from ..utils import ParameterWarning, gaussian, relative_difference, _MIN_FLOAT
+from ..utils import relative_difference
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
 
@@ -21,7 +20,6 @@ from ._whittaker_utils import PenalizedSystem2D
 class _Spline(_Algorithm2D, _PLSNDMixin):
     """A base class for all spline algorithms."""
 
-    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def mixture_model(self, data, lam=1e3, p=1e-2, num_knots=25, spline_degree=3, diff_order=3,
                       max_iter=50, tol=1e-3, weights=None, symmetric=False):
         """
@@ -71,9 +69,9 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -90,7 +88,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Raises
         ------
         ValueError
-            Raised if p is not between 0 and 1.
+            Raised if `p` is not between 0 and 1.
 
         References
         ----------
@@ -101,98 +99,11 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         preprint arXiv:1901.06708, 2019.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        return super()._mixture_model(
+            data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots,
+            symmetric=symmetric
         )
-        # scale y between -1 and 1 so that the residual fit is more numerically stable
-        # TODO is this still necessary now that expectation-maximization is used? -> still
-        # helps to prevent overflows when using gaussian
-        y_domain = np.polynomial.polyutils.getdomain(y.ravel())
-        y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
-
-        if weights is not None:
-            baseline = pspline.solve(y, weight_array)
-        else:
-            # perform 2 iterations: first is a least-squares fit and second is initial
-            # reweighted fit; 2 fits are needed to get weights to have a decent starting
-            # distribution for the expectation-maximization
-            if symmetric and not 0.2 < p < 0.8:
-                # p values far away from 0.5 with symmetric=True give bad initial weights
-                # for the expectation maximization
-                warnings.warn(
-                    'should use a p value closer to 0.5 when symmetric is True',
-                    ParameterWarning, stacklevel=2
-                )
-            for _ in range(2):
-                baseline = pspline.solve(y, weight_array)
-                weight_array = _weighting._asls(y, baseline, p)
-
-        residual = y - baseline
-        # the 0.2 * std(residual) is an "okay" starting sigma estimate
-        sigma = 0.2 * np.std(residual)
-        fraction_noise = 0.5
-        if symmetric:
-            fraction_positive = 0.25
-        else:
-            fraction_positive = 1 - fraction_noise
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            # expectation part of expectation-maximization -> calc pdfs and
-            # posterior probabilities
-            positive_pdf = np.where(
-                residual >= 0, fraction_positive / max(abs(residual.max()), 1e-6), 0
-            )
-            noise_pdf = (
-                fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
-            )
-            total_pdf = noise_pdf + positive_pdf
-            if symmetric:
-                negative_pdf = np.where(
-                    residual < 0,
-                    (1 - fraction_noise - fraction_positive) / max(abs(residual.min()), 1e-6),
-                    0
-                )
-                total_pdf += negative_pdf
-            posterior_prob_noise = noise_pdf / np.maximum(total_pdf, _MIN_FLOAT)
-
-            calc_difference = relative_difference(weight_array, posterior_prob_noise)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-
-            # maximization part of expectation-maximization -> update sigma and
-            # fractions of each pdf
-            noise_sum = posterior_prob_noise.sum()
-            sigma = np.sqrt((posterior_prob_noise * residual**2).sum() / noise_sum)
-            if not symmetric:
-                fraction_noise = posterior_prob_noise.mean()
-                fraction_positive = 1 - fraction_noise
-            else:
-                posterior_prob_positive = positive_pdf / total_pdf
-                posterior_prob_negative = negative_pdf / total_pdf
-
-                positive_sum = posterior_prob_positive.sum()
-                negative_sum = posterior_prob_negative.sum()
-                total_sum = noise_sum + positive_sum + negative_sum
-
-                fraction_noise = noise_sum / total_sum
-                fraction_positive = positive_sum / total_sum
-
-            weight_array = posterior_prob_noise
-            baseline = pspline.solve(y, weight_array)
-            residual = y - baseline
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
-
-        return baseline, params
 
     @_Algorithm2D._handle_io(sort_keys=('weights',))
     def irsqr(self, data, lam=1e3, quantile=0.05, num_knots=25, spline_degree=3,
