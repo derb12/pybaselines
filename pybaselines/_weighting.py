@@ -447,7 +447,7 @@ def _psalsa(y, baseline, p, k):
     return weights
 
 
-def _derpsalsa(y, baseline, p, k, shape_y, partial_weights):
+def _derpsalsa(y, baseline, p, k, partial_weights):
     """
     Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
 
@@ -465,8 +465,6 @@ def _derpsalsa(y, baseline, p, k, shape_y, partial_weights):
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak.
-    shape_y : int or (int,) or (int, int)
-        The length of `y`, `N`. Precomputed to avoid repeated calculations.
     partial_weights : numpy.ndarray, shape (N,)
         The weights associated with the first and second derivatives of the data.
 
@@ -494,7 +492,7 @@ def _derpsalsa(y, baseline, p, k, shape_y, partial_weights):
     residual = y - baseline
     # no need for caution since inner exponential is always negative, but still mask
     # since it's faster than performing the square and exp on the full residual
-    weights = np.full(shape_y, 1 - p, dtype=float)
+    weights = np.full(y.shape, 1 - p, dtype=float)
     mask = residual > 0
     weights[mask] = p * np.exp(-0.5 * ((residual[mask] / k)**2))
     weights *= partial_weights

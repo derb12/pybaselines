@@ -19,8 +19,7 @@ from ._spline_utils import _basis_midpoints
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import PSplineResult
 from .utils import (
-    ParameterWarning, _mollifier_kernel, _sort_array, gaussian, pad_edges, padded_convolve,
-    relative_difference, _MIN_FLOAT
+    ParameterWarning, _sort_array, gaussian, relative_difference, _MIN_FLOAT
 )
 
 
@@ -1043,7 +1042,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def pspline_derpsalsa(self, data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degree=3,
                           diff_order=2, max_iter=50, tol=1e-3, weights=None,
                           smooth_half_window=None, num_smooths=16, pad_kwargs=None, **kwargs):
@@ -1099,9 +1097,9 @@ class _Spline(_Algorithm, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -1135,54 +1133,12 @@ class _Spline(_Algorithm, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        return super()._derpsalsa(
+            data, lam=lam, p=p, k=k, num_knots=num_knots, spline_degree=spline_degree,
+            diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights,
+            smooth_half_window=smooth_half_window, num_smooths=num_smooths,
+            pad_kwargs=pad_kwargs, **kwargs
         )
-        if k is None:
-            k = np.std(y) / 10
-        else:
-            k = _check_scalar_variable(k, variable_name='k')
-
-        if smooth_half_window is None:
-            smooth_half_window = self._size // 200
-        # could pad the data every iteration, but it is ~2-3 times slower and only affects
-        # the edges, so it's not worth it
-        self._deprecate_pad_kwargs(**kwargs)
-        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
-        y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs, **kwargs)
-        if smooth_half_window > 0:
-            smooth_kernel = _mollifier_kernel(smooth_half_window)
-            for _ in range(num_smooths):
-                y_smooth = padded_convolve(y_smooth, smooth_kernel)
-        y_smooth = y_smooth[smooth_half_window:self._size + smooth_half_window]
-
-        diff_y_1 = np.gradient(y_smooth)
-        diff_y_2 = np.gradient(diff_y_1)
-        # x.dot(x) is same as (x**2).sum() but faster
-        rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / self._size)
-        rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / self._size)
-
-        diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
-        diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
-        partial_weights = diff_1_weights * diff_2_weights
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array)
-            new_weights = _weighting._derpsalsa(y, baseline, p, k, self._shape, partial_weights)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult(pspline, weight_array)
-        }
-
-        return baseline, params
 
     @_Algorithm._handle_io(sort_keys=('weights',))
     def pspline_mpls(self, data, half_window=None, lam=1e3, p=0.0, num_knots=100, spline_degree=3,

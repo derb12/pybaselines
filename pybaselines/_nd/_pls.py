@@ -11,7 +11,7 @@ Created on March 27, 2026
 import numpy as np
 
 from .. import _weighting
-from ..utils import relative_difference
+from ..utils import _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 from .._validation import _check_scalar_variable
 from ._algorithm_setup import _handle_io
 
@@ -578,5 +578,155 @@ class _PLSNDMixin:
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
+
+        return baseline, params
+
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    def _derpsalsa(self, data, lam=1e6, p=1e-2, k=None, diff_order=2, max_iter=50, tol=1e-3,
+                   weights=None, spline_degree=None, num_knots=10, smooth_half_window=None,
+                   num_smooths=16, pad_kwargs=None, num_eigens=(10, 10), **kwargs):
+        """
+        Derivative Peak-Screening Asymmetric Least Squares Algorithm (derpsalsa).
+
+        Parameters
+        ----------
+        data : array-like, shape (N,) or (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter. Can be a single value or a sequence of floats with length
+            equal to the dimensions of `data`. Larger values will create smoother baselines.
+            Default is 1e5.
+        p : float, optional
+            The penalizing weighting factor. Must be between 0 and 1. Values greater
+            than the baseline will be given `p` weight, and values less than the baseline
+            will be given `1 - p` weight. Default is 1e-2.
+        k : float, optional
+            A factor that controls the exponential decay of the weights for baseline
+            values greater than the data. Should be approximately the height at which
+            a value could be considered a peak. Default is None, which sets `k` to
+            one-tenth of the standard deviation of the input data. A large k value
+            will produce similar results to :meth:`~.Baseline.asls`.
+        diff_order : int or Sequence[int, int], optional
+            The order of the difference matrix. Can be a single value or a sequence of ints with
+            length equal to the dimensions of `data`. Must be greater than 0.
+            Default is 2 (second order difference matrix).
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        weights : array-like, shape (N,) or (M, N), optional
+            The weighting array. If None (default), then the initial weights
+            will be an array with the same shape as `data` with all values set to 1.
+        spline_degree : None or int or Sequence[int, int], optional
+            The degree of the splines. Can be a single value or a sequence of ints with
+            length equal to the dimensions of `data`. Default is None, which will use Whittaker
+            smoothing.
+        num_knots : int or Sequence[int, int], optional
+            The number of knots for the splines. Can be a single value or a sequence of ints
+            with length equal to the dimensions of `data`. Default is 25. Only used if
+            `spline_degree` is not None.
+        smooth_half_window : int, optional
+            The half-window to use for smoothing the data before computing the first
+            and second derivatives. Default is None, which will use ``len(data) / 200``.
+        num_smooths : int, optional
+            The number of times to smooth the data before computing the first
+            and second derivatives. Default is 16.
+        pad_kwargs : dict, optional
+            A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
+            the edges of the data to prevent edge effects from smoothing. Default is None.
+        num_eigens : int or Sequence[int, int] or None, optional
+            The number of eigenvalues for eigendecomposition of the penalty matrices. Can be a
+            single value or a sequence of ints with length equal to the dimensions of `data`.
+            Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10). Only used if `data` is two dimensional
+            and `spline_degree` is not None.
+        **kwargs
+
+            .. deprecated:: 1.2.0
+                Passing additional keyword arguments is deprecated and will be removed in version
+                1.4.0. Pass keyword arguments using `pad_kwargs`.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,) or (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,) or (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'result': WhittakerResult or WhittakerResult2D or PSplineResult or PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations. The type depends on the dimensions of `data` and if
+                `spline_degree` was None.
+
+        Raises
+        ------
+        ValueError
+            Raised if `p` is not between 0 and 1. Also raised if `k` is not greater
+            than 0.
+
+        References
+        ----------
+        Korepanov, V. Asymmetric least-squares baseline algorithm with peak screening for
+        automatic processing of the Raman spectra. Journal of Raman Spectroscopy. 2020,
+        51(10), 2061-2065.
+
+        """
+        if not 0 < p < 1:
+            raise ValueError('p must be between 0 and 1')
+        # NOTE derpsalsa doesn't currently allow 2D
+        y, weight_array, penalized_system, result_class = self._setup_pls(
+            data, lam=lam, diff_order=diff_order, weights=weights, spline_degree=spline_degree,
+            num_knots=num_knots, num_eigens=num_eigens
+        )
+        if k is None:
+            k = np.std(y) / 10
+        else:
+            k = _check_scalar_variable(k, variable_name='k')
+        if smooth_half_window is None:
+            smooth_half_window = self._size // 200
+        # could pad the data every iteration, but it is ~2-3 times slower and only affects
+        # the edges, so it's not worth it
+        self._deprecate_pad_kwargs(**kwargs)
+        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+        y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs, **kwargs)
+        if smooth_half_window > 0:
+            smooth_kernel = _mollifier_kernel(smooth_half_window)
+            for _ in range(num_smooths):
+                y_smooth = padded_convolve(y_smooth, smooth_kernel)
+        y_smooth = y_smooth[smooth_half_window:self._size + smooth_half_window]
+
+        diff_y_1 = np.gradient(y_smooth)
+        diff_y_2 = np.gradient(diff_y_1)
+        # x @ x is same as (x**2).sum() but faster
+        rms_diff_1 = np.sqrt((diff_y_1 @ diff_y_1) / self._size)
+        rms_diff_2 = np.sqrt((diff_y_2 @ diff_y_2) / self._size)
+
+        diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
+        diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
+        partial_weights = diff_1_weights * diff_2_weights
+
+        tol_history = np.empty(max_iter + 1)
+        for i in range(max_iter + 1):
+            baseline = penalized_system.solve(y, weight_array)
+            new_weights = _weighting._derpsalsa(y, baseline, p, k, partial_weights)
+            calc_difference = relative_difference(weight_array, new_weights)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
+            weight_array = new_weights
+
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': result_class(penalized_system, weight_array)
+        }
 
         return baseline, params

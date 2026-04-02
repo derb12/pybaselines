@@ -13,5 +13,4 @@ Created on March 11, 2026
 
 """
 
-# expose all modules as attributes to allow easier access
-from . import _algorithm_setup, _pls, morphological, polynomial
+from . import _pls, morphological, polynomial

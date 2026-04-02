@@ -1114,7 +1114,7 @@ def test_psalsa_overflow(one_d, k, p):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
-def expected_derpsalsa(y, baseline, p, k, shape_y, partial_weights):
+def expected_derpsalsa(y, baseline, p, k, partial_weights):
     """
     Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
 
@@ -1132,8 +1132,6 @@ def expected_derpsalsa(y, baseline, p, k, shape_y, partial_weights):
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak.
-    shape_y : int or (int,) or (int, int)
-        The length of `y`, `N`. Precomputed to avoid repeated calculations.
     partial_weights : numpy.ndarray, shape (N,)
         The weights associated with the first and second derivatives of the data.
 
@@ -1178,8 +1176,8 @@ def test_derpsalsa_normal(k, p):
     diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
     partial_weights = diff_1_weights * diff_2_weights
 
-    weights = _weighting._derpsalsa(y_data, baseline, p, k, y_data.shape, partial_weights)
-    expected_weights = expected_derpsalsa(y_data, baseline, p, k, y_data.shape, partial_weights)
+    weights = _weighting._derpsalsa(y_data, baseline, p, k, partial_weights)
+    expected_weights = expected_derpsalsa(y_data, baseline, p, k, partial_weights)
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
@@ -1203,7 +1201,7 @@ def test_derpsalsa_all_above(k, p):
     diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
     partial_weights = diff_1_weights * diff_2_weights
 
-    weights = _weighting._derpsalsa(y_data, baseline, p, k, y_data.shape, partial_weights)
+    weights = _weighting._derpsalsa(y_data, baseline, p, k, partial_weights)
     expected_weights = np.full_like(y_data, partial_weights * (1 - p))
 
     assert isinstance(weights, np.ndarray)
@@ -1226,7 +1224,7 @@ def test_derpsalsa_all_below(k, p):
     diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
     partial_weights = diff_1_weights * diff_2_weights
 
-    weights = _weighting._derpsalsa(y_data, baseline, p, k, y_data.shape, partial_weights)
+    weights = _weighting._derpsalsa(y_data, baseline, p, k, partial_weights)
     expected_weights = partial_weights * p * np.exp(-0.5 * ((y_data - baseline) / k)**2)
 
     assert isinstance(weights, np.ndarray)
