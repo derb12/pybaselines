@@ -962,7 +962,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
 
         return baseline, params
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def pspline_psalsa(self, data, lam=1e3, p=0.5, k=None, num_knots=100, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -1003,9 +1002,9 @@ class _Spline(_Algorithm, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -1039,32 +1038,10 @@ class _Spline(_Algorithm, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        return super()._psalsa(
+            data, lam=lam, p=p, k=k, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
-        if k is None:
-            k = np.std(y) / 10
-        else:
-            k = _check_scalar_variable(k, variable_name='k')
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array)
-            new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult(pspline, weight_array)
-        }
-
-        return baseline, params
 
     @_Algorithm._handle_io(sort_keys=('weights',))
     def pspline_derpsalsa(self, data, lam=1e2, p=1e-2, k=None, num_knots=100, spline_degree=3,

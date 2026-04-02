@@ -407,7 +407,7 @@ def _aspls(y, baseline, asymmetric_coef=2., alternate_weighting=True):
     return weights, residual, exit_early
 
 
-def _psalsa(y, baseline, p, k, shape_y):
+def _psalsa(y, baseline, p, k):
     """
     Weighting for the peaked signal's asymmetric least squares algorithm (psalsa).
 
@@ -425,8 +425,6 @@ def _psalsa(y, baseline, p, k, shape_y):
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak.
-    shape_y : int or (int,) or (int, int)
-        The length of `y`, `N`. Precomputed to avoid repeated calculations.
 
     Returns
     -------
@@ -443,7 +441,7 @@ def _psalsa(y, baseline, p, k, shape_y):
     residual = y - baseline
     # only use positive residual in exp to avoid exponential overflow warnings
     # and accidentally creating a weight of nan (inf * 0 = nan)
-    weights = np.full(shape_y, 1 - p, dtype=float)
+    weights = np.full(y.shape, 1 - p, dtype=float)
     mask = residual > 0
     weights[mask] = p * np.exp(-residual[mask] / k)
     return weights

@@ -819,7 +819,6 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         return baseline, params
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
     def psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
                weights=None):
         """
@@ -859,9 +858,9 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -895,29 +894,10 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         Systems, Signals, and Devices, 2014, 1-5.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        if k is None:
-            k = np.std(y) / 10
-        else:
-            k = _check_scalar_variable(k, variable_name='k')
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(y, weight_array)
-            new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
+        return super()._psalsa(
+            data, lam=lam, p=p, k=k, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights
+        )
 
     @_Algorithm._handle_io(sort_keys=('weights',))
     def derpsalsa(self, data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3,

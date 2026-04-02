@@ -659,7 +659,6 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
 
         return baseline, params
 
-    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
                weights=None, num_eigens=(10, 10), return_dof=False):
         """
@@ -711,9 +710,9 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -723,13 +722,13 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'result': WhittakerResult2D
+                An object that can use the results of the fit to perform additional
+                calculations.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
                 less important for the fit.
-            * 'result': WhittakerResult2D
-                An object that can use the results of the fit to perform additional
-                calculations.
 
         Raises
         ------
@@ -754,40 +753,10 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-        y, weight_array, whittaker_system = self._setup_whittaker(
-            data, lam, diff_order, weights, num_eigens=num_eigens
+        return super()._psalsa(
+            data, lam=lam, p=p, k=k, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, num_eigens=num_eigens, return_dof=return_dof
         )
-        if k is None:
-            k = np.std(y) / 10
-        else:
-            k = _check_scalar_variable(k, variable_name='k')
-
-        shape = self._shape if whittaker_system._using_svd else self._size
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(y, weight_array)
-            new_weights = _weighting._psalsa(y, baseline, p, k, shape)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult2D(whittaker_system, weight_array)
-        }
-        if whittaker_system._using_svd:
-            params['weights'] = weight_array
-            if return_dof:
-                params['dof'] = whittaker_system._calc_dof(weight_array)
-        else:
-            baseline = baseline.reshape(self._shape)
-            params['weights'] = weight_array.reshape(self._shape)
-
-        return baseline, params
 
     @_Algorithm2D._handle_io(sort_keys=('weights',))
     def brpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, max_iter_2=50,
