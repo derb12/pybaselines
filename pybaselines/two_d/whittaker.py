@@ -841,7 +841,6 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             return_dof=return_dof
         )
 
-    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def lsrpls(self, data, lam=1e3, diff_order=2, max_iter=50, tol=1e-3, weights=None,
               num_eigens=(10, 10), return_dof=False, alternate_weighting=False):
         """
@@ -885,9 +884,9 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -927,32 +926,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             for practical use. ASTIN Bulletin, 2025, 1-31.
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(
-            data, lam, diff_order, weights, num_eigens=num_eigens
+        return super()._lsrpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, num_eigens=num_eigens, return_dof=return_dof,
+            alternate_weighting=alternate_weighting
         )
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(y, weight_array)
-            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'tol_history': tol_history[:i],
-            'result': WhittakerResult2D(whittaker_system, weight_array)
-        }
-        if whittaker_system._using_svd:
-            params['weights'] = weight_array
-            if return_dof:
-                params['dof'] = whittaker_system._calc_dof(weight_array)
-        else:
-            baseline = baseline.reshape(self._shape)
-            params['weights'] = weight_array.reshape(self._shape)
-
-        return baseline, params

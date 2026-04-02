@@ -865,3 +865,126 @@ class _PLSNDMixin:
             params['dof'] = params['result'].relative_dof()
 
         return baseline, params
+
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    def _lsrpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
+                spline_degree=None, num_knots=25, num_eigens=(10, 10), return_dof=False,
+                alternate_weighting=False):
+        """
+        Locally Symmetric Reweighted Penalized Least Squares (LSRPLS).
+
+        Parameters
+        ----------
+        data : array-like, shape (N,) or (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter. Can be a single value or a sequence of floats with length
+            equal to the dimensions of `data`. Larger values will create smoother baselines.
+            Default is 1e5.
+        diff_order : int or Sequence[int, int], optional
+            The order of the difference matrix. Can be a single value or a sequence of ints with
+            length equal to the dimensions of `data`. Must be greater than 0.
+            Default is 2 (second order difference matrix).
+        max_iter : int, optional
+            The max number of fit iterations. Default is 50.
+        tol : float, optional
+            The exit criteria. Default is 1e-3.
+        weights : array-like, shape (N,) or (M, N), optional
+            The weighting array. If None (default), then the initial weights
+            will be an array with the same shape as `data` with all values set to 1.
+        spline_degree : None or int or Sequence[int, int], optional
+            The degree of the splines. Can be a single value or a sequence of ints with
+            length equal to the dimensions of `data`. Default is None, which will use Whittaker
+            smoothing.
+        num_knots : int or Sequence[int, int], optional
+            The number of knots for the splines. Can be a single value or a sequence of ints
+            with length equal to the dimensions of `data`. Default is 25. Only used if
+            `spline_degree` is not None.
+        num_eigens : int or Sequence[int, int] or None, optional
+            The number of eigenvalues for eigendecomposition of the penalty matrices. Can be a
+            single value or a sequence of ints with length equal to the dimensions of `data`.
+            Typical values are between 5 and 30, with higher values
+            needed for baselines with more curvature. If None, will solve the linear system
+            using the full analytical solution, which is typically much slower. Must be greater
+            than `diff_order`. Default is (10, 10). Only used if `data` is two dimensional
+            and `spline_degree` is not None.
+        return_dof : bool, optional
+            If True and `num_eigens` is not None, then the effective degrees of freedom for
+            each eigenvector will be calculated and returned in the parameter dictionary.
+            Default is False since the calculation takes time. Only used if `data` is
+            two dimensional.
+        alternate_weighting : bool, optional
+            If False (default), the weighting uses a prefactor term of ``10^t``, where ``t`` is
+            the iteration number, which is equation 8 within the LSRPLS paper [1]_. If True, uses
+            a prefactor term of ``exp(t)``. See the Notes section below for more details.
+
+            .. versionadded:: 1.3.0
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,) or (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,) or (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'result': WhittakerResult or WhittakerResult2D or PSplineResult or PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations. The type depends on the dimensions of `data` and if
+                `spline_degree` was None.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
+
+        Notes
+        -----
+        In the LSRPLS paper [1]_, the weighting equation is written with a prefactor term
+        of ``10^t``, where ``t`` is the iteration number, but the plotted weighting curve in
+        Figure 1 of the paper shows a prefactor term of ``exp(t)`` instead. Since it is ambiguous
+        which prefactor term is actually used for the algorithm, both are permitted by setting
+        `alternate_weighting` to True to use ``10^t`` and False to use ``exp(t)``. In practice,
+        the prefactor determines how quickly the weighting curve converts from a sigmoidal curve
+        to a step curve, and does not heavily influence the result.
+
+        If ``alternate_weighting`` is False, the weighting is the same as the drPLS algorithm [2]_.
+
+        References
+        ----------
+        .. [1] Heng, Z., et al. Baseline correction for Raman Spectra Based on Locally Symmetric
+            Reweighted Penalized Least Squares. Chinese Journal of Lasers, 2018, 45(12), 1211001.
+        .. [2] Xu, D. et al. Baseline correction method based on doubly reweighted
+            penalized least squares, Applied Optics, 2019, 58, 3913-3920.
+
+        """
+        y, weight_array, penalized_system, result_class = self._setup_pls(
+            data, lam=lam, diff_order=diff_order, weights=weights, spline_degree=spline_degree,
+            num_knots=num_knots, num_eigens=num_eigens
+        )
+        tol_history = np.empty(max_iter + 1)
+        for i in range(1, max_iter + 2):
+            baseline = penalized_system.solve(y, weight_array)
+            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
+            if exit_early:
+                i -= 1  # reduce i so that output tol_history indexing is correct
+                break
+            calc_difference = relative_difference(weight_array, new_weights)
+            tol_history[i - 1] = calc_difference
+            if calc_difference < tol:
+                break
+            weight_array = new_weights
+
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i],
+            'result': result_class(penalized_system, weight_array)
+        }
+        if return_dof:
+            params['dof'] = params['result'].relative_dof()
+
+        return baseline, params
