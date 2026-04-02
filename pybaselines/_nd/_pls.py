@@ -1003,6 +1003,8 @@ class _PLSNDMixin:
         Weights are iteratively assigned by calculating the probability each value in
         the residual belongs to a normal distribution representing the noise.
 
+        Parameters
+        ----------
         data : array-like, shape (N,) or (M, N)
             The y-values of the measured data. Must not contain missing data (NaN) or Inf.
         lam : float or Sequence[float, float], optional
@@ -1180,5 +1182,108 @@ class _PLSNDMixin:
         }
 
         baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
+
+        return baseline, params
+
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    def _irsqr(self, data, lam=1e3, quantile=0.05, num_knots=25, spline_degree=None,
+               diff_order=3, max_iter=100, tol=1e-6, weights=None, eps=None):
+        """
+        Iterative Reweighted Spline Quantile Regression (IRSQR).
+
+        Fits the baseline using quantile regression with penalized splines.
+
+        Parameters
+        ----------
+        data : array-like, shape (N,) or (M, N)
+            The y-values of the measured data. Must not contain missing data (NaN) or Inf.
+        lam : float or Sequence[float, float], optional
+            The smoothing parameter. Can be a single value or a sequence of floats with length
+            equal to the dimensions of `data`. Larger values will create smoother baselines.
+            Default is 1e3.
+        quantile : float, optional
+            The quantile at which to fit the baseline. Default is 0.05.
+        num_knots : int or Sequence[int, int], optional
+            The number of knots for the splines. Can be a single value or a sequence of ints
+            with length equal to the dimensions of `data`. Default is 25. Only used if
+            `spline_degree` is not None.
+        spline_degree : None or int or Sequence[int, int], optional
+            The degree of the splines. Can be a single value or a sequence of ints with
+            length equal to the dimensions of `data`. Default is None, which will use Whittaker
+            smoothing.
+        diff_order : int or Sequence[int, int], optional
+            The order of the difference matrix. Can be a single value or a sequence of ints with
+            length equal to the dimensions of `data`. Must be greater than 0.
+            Default is 3 (third order difference matrix).
+        max_iter : int, optional
+            The max number of fit iterations. Default is 100.
+        tol : float, optional
+            The exit criteria. Default is 1e-6.
+        weights : array-like, shape (N,) or (M, N), optional
+            The weighting array. If None (default), then the initial weights
+            will be an array with the same shape as `data` with all values set to 1.
+        eps : float, optional
+            A small value added to the square of the residual to prevent dividing by 0.
+            Default is None, which uses the square of the maximum-absolute-value of the
+            fit each iteration multiplied by 1e-6.
+
+        Returns
+        -------
+        baseline : numpy.ndarray, shape (N,) or (M, N)
+            The calculated baseline.
+        params : dict
+            A dictionary with the following items:
+
+            * 'weights': numpy.ndarray, shape (N,) or (M, N)
+                The weight array used for fitting the data.
+            * 'tol_history': numpy.ndarray
+                An array containing the calculated tolerance values for
+                each iteration. The length of the array is the number of iterations
+                completed. If the last value in the array is greater than the input
+                `tol` value, then the function did not converge.
+            * 'result': WhittakerResult or WhittakerResult2D or PSplineResult or PSplineResult2D
+                An object that can use the results of the fit to perform additional
+                calculations. The type depends on the dimensions of `data` and if
+                `spline_degree` was None.
+            * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
+                Only if `return_dof` is True. The effective degrees of freedom associated
+                with each eigenvector. Lower values signify that the eigenvector was
+                less important for the fit.
+
+        Raises
+        ------
+        ValueError
+            Raised if `quantile` is not between 0 and 1.
+
+        References
+        ----------
+        Han, Q., et al. Iterative Reweighted Quantile Regression Using Augmented Lagrangian
+        Optimization for Baseline Correction. 2018 5th International Conference on Information
+        Science and Control Engineering (ICISCE), 2018, 280-284.
+
+        """
+        if not 0 < quantile < 1:
+            raise ValueError('quantile must be between 0 and 1')
+
+        # NOTE irsqr doesn't currently allow Whittaker smoothing
+        y, weight_array, penalized_system, result_class = self._setup_pls(
+            data, lam=lam, diff_order=diff_order, weights=weights, spline_degree=spline_degree,
+            num_knots=num_knots
+        )
+        old_coef = np.zeros(penalized_system.tot_bases)
+        tol_history = np.empty(max_iter + 1)
+        for i in range(max_iter + 1):
+            baseline = penalized_system.solve(y, weight_array)
+            calc_difference = relative_difference(old_coef, penalized_system.coef)
+            tol_history[i] = calc_difference
+            if calc_difference < tol:
+                break
+            old_coef = penalized_system.coef
+            weight_array = _weighting._quantile(y, baseline, quantile, eps)
+
+        params = {
+            'weights': weight_array, 'tol_history': tol_history[:i + 1],
+            'result': result_class(penalized_system, weight_array)
+        }
 
         return baseline, params

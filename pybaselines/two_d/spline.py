@@ -105,7 +105,6 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             symmetric=symmetric
         )
 
-    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def irsqr(self, data, lam=1e3, quantile=0.05, num_knots=25, spline_degree=3,
               diff_order=3, max_iter=100, tol=1e-6, weights=None, eps=None):
         """
@@ -147,9 +146,9 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -166,7 +165,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Raises
         ------
         ValueError
-            Raised if quantile is not between 0 and 1.
+            Raised if `quantile` is not between 0 and 1.
 
         References
         ----------
@@ -175,29 +174,10 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Science and Control Engineering (ICISCE), 2018, 280-284.
 
         """
-        if not 0 < quantile < 1:
-            raise ValueError('quantile must be between 0 and 1')
-
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        return super()._irsqr(
+            data, lam=lam, quantile=quantile, num_knots=num_knots, spline_degree=spline_degree,
+            diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights, eps=eps
         )
-        old_coef = np.zeros(np.prod(self._spline_basis._num_bases))
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array)
-            calc_difference = relative_difference(old_coef, pspline.coef)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            old_coef = pspline.coef
-            weight_array = _weighting._quantile(y, baseline, quantile, eps)
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
 
     def pspline_asls(self, data, lam=1e3, p=1e-2, num_knots=25, spline_degree=3, diff_order=2,
                      max_iter=50, tol=1e-3, weights=None):
