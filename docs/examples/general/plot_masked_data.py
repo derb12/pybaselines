@@ -181,9 +181,7 @@ def masked_arpls(y, mask=None, lam=1e5, diff_order=2, tol=1e-3, max_iter=50, wei
     weights[~mask] = 0
     whittaker_system = PenalizedSystem(len(y), lam=lam, diff_order=diff_order)
     for _ in range(max_iter):
-        baseline = whittaker_system.solve(
-            whittaker_system.add_diagonal(weights), weights * y_fit,
-        )
+        baseline = whittaker_system.solve(y_fit, weights)
         # need to ignore the problem regions in y since they would otherwise affect
         # the arpls weighting; could alternatively do:
         # _arpls(np.interp(x, x[mask], y[mask]), baseline) to approximate
