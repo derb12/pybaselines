@@ -283,6 +283,9 @@ class _PolynomialNDMixin:
 
         return baseline, params
 
+    # adapted from
+    # https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction;
+    # see license above
     @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def penalized_poly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                        cost_function='asymmetric_truncated_quadratic', threshold=None,
