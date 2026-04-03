@@ -11,6 +11,7 @@ import numpy as np
 
 from .. import _weighting
 from .._nd._pls import _PLSNDMixin
+from .._validation import _check_spline_degree
 from ..results import PSplineResult2D
 from ..utils import relative_difference
 from ._algorithm_setup import _Algorithm2D
@@ -99,6 +100,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         preprint arXiv:1901.06708, 2019.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._mixture_model(
             data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
             weights=weights, spline_degree=spline_degree, num_knots=num_knots,
@@ -174,6 +176,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Science and Control Engineering (ICISCE), 2018, 280-284.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._irsqr(
             data, lam=lam, quantile=quantile, num_knots=num_knots, spline_degree=spline_degree,
             diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights, eps=eps
@@ -252,6 +255,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._asls(
             data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
@@ -452,6 +456,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._airpls(
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
             weights=weights, spline_degree=spline_degree, num_knots=num_knots,
@@ -520,6 +525,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._arpls(
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
@@ -588,6 +594,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._iarpls(
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
@@ -672,6 +679,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._psalsa(
             data, lam=lam, p=p, k=k, diff_order=diff_order, max_iter=max_iter, tol=tol,
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
@@ -750,6 +758,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._brpls(
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
             max_iter_2=max_iter_2, tol_2=tol_2, weights=weights,
@@ -837,6 +846,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
+        _check_spline_degree(spline_degree)
         return super()._lsrpls(
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
             weights=weights, spline_degree=spline_degree, num_knots=num_knots,

@@ -706,3 +706,14 @@ def test_get_row_col_values_fails(values):
     """Ensures _get_row_col_values raises an exception with incorrectly sized inputs.."""
     with pytest.raises(ValueError):
         _validation._get_row_col_values(values)
+
+
+def test_check_spline_degree():
+    """Ensures _check_spline_degree raises if the input has None."""
+    for degree in (None, [None, None], [None, 3], [1, None]):
+        with pytest.raises(TypeError):
+            _validation._check_spline_degree(degree)
+
+    # ensure valid inputs don't raise
+    for degree in (3, [1, 2], [0, 3], [0, 0]):
+        _validation._check_spline_degree(degree)

@@ -546,3 +546,26 @@ def _get_row_col_values(value, **asarray_kwargs):
             output = np.array([output[0], output[0], output[1], output[1]])
 
     return output
+
+
+def _check_spline_degree(spline_degree):
+    """
+    Validates that input spline degrees are not None.
+
+    Since some methods share the same code path for penalized spline and Whittaker
+    smoothing, whose logic is controlled by the input `spline_degree`, need
+    to ensure that the input for penalized spline methods is not None.
+
+    Parameters
+    ----------
+    spline_degree : int or Sequence[int]
+        The input spline degrees for 1D or 2D penalized spline methods.
+
+    Raises
+    ------
+    TypeError
+        Raised if `spline_degree` is None or contains None.
+
+    """
+    if None in _check_scalar(spline_degree, desired_length=2, fill_scalar=True)[0]:
+        raise TypeError('spline_degree cannot be None')

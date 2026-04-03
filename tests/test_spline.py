@@ -70,6 +70,22 @@ class SplineTester(BaseTester):
         # don't use isinstance since don't want to allow subclasses
         assert type(params['result']) is PSplineResult
 
+    def test_check_spline_degree(self):
+        """
+        Ensures an exception is raised if the input spline_degree is None.
+
+        For methods that are implemented as ND penalized least square mixins, the same
+        code path is used for both penalized spline and Whittaker smoothing, whose logic
+        is controlled by the input `spline_degree`, so need to ensure that the input for
+        penalized spline methods is not None.
+
+        For methods that are not PLS mixins, a TypeError should still occur during basis
+        creation.
+
+        """
+        with pytest.raises(TypeError):
+            self.class_func(self.y, spline_degree=None)
+
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):
     """Base testing class for iterative spline functions."""
