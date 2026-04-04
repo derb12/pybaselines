@@ -6,22 +6,21 @@ Created on April 25, 2023
 
 """
 
-import warnings
 
 import numpy as np
 
 from .. import _weighting
-from .._validation import _check_scalar_variable
+from .._nd.pls import _PLSNDMixin
+from .._validation import _check_spline_degree
 from ..results import PSplineResult2D
-from ..utils import ParameterWarning, gaussian, relative_difference, _MIN_FLOAT
+from ..utils import relative_difference
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
 
 
-class _Spline(_Algorithm2D):
+class _Spline(_Algorithm2D, _PLSNDMixin):
     """A base class for all spline algorithms."""
 
-    @_Algorithm2D._register(sort_keys=('weights',))
     def mixture_model(self, data, lam=1e3, p=1e-2, num_knots=25, spline_degree=3, diff_order=3,
                       max_iter=50, tol=1e-3, weights=None, symmetric=False):
         """
@@ -71,9 +70,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -90,7 +89,7 @@ class _Spline(_Algorithm2D):
         Raises
         ------
         ValueError
-            Raised if p is not between 0 and 1.
+            Raised if `p` is not between 0 and 1.
 
         References
         ----------
@@ -101,100 +100,13 @@ class _Spline(_Algorithm2D):
         preprint arXiv:1901.06708, 2019.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._mixture_model(
+            data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots,
+            symmetric=symmetric
         )
-        # scale y between -1 and 1 so that the residual fit is more numerically stable
-        # TODO is this still necessary now that expectation-maximization is used? -> still
-        # helps to prevent overflows when using gaussian
-        y_domain = np.polynomial.polyutils.getdomain(y.ravel())
-        y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
-        if weights is not None:
-            baseline = pspline.solve(y, weight_array)
-        else:
-            # perform 2 iterations: first is a least-squares fit and second is initial
-            # reweighted fit; 2 fits are needed to get weights to have a decent starting
-            # distribution for the expectation-maximization
-            if symmetric and not 0.2 < p < 0.8:
-                # p values far away from 0.5 with symmetric=True give bad initial weights
-                # for the expectation maximization
-                warnings.warn(
-                    'should use a p value closer to 0.5 when symmetric is True',
-                    ParameterWarning, stacklevel=2
-                )
-            for _ in range(2):
-                baseline = pspline.solve(y, weight_array)
-                weight_array = _weighting._asls(y, baseline, p)
-
-        residual = y - baseline
-        # the 0.2 * std(residual) is an "okay" starting sigma estimate
-        sigma = 0.2 * np.std(residual)
-        fraction_noise = 0.5
-        if symmetric:
-            fraction_positive = 0.25
-        else:
-            fraction_positive = 1 - fraction_noise
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            # expectation part of expectation-maximization -> calc pdfs and
-            # posterior probabilities
-            positive_pdf = np.where(
-                residual >= 0, fraction_positive / max(abs(residual.max()), 1e-6), 0
-            )
-            noise_pdf = (
-                fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
-            )
-            total_pdf = noise_pdf + positive_pdf
-            if symmetric:
-                negative_pdf = np.where(
-                    residual < 0,
-                    (1 - fraction_noise - fraction_positive) / max(abs(residual.min()), 1e-6),
-                    0
-                )
-                total_pdf += negative_pdf
-            posterior_prob_noise = noise_pdf / np.maximum(total_pdf, _MIN_FLOAT)
-
-            calc_difference = relative_difference(weight_array, posterior_prob_noise)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-
-            # maximization part of expectation-maximization -> update sigma and
-            # fractions of each pdf
-            noise_sum = posterior_prob_noise.sum()
-            sigma = np.sqrt((posterior_prob_noise * residual**2).sum() / noise_sum)
-            if not symmetric:
-                fraction_noise = posterior_prob_noise.mean()
-                fraction_positive = 1 - fraction_noise
-            else:
-                posterior_prob_positive = positive_pdf / total_pdf
-                posterior_prob_negative = negative_pdf / total_pdf
-
-                positive_sum = posterior_prob_positive.sum()
-                negative_sum = posterior_prob_negative.sum()
-                total_sum = noise_sum + positive_sum + negative_sum
-
-                fraction_noise = noise_sum / total_sum
-                fraction_positive = positive_sum / total_sum
-
-            weight_array = posterior_prob_noise
-            baseline = pspline.solve(y, weight_array)
-            residual = y - baseline
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
-
-        return baseline, params
-
-    @_Algorithm2D._register(sort_keys=('weights',))
     def irsqr(self, data, lam=1e3, quantile=0.05, num_knots=25, spline_degree=3,
               diff_order=3, max_iter=100, tol=1e-6, weights=None, eps=None):
         """
@@ -236,9 +148,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -255,7 +167,7 @@ class _Spline(_Algorithm2D):
         Raises
         ------
         ValueError
-            Raised if quantile is not between 0 and 1.
+            Raised if `quantile` is not between 0 and 1.
 
         References
         ----------
@@ -264,31 +176,12 @@ class _Spline(_Algorithm2D):
         Science and Control Engineering (ICISCE), 2018, 280-284.
 
         """
-        if not 0 < quantile < 1:
-            raise ValueError('quantile must be between 0 and 1')
-
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._irsqr(
+            data, lam=lam, quantile=quantile, num_knots=num_knots, spline_degree=spline_degree,
+            diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights, eps=eps
         )
-        old_coef = np.zeros(np.prod(self._spline_basis._num_bases))
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array)
-            calc_difference = relative_difference(old_coef, pspline.coef)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            old_coef = pspline.coef
-            weight_array = _weighting._quantile(y, baseline, quantile, eps)
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_asls(self, data, lam=1e3, p=1e-2, num_knots=25, spline_degree=3, diff_order=2,
                      max_iter=50, tol=1e-3, weights=None):
         """
@@ -326,9 +219,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -362,30 +255,13 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._asls(
+            data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array)
-            new_weights = _weighting._asls(y, baseline, p)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm2D._register(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',))
     def pspline_iasls(self, data, lam=1e3, p=1e-2, lam_1=1e-4, num_knots=25,
                       spline_degree=3, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
@@ -514,7 +390,6 @@ class _Spline(_Algorithm2D):
 
         return baseline, params
 
-    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_airpls(self, data, lam=1e3, num_knots=25, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None, normalize_weights=False):
         """
@@ -552,9 +427,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -581,33 +456,13 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._airpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots,
+            normalize_weights=normalize_weights
         )
-        y_l1_norm = np.abs(y).sum()
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = pspline.solve(y, weight_array)
-            new_weights, residual_l1_norm, exit_early = _weighting._airpls(
-                y, baseline, i, normalize_weights
-            )
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = residual_l1_norm / y_l1_norm
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_arpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                       max_iter=50, tol=1e-3, weights=None):
         """
@@ -641,9 +496,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -670,30 +525,12 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._arpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array)
-            new_weights, exit_early = _weighting._arpls(y, baseline)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_iarpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                        max_iter=50, tol=1e-3, weights=None):
         """
@@ -727,9 +564,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -757,30 +594,12 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._iarpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = pspline.solve(y, weight_array)
-            new_weights, exit_early = _weighting._iarpls(y, baseline, i)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_psalsa(self, data, lam=1e3, p=0.5, k=None, num_knots=25, spline_degree=3,
                        diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -824,9 +643,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -860,34 +679,12 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._psalsa(
+            data, lam=lam, p=p, k=k, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
-        if k is None:
-            k = np.std(y) / 10
-        else:
-            k = _check_scalar_variable(k, variable_name='k')
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = pspline.solve(y, weight_array)
-            new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_brpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                       max_iter=50, tol=1e-3, max_iter_2=50, tol_2=1e-3, weights=None):
         """
@@ -915,7 +712,7 @@ class _Spline(_Algorithm2D):
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        max_iter_2 : float, optional
+        max_iter_2 : int, optional
             The number of iterations for updating the proportion of data occupied by peaks.
             Default is 50.
         tol_2 : float, optional
@@ -927,9 +724,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -961,55 +758,13 @@ class _Spline(_Algorithm2D):
         Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._brpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            max_iter_2=max_iter_2, tol_2=tol_2, weights=weights,
+            spline_degree=spline_degree, num_knots=num_knots
         )
-        beta = 0.5
-        j_max = 0
-        baseline = y
-        baseline_weights = weight_array
-        tol_history = np.zeros((max_iter_2 + 2, max(max_iter, max_iter_2) + 1))
-        # implementation note: weight_array must always be updated since otherwise when
-        # reentering the inner loop, new_baseline and baseline would be the same; instead,
-        # use baseline_weights to track which weights produced the output baseline
-        for i in range(max_iter_2 + 1):
-            for j in range(max_iter + 1):
-                new_baseline = pspline.solve(y, weight_array)
-                new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
-                if exit_early:
-                    j -= 1  # reduce j so that output tol_history indexing is correct
-                    tol_2 = np.inf  # ensure it exits outer loop
-                    break
-                # Paper used norm(old - new) / norm(new) rather than old in the denominator,
-                # but I use old in the denominator instead to be consistent with all other
-                # algorithms; does not make a major difference
-                calc_difference = relative_difference(baseline, new_baseline)
-                tol_history[i + 1, j] = calc_difference
-                if calc_difference < tol:
-                    if i == 0 and j == 0:  # for cases where tol == inf
-                        baseline = new_baseline
-                    break
-                baseline_weights = weight_array
-                weight_array = new_weights
-                baseline = new_baseline
-            j_max = max(j, j_max)
 
-            weight_array = new_weights
-            weight_mean = weight_array.mean()
-            calc_difference_2 = abs(beta + weight_mean - 1)
-            tol_history[0, i] = calc_difference_2
-            if calc_difference_2 < tol_2:
-                break
-            beta = 1 - weight_mean
-
-        params = {
-            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm2D._register(sort_keys=('weights',))
     def pspline_lsrpls(self, data, lam=1e3, num_knots=25, spline_degree=3, diff_order=2,
                        max_iter=50, tol=1e-3, weights=None, alternate_weighting=False):
         """
@@ -1049,9 +804,9 @@ class _Spline(_Algorithm2D):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (M, N)
+        numpy.ndarray, shape (M, N)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (M, N)
@@ -1091,25 +846,9 @@ class _Spline(_Algorithm2D):
             Reviews: Computational Statistics, 2010, 2(6), 637-653.
 
         """
-        y, weight_array, pspline = self._setup_spline(
-            data, weights, spline_degree, num_knots, True, diff_order, lam
+        _check_spline_degree(spline_degree)
+        return super()._lsrpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, spline_degree=spline_degree, num_knots=num_knots,
+            alternate_weighting=alternate_weighting
         )
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = pspline.solve(y, weight_array)
-            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': PSplineResult2D(pspline, weight_array)
-        }
-
-        return baseline, params

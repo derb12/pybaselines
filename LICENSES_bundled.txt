@@ -4,7 +4,7 @@ licensed sources, which are listed below.
 
 Source: ported MATLAB code from https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction
 (last accessed March 18, 2021)
-Function: pybaselines.polynomial.penalized_poly
+File: pybaselines._nd.polynomial.py
 License: 2-clause BSD
 
 Copyright (c) 2012, Vincent Mazet

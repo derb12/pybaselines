@@ -10,6 +10,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
+from pybaselines.results import PSplineResult2D
 from pybaselines.two_d import Baseline2D, spline
 
 from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin
@@ -50,6 +51,29 @@ class SplineTester(BaseTester2D):
     """Base testing class for spline functions."""
 
     module = spline
+
+    def test_result_obj(self):
+        """Ensures the `result` item in the output params is a PSplineResult2D."""
+        _, params = self.class_func(self.y, **self.kwargs)
+        # don't use isinstance since don't want to allow subclasses
+        assert type(params['result']) is PSplineResult2D
+
+    @pytest.mark.parametrize('spline_degree', (None, (None, 1), (3, None), (None, None)))
+    def test_check_spline_degree(self, spline_degree):
+        """
+        Ensures an exception is raised if the input spline_degree is None.
+
+        For methods that are implemented as ND penalized least square mixins, the same
+        code path is used for both penalized spline and Whittaker smoothing, whose logic
+        is controlled by the input `spline_degree`, so need to ensure that the input for
+        penalized spline methods is not None.
+
+        For methods that are not PLS mixins, a TypeError should still occur during basis
+        creation.
+
+        """
+        with pytest.raises(TypeError):
+            self.class_func(self.y, spline_degree=spline_degree)
 
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):

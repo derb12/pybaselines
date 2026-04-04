@@ -9,7 +9,7 @@ Created on March 5, 2021
 from math import ceil
 
 import numpy as np
-from scipy.ndimage import grey_opening
+from scipy.ndimage import grey_dilation, grey_erosion, grey_opening
 from scipy.signal import convolve
 from scipy.special import binom
 from scipy.stats import skew
@@ -872,6 +872,62 @@ def optimize_window(*args, **kwargs):
     return estimate_window(*args, **kwargs)
 
 
+def _make_window(y, half_window):
+    """
+    Converts a half-window to full window for use with ndimage filters.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,) or shape (M, N)
+        The array of the measured data. Can be one or two dimensional.
+    half_window : int or numpy.ndarray([int, int]), optional
+        The half window size to use for the operations.
+
+    Returns
+    -------
+    window : numpy.ndarray, shape (2,) or list[int, ...]
+        The full window, with length matching the input y-dimensions for use
+        within SciPy's `ndimage` module.
+
+    """
+    window = 2 * half_window + 1
+    if isinstance(window, int):
+        window = [window] * y.ndim
+
+    return window
+
+
+def _avg_opening(y, half_window, opening=None):
+    """
+    Averages the dilation and erosion of a morphological opening on data.
+
+    Parameters
+    ----------
+    y : numpy.ndarray, shape (N,) or shape (M, N)
+        The array of the measured data. Can be one or two dimensional.
+    half_window : int or numpy.ndarray([int, int]), optional
+        The half window size to use for the operations.
+    opening : numpy.ndarray, shape (N,) or shape (M, N), optional
+        The output of ``scipy.ndimage.grey_opening(y, window_size)``. Default is
+        None, which will compute the value.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N,) or shape (M, N)
+        The average of the dilation and erosion of the opening.
+
+    References
+    ----------
+    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
+    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64 595-600.
+
+    """
+    window = _make_window(y, half_window)
+    if opening is None:
+        opening = grey_opening(y, window)
+    return 0.5 * (grey_dilation(opening, window) + grey_erosion(opening, window))
+
+
 def _inverted_sort(sort_order):
     """
     Finds the indices that invert a sorting.
@@ -1063,10 +1119,7 @@ def whittaker_smooth(data, lam=1e6, diff_order=2, weights=None, check_finite=Tru
     penalized_system = PenalizedSystem(len_y, lam=lam, diff_order=diff_order)
     weight_array = _check_optional_array(len_y, weights, check_finite=check_finite)
 
-    y_smooth = penalized_system.solve(
-        penalized_system.add_diagonal(weight_array),
-        weight_array * y, overwrite_ab=True, overwrite_b=True
-    )
+    y_smooth = penalized_system.solve(y, weight_array)
 
     return y_smooth
 
@@ -1129,7 +1182,7 @@ def pspline_smooth(data, x_data=None, lam=1e1, num_knots=100, spline_degree=3, d
     weight_array = _check_optional_array(
         len(y), weights, dtype=float, order='C', check_finite=check_finite
     )
-    y_smooth = pspline.solve_pspline(y, weight_array)
+    y_smooth = pspline.solve(y, weight_array)
 
     return y_smooth, pspline.tck
 

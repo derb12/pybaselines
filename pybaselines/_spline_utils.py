@@ -763,6 +763,19 @@ class PSpline(PenalizedSystem):
             self._use_numba = False
 
     @property
+    def shape(self):
+        """
+        The shape of the data being fit by the penalized system.
+
+        Returns
+        -------
+        tuple[int]
+            The shape of the data that the system corresponds to.
+
+        """
+        return (len(self.basis.x),)
+
+    @property
     def tck(self):
         """
         The knots, spline coefficients, and spline degree to reconstruct the spline.
@@ -832,7 +845,7 @@ class PSpline(PenalizedSystem):
         )
 
     # adapted from scipy (scipy/interpolate/_bsplines.py/make_lsq_spline); see license above
-    def solve_pspline(self, y, weights, penalty=None, rhs_extra=None):
+    def solve(self, y, weights, penalty=None, rhs_extra=None):
         """
         Solves the coefficients for a weighted penalized spline.
 
@@ -909,7 +922,7 @@ class PSpline(PenalizedSystem):
         if rhs_extra is not None:
             rhs = rhs + rhs_extra
 
-        self.coef = self.solve(
+        self.coef = self.direct_solve(
             lhs, rhs, overwrite_ab=True, overwrite_b=True, check_finite=False
         )
 

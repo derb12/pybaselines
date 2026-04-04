@@ -29,6 +29,7 @@ from .utils import (
     ParameterWarning, SortingWarning, _determine_sorts, _inverted_sort, _sort_array,
     estimate_window, pad_edges
 )
+from .results import PSplineResult, WhittakerResult
 
 
 class _Algorithm:
@@ -269,10 +270,10 @@ class _Algorithm:
         return baseline, params
 
     @classmethod
-    def _register(cls, func=None, *, sort_keys=(), ensure_1d=True, skip_sorting=False,
-                  require_unique_x=False):
+    def _handle_io(cls, func=None, *, sort_keys=(), ensure_dims=True, skip_sorting=False,
+                   require_unique=False, reshape_keys=None):
         """
-        Wraps a baseline function to validate inputs and correct outputs.
+        Wraps a baseline method to validate inputs and correct outputs.
 
         The input data is converted to a numpy array, validated to ensure the length is
         consistent, and ordered to match the input x ordering. The outputs are corrected
@@ -281,19 +282,22 @@ class _Algorithm:
         Parameters
         ----------
         func : Callable, optional
-            The function that is being decorated. Default is None, which returns a partial function.
+            The method that is being decorated. Default is None, which returns a partial function.
         sort_keys : tuple, optional
             The keys within the output parameter dictionary that will need sorting to match the
-            sort order of :attr:`.x`. Default is ().
-        ensure_1d : bool, optional
+            sort order of ``self.x``. Default is ().
+        ensure_dims : bool, optional
             If True (default), will raise an error if the shape of `array` is not a one dimensional
             array with shape (N,) or a two dimensional array with shape (N, 1) or (1, N).
         skip_sorting : bool, optional
             If True, will skip sorting the inputs and outputs, which is useful for algorithms that
             use other algorithms so that sorting is already internally done. Default is False.
-        require_unique_x : bool, optional
-            If True, will check ``self.x`` to ensure all values are unique and will raise an error
+        require_unique : bool, optional
+            If True, will check `self.x` to ensure all values are unique and will raise an error
             if non-unique values are present. Default is False, which skips the check.
+        reshape_keys : None, optional
+            Not used within this method, simply added to have the same call signature
+            as `_Algorithm2D._handle_io`.
 
         Returns
         -------
@@ -305,8 +309,8 @@ class _Algorithm:
         """
         if func is None:
             return partial(
-                cls._register, sort_keys=sort_keys, ensure_1d=ensure_1d, skip_sorting=skip_sorting,
-                require_unique_x=require_unique_x
+                cls._handle_io, sort_keys=sort_keys, ensure_dims=ensure_dims,
+                skip_sorting=skip_sorting, require_unique=require_unique
             )
 
         @wraps(func)
@@ -316,11 +320,11 @@ class _Algorithm:
                     raise TypeError('"data" and "x_data" cannot both be None')
                 input_y = True
                 y, self.x = _yx_arrays(
-                    data, check_finite=self._check_finite, ensure_1d=ensure_1d
+                    data, check_finite=self._check_finite, ensure_1d=ensure_dims
                 )
                 self._size = y.shape[-1]
             else:
-                if require_unique_x and not self._validated_x:
+                if require_unique and not self._validated_x:
                     if np.any(self.x[1:] == self.x[:-1]):
                         raise ValueError('x-values must be unique for the selected method')
                     else:
@@ -328,7 +332,7 @@ class _Algorithm:
                 if data is not None:
                     input_y = True
                     y = _check_sized_array(
-                        data, self._size, check_finite=self._check_finite, ensure_1d=ensure_1d,
+                        data, self._size, check_finite=self._check_finite, ensure_1d=ensure_dims,
                         name='data'
                     )
                 else:
@@ -391,7 +395,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         lam : float, optional
             The smoothing parameter, lambda. Typical values are between 10 and
             1e8, but it strongly depends on the penalized least square method
@@ -445,8 +449,8 @@ class _Algorithm:
             self._size, weights, copy_input=copy_weights, check_finite=self._check_finite,
             dtype=float
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array(weight_array, self._sort_order)
 
         allow_lower = allow_lower and self.banded_solver < 4
         allow_penta = self.banded_solver < 3
@@ -459,7 +463,7 @@ class _Algorithm:
         return y, weight_array, whittaker_system
 
     def _setup_polynomial(self, y, weights=None, poly_order=2, calc_vander=True,
-                          calc_pinv=False, copy_weights=False):
+                          calc_pinv=False, copy_weights=False, max_cross=None):
         """
         Sets the starting parameters for doing polynomial fitting.
 
@@ -467,7 +471,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -481,6 +485,9 @@ class _Algorithm:
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
+        max_cross : None, optional
+            Not used within this method, simply added to have the same call signature
+            as `_Algorithm2D._setup_polynomial`.
 
         Returns
         -------
@@ -509,8 +516,8 @@ class _Algorithm:
             self._size, weights, copy_input=copy_weights, check_finite=self._check_finite,
             dtype=float
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array(weight_array, self._sort_order)
 
         if calc_vander:
             if self._polynomial is None:
@@ -542,7 +549,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -597,8 +604,8 @@ class _Algorithm:
             self._size, weights, dtype=float, order='C', copy_input=copy_weights,
             check_finite=self._check_finite
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array(weight_array, self._sort_order)
 
         if not make_basis:
             return y, weight_array
@@ -623,6 +630,79 @@ class _Algorithm:
 
         return y, weight_array, pspline
 
+    def _setup_pls(self, y, weights=None, spline_degree=None, num_knots=10,
+                   diff_order=2, lam=1, allow_lower=True, reverse_diags=False,
+                   copy_weights=False, num_eigens=None):
+        """
+        Sets the starting parameters for methods using penalized least squares.
+
+        Depending on the input of `spline_degree`, will dispatch to either
+        `_setup_whittaker` or `_setup_spline`.
+
+        Parameters
+        ----------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, already converted to a numpy
+            array by :meth:`~._Algorithm._handle_io`.
+        weights : array-like, shape (N,), optional
+            The weighting array. If None (default), then will be an array with
+            size equal to N and all values set to 1.
+        spline_degree : int or None, optional
+            If None (default), denotes that the system is using Whittaker smoothing.
+            Otherwise, the system is a penalized spline with a spline degree of `spline_degree`.
+        num_knots : int, optional
+            The number of interior knots for the splines. Only used if `spline_degree` is
+            not None. Default is 10.
+        diff_order : int, optional
+            The integer differential order for the penalty; must be greater than 0.
+            Default is 2.
+        lam : float, optional
+            The smoothing parameter, lambda. Typical values are between 10 and
+            1e8, but it strongly depends on `diff_order` and the data size.
+            Default is 1.
+        allow_lower : boolean, optional
+            If True (default), will include only the lower non-zero diagonals of
+            the squared difference matrix. If False, will include all non-zero diagonals.
+        reverse_diags : boolean, optional
+            If True, will reverse the order of the diagonals of the penalty matrix.
+            Default is False.
+        copy_weights : boolean, optional
+            If True, will copy the array of input weights. Only needed if the
+            algorithm changes the weights in-place. Default is False.
+        num_eigens : None, optional
+            Not used within this method, simply added to have the same call signature
+            as `_Algorithm2D._setup_pls`.
+
+        Returns
+        -------
+        y : numpy.ndarray, shape (N,)
+            The y-values of the measured data, converted to a numpy array.
+        weight_array : numpy.ndarray, shape (N,)
+            The weight array for fitting the spline to the data.
+        penalized_system : PenalizedSystem or PSpline
+            The object for solving the penalized least squared system. If `spline_degree`
+            is None, returns a PenalizedSystem object;, otherwise, returns a PSpline.
+        result_class : WhittakerResult or PSplineResult
+            The result class for defining the solution. If `spline_degree`
+            is None, returns WhittakerResult; otherwise, returns PSplineResult.
+
+        """
+        if spline_degree is None:
+            y, weight_array, penalized_system = self._setup_whittaker(
+                y, lam=lam, diff_order=diff_order, weights=weights, copy_weights=copy_weights,
+                allow_lower=allow_lower, reverse_diags=reverse_diags
+            )
+            result_class = WhittakerResult
+        else:
+            y, weight_array, penalized_system = self._setup_spline(
+                y, lam=lam, diff_order=diff_order, weights=weights, copy_weights=copy_weights,
+                allow_lower=allow_lower, reverse_diags=reverse_diags,
+                spline_degree=spline_degree, num_knots=num_knots, penalized=True, make_basis=True
+            )
+            result_class = PSplineResult
+
+        return y, weight_array, penalized_system, result_class
+
     def _setup_morphology(self, y, half_window=None, window_kwargs=None, **kwargs):
         """
         Sets the starting parameters for morphology-based methods.
@@ -631,7 +711,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         half_window : int, optional
             The half-window used for the morphology functions. If a value is input,
             then that value will be used. Default is None, which will optimize the
@@ -686,7 +766,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         half_window : int, optional
             The half-window used for the smoothing functions. Used
             to pad the left and right edges of the data to reduce edge
@@ -753,7 +833,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         weights : array-like, shape (N,), optional
             The weighting array. If None (default), then will be an array with
             size equal to N and all values set to 1.
@@ -772,8 +852,8 @@ class _Algorithm:
         weight_array = _check_optional_array(
             self._size, weights, dtype=bool, check_finite=self._check_finite
         )
-        if self._sort_order is not None and weights is not None:
-            weight_array = weight_array[self._sort_order]
+        if weights is not None:
+            weight_array = _sort_array(weight_array, self._sort_order)
 
         return y, weight_array
 
@@ -853,7 +933,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
         modules : Sequence[module, ...]
@@ -911,7 +991,7 @@ class _Algorithm:
         ----------
         y : numpy.ndarray, shape (N,)
             The y-values of the measured data, already converted to a numpy
-            array by :meth:`~._Algorithm._register`.
+            array by :meth:`~._Algorithm._handle_io`.
 
         Returns
         -------

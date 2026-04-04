@@ -186,7 +186,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
         if dimensions == 2 and 1 in output.shape:
             output = output.ravel()
         elif dimensions != 1:
-            raise ValueError('must be a one dimensional array')
+            raise ValueError('input data must be a one dimensional array')
     elif two_d:
         if dimensions < 2 or (dimensions == 2 and 1 in output.shape):
             raise ValueError(
@@ -198,7 +198,7 @@ def _check_array(array, dtype=None, order=None, check_finite=False, ensure_1d=Tr
                 flat_dims = ~np.equal(output_shape, 1)
                 output = output.reshape(output_shape[flat_dims])
             elif dimensions != 2:
-                raise ValueError('must be a two dimensional array')
+                raise ValueError('input data must be a two dimensional array')
     elif ensure_2d and not two_d:
         raise ValueError('two_d must be True if using ensure_2d')
 
@@ -546,3 +546,26 @@ def _get_row_col_values(value, **asarray_kwargs):
             output = np.array([output[0], output[0], output[1], output[1]])
 
     return output
+
+
+def _check_spline_degree(spline_degree):
+    """
+    Validates that input spline degrees are not None.
+
+    Since some methods share the same code path for penalized spline and Whittaker
+    smoothing, whose logic is controlled by the input `spline_degree`, need
+    to ensure that the input for penalized spline methods is not None.
+
+    Parameters
+    ----------
+    spline_degree : int or Sequence[int]
+        The input spline degrees for 1D or 2D penalized spline methods.
+
+    Raises
+    ------
+    TypeError
+        Raised if `spline_degree` is None or contains None.
+
+    """
+    if None in _check_scalar(spline_degree, desired_length=2, fill_scalar=True)[0]:
+        raise TypeError('spline_degree cannot be None')

@@ -7,7 +7,7 @@ Created on January 8, 2026
 """
 
 import numpy as np
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.sparse import kron
 from scipy.sparse.linalg import factorized
@@ -18,6 +18,24 @@ from pybaselines.two_d._whittaker_utils import WhittakerSystem2D
 from pybaselines._compat import _sparse_col_index, dia_object, diags, identity
 
 from .base_tests import get_2dspline_inputs
+
+
+@pytest.mark.parametrize('shape', (100, (100, 11)))
+@pytest.mark.parametrize('use_generator', (True, False))
+def test_rademacher(shape, use_generator):
+    """Ensures _rademacher returns only -1 or 1."""
+    seed = 9
+    if use_generator:
+        rng = np.random.default_rng(seed)
+    else:
+        rng = seed
+
+    output = results._rademacher(shape, rng)
+    assert np.all((output == -1.) | (output == 1.))
+    # call order matters, so create new generator within accuracy test
+    assert_array_equal(
+        output, np.random.default_rng(seed).choice([-1., 1.], size=shape)
+    )
 
 
 @pytest.mark.parametrize('diff_order', (1, 2))
@@ -643,21 +661,6 @@ def test_whittaker_result_two_d_no_weights(data_fixture2d, num_eigens):
     result_obj = results.WhittakerResult2D(penalized_system)
 
     assert_allclose(result_obj._weights, np.ones(expected_shape), rtol=1e-16, atol=0)
-
-
-def test_whittaker_result_two_d_lhs_penalty_raises(data_fixture2d):
-    """Ensures an exception is raised if both `lhs` and `penalty` are supplied."""
-    x, z, y = data_fixture2d
-    weights = np.random.default_rng(0).normal(0.8, 0.05, y.shape)
-    weights = np.clip(weights, 0, 1, dtype=float)
-
-    penalized_system = WhittakerSystem2D(y.shape)
-
-    with pytest.raises(ValueError, match='both `lhs` and `penalty` cannot'):
-        results.WhittakerResult2D(
-            penalized_system, weights, lhs=penalized_system.penalty,
-            penalty=penalized_system.penalty
-        )
 
 
 @pytest.mark.parametrize('shape', ((30, 21), (15, 40)))

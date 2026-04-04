@@ -1,2 +1,2 @@
 # -*- coding: utf-8 -*-
-"""Tests for pybaselines."""
+"""Tests for pybaselines.two_d."""

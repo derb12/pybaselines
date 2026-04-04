@@ -9,18 +9,21 @@ Created on March 5, 2021
 import warnings
 
 import numpy as np
-from scipy.ndimage import grey_closing, grey_dilation, grey_erosion, grey_opening, uniform_filter1d
+from scipy.ndimage import grey_closing, grey_erosion, grey_opening, uniform_filter1d
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
+from ._nd.morphological import _MorphologicalNDMixin
 from ._validation import _check_lam, _check_half_window
 from .results import PSplineResult, WhittakerResult
-from .utils import _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
+from .utils import (
+    _avg_opening, _mollifier_kernel, _sort_array, pad_edges, padded_convolve, relative_difference
+)
 
 
-class _Morphological(_Algorithm):
+class _Morphological(_Algorithm, _MorphologicalNDMixin):
     """A base class for all morphological algorithms."""
 
-    @_Algorithm._register(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',))
     def mpls(self, data, half_window=None, lam=1e6, p=0.0, diff_order=2, tol=None, max_iter=None,
              weights=None, window_kwargs=None, **kwargs):
         r"""
@@ -178,10 +181,7 @@ class _Morphological(_Algorithm):
             w = _sort_array(w, self._inverted_order)
 
         _, weight_array, whittaker_system = self._setup_whittaker(y, lam, diff_order, w)
-        baseline = whittaker_system.solve(
-            whittaker_system.add_diagonal(weight_array), weight_array * y,
-            overwrite_ab=True, overwrite_b=True
-        )
+        baseline = whittaker_system.solve(y, weight_array)
 
         params = {
             'weights': weight_array, 'half_window': half_wind,
@@ -189,7 +189,6 @@ class _Morphological(_Algorithm):
         }
         return baseline, params
 
-    @_Algorithm._register
     def mor(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         A Morphological based (Mor) baseline algorithm.
@@ -213,7 +212,7 @@ class _Morphological(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
         dict
             A dictionary with the following items:
@@ -259,13 +258,8 @@ class _Morphological(_Algorithm):
         >>> plt.show()
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
-        opening = grey_opening(y, [2 * half_wind + 1])
-        baseline = np.minimum(opening, _avg_opening(y, half_wind, opening))
+        return super().mor(data, half_window=half_window, window_kwargs=window_kwargs, **kwargs)
 
-        return baseline, {'half_window': half_wind}
-
-    @_Algorithm._register
     def imor(self, data, half_window=None, tol=1e-3, max_iter=200, window_kwargs=None, **kwargs):
         """
         An Improved Morphological based (IMor) baseline algorithm.
@@ -293,9 +287,9 @@ class _Morphological(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'half_window': int
@@ -312,21 +306,12 @@ class _Morphological(_Algorithm):
         Morphological Operations. Applied Spectroscopy, 2018, 72(5), 731-739.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
-        baseline = y
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline_new = np.minimum(y, _avg_opening(baseline, half_wind))
-            calc_difference = relative_difference(baseline, baseline_new)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            baseline = baseline_new
+        return super().imor(
+            data, half_window=half_window, tol=tol, max_iter=max_iter,
+            window_kwargs=window_kwargs, **kwargs
+        )
 
-        params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
-        return baseline, params
-
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def amormol(self, data, half_window=None, tol=1e-3, max_iter=200, pad_kwargs=None,
                 window_kwargs=None, **kwargs):
         """
@@ -407,7 +392,7 @@ class _Morphological(_Algorithm):
         params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
         return baseline[data_bounds], params
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def mormol(self, data, half_window=None, tol=1e-3, max_iter=250, smooth_half_window=None,
                pad_kwargs=None, window_kwargs=None, **kwargs):
         """
@@ -493,7 +478,7 @@ class _Morphological(_Algorithm):
         params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
         return baseline[data_bounds], params
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def rolling_ball(self, data, half_window=None, smooth_half_window=None,
                      pad_kwargs=None, window_kwargs=None, **kwargs):
         """
@@ -559,7 +544,7 @@ class _Morphological(_Algorithm):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def mwmv(self, data, half_window=None, smooth_half_window=None,
              pad_kwargs=None, window_kwargs=None, **kwargs):
         """
@@ -623,7 +608,6 @@ class _Morphological(_Algorithm):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._register
     def tophat(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         Estimates the baseline using a top-hat transformation (morphological opening).
@@ -647,7 +631,7 @@ class _Morphological(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
         dict
             A dictionary with the following items:
@@ -667,12 +651,9 @@ class _Morphological(_Algorithm):
         Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64, 595-600.
 
         """
-        y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
-        baseline = grey_opening(y, [2 * half_wind + 1])
+        return super().tophat(data, half_window=half_window, window_kwargs=window_kwargs, **kwargs)
 
-        return baseline, {'half_window': half_wind}
-
-    @_Algorithm._register(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',))
     def mpspline(self, data, half_window=None, lam=1e4, lam_smooth=1e-2, p=0.0,
                  num_knots=100, spline_degree=3, diff_order=2, weights=None,
                  pad_kwargs=None, window_kwargs=None, **kwargs):
@@ -776,7 +757,7 @@ class _Morphological(_Algorithm):
         # overestimated baseline; could alternatively just fit a p-spline to
         # 0.5 * (grey_closing(y, 3) + grey_opening(y, 3)), which averages noisy data better;
         # could add it as a boolean parameter
-        spline_fit = pspline.solve_pspline(
+        spline_fit = pspline.solve(
             y, weights=(y == grey_closing(y, 3)).astype(float, copy=False)
         )
         if weights is None:
@@ -798,7 +779,7 @@ class _Morphological(_Algorithm):
             weight_array = np.where(spline_fit == optimal_opening, 1 - p, p)
 
         pspline.update_lam(lam)
-        baseline = pspline.solve_pspline(spline_fit, weight_array)
+        baseline = pspline.solve(spline_fit, weight_array)
         params = {
             'half_window': half_window, 'weights': weight_array,
             'result': PSplineResult(pspline, weight_array)
@@ -806,7 +787,7 @@ class _Morphological(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('signal',))
+    @_Algorithm._handle_io(sort_keys=('signal',))
     def jbcd(self, data, half_window=None, alpha=0.1, beta=1e1, gamma=1., beta_mult=1.1,
              gamma_mult=0.909, diff_order=1, max_iter=20, tol=1e-2, tol_2=1e-3,
              robust_opening=True, window_kwargs=None, **kwargs):
@@ -898,20 +879,15 @@ class _Morphological(_Algorithm):
 
         baseline_old = opening
         signal_old = y
-        main_diag_idx = whittaker_system.main_diagonal_index
         partial_rhs_2 = (2 * alpha) * opening
         tol_history = np.empty((max_iter + 1, 2))
         for i in range(max_iter + 1):
-            lhs_1 = gamma * whittaker_system.penalty
-            lhs_1[main_diag_idx] += 1
-            lhs_2 = (2 * beta) * whittaker_system.penalty
-            lhs_2[main_diag_idx] += 1 + 2 * alpha
-
             signal = whittaker_system.solve(
-                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True
+                y - baseline_old, weights=1, penalty=gamma * whittaker_system.penalty
             )
             baseline = whittaker_system.solve(
-                lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True
+                y - signal + partial_rhs_2, weights=1 + 2 * alpha,
+                penalty=(2 * beta) * whittaker_system.penalty
             )
 
             calc_tol_1 = relative_difference(signal_old, signal)
@@ -933,37 +909,6 @@ class _Morphological(_Algorithm):
 
 
 _morphological_wrapper = _class_wrapper(_Morphological)
-
-
-def _avg_opening(y, half_window, opening=None):
-    """
-    Averages the dilation and erosion of a morphological opening on data.
-
-    Parameters
-    ----------
-    y : numpy.ndarray, shape (N,)
-        The array of the measured data.
-    half_window : int, optional
-        The half window size to use for the operations.
-    opening : numpy.ndarray, optional
-        The output of scipy.ndimage.grey_opening(y, window_size). Default is
-        None, which will compute the value.
-
-    Returns
-    -------
-    numpy.ndarray, shape (N,)
-        The average of the dilation and erosion of the opening.
-
-    References
-    ----------
-    Perez-Pueyo, R., et al. Morphology-Based Automated Baseline Removal for
-    Raman Spectra of Artistic Pigments. Applied Spectroscopy, 2010, 64 595-600.
-
-    """
-    window_size = 2 * half_window + 1
-    if opening is None:
-        opening = grey_opening(y, [window_size])
-    return 0.5 * (grey_dilation(opening, [window_size]) + grey_erosion(opening, [window_size]))
 
 
 @_morphological_wrapper

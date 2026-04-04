@@ -14,6 +14,7 @@ import pytest
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _weighting, whittaker
+from pybaselines.results import WhittakerResult
 from pybaselines.utils import relative_difference
 from pybaselines._compat import diags, identity
 
@@ -135,6 +136,12 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
         _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
+
+    def test_result_obj(self):
+        """Ensures the `result` item in the output params is a WhittakerResult."""
+        _, params = self.class_func(self.y, **self.kwargs)
+        # don't use isinstance since don't want to allow subclasses
+        assert type(params['result']) is WhittakerResult
 
 
 class TestAsLS(WhittakerTester):

@@ -8,7 +8,6 @@ Created on April 25, 2023
 
 import numpy as np
 from scipy.sparse import kron
-from scipy.sparse.linalg import spsolve
 
 from .._compat import csr_object
 from .._spline_utils import _spline_basis, _spline_knots
@@ -146,6 +145,11 @@ class SplineBasis2D:
     def _make_btwb(self, weights):
         """Computes ``Basis.T @ Weights @ Basis`` as a generalized linear array model.
 
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (M, N)
+            The weights for each y-value.
+
         Returns
         -------
         F : scipy.sparse.csr_matrix or scipy.sparse.csr_array
@@ -263,6 +267,39 @@ class PSpline2D(PenalizedSystem2D):
                 'functions, which is the number of knots + spline degree - 1'
             ))
 
+    @property
+    def shape(self):
+        """
+        The shape of the data being fit by the penalized system.
+
+        Returns
+        -------
+        tuple[int, int]
+            The shape of the data that the system corresponds to.
+
+        """
+        return (len(self.basis.x), len(self.basis.z))
+
+    def _make_btwb(self, weights):
+        """Computes ``Basis.T @ Weights @ Basis`` as a generalized linear array model.
+
+        Parameters
+        ----------
+        weights : numpy.ndarray, shape (M, N)
+            The weights for each y-value.
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix or scipy.sparse.csr_array
+            The computed result of ``B.T @ W @ B``.
+
+        Notes
+        -----
+        This is just a shim to connect 1D and 2D PSpline method calls.
+
+        """
+        return self.basis._make_btwb(weights)
+
     def reset_penalty(self, lam=1, diff_order=2):
         """
         Resets the penalty of the system and all of the attributes.
@@ -328,7 +365,7 @@ class PSpline2D(PenalizedSystem2D):
         if rhs_extra is not None:
             rhs = rhs + rhs_extra
 
-        self.coef = spsolve(self.basis._make_btwb(weights) + penalty, rhs)
+        self.coef = self.direct_solve(self.basis._make_btwb(weights) + penalty, rhs)
         output = (
             self.basis.basis_r @ self.coef.reshape(self.basis._num_bases) @ self.basis.basis_c.T
         )

@@ -9,6 +9,7 @@ Created on March 20, 2021
 import numpy as np
 import pytest
 
+from pybaselines.results import WhittakerResult2D
 from pybaselines.two_d import whittaker
 
 from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin
@@ -26,6 +27,12 @@ class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin):
         _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
+
+    def test_result_obj(self):
+        """Ensures the `result` item in the output params is a WhittakerResult2D."""
+        _, params = self.class_func(self.y, **self.kwargs)
+        # don't use isinstance since don't want to allow subclasses
+        assert type(params['result']) is WhittakerResult2D
 
 
 class EigenvalueMixin:

@@ -11,15 +11,15 @@ import numpy as np
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _shift_rows, diff_penalty_diagonals
+from ._nd.pls import _PLSNDMixin
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import WhittakerResult
-from .utils import _mollifier_kernel, pad_edges, padded_convolve, relative_difference
+from .utils import relative_difference
 
 
-class _Whittaker(_Algorithm):
+class _Whittaker(_Algorithm, _PLSNDMixin):
     """A base class for all Whittaker-smoothing-based algorithms."""
 
-    @_Algorithm._register(sort_keys=('weights',))
     def asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         r"""
         Fits the baseline using the asymmetric least squares (AsLS) algorithm.
@@ -63,9 +63,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -140,30 +140,12 @@ class _Whittaker(_Algorithm):
         >>> plt.show()
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
-            new_weights = _weighting._asls(y, baseline, p)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
+        return super()._asls(
+            data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights
+        )
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm._register(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',))
     def iasls(self, data, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
               weights=None, diff_order=2):
         r"""
@@ -344,10 +326,7 @@ class _Whittaker(_Algorithm):
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y + d1_y,
-                overwrite_b=True
-            )
+            baseline = whittaker_system.solve(y, weight_array, rhs_extra=d1_y)
             new_weights = _weighting._iasls(y, baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -364,7 +343,6 @@ class _Whittaker(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',))
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                normalize_weights=False):
         r"""
@@ -412,9 +390,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -472,34 +450,11 @@ class _Whittaker(_Algorithm):
         >>> plt.show()
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        y_l1_norm = np.abs(y).sum()
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
-            new_weights, residual_l1_norm, exit_early = _weighting._airpls(
-                y, baseline, i, normalize_weights
-            )
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = residual_l1_norm / y_l1_norm
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
+        return super()._airpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, normalize_weights=normalize_weights
+        )
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm._register(sort_keys=('weights',))
     def arpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         r"""
         Asymmetrically reweighted penalized least squares smoothing (arPLS).
@@ -544,9 +499,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -584,31 +539,11 @@ class _Whittaker(_Algorithm):
         >>> plt.show()
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
-            new_weights, exit_early = _weighting._arpls(y, baseline)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
+        return super()._arpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights
+        )
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm._register(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',))
     def drpls(self, data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
         Doubly reweighted penalized least squares (drPLS) baseline.
@@ -686,7 +621,7 @@ class _Whittaker(_Algorithm):
                 diff_n_diagonals * weight_array, diff_order, diff_order
             )
             lhs = whittaker_system.penalty + penalty_with_weights
-            baseline = whittaker_system.solve(
+            baseline = whittaker_system.direct_solve(
                 lhs, weight_array * y, overwrite_b=True, l_and_u=lower_upper_bands
             )
             new_weights, exit_early = _weighting._drpls(y, baseline, i)
@@ -707,7 +642,6 @@ class _Whittaker(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',))
     def iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
         Improved asymmetrically reweighted penalized least squares smoothing (IarPLS).
@@ -732,9 +666,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -755,31 +689,11 @@ class _Whittaker(_Algorithm):
         59, 10933-10943.
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
-            new_weights, exit_early = _weighting._iarpls(y, baseline, i)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
+        return super()._iarpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights
+        )
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm._register(sort_keys=('weights', 'alpha'))
+    @_Algorithm._handle_io(sort_keys=('weights', 'alpha'))
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
               weights=None, alpha=None, asymmetric_coef=2., alternate_weighting=True):
         """
@@ -878,14 +792,11 @@ class _Whittaker(_Algorithm):
             alpha_array = alpha_array[self._sort_order]
         asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
-        lower_upper_bands = (diff_order, diff_order)
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             lhs = whittaker_system.penalty * alpha_array
-            lhs[whittaker_system.main_diagonal_index] += weight_array
             baseline = whittaker_system.solve(
-                _shift_rows(lhs, diff_order, diff_order), weight_array * y,
-                overwrite_b=True, l_and_u=lower_upper_bands
+                y, weight_array, penalty=_shift_rows(lhs, diff_order, diff_order)
             )
             new_weights, residual, exit_early = _weighting._aspls(
                 y, baseline, asymmetric_coef, alternate_weighting
@@ -908,7 +819,6 @@ class _Whittaker(_Algorithm):
 
         return baseline, params
 
-    @_Algorithm._register(sort_keys=('weights',))
     def psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
                weights=None):
         """
@@ -948,9 +858,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -984,34 +894,11 @@ class _Whittaker(_Algorithm):
         Systems, Signals, and Devices, 2014, 1-5.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        if k is None:
-            k = np.std(y) / 10
-        else:
-            k = _check_scalar_variable(k, variable_name='k')
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
-            new_weights = _weighting._psalsa(y, baseline, p, k, self._shape)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
+        return super()._psalsa(
+            data, lam=lam, p=p, k=k, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights
+        )
 
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm._register(sort_keys=('weights',))
     def derpsalsa(self, data, lam=1e6, p=0.01, k=None, diff_order=2, max_iter=50, tol=1e-3,
                   weights=None, smooth_half_window=None, num_smooths=16, pad_kwargs=None,
                   **kwargs):
@@ -1062,9 +949,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -1091,57 +978,12 @@ class _Whittaker(_Algorithm):
         51(10), 2061-2065.
 
         """
-        if not 0 < p < 1:
-            raise ValueError('p must be between 0 and 1')
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        if k is None:
-            k = np.std(y) / 10
-        else:
-            k = _check_scalar_variable(k, variable_name='k')
-        if smooth_half_window is None:
-            smooth_half_window = self._size // 200
-        # could pad the data every iteration, but it is ~2-3 times slower and only affects
-        # the edges, so it's not worth it
-        self._deprecate_pad_kwargs(**kwargs)
-        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
-        y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs, **kwargs)
-        if smooth_half_window > 0:
-            smooth_kernel = _mollifier_kernel(smooth_half_window)
-            for _ in range(num_smooths):
-                y_smooth = padded_convolve(y_smooth, smooth_kernel)
-        y_smooth = y_smooth[smooth_half_window:self._size + smooth_half_window]
+        return super()._derpsalsa(
+            data, lam=lam, p=p, k=k, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, smooth_half_window=smooth_half_window, num_smooths=num_smooths,
+            pad_kwargs=pad_kwargs, **kwargs
+        )
 
-        diff_y_1 = np.gradient(y_smooth)
-        diff_y_2 = np.gradient(diff_y_1)
-        # x.dot(x) is same as (x**2).sum() but faster
-        rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / self._size)
-        rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / self._size)
-
-        diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
-        diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
-        partial_weights = diff_1_weights * diff_2_weights
-
-        tol_history = np.empty(max_iter + 1)
-        for i in range(max_iter + 1):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
-            new_weights = _weighting._derpsalsa(y, baseline, p, k, self._shape, partial_weights)
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm._register(sort_keys=('weights',))
     def brpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, max_iter_2=50,
               tol_2=1e-3, weights=None):
         """
@@ -1161,7 +1003,7 @@ class _Whittaker(_Algorithm):
             The max number of fit iterations. Default is 50.
         tol : float, optional
             The exit criteria. Default is 1e-3.
-        max_iter_2 : float, optional
+        max_iter_2 : int, optional
             The number of iterations for updating the proportion of data occupied by peaks.
             Default is 50.
         tol_2 : float, optional
@@ -1173,9 +1015,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -1200,56 +1042,11 @@ class _Whittaker(_Algorithm):
         2022, 140, 250-257.
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        beta = 0.5
-        j_max = 0
-        baseline = y
-        baseline_weights = weight_array
-        tol_history = np.zeros((max_iter_2 + 2, max(max_iter, max_iter_2) + 1))
-        # implementation note: weight_array must always be updated since otherwise when
-        # reentering the inner loop, new_baseline and baseline would be the same; instead,
-        # use baseline_weights to track which weights produced the output baseline
-        for i in range(max_iter_2 + 1):
-            for j in range(max_iter + 1):
-                new_baseline = whittaker_system.solve(
-                    whittaker_system.add_diagonal(weight_array), weight_array * y,
-                    overwrite_b=True
-                )
-                new_weights, exit_early = _weighting._brpls(y, new_baseline, beta)
-                if exit_early:
-                    j -= 1  # reduce j so that output tol_history indexing is correct
-                    tol_2 = np.inf  # ensure it exits outer loop
-                    break
-                # Paper used norm(old - new) / norm(new) rather than old in the denominator,
-                # but I use old in the denominator instead to be consistent with all other
-                # algorithms; does not make a major difference
-                calc_difference = relative_difference(baseline, new_baseline)
-                tol_history[i + 1, j] = calc_difference
-                if calc_difference < tol:
-                    if i == 0 and j == 0:  # for cases where tol == inf
-                        baseline = new_baseline
-                    break
-                baseline_weights = weight_array
-                weight_array = new_weights
-                baseline = new_baseline
-            j_max = max(j, j_max)
+        return super()._brpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            max_iter_2=max_iter_2, tol_2=tol_2, weights=weights
+        )
 
-            weight_array = new_weights
-            weight_mean = weight_array.mean()
-            calc_difference_2 = abs(beta + weight_mean - 1)
-            tol_history[0, i] = calc_difference_2
-            if calc_difference_2 < tol_2:
-                break
-            beta = 1 - weight_mean
-
-        params = {
-            'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
-
-    @_Algorithm._register(sort_keys=('weights',))
     def lsrpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                alternate_weighting=False):
         """
@@ -1281,9 +1078,9 @@ class _Whittaker(_Algorithm):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
@@ -1317,29 +1114,10 @@ class _Whittaker(_Algorithm):
             penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        tol_history = np.empty(max_iter + 1)
-        for i in range(1, max_iter + 2):
-            baseline = whittaker_system.solve(
-                whittaker_system.add_diagonal(weight_array), weight_array * y,
-                overwrite_b=True
-            )
-            new_weights, exit_early = _weighting._lsrpls(y, baseline, i, alternate_weighting)
-            if exit_early:
-                i -= 1  # reduce i so that output tol_history indexing is correct
-                break
-            calc_difference = relative_difference(weight_array, new_weights)
-            tol_history[i - 1] = calc_difference
-            if calc_difference < tol:
-                break
-            weight_array = new_weights
-
-        params = {
-            'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': WhittakerResult(whittaker_system, weight_array)
-        }
-
-        return baseline, params
+        return super()._lsrpls(
+            data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol,
+            weights=weights, alternate_weighting=alternate_weighting
+        )
 
 
 _whittaker_wrapper = _class_wrapper(_Whittaker)

@@ -24,7 +24,7 @@ from .utils import (
 class _Smooth(_Algorithm):
     """A base class for all smoothing algorithms."""
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def noise_median(self, data, half_window=None, smooth_half_window=None, sigma=None,
                      pad_kwargs=None, **kwargs):
         """
@@ -85,7 +85,7 @@ class _Smooth(_Algorithm):
         baseline = padded_convolve(median, gaussian_kernel(smooth_window, sigma))
         return baseline[half_window:-half_window], {}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def snip(self, data, max_half_window=None, decreasing=False, smooth_half_window=None,
              filter_order=2, pad_kwargs=None, **kwargs):
         """
@@ -265,7 +265,7 @@ class _Smooth(_Algorithm):
 
         return baseline[max_of_half_windows:-max_of_half_windows], {}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def swima(self, data, min_half_window=3, max_half_window=None, smooth_half_window=None,
               pad_kwargs=None, **kwargs):
         """
@@ -372,7 +372,7 @@ class _Smooth(_Algorithm):
 
         return baseline[data_slice], {'half_window': half_windows, 'converged': converges}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def ipsa(self, data, half_window=None, max_iter=500, tol=None, roi=None,
              original_criteria=False, pad_kwargs=None, **kwargs):
         """
@@ -470,7 +470,7 @@ class _Smooth(_Algorithm):
 
         return baseline[data_slice], {'tol_history': tol_history[:i + 1]}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def ria(self, data, half_window=None, max_iter=500, tol=1e-2, side='both',
             width_scale=0.1, height_scale=1., sigma_scale=1 / 12, pad_kwargs=None, **kwargs):
         """
@@ -614,7 +614,7 @@ class _Smooth(_Algorithm):
 
         return baseline, {'tol_history': tol_history[:i + 1]}
 
-    @_Algorithm._register
+    @_Algorithm._handle_io
     def peak_filling(self, data, half_window=None, sections=None, max_iter=5, lam_smooth=None):
         """
         The 4S (Smooth, Subsample, Suppress, Stretch) Peak Filling algorithm.
@@ -711,7 +711,7 @@ class _Smooth(_Algorithm):
 
         if lam_smooth is not None and lam_smooth > 0:
             _, _, whittaker_system = self._setup_whittaker(data, lam_smooth, diff_order=2)
-            data = whittaker_system.solve(whittaker_system.add_diagonal(1.), data)
+            data = whittaker_system.solve(data, weights=1)
 
         for i, (left_idx, right_idx) in enumerate(zip(indices[:-1], indices[1:])):
             y_truncated[i] = data[left_idx:right_idx].min()

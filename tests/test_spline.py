@@ -13,6 +13,7 @@ from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import _spline_utils, classification, morphological, spline, Baseline
+from pybaselines.results import PSplineResult
 
 from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
 
@@ -62,6 +63,28 @@ class SplineTester(BaseTester):
             numba_output = self.class_func(self.y)[0]
 
         assert_allclose(numba_output, normal_output, rtol=1e-10, atol=1e-10)
+
+    def test_result_obj(self):
+        """Ensures the `result` item in the output params is a PSplineResult."""
+        _, params = self.class_func(self.y, **self.kwargs)
+        # don't use isinstance since don't want to allow subclasses
+        assert type(params['result']) is PSplineResult
+
+    def test_check_spline_degree(self):
+        """
+        Ensures an exception is raised if the input spline_degree is None.
+
+        For methods that are implemented as ND penalized least square mixins, the same
+        code path is used for both penalized spline and Whittaker smoothing, whose logic
+        is controlled by the input `spline_degree`, so need to ensure that the input for
+        penalized spline methods is not None.
+
+        For methods that are not PLS mixins, a TypeError should still occur during basis
+        creation.
+
+        """
+        with pytest.raises(TypeError):
+            self.class_func(self.y, spline_degree=None)
 
 
 class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):

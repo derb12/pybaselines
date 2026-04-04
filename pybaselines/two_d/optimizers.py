@@ -26,7 +26,7 @@ from ._algorithm_setup import _Algorithm2D
 class _Optimizers(_Algorithm2D):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm2D._register(ensure_2d=False, skip_sorting=True)
+    @_Algorithm2D._handle_io(ensure_dims=False, skip_sorting=True)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).
@@ -140,7 +140,7 @@ class _Optimizers(_Algorithm2D):
 
         return baselines, params
 
-    @_Algorithm2D._register(skip_sorting=True)
+    @_Algorithm2D._handle_io(skip_sorting=True)
     def adaptive_minmax(self, data, poly_order=None, method='modpoly', weights=None,
                         constrained_fraction=0.01, constrained_weight=1e5,
                         estimation_poly_order=2, method_kwargs=None):
@@ -274,7 +274,7 @@ class _Optimizers(_Algorithm2D):
 
         return np.maximum.reduce(baselines), params
 
-    @_Algorithm2D._register(skip_sorting=True)
+    @_Algorithm2D._handle_io(skip_sorting=True)
     def individual_axes(self, data, axes=(0, 1), method='asls', method_kwargs=None):
         """
         Applies a one dimensional baseline correction method along each row and/or column.

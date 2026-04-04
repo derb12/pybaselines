@@ -12,7 +12,11 @@ import pytest
 from scipy.sparse import kron
 
 from pybaselines._compat import identity
-from pybaselines.two_d import Baseline2D, _algorithm_setup, optimizers, polynomial, whittaker
+from pybaselines.two_d import (
+    Baseline2D, _algorithm_setup, optimizers, polynomial, whittaker,
+    _spline_utils, _whittaker_utils
+)
+from pybaselines.results import PSplineResult2D, WhittakerResult2D
 from pybaselines.utils import ParameterWarning, SortingWarning, difference_matrix, estimate_window
 from pybaselines._validation import _check_scalar
 
@@ -63,8 +67,9 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
     )
 
 
+@pytest.mark.parametrize('num_eigens', (None, 3))
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_whittaker_weights(small_data2d, algorithm, weight_enum):
+def test_setup_whittaker_weights(small_data2d, algorithm, num_eigens, weight_enum):
     """Ensures output weight array is correct."""
     if weight_enum == 0:
         # no weights specified
@@ -83,12 +88,19 @@ def test_setup_whittaker_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
 
-    _, weight_array, _ = algorithm._setup_whittaker(
-        small_data2d, lam=1, diff_order=2, weights=weights
+    if num_eigens is not None:
+        desired_weights = desired_weights.reshape(small_data2d.shape)
+        expected_y = small_data2d
+    else:
+        expected_y = small_data2d.ravel()
+
+    y, weight_array, _ = algorithm._setup_whittaker(
+        small_data2d, lam=1, diff_order=2, weights=weights, num_eigens=num_eigens
     )
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert_allclose(y, expected_y, rtol=1e-14, atol=1e-14)
     assert weight_array.dtype == float
 
 
@@ -154,10 +166,11 @@ def test_setup_polynomial_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
 
-    _, weight_array = algorithm._setup_polynomial(small_data2d, weights=weights)
+    y, weight_array = algorithm._setup_polynomial(small_data2d, weights=weights)
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert_allclose(y, small_data2d.ravel(), rtol=1e-14, atol=1e-14)
     assert weight_array.dtype == float
 
 
@@ -544,12 +557,13 @@ def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size).reshape(small_data2d.shape)
 
-    _, weight_array, _ = algorithm._setup_spline(
+    y, weight_array, _ = algorithm._setup_spline(
         small_data2d, lam=1, diff_order=2, weights=weights
     )
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert_allclose(y, small_data2d, rtol=1e-14, atol=1e-14)
     assert weight_array.dtype == float
 
 
@@ -711,8 +725,7 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
         )
     output, output_params = algorithm._return_results(
         baseline, params, dtype=output_dtype, sort_keys=('a', 'd'),
-        reshape_baseline=reshape_baseline, reshape_keys=('c', 'd'),
-        ensure_2d=not three_d
+        reshape_keys=('c', 'd'), ensure_dims=not three_d
     )
 
     if not change_order and (output_dtype is None or baseline.dtype == output_dtype):
@@ -735,9 +748,9 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('skip_sorting', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
-def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sorting, list_input):
+def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sorting, list_input):
     """
-    Ensures the _register wrapper method returns the correctly sorted and shaped outputs.
+    Ensures the _handle_io wrapper method returns the correctly sorted and shaped outputs.
 
     The input y-values within the wrapped function should be correctly sorted
     if `assume_sorted` is False, while the output baseline should always match
@@ -750,7 +763,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
     class SubClass(_algorithm_setup._Algorithm2D):
         # 'a' values will be sorted and 'b' values will be kept the same
-        @_algorithm_setup._Algorithm2D._register(sort_keys=('a', 'd'), reshape_keys=('c', 'd'))
+        @_algorithm_setup._Algorithm2D._handle_io(sort_keys=('a', 'd'), reshape_keys=('c', 'd'))
         def func(self, data, *args, **kwargs):
             """For checking sorting and reshaping output parameters."""
             expected_x, expected_z, expected_y = get_data2d()
@@ -770,7 +783,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
             }
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm2D._register(reshape_baseline=True)
+        @_algorithm_setup._Algorithm2D._handle_io
         def func2(self, data, *args, **kwargs):
             """For checking reshaping output baseline."""
             expected_x, expected_z, expected_y = get_data2d()
@@ -782,9 +795,9 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
             assert isinstance(self.z, np.ndarray)
             assert_allclose(self.z, expected_z, 1e-14, 1e-14)
 
-            return 1 * data.flatten(), {}
+            return 1 * data.ravel(), {}
 
-        @_algorithm_setup._Algorithm2D._register
+        @_algorithm_setup._Algorithm2D._handle_io
         def func3(self, data, *args, **kwargs):
             """For checking empty decorator."""
             expected_x, expected_z, expected_y = get_data2d()
@@ -798,7 +811,7 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm2D._register(
+        @_algorithm_setup._Algorithm2D._handle_io(
             sort_keys=('a', 'd'), reshape_keys=('c', 'd'), skip_sorting=skip_sorting
         )
         def func4(self, data, *args, **kwargs):
@@ -823,14 +836,14 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
 
             return 1 * data, params
 
-        @_algorithm_setup._Algorithm2D._register(require_unique_xz=False)
+        @_algorithm_setup._Algorithm2D._handle_io(require_unique=False)
         def func5(self, data, *args, **kwargs):
-            """For ensuring require_unique_xz works as intedended."""
+            """For ensuring require_unique works as intended."""
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm2D._register(require_unique_xz=True)
+        @_algorithm_setup._Algorithm2D._handle_io(require_unique=True)
         def func6(self, data, *args, **kwargs):
-            """For ensuring require_unique_xz works as intedended."""
+            """For ensuring require_unique works as intended."""
             return 1 * data, {}
 
     if change_order:
@@ -927,17 +940,17 @@ def test_algorithm_register(assume_sorted, output_dtype, change_order, skip_sort
         out = new_algorithm.func6(y)
 
 
-def test_algorithm_register_no_data_fails():
+def test_algorithm_handle_io_no_data_fails():
     """Ensures an error is raised if the input data is None."""
 
     class SubClass(_algorithm_setup._Algorithm2D):
 
-        @_algorithm_setup._Algorithm2D._register
+        @_algorithm_setup._Algorithm2D._handle_io
         def func(self, data, *args, **kwargs):
             """For checking empty decorator."""
             return data, {}
 
-        @_algorithm_setup._Algorithm2D._register()
+        @_algorithm_setup._Algorithm2D._handle_io()
         def func2(self, data, *args, **kwargs):
             """For checking closed decorator."""
             return data, {}
@@ -948,17 +961,17 @@ def test_algorithm_register_no_data_fails():
         SubClass().func2()
 
 
-def test_algorithm_register_1d_fails(data_fixture):
+def test_algorithm_handle_io_1d_fails(data_fixture):
     """Ensures an error is raised if 1D data is used for 2D algorithms."""
 
     class SubClass(_algorithm_setup._Algorithm2D):
 
-        @_algorithm_setup._Algorithm2D._register
+        @_algorithm_setup._Algorithm2D._handle_io
         def func(self, data, *args, **kwargs):
             """For checking empty decorator."""
             return data, {}
 
-        @_algorithm_setup._Algorithm2D._register()
+        @_algorithm_setup._Algorithm2D._handle_io()
         def func2(self, data, *args, **kwargs):
             """For checking closed decorator."""
             return data, {}
@@ -1004,6 +1017,126 @@ def test_algorithm_register_1d_fails(data_fixture):
         algorithm.func(y_2d_transposed)
     with pytest.raises(ValueError, match='input data must be a two dimensional'):
         algorithm.func2(y_2d_transposed)
+
+
+@pytest.mark.parametrize('input_x', (True, False))
+@pytest.mark.parametrize('input_z', (True, False))
+@pytest.mark.parametrize('change_order', (True, False))
+def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z, change_order):
+    """Ensures 3D data is allowed for 2D algorithms only when specified.
+
+    Also checks _Algorithm2D setup when given 3D data as the first call.
+
+    """
+    x_vals, z_vals, input_y_2d = get_data2d()
+    x_slice = slice(None)
+    z_slice = slice(None)
+    if input_x:
+        expected_x = x_vals
+    else:
+        expected_x = np.linspace(-1, 1, input_y_2d.shape[0])
+        if change_order:
+            x_slice = slice(None, None, -1)
+    if input_z:
+        expected_z = z_vals
+    else:
+        expected_z = np.linspace(-1, 1, input_y_2d.shape[1])
+        if change_order:
+            z_slice = slice(None, None, -1)
+    stacks = 2
+    expected_y = np.repeat(input_y_2d[None, :], stacks, axis=0)
+
+    class SubClass(_algorithm_setup._Algorithm2D):
+
+        @_algorithm_setup._Algorithm2D._handle_io
+        def func(self, data, *args, **kwargs):
+            """Errors if input is not 2D."""
+            assert data.ndim == 2
+            assert data.shape == expected_y.shape
+            return data, {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=False)
+        def func2(self, data, *args, **kwargs):
+            """Allows 3D data."""
+            assert data.ndim == 3
+            assert data.shape == expected_y.shape
+
+            expected = expected_y.copy()
+            if change_order:
+                expected = expected[:, x_slice, z_slice]
+
+            assert_allclose(data, expected, 1e-14, 1e-14)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+            assert_allclose(self.z, expected_z, 1e-14, 1e-14)
+
+            return data * 1, {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=False)
+        def func3(self, data, *args, **kwargs):
+            """For checking reshaping output baseline for 3D input raveled on last axis."""
+            assert data.ndim == 3
+            assert data.shape == expected_y.shape
+
+            return 1 * data.reshape(data.shape[0], -1), {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=False, skip_sorting=True)
+        def func4(self, data, *args, **kwargs):
+            """Allows 3D data and skips sorting."""
+            assert data.ndim == 3
+            assert data.shape == expected_y.shape
+
+            expected = expected_y.copy()
+            if change_order:
+                expected = expected[:, ::-1, ::-1]
+
+            assert_allclose(data, expected, 1e-14, 1e-14)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+            assert_allclose(self.z, expected_z, 1e-14, 1e-14)
+
+            return data * 1, {}
+
+    x_, z_, y_2d = data_fixture2d
+    if change_order:
+        x_ = x_[::-1]
+        z_ = z_[::-1]
+        y_2d = y_2d[::-1, ::-1]
+    x = None
+    z = None
+    initial_shape = [None, None]
+    if input_x:
+        x = x_
+        initial_shape[0] = len(x)
+    if input_z:
+        z = z_
+        initial_shape[1] = len(z)
+    initial_shape = tuple(initial_shape)
+    initial_size = None if None in initial_shape else y_2d.size
+
+    input_y = np.repeat(y_2d[None, :], stacks, axis=0)
+    assert input_y.shape == (stacks, *y_2d.shape)  # sanity check for correct setup
+
+    algorithm = SubClass(x, z)
+    assert algorithm._shape == initial_shape
+    assert algorithm._size == initial_size
+
+    with pytest.raises(ValueError, match='input data must be a two dimensional'):
+        algorithm.func(input_y)
+    assert algorithm._shape == initial_shape
+
+    # should run without issues and set stored shape correctly
+    output, _ = algorithm.func2(input_y)
+    assert algorithm._shape == y_2d.shape
+    assert algorithm._size == y_2d.size
+    assert output.shape == input_y.shape
+    assert_allclose(output, input_y, 1e-14, 1e-14)
+
+    output2, _ = algorithm.func3(input_y)
+    assert output2.shape == input_y.shape
+    assert_allclose(output2, input_y, 1e-14, 1e-14)
+
+    output3, _ = algorithm.func4(input_y)
+    assert output3.shape == input_y.shape
+    assert_allclose(output2, input_y, 1e-14, 1e-14)
 
 
 def test_override_x(algorithm):
@@ -1188,3 +1321,172 @@ def test_wrong_banded_solver_fails(algorithm, banded_solver):
     """Ensures only valid integers between 0 and 4 are allowed as banded_solver inputs."""
     with pytest.raises(ValueError):
         algorithm.banded_solver = banded_solver
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3, (2, 3)))
+@pytest.mark.parametrize('lam', (1, 20, (2, 5)))
+def test_setup_pls_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
+    """Ensures output difference matrix diagonal data is in desired format for _setup_pls."""
+    x, z, y = data_fixture2d
+
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+
+    # intentionally do not input spline_degree here to ensure default behavior is
+    # spline_degree=None -> Whittaker smoothing
+    _, _, whittaker_system, result_class = algorithm._setup_pls(y, lam=lam, diff_order=diff_order)
+    _, _, expected_system = algorithm._setup_whittaker(y, lam=lam, diff_order=diff_order)
+
+    *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
+        lam=lam, diff_order=diff_order
+    )
+
+    D1 = difference_matrix(len(x), diff_order_x)
+    D2 = difference_matrix(len(z), diff_order_z)
+
+    P1 = lam_x * kron(D1.T @ D1, identity(len(z)))
+    P2 = lam_z * kron(identity(len(x)), D2.T @ D2)
+    expected_penalty = P1 + P2
+
+    assert_allclose(
+        whittaker_system.penalty.toarray(),
+        expected_penalty.toarray(),
+        rtol=1e-12, atol=1e-12
+    )
+    assert_allclose(
+        whittaker_system.penalty.toarray(),
+        expected_system.penalty.toarray(),
+        rtol=1e-12, atol=1e-12
+    )
+    assert isinstance(whittaker_system, _whittaker_utils.WhittakerSystem2D)
+    assert result_class is WhittakerResult2D
+
+
+@pytest.mark.parametrize('spline_degree', (None, 3))
+@pytest.mark.parametrize('num_eigens', (None, 3))
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+def test_setup_pls_weights(small_data2d, algorithm, spline_degree, num_eigens, weight_enum):
+    """Ensures output weight array is correct when using _setup_pls."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones(small_data2d.size)
+    elif weight_enum == 1:
+        # uniform 1 weighting
+        weights = np.ones_like(small_data2d)
+        desired_weights = np.ones(small_data2d.size)
+    elif weight_enum == 2:
+        # different weights for all points
+        weights = np.arange(small_data2d.size).reshape(small_data2d.shape)
+        desired_weights = np.arange(small_data2d.size)
+    elif weight_enum == 3:
+        # different weights for all points, and weights input as a list
+        weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
+        desired_weights = np.arange(small_data2d.size)
+
+    if spline_degree is None and num_eigens is None:
+        expected_y = small_data2d.ravel()
+    else:
+        desired_weights = desired_weights.reshape(small_data2d.shape)
+        expected_y = small_data2d
+
+    y, weight_array, penalized_system, result_class = algorithm._setup_pls(
+        small_data2d, lam=1, diff_order=2, weights=weights, spline_degree=spline_degree,
+        num_eigens=num_eigens
+    )
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == float
+    assert_allclose(y, expected_y, rtol=1e-14, atol=1e-14)
+    assert isinstance(
+        penalized_system,
+        _whittaker_utils.WhittakerSystem2D if spline_degree is None else _spline_utils.PSpline2D
+    )
+    assert result_class is WhittakerResult2D if spline_degree is None else PSplineResult2D
+
+
+@pytest.mark.parametrize('num_knots', (10, 30, (20, 30)))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3), None))
+def test_setup_pls_spline_basis(data_fixture2d, num_knots, spline_degree):
+    """Ensures the spline basis function is correctly created through _setup_pls."""
+    x, z, y = data_fixture2d
+    fitter = _algorithm_setup._Algorithm2D(x, z)
+    assert fitter._spline_basis is None
+
+    fitter._setup_pls(
+        y, weights=None, spline_degree=spline_degree, num_knots=num_knots
+    )
+
+    if spline_degree is None:
+        assert fitter._spline_basis is None
+        return
+
+    if isinstance(num_knots, int):
+        num_knots_r = num_knots
+        num_knots_c = num_knots
+    else:
+        num_knots_r, num_knots_c = num_knots
+    if isinstance(spline_degree, int):
+        spline_degree_x = spline_degree
+        spline_degree_z = spline_degree
+    else:
+        spline_degree_x, spline_degree_z = spline_degree
+
+    assert_array_equal(
+        fitter._spline_basis.basis_r.shape,
+        (len(x), num_knots_r + spline_degree_x - 1)
+    )
+    assert_array_equal(
+        fitter._spline_basis.basis_c.shape,
+        (len(z), num_knots_c + spline_degree_z - 1)
+    )
+
+
+@pytest.mark.parametrize('lam', (1, 20, (3, 10)))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3)))
+@pytest.mark.parametrize('num_knots', (20, (21, 30)))
+def test_setup_pls_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree, num_knots):
+    """Ensures output difference matrix diagonal data is in desired format for setup_pls."""
+    x, z, y = data_fixture2d
+
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+    _, _, pspline, result_class = algorithm._setup_pls(
+        y, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+        diff_order=diff_order, lam=lam
+    )
+
+    (
+        num_knots_r, num_knots_c, spline_degree_x, spline_degree_z,
+        lam_x, lam_z, diff_order_x, diff_order_z
+    ) = get_2dspline_inputs(
+        num_knots=num_knots, spline_degree=spline_degree, lam=lam, diff_order=diff_order
+    )
+
+    num_bases_x = num_knots_r + spline_degree_x - 1
+    num_bases_z = num_knots_c + spline_degree_z - 1
+
+    D1 = difference_matrix(num_bases_x, diff_order_x)
+    D2 = difference_matrix(num_bases_z, diff_order_z)
+
+    P1 = lam_x * kron(D1.T @ D1, identity(num_bases_z))
+    P2 = lam_z * kron(identity(num_bases_x), D2.T @ D2)
+    expected_penalty = P1 + P2
+
+    assert_allclose(
+        pspline.penalty.toarray(),
+        expected_penalty.toarray(),
+        rtol=1e-12, atol=1e-12
+    )
+    assert isinstance(pspline, _spline_utils.PSpline2D)
+    assert result_class is PSplineResult2D
+
+    _, _, expected_system = algorithm._setup_spline(
+        y, weights=None, spline_degree=spline_degree, num_knots=num_knots,
+        diff_order=diff_order, lam=lam
+    )
+    assert_allclose(
+        pspline.penalty.toarray(),
+        expected_system.penalty.toarray(),
+        rtol=1e-12, atol=1e-12
+    )
