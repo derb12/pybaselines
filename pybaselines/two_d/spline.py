@@ -10,7 +10,7 @@ Created on April 25, 2023
 import numpy as np
 
 from .. import _weighting
-from .._nd._pls import _PLSNDMixin
+from .._nd.pls import _PLSNDMixin
 from .._validation import _check_spline_degree
 from ..results import PSplineResult2D
 from ..utils import relative_difference

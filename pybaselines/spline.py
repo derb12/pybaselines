@@ -14,7 +14,7 @@ from scipy.ndimage import grey_opening
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _add_diagonals, _shift_rows, _sparse_to_banded, diff_penalty_matrix
-from ._nd._pls import _PLSNDMixin
+from ._nd.pls import _PLSNDMixin
 from ._spline_utils import _basis_midpoints
 from ._validation import (
     _check_lam, _check_optional_array, _check_scalar_variable, _check_spline_degree

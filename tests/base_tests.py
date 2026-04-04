@@ -467,7 +467,7 @@ class BaseTester:
         mod_name = self.module.__name__.split('.')[-1]
         pls_module = mod_name in ('whittaker', 'spline')
         if hasattr(_nd, mod_name) or pls_module:
-            nd_module = '_pls' if pls_module else mod_name
+            nd_module = 'pls' if pls_module else mod_name
             cls_name = '_PLSNDMixin' if pls_module else f'_{mod_name.capitalize()}NDMixin'
             nd_mixin = getattr(getattr(_nd, nd_module), cls_name)
             if mod_name == 'spline':
@@ -855,7 +855,7 @@ class BaseTester2D:
         mod_name = self.module.__name__.split('.')[-1]
         pls_module = mod_name in ('whittaker', 'spline')
         if hasattr(_nd, mod_name) or pls_module:
-            nd_module = '_pls' if pls_module else mod_name
+            nd_module = 'pls' if pls_module else mod_name
             cls_name_nd = '_PLSNDMixin' if pls_module else f'_{mod_name.capitalize()}NDMixin'
             nd_mixin = getattr(getattr(_nd, nd_module), cls_name_nd)
             if mod_name == 'spline':

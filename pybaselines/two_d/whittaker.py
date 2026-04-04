@@ -10,7 +10,7 @@ import numpy as np
 
 from .. import _weighting
 from .._compat import diags
-from .._nd._pls import _PLSNDMixin
+from .._nd.pls import _PLSNDMixin
 from .._validation import _check_optional_array, _check_scalar_variable
 from ..results import WhittakerResult2D
 from ..utils import _MIN_FLOAT, relative_difference

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for pybaselines._nd._pls.
+"""Tests for pybaselines._nd.pls.
 
 @author: Donald Erb
 Created on March 30, 2026
@@ -10,7 +10,7 @@ import inspect
 
 import pytest
 
-from pybaselines._nd import _pls
+from pybaselines._nd import pls
 
 
 def get_module_methods(klass):
@@ -27,7 +27,7 @@ def get_module_methods(klass):
     return methods
 
 
-@pytest.mark.parametrize('method', get_module_methods(_pls._PLSNDMixin))
+@pytest.mark.parametrize('method', get_module_methods(pls._PLSNDMixin))
 def test_spline_degree_none(method):
     """Ensures the default `spline_degree` is None for all PLS methods to ensure logic flow.
 
@@ -35,5 +35,5 @@ def test_spline_degree_none(method):
     do Whittaker smoothing as the default behavior.
 
     """
-    params = inspect.signature(getattr(_pls._PLSNDMixin, method)).parameters
+    params = inspect.signature(getattr(pls._PLSNDMixin, method)).parameters
     assert params['spline_degree'].default is None

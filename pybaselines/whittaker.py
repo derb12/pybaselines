@@ -11,7 +11,7 @@ import numpy as np
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._banded_utils import _shift_rows, diff_penalty_diagonals
-from ._nd._pls import _PLSNDMixin
+from ._nd.pls import _PLSNDMixin
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import WhittakerResult
 from .utils import relative_difference
