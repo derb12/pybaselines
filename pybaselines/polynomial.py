@@ -541,6 +541,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         coefs = np.zeros((self._size, poly_order + 1))
         tol_history = np.empty(max_iter + 1)
         sqrt_w = np.sqrt(weight_array)
+        if use_threshold:
+            pos_wt_mask = weight_array > 0
         # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
         for i in range(max_iter + 1):
             baseline_old = baseline
@@ -564,12 +566,12 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             if calc_difference < tol:
                 break
 
+            residual = y - baseline
             if use_threshold:
                 y = np.minimum(
-                    y0 if use_original else y, baseline + num_std * np.std(sqrt_w * (y - baseline))
+                    y0 if use_original else y, baseline + num_std * np.std(residual[pos_wt_mask])
                 )
             else:
-                residual = y - baseline
                 # TODO median_absolute_value can be 0 if more than half of residuals are
                 # 0 (perfect fit); can that ever really happen? if so, should prevent dividing by 0
                 sqrt_w = _tukey_square(

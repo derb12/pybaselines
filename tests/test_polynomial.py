@@ -142,7 +142,7 @@ def thresholding_polynomial(x, y, poly_order, max_iter, weights=None, use_origin
     baseline = np.polynomial.Polynomial.fit(x=x, y=y, deg=poly_order, w=sqrt_weights)(x)
     for _ in range(max_iter):
         y = np.minimum(
-            baseline + num_std * np.std(sqrt_weights * (y - baseline)),
+            baseline + num_std * np.std((y - baseline)[sqrt_weights > 0]),
             y_original if use_original else y
         )
         baseline = np.polynomial.Polynomial.fit(x=x, y=y, deg=poly_order, w=sqrt_weights)(x)

@@ -133,7 +133,7 @@ class _PolynomialNDMixin:
         baseline = self._polynomial.vandermonde @ coef
         if mask_initial_peaks:
             # use baseline + deviation since without deviation, half of y should be above baseline
-            weight_array[baseline + np.std(y - baseline) < y] = 0
+            weight_array[baseline + np.std((y - baseline)[weight_array > 0]) < y] = 0
             sqrt_w = np.sqrt(weight_array)
             pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
@@ -251,11 +251,13 @@ class _PolynomialNDMixin:
         if use_original:
             y0 = y
 
+        pos_wt_mask = weight_array > 0
         coef = pseudo_inverse @ (sqrt_w * y)
         baseline = self._polynomial.vandermonde @ coef
-        deviation = np.std(sqrt_w * (y - baseline))
+        deviation = np.std((y - baseline)[pos_wt_mask])
         if mask_initial_peaks:
             weight_array[baseline + deviation < y] = 0
+            pos_wt_mask = weight_array > 0
             sqrt_w = np.sqrt(weight_array)
             pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
@@ -264,7 +266,7 @@ class _PolynomialNDMixin:
             y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
             coef = pseudo_inverse @ (sqrt_w * y)
             baseline = self._polynomial.vandermonde @ coef
-            new_deviation = np.std(sqrt_w * (y - baseline))
+            new_deviation = np.std((y - baseline)[pos_wt_mask])
             # use new_deviation as dividing term in relative difference
             calc_difference = relative_difference(new_deviation, deviation)
             tol_history[i] = calc_difference
