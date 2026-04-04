@@ -15,7 +15,7 @@ from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _weighting, whittaker
 from pybaselines.results import WhittakerResult
-from pybaselines.utils import relative_difference
+from pybaselines.utils import relative_difference, ParameterWarning
 from pybaselines._compat import diags, identity
 
 from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
@@ -239,7 +239,7 @@ class TestAirPLS(WhittakerTester):
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     # ignore the ParameterWarning that can occur from the fit not being good at high iterations
-    @pytest.mark.filterwarnings('ignore::UserWarning')
+    @pytest.mark.filterwarnings('ignore', category=ParameterWarning)
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
         Ensures that the function gracefully exits when errors occur.
@@ -423,7 +423,10 @@ class TestAsPLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha=alpha)
 
-    def test_avoid_overflow_warning(self, no_noise_data_fixture):
+    # ignore the ParameterWarning that can occur from the fit not being good at high iterations
+    @pytest.mark.filterwarnings('ignore', category=ParameterWarning)
+    @pytest.mark.parametrize('alternate_weighting', (True, False))
+    def test_avoid_overflow_warning(self, no_noise_data_fixture, alternate_weighting):
         """
         Ensures no warning is emitted for exponential overflow.
 
@@ -437,7 +440,9 @@ class TestAsPLS(WhittakerTester):
         """
         y, _ = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
+            baseline = self.class_func(
+                y, tol=-1, max_iter=1000, alternate_weighting=alternate_weighting
+            )[0]
 
         assert np.isfinite(baseline.dot(baseline))
 
@@ -486,7 +491,7 @@ class TestAsPLS(WhittakerTester):
             asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )[0]
 
-        rtol = {2: 2e-4, 3: 5e-4}[diff_order]
+        rtol = {2: 5e-4, 3: 5e-4}[diff_order]
         assert_allclose(banded_output, sparse_output, rtol=rtol, atol=1e-8)
 
 

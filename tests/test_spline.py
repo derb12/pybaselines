@@ -14,6 +14,7 @@ import pytest
 
 from pybaselines import _spline_utils, classification, morphological, spline, Baseline
 from pybaselines.results import PSplineResult
+from pybaselines.utils import ParameterWarning
 
 from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
 
@@ -299,7 +300,7 @@ class TestPsplineAirPLS(IterativeSplineTester, WhittakerComparisonMixin):
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     # ignore the ParameterWarning that can occur from the fit not being good at high iterations
-    @pytest.mark.filterwarnings('ignore::UserWarning')
+    @pytest.mark.filterwarnings('ignore', category=ParameterWarning)
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """
         Ensures that the function gracefully exits when errors occur.
@@ -491,7 +492,10 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
         lam = {1: 1e4, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    def test_avoid_overflow_warning(self, no_noise_data_fixture):
+    # ignore the ParameterWarning that can occur from the fit not being good at high iterations
+    @pytest.mark.filterwarnings('ignore', category=ParameterWarning)
+    @pytest.mark.parametrize('alternate_weighting', (True, False))
+    def test_avoid_overflow_warning(self, no_noise_data_fixture, alternate_weighting):
         """
         Ensures no warning is emitted for exponential overflow.
 
@@ -505,7 +509,9 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
         """
         x, y = no_noise_data_fixture
         with np.errstate(over='raise'):
-            baseline = self.class_func(y, tol=-1, max_iter=1000)[0]
+            baseline = self.class_func(
+                y, tol=-1, max_iter=1000, alternate_weighting=alternate_weighting
+            )[0]
 
         assert np.isfinite(baseline.dot(baseline))
 
