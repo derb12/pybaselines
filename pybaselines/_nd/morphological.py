@@ -94,7 +94,7 @@ class _MorphologicalNDMixin:
         -------
         baseline : numpy.ndarray, shape (M, N)
             The calculated baseline.
-        dict
+        params : dict
             A dictionary with the following items:
 
             * 'half_window': np.ndarray[int, int]

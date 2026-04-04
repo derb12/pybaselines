@@ -996,7 +996,7 @@ class _PLSNDMixin:
     @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
     def _mixture_model(self, data, lam=1e5, p=1e-2, num_knots=25, spline_degree=None,
                        diff_order=3, max_iter=50, tol=1e-3, weights=None,
-                       symmetric=False, num_bins=None):
+                       symmetric=False):
         """
         Considers the data as a mixture model composed of noise and peaks.
 
@@ -1041,11 +1041,6 @@ class _PLSNDMixin:
             residuals. If True, an additional uniform distribution will be added to the
             mixture model for negative non-noise residuals. Only need to set `symmetric`
             to True when peaks are both positive and negative.
-        num_bins : int, optional, deprecated
-
-            .. deprecated:: 1.1.0
-                ``num_bins`` is deprecated since it is no longer necessary for performing
-                the expectation-maximization and will be removed in pybaselines version 1.3.0.
 
         Returns
         -------
@@ -1086,11 +1081,6 @@ class _PLSNDMixin:
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        if num_bins is not None:
-            warnings.warn(
-                '"num_bins" was deprecated in version 1.1.0 and will be removed in version 1.3.0',
-                DeprecationWarning, stacklevel=2
-            )
 
         # NOTE mixture_model doesn't currently allow Whittaker smoothing
         y, weight_array, penalized_system, result_class = self._setup_pls(

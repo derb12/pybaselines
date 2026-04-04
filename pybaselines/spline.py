@@ -107,11 +107,16 @@ class _Spline(_Algorithm, _PLSNDMixin):
         preprint arXiv:1901.06708, 2019.
 
         """
+        if num_bins is not None:
+            warnings.warn(
+                '"num_bins" was deprecated in version 1.1.0 and will be removed in version 1.3.0',
+                DeprecationWarning, stacklevel=2
+            )
         _check_spline_degree(spline_degree)
         return super()._mixture_model(
             data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
             weights=weights, spline_degree=spline_degree, num_knots=num_knots,
-            symmetric=symmetric, num_bins=num_bins
+            symmetric=symmetric
         )
 
     def irsqr(self, data, lam=100, quantile=0.05, num_knots=100, spline_degree=3,
@@ -220,9 +225,9 @@ class _Spline(_Algorithm, _PLSNDMixin):
 
         Returns
         -------
-        baseline : numpy.ndarray, shape (N,)
+        numpy.ndarray, shape (N,)
             The calculated baseline.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'weights': numpy.ndarray, shape (N,)
