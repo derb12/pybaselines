@@ -882,12 +882,16 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         partial_rhs_2 = (2 * alpha) * opening
         tol_history = np.empty((max_iter + 1, 2))
         for i in range(max_iter + 1):
-            signal = whittaker_system.solve(
-                y - baseline_old, weights=1, penalty=gamma * whittaker_system.penalty
+            lhs_1 = gamma * whittaker_system.penalty
+            lhs_1[whittaker_system.main_diagonal_index] += 1.
+            lhs_2 = (2 * beta) * whittaker_system.penalty
+            lhs_2[whittaker_system.main_diagonal_index] += 1. + 2 * alpha
+
+            signal = whittaker_system.direct_solve(
+                lhs_1, y - baseline_old, overwrite_ab=True, overwrite_b=True
             )
-            baseline = whittaker_system.solve(
-                y - signal + partial_rhs_2, weights=1 + 2 * alpha,
-                penalty=(2 * beta) * whittaker_system.penalty
+            baseline = whittaker_system.direct_solve(
+                lhs_2, y - signal + partial_rhs_2, overwrite_ab=True, overwrite_b=True
             )
 
             calc_tol_1 = relative_difference(signal_old, signal)
