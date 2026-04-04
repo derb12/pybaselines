@@ -8,14 +8,14 @@ Created on March 30, 2025
 
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial, wraps
-from inspect import signature
+import inspect
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 import pybaselines
-from pybaselines import Baseline, Baseline2D
+from pybaselines import Baseline, Baseline2D, _nd
 from pybaselines.two_d._algorithm_setup import _Algorithm2D
 
 
@@ -462,6 +462,28 @@ class BaseTester:
         cls.repeated_kwargs = None
         cls.param_keys = None
 
+    def test_ensure_wrapped(self):
+        """Ensures the class method was wrapped using _Algorithm._handle_io to control inputs."""
+        mod_name = self.module.__name__.split('.')[-1]
+        pls_module = mod_name in ('whittaker', 'spline')
+        if hasattr(_nd, mod_name) or pls_module:
+            nd_module = '_pls' if pls_module else mod_name
+            cls_name = '_PLSNDMixin' if pls_module else f'_{mod_name.capitalize()}NDMixin'
+            nd_mixin = getattr(getattr(_nd, nd_module), cls_name)
+            if mod_name == 'spline':
+                method_name = f'_{self.func_name.removeprefix("pspline_")}'
+            elif pls_module:
+                method_name = f'_{self.func_name}'
+            else:
+                method_name = self.func_name
+            if hasattr(nd_mixin, method_name):
+                # method should not be wrapped, only the ND method
+                assert not hasattr(self.class_func, '__wrapped__')
+                assert hasattr(getattr(nd_mixin, method_name), '__wrapped__')
+                return
+
+        assert hasattr(self.class_func, '__wrapped__')
+
     @pytest.mark.parametrize('use_class', (True, False))
     def test_unchanged_data(self, use_class, **kwargs):
         """Ensures that input data is unchanged by the function."""
@@ -521,8 +543,8 @@ class BaseTester:
         the two signatures should be that the functional api has an `x_data` keyword.
 
         """
-        class_parameters = signature(self.class_func).parameters
-        functional_parameters = signature(
+        class_parameters = inspect.signature(self.class_func).parameters
+        functional_parameters = inspect.signature(
             getattr(self.module, self.func_name)
         ).parameters
 
@@ -828,6 +850,35 @@ class BaseTester2D:
         cls.repeated_kwargs = None
         cls.param_keys = None
 
+    def test_ensure_wrapped(self):
+        """Ensures the class method was wrapped using _Algorithm2D._handle_io to control inputs."""
+        mod_name = self.module.__name__.split('.')[-1]
+        pls_module = mod_name in ('whittaker', 'spline')
+        if hasattr(_nd, mod_name) or pls_module:
+            nd_module = '_pls' if pls_module else mod_name
+            cls_name_nd = '_PLSNDMixin' if pls_module else f'_{mod_name.capitalize()}NDMixin'
+            nd_mixin = getattr(getattr(_nd, nd_module), cls_name_nd)
+            if mod_name == 'spline':
+                method_name = f'_{self.func_name.removeprefix("pspline_")}'
+            elif pls_module:
+                method_name = f'_{self.func_name}'
+            else:
+                method_name = self.func_name
+            if hasattr(nd_mixin, method_name):
+                assert hasattr(getattr(nd_mixin, method_name), '__wrapped__')
+                # some 2D methods are directly inherited without subclassing
+                cls_name_2d = f'_{mod_name.capitalize()}'
+                class_2d = getattr(self.module, cls_name_2d)
+                if (
+                    hasattr(class_2d, method_name)
+                    and inspect.getmodule(getattr(class_2d, method_name)) is self.module
+                ):
+                    # method should not be wrapped, only the ND method
+                    assert not hasattr(self.class_func, '__wrapped__')
+                return
+
+        assert hasattr(self.class_func, '__wrapped__')
+
     @pytest.mark.parametrize('new_instance', (True, False))
     def test_unchanged_data(self, new_instance, **kwargs):
         """Ensures that input data is unchanged by the function."""
@@ -1112,7 +1163,7 @@ class RecreationMixin:
         first_baseline, params = self.class_func(self.y, **self.kwargs)
 
         kwargs = {'weights': params['weights'], **self.kwargs}
-        class_parameters = signature(self.class_func).parameters
+        class_parameters = inspect.signature(self.class_func).parameters
         if 'tol' in class_parameters:
             kwargs['tol'] = np.inf
         if 'tol_2' in class_parameters:

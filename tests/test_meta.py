@@ -7,6 +7,7 @@ Created on March 22, 2021
 """
 
 from contextlib import contextmanager
+from functools import wraps
 from threading import Lock
 
 import numpy as np
@@ -16,6 +17,14 @@ import pytest
 from .base_tests import (
     BasePolyTester, BaseTester, BaseTester2D, InputWeightsMixin, get_data, get_data2d
 )
+
+
+def dummy_wrapper(func):
+    """A dummy wrapper to simulate using the _Algorithm._register wrapper function."""
+    @wraps(func)
+    def inner(*args, **kwargs):
+        return func(*args, **kwargs)
+    return inner
 
 
 class DummyModule:
@@ -121,6 +130,11 @@ class DummyModule:
         return data[:-1], {}
 
     @staticmethod
+    def no_wrapper(data, x_data=None):
+        """A function without the correct wrapper."""
+        return data, {}
+
+    @staticmethod
     def repetition_changes(data, x_data=None):
         """
         Changes the output with repeated calls.
@@ -198,65 +212,77 @@ class DummyAlgorithm:
         self.z = z_data
         self.calls = 0
 
+    @dummy_wrapper
     def good_func(self, data=None, **kwargs):
         """Dummy function."""
         return DummyModule.good_func(data=data, **kwargs)
 
+    @dummy_wrapper
     def good_func2(self, data=None, **kwargs):
         """Dummy function."""
         return DummyModule.good_func2(data=data, **kwargs)
 
+    @dummy_wrapper
     def good_poly_func(self, data, return_coef=False, **kwargs):
         """A good polynomial algorithm."""
         return DummyModule.good_poly_func(
             data=data, x_data=self.x, return_coef=return_coef, **kwargs
         )
 
+    @dummy_wrapper
     def bad_poly_func(self, data, return_coef=False, **kwargs):
         """A bad polynomial algorithm."""
         return DummyModule.bad_poly_func(
             data=data, x_data=self.x, return_coef=return_coef, **kwargs
         )
 
+    @dummy_wrapper
     def good_weights_func(self, data, weights=None, **kwargs):
         """A good algorithm that can take weights."""
         return DummyModule.good_weights_func(
             data=data, x_data=self.x, weights=weights, **kwargs
         )
 
+    @dummy_wrapper
     def good_mask_func(self, data, weights=None, **kwargs):
         """A good algorithm that can take weights and outputs them as the 'mask' key."""
         return DummyModule.good_mask_func(
             data=data, x_data=self.x, weights=weights, **kwargs
         )
 
+    @dummy_wrapper
     def bad_weights_func(self, data, weights=None, **kwargs):
         """An algorithm that incorrectly uses weights."""
         return DummyModule.bad_weights_func(
             data=data, x_data=self.x, weights=weights, **kwargs
         )
 
+    @dummy_wrapper
     def bad_weights_func_no_weights(self, data, weights=None, **kwargs):
         """An algorithm that does not include weights in the output parameters."""
         return DummyModule.bad_weights_func_no_weights(
             data=data, x_data=self.x, weights=weights, **kwargs
         )
 
+    @dummy_wrapper
     def change_y(self, data):
         """Changes the input data values, which is unwanted."""
         data[0] = 200000
         return data, {}
 
+    @dummy_wrapper
     def change_x(self, data):
         """Changes the input x-data values, which is unwanted."""
         self.x[0] = self.x[0] + 5
         return data, {}
 
+    @dummy_wrapper
     def change_z(self, data):
         """Changes the input x-data values, which is unwanted."""
         self.z[0] += 5
         return data, {}
 
+    @dummy_wrapper
     def different_output(self, data):
         """Has different behavior based on the input data type, which is unwanted."""
         if isinstance(data, np.ndarray):
@@ -264,56 +290,72 @@ class DummyAlgorithm:
         else:
             return np.asarray(data) * 20
 
+    @dummy_wrapper
     def single_output(self, data):
         """Does not include the parameter dictionary output, which is unwanted."""
         return data
 
+    @dummy_wrapper
     def output_list(self, data):
         """Returns a list rather than a numpy array, which is unwanted."""
         return [0, 1, 2, 3], {}
 
+    @dummy_wrapper
     def output_nondict(self, data):
         """The second output is not a dictionary, which is unwanted."""
         return data, []
 
+    @dummy_wrapper
     def output_wrong_shape(self, data):
         """The returned array has a different shape than the input data, which is unwanted."""
         return data[:-1], {}
 
+    def no_wrapper(self, data):
+        """A function without the correct wrapper."""
+        return data, {}
+
+    @dummy_wrapper
     def repetition_changes(self, data):
         """Changes the output with repeated calls."""
         output = (data * self.calls, {})
         self.calls += 1
         return output
 
+    @dummy_wrapper
     def no_func(self, data=None, *args, **kwargs):
         """Dummy function."""
         raise NotImplementedError('need to set func')
 
+    @dummy_wrapper
     def no_x(self, data=None, *args, **kwargs):
         """A module function without an x_data input."""
         return data, {}
 
+    @dummy_wrapper
     def different_kwargs(self, data=None, a=10, c=12):
         """A module function with different parameter names than the module function."""
         return data, {}
 
+    @dummy_wrapper
     def different_defaults(self, data=None, a=10, b=120):
         """A module function with different parameter defaults than the module function."""
         return data, {}
 
+    @dummy_wrapper
     def different_function_output(self, data=None, a=10, b=12):
         """A module function with different output than the class function."""
         output = data * self.calls
         self.calls += 1
         return output, {}
 
+    @dummy_wrapper
     def different_output_params(self, data=None, a=10, b=12):
         """A module function with different output params than the class function."""
         params = {f'{self.calls}': self.calls}
         self.calls += 1
         return data, params
 
+    @dummy_wrapper
     def different_x_output(self, data=None):
         """Gives different output depending on the x-values."""
         if self.x is None:
@@ -321,14 +363,17 @@ class DummyAlgorithm:
         else:
             return 10 * data, {}
 
+    @dummy_wrapper
     def different_x_ordering(self, data=None):
         """Gives different output depending on the x-value sorting."""
         return data[np.argsort(self.x)], {}
 
+    @dummy_wrapper
     def different_z_ordering(self, data=None):
         """Gives different output depending on the z-value sorting."""
         return data[(..., np.argsort(self.z))], {}
 
+    @dummy_wrapper
     def different_xz_output(self, data=None):
         """Gives different output depending on the x-values and z-values."""
         if self.x is None or self.z is None:
@@ -336,10 +381,12 @@ class DummyAlgorithm:
         else:
             return 10 * data, {}
 
+    @dummy_wrapper
     def different_xz_ordering(self, data=None):
         """Gives different output depending on the x-value and z-value sorting."""
         return data[np.argsort(self.x)[:, None], np.argsort(self.z)[None, :]], {}
 
+    @dummy_wrapper
     def interp_x(self, data=None):
         """Will divide by zero if x-values are not unique."""
         if hasattr(self, 'z'):
@@ -347,10 +394,12 @@ class DummyAlgorithm:
         else:
             return DummyModule.interp_x(data=data, x_data=self.x)
 
+    @dummy_wrapper
     def non_unique_x_raises(self, data=None):
         """Will raise an exception if x-values are not unique."""
         return DummyModule.non_unique_x_raises(data=data, x_data=self.x)
 
+    @dummy_wrapper
     def func(self, data=None, *args, **kwargs):
         """Dummy function."""
         raise NotImplementedError('need to set func')
@@ -499,6 +548,12 @@ class TestBaseTesterFailures(BaseTester, SetFuncMixin):
     algorithm_base = DummyAlgorithm
     func_name = 'no_func'
     lock = Lock()
+
+    def test_ensure_wrapped(self):
+        """Ensures no wrapper fails."""
+        with self.set_func('no_wrapper'):
+            with pytest.raises(AssertionError):
+                super().test_ensure_wrapped()
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('func', ('change_x', 'change_y'))
@@ -818,6 +873,12 @@ class TestBaseTester2DFailures(BaseTester2D, SetFuncMixin):
     algorithm_base = DummyAlgorithm
     func_name = 'no_func'
     lock = Lock()
+
+    def test_ensure_wrapped(self):
+        """Ensures no wrapper fails."""
+        with self.set_func('no_wrapper'):
+            with pytest.raises(AssertionError):
+                super().test_ensure_wrapped()
 
     @pytest.mark.parametrize('new_instance', (True, False))
     @pytest.mark.parametrize('func', ('change_x', 'change_y', 'change_z'))

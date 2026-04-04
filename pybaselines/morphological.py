@@ -189,7 +189,6 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         }
         return baseline, params
 
-    @_Algorithm._handle_io
     def mor(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         A Morphological based (Mor) baseline algorithm.
@@ -609,7 +608,6 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
 
         return baseline, {'half_window': half_wind}
 
-    @_Algorithm._handle_io
     def tophat(self, data, half_window=None, window_kwargs=None, **kwargs):
         """
         Estimates the baseline using a top-hat transformation (morphological opening).
