@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         # Choose the latest stable python version
-        python-version: ['3.13']
+        python-version: ['3.14']
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

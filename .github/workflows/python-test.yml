@@ -59,13 +59,11 @@ jobs:
       run: pytest .
 
     - name: Install optional dependencies
-      id: install-optional
       # uncomment the if statement below to allow skipping versions
-      if: matrix.python-version != '3.14t'
+      #if: matrix.python-version != '3.14t'
       run: python -m pip install .[full]
 
     - name: Test with optional dependencies
-      if: steps.install-optional.outcome == 'success'
       run: pytest .
 
 
