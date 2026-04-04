@@ -795,7 +795,7 @@ def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sor
             assert isinstance(self.z, np.ndarray)
             assert_allclose(self.z, expected_z, 1e-14, 1e-14)
 
-            return 1 * data.flatten(), {}
+            return 1 * data.ravel(), {}
 
         @_algorithm_setup._Algorithm2D._handle_io
         def func3(self, data, *args, **kwargs):
@@ -1021,13 +1021,30 @@ def test_algorithm_handle_io_1d_fails(data_fixture):
 
 @pytest.mark.parametrize('input_x', (True, False))
 @pytest.mark.parametrize('input_z', (True, False))
-def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z):
+@pytest.mark.parametrize('change_order', (True, False))
+def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z, change_order):
     """Ensures 3D data is allowed for 2D algorithms only when specified.
 
     Also checks _Algorithm2D setup when given 3D data as the first call.
 
     """
-    _, _, expected_y = get_data2d()
+    x_vals, z_vals, input_y_2d = get_data2d()
+    x_slice = slice(None)
+    z_slice = slice(None)
+    if input_x:
+        expected_x = x_vals
+    else:
+        expected_x = np.linspace(-1, 1, input_y_2d.shape[0])
+        if change_order:
+            x_slice = slice(None, None, -1)
+    if input_z:
+        expected_z = z_vals
+    else:
+        expected_z = np.linspace(-1, 1, input_y_2d.shape[1])
+        if change_order:
+            z_slice = slice(None, None, -1)
+    stacks = 2
+    expected_y = np.repeat(input_y_2d[None, :], stacks, axis=0)
 
     class SubClass(_algorithm_setup._Algorithm2D):
 
@@ -1042,18 +1059,47 @@ def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z):
         def func2(self, data, *args, **kwargs):
             """Allows 3D data."""
             assert data.ndim == 3
-            assert data.shape[1:] == expected_y.shape
-            return data, {}
+            assert data.shape == expected_y.shape
+
+            expected = expected_y.copy()
+            if change_order:
+                expected = expected[:, x_slice, z_slice]
+
+            assert_allclose(data, expected, 1e-14, 1e-14)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+            assert_allclose(self.z, expected_z, 1e-14, 1e-14)
+
+            return data * 1, {}
 
         @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=False)
         def func3(self, data, *args, **kwargs):
             """For checking reshaping output baseline for 3D input raveled on last axis."""
             assert data.ndim == 3
-            assert data.shape[1:] == expected_y.shape
+            assert data.shape == expected_y.shape
 
             return 1 * data.reshape(data.shape[0], -1), {}
 
+        @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=False, skip_sorting=True)
+        def func4(self, data, *args, **kwargs):
+            """Allows 3D data and skips sorting."""
+            assert data.ndim == 3
+            assert data.shape == expected_y.shape
+
+            expected = expected_y.copy()
+            if change_order:
+                expected = expected[:, ::-1, ::-1]
+
+            assert_allclose(data, expected, 1e-14, 1e-14)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+            assert_allclose(self.z, expected_z, 1e-14, 1e-14)
+
+            return data * 1, {}
+
     x_, z_, y_2d = data_fixture2d
+    if change_order:
+        x_ = x_[::-1]
+        z_ = z_[::-1]
+        y_2d = y_2d[::-1, ::-1]
     x = None
     z = None
     initial_shape = [None, None]
@@ -1066,8 +1112,8 @@ def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z):
     initial_shape = tuple(initial_shape)
     initial_size = None if None in initial_shape else y_2d.size
 
-    input_y = np.stack((y_2d, y_2d), axis=0)
-    assert input_y.shape == (2, *y_2d.shape)  # sanity check for correct setup
+    input_y = np.repeat(y_2d[None, :], stacks, axis=0)
+    assert input_y.shape == (stacks, *y_2d.shape)  # sanity check for correct setup
 
     algorithm = SubClass(x, z)
     assert algorithm._shape == initial_shape
@@ -1082,9 +1128,15 @@ def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z):
     assert algorithm._shape == y_2d.shape
     assert algorithm._size == y_2d.size
     assert output.shape == input_y.shape
+    assert_allclose(output, input_y, 1e-14, 1e-14)
 
     output2, _ = algorithm.func3(input_y)
     assert output2.shape == input_y.shape
+    assert_allclose(output2, input_y, 1e-14, 1e-14)
+
+    output3, _ = algorithm.func4(input_y)
+    assert output3.shape == input_y.shape
+    assert_allclose(output2, input_y, 1e-14, 1e-14)
 
 
 def test_override_x(algorithm):

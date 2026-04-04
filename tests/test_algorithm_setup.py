@@ -917,13 +917,21 @@ def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, list_inp
 
 
 @pytest.mark.parametrize('input_x', (True, False))
-def test_algorithm_handle_io_2d(data_fixture, input_x):
+@pytest.mark.parametrize('change_order', (True, False))
+def test_algorithm_handle_io_2d(data_fixture, input_x, change_order):
     """Ensures 2D data is allowed for 1D algorithms only when specified.
 
     Also checks _Algorithm setup when given 2D data as the first call.
 
     """
-    _, expected_y = get_data()
+    x_vals, input_y_1d = get_data()
+    if input_x:
+        expected_x = x_vals
+    else:
+        expected_x = np.linspace(-1, 1, input_y_1d.size)
+    stacks = 2
+    expected_y = np.repeat(input_y_1d[None, :], stacks, axis=0)
+    sort_indices = slice(0, 10)
 
     class SubClass(_algorithm_setup._Algorithm):
 
@@ -932,16 +940,43 @@ def test_algorithm_handle_io_2d(data_fixture, input_x):
             """Errors if input is not 1D."""
             assert data.ndim == 1
             assert data.shape == expected_y.shape
-            return data, {}
+            return data * 1, {}
 
         @_algorithm_setup._Algorithm._handle_io(ensure_dims=False)
         def func2(self, data, *args, **kwargs):
             """Allows 2D data."""
             assert data.ndim == 2
-            assert data.shape[1:] == expected_y.shape
-            return data, {}
+            assert data.shape == expected_y.shape
+
+            expected = expected_y.copy()
+            if change_order and not input_x:
+                expected[:, sort_indices] = expected[:, sort_indices][:, ::-1]
+
+            assert_allclose(data, expected, 1e-14, 1e-14)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+
+            return data * 1, {}
+
+        @_algorithm_setup._Algorithm._handle_io(ensure_dims=False, skip_sorting=True)
+        def func3(self, data, *args, **kwargs):
+            """Allows 2D data and skips sorting."""
+            assert data.ndim == 2
+            assert data.shape == expected_y.shape
+
+            expected = expected_y.copy()
+            if change_order:
+                expected[:, sort_indices] = expected[:, sort_indices][:, ::-1]
+
+            assert_allclose(data, expected, 1e-14, 1e-14)
+            assert_allclose(self.x, expected_x, 1e-14, 1e-14)
+
+            return data * 1, {}
 
     x_, y_1d = data_fixture
+    if change_order:
+        x_[sort_indices] = x_[sort_indices][::-1]
+        y_1d[sort_indices] = y_1d[sort_indices][::-1]
+
     x = None
     if input_x:
         x = x_
@@ -951,8 +986,8 @@ def test_algorithm_handle_io_2d(data_fixture, input_x):
         initial_size = None
         initial_shape = (None,)
 
-    input_y = np.stack((y_1d, y_1d), axis=0)
-    assert input_y.shape == (2, *y_1d.shape)  # sanity check for correct setup
+    input_y = np.repeat(y_1d[None, :], stacks, axis=0)
+    assert input_y.shape == (stacks, *y_1d.shape)  # sanity check for correct setup
 
     algorithm = SubClass(x)
     assert algorithm._shape == initial_shape
@@ -967,6 +1002,11 @@ def test_algorithm_handle_io_2d(data_fixture, input_x):
     assert algorithm._shape == y_1d.shape
     assert algorithm._size == y_1d.size
     assert output.shape == input_y.shape
+    assert_allclose(output, input_y, 1e-14, 1e-14)
+
+    output2, _ = algorithm.func3(input_y)
+    assert output2.shape == input_y.shape
+    assert_allclose(output2, input_y, 1e-14, 1e-14)
 
 
 def test_class_wrapper():
