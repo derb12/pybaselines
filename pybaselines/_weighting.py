@@ -10,6 +10,53 @@ from .utils import _MIN_FLOAT, ParameterWarning
 from ._compat import _np_ge_2
 
 
+def masked_weighting(weighting_func):
+    """
+    A decorator that adds mask support for weighting functions.
+
+    Parameters
+    ----------
+    weighting_func : Callable
+        The weighting function to wrap. The function must not use a `mask`
+        keyword argument since that is internally hooked into within this decorator.
+
+    Returns
+    -------
+    Callable
+        The wrapped function, now with masking support. Note that this wrapper makes
+        the wrapped function keyword only after for the first argument.
+
+    """
+    @wraps(weighting_func)
+    def inner(residual, *, mask=None, **kwargs):
+        no_mask = mask is None
+        if no_mask:
+            input_residual = residual
+        else:
+            fit_mask = np.logical_not(mask)
+            input_residual = residual[fit_mask]
+
+        output = weighting_func(input_residual, **kwargs)
+        if no_mask:
+            full_output = output
+        else:
+            if isinstance(output, tuple):
+                output_weights, *other = output
+            else:
+                output_weights = output
+                other = ()
+            full_weights = np.zeros(residual.shape)
+            full_weights[fit_mask] = output_weights
+            if other:
+                full_output = (full_weights, *other)
+            else:
+                full_output = full_weights
+
+        return full_output
+
+    return inner
+
+
 def _asls(y, baseline, p):
     """
     The weighting for the asymmetric least squares algorithm (asls).

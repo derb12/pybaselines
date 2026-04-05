@@ -1585,3 +1585,56 @@ def test_lsrpls_overflow(one_d, alternate_weighting):
 
     assert np.isfinite(weights).all()
     assert not exit_early
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_masked_weighting(one_d):
+    """Tests basic functionality of `masked_weighting`."""
+
+    def func(residual, a, b=3):
+        weights = np.where(residual > 0, 1., 0.)
+        return weights, a, np.full_like(residual, b)
+
+    wrapped_func = _weighting.masked_weighting(func)
+    residual = np.linspace(-1, 1, 100)
+    if not one_d:
+        residual = residual.reshape(5, -1)
+    a = 5.
+    b = 10.
+    expected_weights = np.where(residual > 0, 1., 0.)
+
+    # sanity check for non wrapped func output
+    normal_output = func(residual, a, b)
+    assert len(normal_output) == 3
+    assert_allclose(normal_output[0], expected_weights, rtol=1e-14, atol=1e-14)
+    assert_allclose(normal_output[1], a, rtol=1e-14, atol=1e-14)
+    assert_allclose(normal_output[2], b, rtol=1e-14, atol=1e-14)
+    assert normal_output[2].shape == residual.shape
+
+    # ensure keyword only after wrapping
+    with pytest.raises(TypeError):
+        wrapped_func(residual, a, b)
+    with pytest.raises(TypeError):
+        wrapped_func(residual, a, b=b)
+
+    # call without a mask, should be same as non-wrapped
+    wrapped_output = wrapped_func(residual, a=a, b=b)
+    assert len(wrapped_output) == 3
+    assert_allclose(wrapped_output[0], expected_weights, rtol=1e-14, atol=1e-14)
+    assert_allclose(wrapped_output[1], a, rtol=1e-14, atol=1e-14)
+    assert_allclose(wrapped_output[2], b, rtol=1e-14, atol=1e-14)
+    assert wrapped_output[2].shape == residual.shape
+
+    # masked call
+    mask = np.zeros(residual.shape, dtype=bool)
+    mask[..., 3:6] = True
+    mask_inverse = np.logical_not(mask)
+    masked_output = wrapped_func(residual, a=a, b=b, mask=mask)
+    assert len(masked_output) == 3
+    assert_allclose(
+        masked_output[0], np.where(mask_inverse, expected_weights, 0),
+        rtol=1e-14, atol=1e-14
+    )
+    assert_allclose(masked_output[1], a, rtol=1e-14, atol=1e-14)
+    assert_allclose(masked_output[2], b, rtol=1e-14, atol=1e-14)
+    assert masked_output[2].shape == residual[mask_inverse].shape
