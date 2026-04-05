@@ -309,7 +309,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data)
-            weights = _weighting._iasls(data - baseline, p)
+            weights = _weighting._iasls(data - baseline, p=p)
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
@@ -327,7 +327,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = whittaker_system.solve(y, weight_array, rhs_extra=d1_y)
-            new_weights = _weighting._iasls(y - baseline, p)
+            new_weights = _weighting._iasls(y - baseline, p=p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -624,7 +624,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             baseline = whittaker_system.direct_solve(
                 lhs, weight_array * y, overwrite_b=True, l_and_u=lower_upper_bands
             )
-            new_weights, exit_early = _weighting._drpls(y - baseline, i)
+            new_weights, exit_early = _weighting._drpls(y - baseline, iteration=i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -800,7 +800,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             )
             residual = y - baseline
             new_weights, exit_early = _weighting._aspls(
-                residual, asymmetric_coef, alternate_weighting
+                residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct

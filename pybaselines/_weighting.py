@@ -58,6 +58,7 @@ def masked_weighting(weighting_func):
     return inner
 
 
+@masked_weighting
 def _asls(residual, p):
     """
     The weighting for the asymmetric least squares algorithm (asls).
@@ -90,6 +91,7 @@ def _asls(residual, p):
     return weights
 
 
+@masked_weighting
 def _iasls(residual, p):
     """
     The weighting for the improved asymmetric least squares algorithm (iasls).
@@ -123,6 +125,7 @@ def _iasls(residual, p):
     return weights
 
 
+@masked_weighting
 def _airpls(residual, iteration, normalize_weights=False):
     """
     The weighting for adaptive iteratively reweighted penalized least squares (airPLS).
@@ -250,6 +253,7 @@ def _safe_std_mean(array, **kwargs):
     return std, mean.ravel()[0]
 
 
+@masked_weighting
 def _arpls(residual):
     """
     The weighting for asymmetrically reweighted penalized least squares smoothing (arpls).
@@ -290,6 +294,7 @@ def _arpls(residual):
     return weights, exit_early
 
 
+@masked_weighting
 def _drpls(residual, iteration):
     """
     The weighting for the doubly reweighted penalized least squares algorithm (drpls).
@@ -338,6 +343,7 @@ def _drpls(residual, iteration):
     return weights, exit_early
 
 
+@masked_weighting
 def _iarpls(residual, iteration):
     """
     Weighting for improved asymmetrically reweighted penalized least squares smoothing (iarpls).
@@ -387,6 +393,7 @@ def _iarpls(residual, iteration):
     return weights, exit_early
 
 
+@masked_weighting
 def _aspls(residual, asymmetric_coef=2., alternate_weighting=True):
     """
     Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
@@ -434,6 +441,7 @@ def _aspls(residual, asymmetric_coef=2., alternate_weighting=True):
     return weights, exit_early
 
 
+@masked_weighting
 def _psalsa(residual, p, k):
     """
     Weighting for the peaked signal's asymmetric least squares algorithm (psalsa).
@@ -471,6 +479,7 @@ def _psalsa(residual, p, k):
     return weights
 
 
+@masked_weighting
 def _derpsalsa(residual, p, k, partial_weights):
     """
     Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
@@ -520,6 +529,7 @@ def _derpsalsa(residual, p, k, partial_weights):
     return weights
 
 
+@masked_weighting
 def _quantile(residual, quantile, eps=None):
     r"""
     An approximation of quantile loss.
@@ -574,6 +584,7 @@ def _quantile(residual, quantile, eps=None):
     return numerator / denominator
 
 
+@masked_weighting
 def _brpls(residual, beta):
     """
     The weighting for Bayesian Reweighted Penalized Least Squares (BrPLS).
@@ -644,6 +655,7 @@ def _brpls(residual, beta):
     return weights, exit_early
 
 
+@masked_weighting
 def _lsrpls(residual, iteration, alternate_weighting=False):
     """
     The weighting for the locally symmetric reweighted penalized least squares (lsrpls).

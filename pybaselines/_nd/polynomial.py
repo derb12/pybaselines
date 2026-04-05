@@ -526,7 +526,7 @@ class _PolynomialNDMixin:
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
-            sqrt_w = np.sqrt(_weighting._quantile(y - baseline, quantile, eps))
+            sqrt_w = np.sqrt(_weighting._quantile(y - baseline, quantile=quantile, eps=eps))
             baseline_old = baseline
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}

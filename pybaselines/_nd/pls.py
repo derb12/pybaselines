@@ -119,7 +119,7 @@ class _PLSNDMixin:
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights = _weighting._asls(y - baseline, p)
+            new_weights = _weighting._asls(y - baseline, p=p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -225,7 +225,7 @@ class _PLSNDMixin:
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
-                y - baseline, i, normalize_weights
+                y - baseline, iteration=i, normalize_weights=normalize_weights
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -431,7 +431,7 @@ class _PLSNDMixin:
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights, exit_early = _weighting._iarpls(y - baseline, i)
+            new_weights, exit_early = _weighting._iarpls(y - baseline, iteration=i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -569,7 +569,7 @@ class _PLSNDMixin:
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights = _weighting._psalsa(y - baseline, p, k)
+            new_weights = _weighting._psalsa(y - baseline, p=p, k=k)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -721,7 +721,9 @@ class _PLSNDMixin:
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights = _weighting._derpsalsa(y - baseline, p, k, partial_weights)
+            new_weights = _weighting._derpsalsa(
+                y - baseline, p=p, k=k, partial_weights=partial_weights
+            )
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -834,7 +836,7 @@ class _PLSNDMixin:
         for i in range(max_iter_2 + 1):
             for j in range(max_iter + 1):
                 new_baseline = penalized_system.solve(y, weight_array)
-                new_weights, exit_early = _weighting._brpls(y - new_baseline, beta)
+                new_weights, exit_early = _weighting._brpls(y - new_baseline, beta=beta)
                 if exit_early:
                     j -= 1  # reduce j so that output tol_history indexing is correct
                     tol_2 = np.inf  # ensure it exits outer loop
@@ -974,7 +976,9 @@ class _PLSNDMixin:
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights, exit_early = _weighting._lsrpls(y - baseline, i, alternate_weighting)
+            new_weights, exit_early = _weighting._lsrpls(
+                y - baseline, iteration=i, alternate_weighting=alternate_weighting
+            )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -1108,7 +1112,7 @@ class _PLSNDMixin:
                 )
             for _ in range(2):
                 baseline = penalized_system.solve(y, weight_array)
-                weight_array = _weighting._asls(y - baseline, p)
+                weight_array = _weighting._asls(y - baseline, p=p)
 
         residual = y - baseline
         # the 0.2 * std(residual) is an "okay" starting sigma estimate
@@ -1269,7 +1273,7 @@ class _PLSNDMixin:
             if calc_difference < tol:
                 break
             old_coef = penalized_system.coef
-            weight_array = _weighting._quantile(y - baseline, quantile, eps)
+            weight_array = _weighting._quantile(y - baseline, quantile=quantile, eps=eps)
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
