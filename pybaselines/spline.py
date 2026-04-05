@@ -153,7 +153,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
         eps : float, optional
             A small value added to the square of the residual to prevent dividing by 0.
             Default is None, which uses the square of the maximum-absolute-value of the
-            fit each iteration multiplied by 1e-6.
+            residual each iteration multiplied by 1e-4.
 
         Returns
         -------
@@ -362,7 +362,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data)
-            weights = _weighting._iasls(data, baseline, p)
+            weights = _weighting._iasls(data - baseline, p)
 
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
@@ -383,7 +383,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
-            new_weights = _weighting._iasls(y, baseline, p)
+            new_weights = _weighting._iasls(y - baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -633,7 +633,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             )
             penalty = _add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
             baseline = pspline.solve(y, weight_array, penalty=penalty)
-            new_weights, exit_early = _weighting._drpls(y, baseline, i)
+            new_weights, exit_early = _weighting._drpls(y - baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -838,8 +838,9 @@ class _Spline(_Algorithm, _PLSNDMixin):
                 pspline.num_bands, pspline.num_bands
             )
             baseline = pspline.solve(y, weight_array, penalty=alpha_penalty)
-            new_weights, residual, exit_early = _weighting._aspls(
-                y, baseline, asymmetric_coef, alternate_weighting
+            residual = y - baseline
+            new_weights, exit_early = _weighting._aspls(
+                residual, asymmetric_coef, alternate_weighting
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct

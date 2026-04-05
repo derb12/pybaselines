@@ -33,7 +33,7 @@ def sparse_iasls(data, lam, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, diff_orde
         # note: intentionally using asls weighting here to follow the W.T @ W used in literature
         lhs = weight_matrix.T @ weight_matrix + penalty_matrix
         baseline = spsolve(lhs, (weight_matrix.T @ weight_matrix + d1_penalty) @ y)
-        new_weights = _weighting._asls(y, baseline, p)
+        new_weights = _weighting._asls(y - baseline, p=p)
         calc_difference = relative_difference(weight_array, new_weights)
         if calc_difference < tol:
             break
@@ -55,7 +55,7 @@ def sparse_drpls(data, lam, eta=0.5, diff_order=2, tol=1e-3, max_iter=50):
     for i in range(max_iter + 1):
         lhs = weight_matrix + d1_penalty + (identity_matrix - eta * weight_matrix) @ penalty_matrix
         baseline = spsolve(lhs, weight_array * y)
-        new_weights, _ = _weighting._drpls(y, baseline, i + 1)
+        new_weights, _ = _weighting._drpls(y - baseline, iteration=i + 1)
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
@@ -77,8 +77,9 @@ def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coe
     for _ in range(max_iter + 1):
         lhs = weight_matrix + alpha_matrix @ penalty_matrix
         baseline = spsolve(lhs, weight_array * y)
-        new_weights, residual, _ = _weighting._aspls(
-            y, baseline, asymmetric_coef, alternate_weighting
+        residual = y - baseline
+        new_weights, _ = _weighting._aspls(
+            residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )
         if relative_difference(weight_array, new_weights) < tol:
             break

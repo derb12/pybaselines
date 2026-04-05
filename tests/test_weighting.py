@@ -167,7 +167,7 @@ def test_quantile_weighting(quantile, one_d):
 
     residual = y - fit
     eps = 1e-10
-    calc_loss = _weighting._quantile(y, fit, quantile, eps)
+    calc_loss = _weighting._quantile(y - fit, quantile=quantile, eps=eps)
 
     numerator = np.where(residual > 0, quantile, 1 - quantile)
     denominator = np.sqrt(residual**2 + eps)
@@ -186,7 +186,7 @@ def test_asls_normal(p, one_d):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights = _weighting._asls(y_data, baseline, p)
+    weights = _weighting._asls(y_data - baseline, p=p)
     expected_weights = np.where(y_data > baseline, p, 1 - p)
 
     assert isinstance(weights, np.ndarray)
@@ -204,7 +204,7 @@ def test_asls_all_above(p, one_d):
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
-    weights = _weighting._asls(y_data, baseline, p)
+    weights = _weighting._asls(y_data - baseline, p=p)
     expected_weights = np.full_like(y_data, 1 - p)
 
     assert isinstance(weights, np.ndarray)
@@ -220,7 +220,7 @@ def test_asls_all_below(p, one_d):
         y_data, baseline = baseline_1d_all_below()
     else:
         y_data, baseline = baseline_2d_all_below()
-    weights = _weighting._asls(y_data, baseline, p)
+    weights = _weighting._asls(y_data - baseline, p=p)
     expected_weights = np.full_like(y_data, p)
 
     assert isinstance(weights, np.ndarray)
@@ -237,7 +237,7 @@ def test_iasls_normal(p, one_d):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights = _weighting._iasls(y_data, baseline, p)
+    weights = _weighting._iasls(y_data - baseline, p=p)
     expected_weights = np.where(y_data > baseline, p**2, (1 - p)**2)
 
     assert isinstance(weights, np.ndarray)
@@ -247,7 +247,7 @@ def test_iasls_normal(p, one_d):
     assert ((weights >= 0) & (weights <= 1)).all()
 
     # also test against _asls, which should just be the sqrt of _iasls
-    expected_weights_2 = _weighting._asls(y_data, baseline, p)**2
+    expected_weights_2 = _weighting._asls(y_data - baseline, p=p)**2
     assert_allclose(weights, expected_weights_2, rtol=1e-12, atol=1e-12)
 
 
@@ -259,7 +259,7 @@ def test_iasls_all_above(p, one_d):
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
-    weights = _weighting._iasls(y_data, baseline, p)
+    weights = _weighting._iasls(y_data - baseline, p=p)
     expected_weights = np.full_like(y_data, (1 - p)**2)
 
     assert isinstance(weights, np.ndarray)
@@ -275,7 +275,7 @@ def test_iasls_all_below(p, one_d):
         y_data, baseline = baseline_1d_all_below()
     else:
         y_data, baseline = baseline_2d_all_below()
-    weights = _weighting._iasls(y_data, baseline, p)
+    weights = _weighting._iasls(y_data - baseline, p=p)
     expected_weights = np.full_like(y_data, p**2)
 
     assert isinstance(weights, np.ndarray)
@@ -343,7 +343,7 @@ def test_airpls_normal(iteration, one_d, normalize):
         y_data, baseline = baseline_2d_normal()
 
     weights, residual_l1_norm, exit_early = _weighting._airpls(
-        y_data, baseline, iteration, normalize
+        y_data - baseline, iteration=iteration, normalize_weights=normalize
     )
     expected_weights = expected_airpls(y_data, baseline, iteration, normalize)
 
@@ -375,7 +375,7 @@ def test_airpls_all_above(iteration, one_d, normalize):
     else:
         y_data, baseline = baseline_2d_all_above()
     weights, residual_l1_norm, exit_early = _weighting._airpls(
-        y_data, baseline, iteration, normalize
+        y_data - baseline, iteration=iteration, normalize_weights=normalize
     )
     expected_weights = expected_airpls(y_data, baseline, iteration, normalize)
     expected_residual_l1_norm = abs(y_data - baseline).sum()  # all residuals should be negative
@@ -399,7 +399,7 @@ def test_airpls_all_below(iteration, one_d, normalize):
 
     with pytest.warns(utils.ParameterWarning):
         weights, residual_l1_norm, exit_early = _weighting._airpls(
-            y_data, baseline, iteration, normalize
+            y_data - baseline, iteration=iteration, normalize_weights=normalize
         )
     expected_weights = np.zeros_like(y_data)
 
@@ -441,7 +441,7 @@ def test_airpls_overflow(one_d, dtype, normalize):
 
     with np.errstate(over='raise'):
         weights, residual_l1_norm, exit_early = _weighting._airpls(
-            y_data, baseline, iteration, normalize
+            y_data - baseline, iteration=iteration, normalize_weights=normalize
         )
 
     assert np.isfinite(weights).all()
@@ -488,7 +488,7 @@ def test_arpls_normal(one_d):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, exit_early = _weighting._arpls(y_data, baseline)
+    weights, exit_early = _weighting._arpls(y_data - baseline)
     expected_weights = expected_arpls(y_data, baseline)
 
     assert isinstance(weights, np.ndarray)
@@ -506,7 +506,7 @@ def test_arpls_all_above(one_d):
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
-    weights, exit_early = _weighting._arpls(y_data, baseline)
+    weights, exit_early = _weighting._arpls(y_data - baseline)
     expected_weights = expected_arpls(y_data, baseline)
 
     assert isinstance(weights, np.ndarray)
@@ -524,7 +524,7 @@ def test_arpls_all_below(one_d):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._arpls(y_data, baseline)
+        weights, exit_early = _weighting._arpls(y_data - baseline)
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -565,7 +565,7 @@ def test_arpls_overflow(one_d):
     assert np.isfinite(expected_weights).all()
 
     with np.errstate(over='raise'):
-        weights, exit_early = _weighting._arpls(y_data, baseline)
+        weights, exit_early = _weighting._arpls(y_data - baseline)
 
     assert np.isfinite(weights).all()
     assert not exit_early
@@ -624,7 +624,7 @@ def test_drpls_normal(iteration, one_d):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, exit_early = _weighting._drpls(y_data, baseline, iteration)
+    weights, exit_early = _weighting._drpls(y_data - baseline, iteration=iteration)
     expected_weights = expected_drpls(y_data, baseline, iteration)
 
     assert isinstance(weights, np.ndarray)
@@ -643,7 +643,7 @@ def test_drpls_all_above(iteration, one_d):
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
-    weights, exit_early = _weighting._drpls(y_data, baseline, iteration)
+    weights, exit_early = _weighting._drpls(y_data - baseline, iteration=iteration)
     expected_weights = expected_drpls(y_data, baseline, iteration)
 
     assert isinstance(weights, np.ndarray)
@@ -662,7 +662,7 @@ def test_drpls_all_below(iteration, one_d):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._drpls(y_data, baseline, iteration)
+        weights, exit_early = _weighting._drpls(y_data - baseline, iteration=iteration)
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -686,7 +686,7 @@ def test_drpls_overflow(one_d):
     assert (~np.isfinite(expected_weights)).any()
 
     with np.errstate(over='raise'):
-        weights, exit_early = _weighting._drpls(y_data, baseline, iteration)
+        weights, exit_early = _weighting._drpls(y_data - baseline, iteration=iteration)
 
     assert np.isfinite(weights).all()
     assert not exit_early
@@ -742,7 +742,7 @@ def test_iarpls_normal(iteration, one_d):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, exit_early = _weighting._iarpls(y_data, baseline, iteration)
+    weights, exit_early = _weighting._iarpls(y_data - baseline, iteration=iteration)
     expected_weights = expected_iarpls(y_data, baseline, iteration)
 
     assert isinstance(weights, np.ndarray)
@@ -761,7 +761,7 @@ def test_iarpls_all_above(iteration, one_d):
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
-    weights, exit_early = _weighting._iarpls(y_data, baseline, iteration)
+    weights, exit_early = _weighting._iarpls(y_data - baseline, iteration=iteration)
     expected_weights = expected_iarpls(y_data, baseline, iteration)
 
     assert isinstance(weights, np.ndarray)
@@ -780,7 +780,7 @@ def test_iarpls_all_below(iteration, one_d):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._iarpls(y_data, baseline, iteration)
+        weights, exit_early = _weighting._iarpls(y_data - baseline, iteration=iteration)
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -804,7 +804,7 @@ def test_iarpls_overflow(one_d):
     assert (~np.isfinite(expected_weights)).any()
 
     with np.errstate(over='raise'):
-        weights, exit_early = _weighting._iarpls(y_data, baseline, iteration)
+        weights, exit_early = _weighting._iarpls(y_data - baseline, iteration=iteration)
 
     assert np.isfinite(weights).all()
     assert not exit_early
@@ -850,7 +850,7 @@ def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
         shifted_residual = residual
     weights = 1 / (1 + np.exp(asymmetric_coef * (shifted_residual - std) / std))
 
-    return weights, residual
+    return weights
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -863,17 +863,16 @@ def test_aspls_normal(one_d, asymmetric_coef, alternate_weighting):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, residual, exit_early = _weighting._aspls(
-        y_data, baseline, asymmetric_coef, alternate_weighting
+    weights, exit_early = _weighting._aspls(
+        y_data - baseline, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
     )
-    expected_weights, expected_residual = expected_aspls(
+    expected_weights = expected_aspls(
         y_data, baseline, asymmetric_coef, alternate_weighting
     )
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
-    assert_allclose(residual, expected_residual, rtol=1e-12, atol=1e-12)
     assert not exit_early
     # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
@@ -889,17 +888,16 @@ def test_aspls_all_above(one_d, asymmetric_coef, alternate_weighting):
     else:
         y_data, baseline = baseline_2d_all_above()
 
-    weights, residual, exit_early = _weighting._aspls(
-        y_data, baseline, asymmetric_coef, alternate_weighting
+    weights, exit_early = _weighting._aspls(
+        y_data - baseline, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
     )
-    expected_weights, expected_residual = expected_aspls(
+    expected_weights = expected_aspls(
         y_data, baseline, asymmetric_coef, alternate_weighting
     )
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
-    assert_allclose(residual, expected_residual, rtol=1e-12, atol=1e-12)
     assert not exit_early
 
 
@@ -914,15 +912,15 @@ def test_aspls_all_below(one_d, asymmetric_coef, alternate_weighting):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, residual, exit_early = _weighting._aspls(
-            y_data, baseline, asymmetric_coef, alternate_weighting
+        weights, exit_early = _weighting._aspls(
+            y_data - baseline, asymmetric_coef=asymmetric_coef,
+            alternate_weighting=alternate_weighting
         )
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
-    assert_allclose(residual, y_data - baseline, rtol=1e-12, atol=1e-12)
     assert exit_early
 
 
@@ -953,15 +951,16 @@ def test_aspls_overflow(one_d, asymmetric_coef, alternate_weighting):
 
     # sanity check to ensure overflow actually should occur
     with pytest.warns(RuntimeWarning):
-        expected_weights, expected_residual = expected_aspls(
+        expected_weights = expected_aspls(
             y_data, baseline, asymmetric_coef, alternate_weighting
         )
     # the resulting weights should still be finite since 1 / (1 + inf) == 0
     assert np.isfinite(expected_weights).all()
 
     with np.errstate(over='raise'):
-        weights, residual, exit_early = _weighting._aspls(
-            y_data, baseline, asymmetric_coef, alternate_weighting
+        weights, exit_early = _weighting._aspls(
+            y_data - baseline, asymmetric_coef=asymmetric_coef,
+            alternate_weighting=alternate_weighting
         )
 
     assert np.isfinite(weights).all()
@@ -975,7 +974,6 @@ def test_aspls_overflow(one_d, asymmetric_coef, alternate_weighting):
 
     # weights should still be the same as the naive calculation regardless of exponential overflow
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
-    assert_allclose(residual, expected_residual, rtol=1e-12, atol=1e-12)
 
 
 def expected_psalsa(y, baseline, p, k):
@@ -1026,7 +1024,7 @@ def test_psalsa_normal(one_d, k, p):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights = _weighting._psalsa(y_data, baseline, p, k)
+    weights = _weighting._psalsa(y_data - baseline, p=p, k=k)
     expected_weights = expected_psalsa(y_data, baseline, p, k)
 
     assert isinstance(weights, np.ndarray)
@@ -1046,7 +1044,7 @@ def test_psalsa_all_above(one_d, k, p):
     else:
         y_data, baseline = baseline_2d_all_above()
 
-    weights = _weighting._psalsa(y_data, baseline, p, k)
+    weights = _weighting._psalsa(y_data - baseline, p=p, k=k)
     expected_weights = np.full_like(y_data, 1 - p)
 
     assert isinstance(weights, np.ndarray)
@@ -1064,7 +1062,7 @@ def test_psalsa_all_below(one_d, k, p):
     else:
         y_data, baseline = baseline_2d_all_below()
 
-    weights = _weighting._psalsa(y_data, baseline, p, k)
+    weights = _weighting._psalsa(y_data - baseline, p=p, k=k)
     expected_weights = p * np.exp(-(y_data - baseline) / k)
 
     assert isinstance(weights, np.ndarray)
@@ -1101,7 +1099,7 @@ def test_psalsa_overflow(one_d, k, p):
     assert np.isfinite(expected_weights).all()
 
     with np.errstate(over='raise'):
-        weights = _weighting._psalsa(y_data, baseline, p, k)
+        weights = _weighting._psalsa(y_data - baseline, p=p, k=k)
 
     assert np.isfinite(weights).all()
 
@@ -1176,7 +1174,7 @@ def test_derpsalsa_normal(k, p):
     diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
     partial_weights = diff_1_weights * diff_2_weights
 
-    weights = _weighting._derpsalsa(y_data, baseline, p, k, partial_weights)
+    weights = _weighting._derpsalsa(y_data - baseline, p=p, k=k, partial_weights=partial_weights)
     expected_weights = expected_derpsalsa(y_data, baseline, p, k, partial_weights)
 
     assert isinstance(weights, np.ndarray)
@@ -1201,7 +1199,7 @@ def test_derpsalsa_all_above(k, p):
     diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
     partial_weights = diff_1_weights * diff_2_weights
 
-    weights = _weighting._derpsalsa(y_data, baseline, p, k, partial_weights)
+    weights = _weighting._derpsalsa(y_data - baseline, p=p, k=k, partial_weights=partial_weights)
     expected_weights = np.full_like(y_data, partial_weights * (1 - p))
 
     assert isinstance(weights, np.ndarray)
@@ -1224,7 +1222,7 @@ def test_derpsalsa_all_below(k, p):
     diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
     partial_weights = diff_1_weights * diff_2_weights
 
-    weights = _weighting._derpsalsa(y_data, baseline, p, k, partial_weights)
+    weights = _weighting._derpsalsa(y_data - baseline, p=p, k=k, partial_weights=partial_weights)
     expected_weights = partial_weights * p * np.exp(-0.5 * ((y_data - baseline) / k)**2)
 
     assert isinstance(weights, np.ndarray)
@@ -1289,7 +1287,7 @@ def test_brpls_normal(one_d, beta):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+    weights, exit_early = _weighting._brpls(y_data - baseline, beta=beta)
     expected_weights = expected_brpls(y_data, baseline, beta)
 
     assert isinstance(weights, np.ndarray)
@@ -1310,7 +1308,7 @@ def test_brpls_all_above(one_d):
         y_data, baseline = baseline_2d_all_above()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+        weights, exit_early = _weighting._brpls(y_data - baseline, beta=beta)
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -1329,7 +1327,7 @@ def test_brpls_all_below(one_d):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+        weights, exit_early = _weighting._brpls(y_data - baseline, beta=beta)
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -1388,7 +1386,7 @@ def test_brpls_overflow(one_d, beta, positive, dtype):
     assert np.isfinite(expected_weights).all()
 
     with np.errstate(over='raise'):
-        weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+        weights, exit_early = _weighting._brpls(y_data - baseline, beta=beta)
 
     assert np.isfinite(weights).all()
     assert not exit_early
@@ -1429,7 +1427,7 @@ def test_brpls_beta_extremes(one_d, beta):
     assert_allclose(np.full(y_data.shape, fill_value), expected_weights, rtol=1e-10, atol=1e-10)
 
     with np.errstate(divide='raise'):
-        weights, exit_early = _weighting._brpls(y_data, baseline, beta)
+        weights, exit_early = _weighting._brpls(y_data - baseline, beta=beta)
 
     assert np.isfinite(weights).all()
     assert not exit_early
@@ -1508,7 +1506,7 @@ def test_lsrpls_normal(iteration, one_d, alternate_weighting):
         y_data, baseline = baseline_2d_normal()
 
     weights, exit_early = _weighting._lsrpls(
-        y_data, baseline, iteration, alternate_weighting
+        y_data - baseline, iteration=iteration, alternate_weighting=alternate_weighting
     )
     expected_weights = expected_lsrpls(
         y_data, baseline, iteration, alternate_weighting
@@ -1531,7 +1529,9 @@ def test_lsrpls_all_above(iteration, one_d, alternate_weighting):
         y_data, baseline = baseline_1d_all_above()
     else:
         y_data, baseline = baseline_2d_all_above()
-    weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration, alternate_weighting)
+    weights, exit_early = _weighting._lsrpls(
+        y_data - baseline, iteration=iteration, alternate_weighting=alternate_weighting
+    )
     expected_weights = expected_lsrpls(y_data, baseline, iteration, alternate_weighting)
 
     assert isinstance(weights, np.ndarray)
@@ -1551,7 +1551,9 @@ def test_lsrpls_all_below(iteration, one_d, alternate_weighting):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration, alternate_weighting)
+        weights, exit_early = _weighting._lsrpls(
+            y_data - baseline, iteration=iteration, alternate_weighting=alternate_weighting
+        )
     expected_weights = np.zeros_like(y_data)
 
     assert isinstance(weights, np.ndarray)
@@ -1581,7 +1583,9 @@ def test_lsrpls_overflow(one_d, alternate_weighting):
             expected_lsrpls(y_data, baseline, iteration, alternate_weighting)
 
     with np.errstate(over='raise'):
-        weights, exit_early = _weighting._lsrpls(y_data, baseline, iteration, alternate_weighting)
+        weights, exit_early = _weighting._lsrpls(
+            y_data - baseline, iteration=iteration, alternate_weighting=alternate_weighting
+        )
 
     assert np.isfinite(weights).all()
     assert not exit_early

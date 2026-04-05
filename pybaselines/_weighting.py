@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Contains various weighting schemes used in pybaselines."""
 
+from functools import wraps
 import warnings
 
 import numpy as np
@@ -57,7 +58,7 @@ def masked_weighting(weighting_func):
     return inner
 
 
-def _asls(y, baseline, p):
+def _asls(residual, p):
     """
     The weighting for the asymmetric least squares algorithm (asls).
 
@@ -65,10 +66,8 @@ def _asls(y, baseline, p):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     p : float
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
@@ -76,7 +75,7 @@ def _asls(y, baseline, p):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     References
@@ -87,20 +86,18 @@ def _asls(y, baseline, p):
     Eilers, P. Parametric Time Warping. Analytical Chemistry, 2004, 76(2), 404-411.
 
     """
-    weights = np.where(y > baseline, p, 1 - p)
+    weights = np.where(residual > 0, p, 1 - p)
     return weights
 
 
-def _iasls(y, baseline, p):
+def _iasls(residual, p):
     """
     The weighting for the improved asymmetric least squares algorithm (iasls).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     p : float
         The penalizing weighting factor. Must be between 0 and 1. Values greater
         than the baseline will be given `p` weight, and values less than the baseline
@@ -108,7 +105,7 @@ def _iasls(y, baseline, p):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     Notes
@@ -122,20 +119,18 @@ def _iasls(y, baseline, p):
     asymmetric least squares method, Analytical Methods, 2014, 6(12), 4402-4407.
 
     """
-    weights = np.where(y > baseline, p**2, (1 - p)**2)
+    weights = np.where(residual > 0, p**2, (1 - p)**2)
     return weights
 
 
-def _airpls(y, baseline, iteration, normalize_weights=False):
+def _airpls(residual, iteration, normalize_weights=False):
     """
     The weighting for adaptive iteratively reweighted penalized least squares (airPLS).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
@@ -146,7 +141,7 @@ def _airpls(y, baseline, iteration, normalize_weights=False):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
     residual_l1_norm : float
         The L1 norm of the negative residuals, used to calculate the exit criteria
@@ -166,7 +161,6 @@ def _airpls(y, baseline, iteration, normalize_weights=False):
     reweighted penalized least squares. Analyst, 2010, 135(5), 1138-1146.
 
     """
-    residual = y - baseline
     neg_mask = residual < 0
     neg_residual = residual[neg_mask]
     if neg_residual.size < 2:
@@ -174,9 +168,9 @@ def _airpls(y, baseline, iteration, normalize_weights=False):
         warnings.warn(
             ('almost all baseline points are below the data, indicating that "tol"'
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
-             stacklevel=2
+            stacklevel=3
         )
-        return np.zeros_like(y), 0.0, exit_early
+        return np.zeros(residual.shape), 0.0, exit_early
     else:
         exit_early = False
 
@@ -194,13 +188,13 @@ def _airpls(y, baseline, iteration, normalize_weights=False):
     # instability should never actually be an issue
 
     # clip from [0, log(max dtype)] since the positive residuals (negative values) do not matter
-    log_max = np.log(np.finfo(y.dtype).max)
+    log_max = np.log(np.finfo(residual.dtype).max)
     inner = np.clip(
         (min(iteration, 50) / residual_l1_norm) * neg_residual,
         a_min=0,
         a_max=log_max - np.spacing(log_max)
     )
-    weights = np.zeros_like(y)
+    weights = np.zeros(residual.shape)
     weights[neg_mask] = np.exp(inner)
     if normalize_weights:
         weights[neg_mask] /= weights[neg_mask].max()
@@ -256,20 +250,18 @@ def _safe_std_mean(array, **kwargs):
     return std, mean.ravel()[0]
 
 
-def _arpls(y, baseline):
+def _arpls(residual):
     """
     The weighting for asymmetrically reweighted penalized least squares smoothing (arpls).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
     exit_early : bool
         Designates if there is a potential error with the calculation such that no further
@@ -281,16 +273,15 @@ def _arpls(y, baseline):
     penalized least squares smoothing. Analyst, 2015, 140, 250-257.
 
     """
-    residual = y - baseline
     neg_residual = residual[residual < 0]
     if neg_residual.size < 2:
         exit_early = True
         warnings.warn(
             ('almost all baseline points are below the data, indicating that "tol"'
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
-             stacklevel=2
+            stacklevel=3
         )
-        return np.zeros_like(y), exit_early
+        return np.zeros(residual.shape), exit_early
     else:
         exit_early = False
     std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since sampling subset
@@ -299,23 +290,21 @@ def _arpls(y, baseline):
     return weights, exit_early
 
 
-def _drpls(y, baseline, iteration):
+def _drpls(residual, iteration):
     """
     The weighting for the doubly reweighted penalized least squares algorithm (drpls).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
     exit_early : bool
         Designates if there is a potential error with the calculation such that no further
@@ -327,16 +316,15 @@ def _drpls(y, baseline, iteration):
     penalized least squares, Applied Optics, 2019, 58, 3913-3920.
 
     """
-    residual = y - baseline
     neg_residual = residual[residual < 0]
     if neg_residual.size < 2:
         exit_early = True
         warnings.warn(
             ('almost all baseline points are below the data, indicating that "tol"'
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
-             stacklevel=2
+            stacklevel=3
         )
-        return np.zeros_like(y), exit_early
+        return np.zeros(residual.shape), exit_early
     else:
         exit_early = False
 
@@ -350,23 +338,21 @@ def _drpls(y, baseline, iteration):
     return weights, exit_early
 
 
-def _iarpls(y, baseline, iteration):
+def _iarpls(residual, iteration):
     """
     Weighting for improved asymmetrically reweighted penalized least squares smoothing (iarpls).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
     exit_early : bool
         Designates if there is a potential error with the calculation such that no further
@@ -379,16 +365,15 @@ def _iarpls(y, baseline, iteration):
     59, 10933-10943.
 
     """
-    residual = y - baseline
     neg_residual = residual[residual < 0]
     if neg_residual.size < 2:
         exit_early = True
         warnings.warn(
             ('almost all baseline points are below the data, indicating that "tol"'
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
-             stacklevel=2
+            stacklevel=3
         )
-        return np.zeros_like(y), exit_early
+        return np.zeros(residual.shape), exit_early
     else:
         exit_early = False
 
@@ -402,16 +387,14 @@ def _iarpls(y, baseline, iteration):
     return weights, exit_early
 
 
-def _aspls(y, baseline, asymmetric_coef=2., alternate_weighting=True):
+def _aspls(residual, asymmetric_coef=2., alternate_weighting=True):
     """
     Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     asymmetric_coef : float, optional
         The asymmetric coefficient for the weighting. Higher values leads to a steeper
         weighting curve (ie. more step-like). Default is 2.
@@ -421,10 +404,8 @@ def _aspls(y, baseline, asymmetric_coef=2., alternate_weighting=True):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
-    residual : numpy.ndarray, shape (N,)
-        The residual, ``y - baseline``.
     exit_early : bool
         Designates if there is a potential error with the calculation such that no further
         iterations should be performed.
@@ -435,39 +416,36 @@ def _aspls(y, baseline, asymmetric_coef=2., alternate_weighting=True):
     parameter penalized least squares method. Spectroscopy Letters, 2020, 53(3), 222-233.
 
     """
-    residual = y - baseline
     neg_residual = residual[residual < 0]
     if neg_residual.size < 2:
         exit_early = True
         warnings.warn(
             ('almost all baseline points are below the data, indicating that "tol"'
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
-             stacklevel=2
+            stacklevel=3
         )
-        return np.zeros_like(y), residual, exit_early
+        return np.zeros(residual.shape), exit_early
     else:
         exit_early = False
     std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since sampling subset
     offset = std - mean if alternate_weighting else std
     # add a negative sign since expit performs 1/(1+exp(-input))
     weights = expit(-(asymmetric_coef / std) * (residual - offset))
-    return weights, residual, exit_early
+    return weights, exit_early
 
 
-def _psalsa(y, baseline, p, k):
+def _psalsa(residual, p, k):
     """
     Weighting for the peaked signal's asymmetric least squares algorithm (psalsa).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     p : float
-        The penalizing weighting factor. Must be between 0 and 1. Values greater
-        than the baseline will be given `p` weight, and values less than the baseline
-        will be given `1 - p` weight.
+        The penalizing weighting factor. Must be between 0 and 1. Positive residuals
+        will be given ``p * exp(-(residual) / k)`` weight, and negative residuals
+        will be given ``1 - p`` weight.
     k : float
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
@@ -475,7 +453,7 @@ def _psalsa(y, baseline, p, k):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     References
@@ -485,39 +463,36 @@ def _psalsa(y, baseline, p, k):
     Systems, Signals, and Devices, 2014, 1-5.
 
     """
-    residual = y - baseline
     # only use positive residual in exp to avoid exponential overflow warnings
     # and accidentally creating a weight of nan (inf * 0 = nan)
-    weights = np.full(y.shape, 1 - p, dtype=float)
+    weights = np.full(residual.shape, 1 - p, dtype=float)
     mask = residual > 0
     weights[mask] = p * np.exp(-residual[mask] / k)
     return weights
 
 
-def _derpsalsa(y, baseline, p, k, partial_weights):
+def _derpsalsa(residual, p, k, partial_weights):
     """
     Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     p : float
-        The penalizing weighting factor. Must be between 0 and 1. Values greater
-        than the baseline will be given `p` weight, and values less than the baseline
-        will be given `1 - p` weight.
+        The penalizing weighting factor. Must be between 0 and 1. Positive residuals
+        will be given ``p * exp(-[(residual) / k)]**2 / 2)`` weight, and negative residuals
+        will be given ``1 - p`` weight.
     k : float
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak.
-    partial_weights : numpy.ndarray, shape (N,)
+    partial_weights : numpy.ndarray, shape (N,) or (M, N)
         The weights associated with the first and second derivatives of the data.
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     Notes
@@ -536,21 +511,20 @@ def _derpsalsa(y, baseline, p, k, partial_weights):
     51(10), 2061-2065.
 
     """
-    residual = y - baseline
     # no need for caution since inner exponential is always negative, but still mask
     # since it's faster than performing the square and exp on the full residual
-    weights = np.full(y.shape, 1 - p, dtype=float)
+    weights = np.full(residual.shape, 1 - p, dtype=float)
     mask = residual > 0
     weights[mask] = p * np.exp(-0.5 * ((residual[mask] / k)**2))
     weights *= partial_weights
     return weights
 
 
-def _quantile(y, fit, quantile, eps=None):
+def _quantile(residual, quantile, eps=None):
     r"""
     An approximation of quantile loss.
 
-    The loss is defined as :math:`\rho(r) / |r|`, where r is the residual, `y - fit`,
+    The loss is defined as :math:`\rho(r) / |r|`, where r is the residual, `data - baseline`,
     and the function :math:`\rho(r)` is `quantile` for `r` > 0 and 1 - `quantile`
     for `r` < 0. Rather than using `|r|` as the denominator, which is non-differentiable
     and causes issues when `r` = 0, the denominator is approximated as
@@ -558,32 +532,41 @@ def _quantile(y, fit, quantile, eps=None):
 
     Parameters
     ----------
-    y : numpy.ndarray
-        The values of the raw data.
-    fit : numpy.ndarray
-        The fit values.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     quantile : float
         The quantile value.
     eps : float, optional
         A small value added to the square of `residual` to prevent dividing by 0.
-        Default is None, which uses `(1e-6 * max(abs(fit)))**2`.
+        Default is None, which uses `(1e-4 * max(abs(residual)))**2`.
 
     Returns
     -------
-    numpy.ndarray
+    numpy.ndarray, shape (N,) or (M, N)
         The calculated loss, which can be used as weighting when performing iteratively
         reweighted least squares (IRLS)
 
+    Notes
+    -----
+    The denominator of the weights approximates the absolute loss from the least squares
+    result following [1]_, while the numerator gives the quantile weighting following [2]_.
+    Note that the same weighting is also used for `Baseline.irsqr` from [3]_ even though they
+    recommend using `|r|` in the denominator, for the non-differentiable reason listed in the
+    top of this function.
+
     References
     ----------
-    Schnabel, S., et al. Simultaneous estimation of quantile curves using quantile
-    sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
+    .. [1] Schlossmacher, E. An iterative technique for absolute deviations curve fitting.
+        Journal of the American Statistical Association, 1973, 68, 857-859.
+    .. [2] Schnabel, S., et al. Simultaneous estimation of quantile curves using quantile
+        sheets. AStA Advances in Statistical Analysis, 2013, 97, 77-87.
+    .. [3] Han, Q., et al. Iterative Reweighted Quantile Regression Using Augmented Lagrangian
+        Optimization for Baseline Correction. 2018 5th International Conference on Information
+        Science and Control Engineering (ICISCE), 2018, 280-284.
 
     """
     if eps is None:
-        # 1e-6 seems to work better than the 1e-4 in Schnabel, et al
-        eps = (np.abs(fit).max() * 1e-6)**2
-    residual = y - fit
+        eps = (np.abs(residual).max() * 1e-4)**2
     numerator = np.where(residual > 0, quantile, 1 - quantile)
     # use max(eps, _MIN_FLOAT) to ensure that eps + 0 > 0
     denominator = np.sqrt(residual**2 + max(eps, _MIN_FLOAT))  # approximates abs(residual)
@@ -591,22 +574,20 @@ def _quantile(y, fit, quantile, eps=None):
     return numerator / denominator
 
 
-def _brpls(y, baseline, beta):
+def _brpls(residual, beta):
     """
     The weighting for Bayesian Reweighted Penalized Least Squares (BrPLS).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     beta : float
         A value between 0 and 1 designating the probability of signal within the data.
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
     exit_early : bool
         Designates if there is a potential error with the calculation such that no further
@@ -619,10 +600,9 @@ def _brpls(y, baseline, beta):
     2022, 140, 250-257.
 
     """
-    residual = y - baseline
     # exclude residual == 0 to ensure mean and sigma are both nonzero since both
     # are used within the denominator
-    neg_residual = residual[residual < 0].ravel()  # ravel so x.dot(x) == sum(x**2) for 2D too
+    neg_residual = residual[residual < 0].ravel()  # ravel so x @ x == sum(x**2) for 2D too
     pos_residual = residual[residual > 0]
     if neg_residual.size < 2 or pos_residual.size < 2:
         exit_early = True
@@ -633,9 +613,9 @@ def _brpls(y, baseline, beta):
         warnings.warn(
             (f'almost all baseline points are {position} the data, indicating that "tol"'
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
-             stacklevel=2
+            stacklevel=3
         )
-        return np.zeros_like(y), exit_early
+        return np.zeros(residual.shape), exit_early
     else:
         exit_early = False
 
@@ -643,37 +623,35 @@ def _brpls(y, baseline, beta):
     # and gaussian distributions, respectively
     mean = np.mean(pos_residual)
     # sigma is the quadratic mean, ie. the root mean square
-    sigma = np.sqrt(neg_residual.dot(neg_residual) / neg_residual.size)
+    sigma = np.sqrt((neg_residual @ neg_residual) / neg_residual.size)
 
     inner = (residual / (sigma * np.sqrt(2))) - (sigma / (mean * np.sqrt(2)))
     multiplier = ((beta * np.sqrt(0.5 * np.pi)) / max(1 - beta, _MIN_FLOAT)) * (sigma / mean)
     # overflow occurs at 2 * multiplier * exp(max_val**2), where the 2 is from 1 + max(erf(x));
     # clip to ignore overflow warning since 1 / (1 + inf) == 0, which is fine, but can
     # also cause nan if erf(x) = -1 and exp(x**2) = inf since 0 * inf = nan
-    max_val = np.sqrt(np.log(np.finfo(y.dtype).max))
+    max_val = np.sqrt(np.log(np.finfo(residual.dtype).max))
     max_val -= np.spacing(max_val)  # ensure limit is below max value
 
     partial = np.exp(np.clip(inner, -max_val, max_val)**2)
     if multiplier < 0.5:  # no need to worry about multiplication overflow
         weights = 1 / (1 + multiplier * (1 + erf(inner)) * partial)
     else:
-        max_val_mult = np.finfo(y.dtype).max / (2 * multiplier)
+        max_val_mult = np.finfo(residual.dtype).max / (2 * multiplier)
         max_val_mult -= np.spacing(max_val_mult)  # ensure limit is below max value
 
         weights = 1 / (1 + multiplier * (1 + erf(inner)) * np.clip(partial, None, max_val_mult))
     return weights, exit_early
 
 
-def _lsrpls(y, baseline, iteration, alternate_weighting=False):
+def _lsrpls(residual, iteration, alternate_weighting=False):
     """
     The weighting for the locally symmetric reweighted penalized least squares (lsrpls).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
-        The measured data.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
         instead of 0.
@@ -684,7 +662,7 @@ def _lsrpls(y, baseline, iteration, alternate_weighting=False):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
     exit_early : bool
         Designates if there is a potential error with the calculation such that no further
@@ -711,18 +689,17 @@ def _lsrpls(y, baseline, iteration, alternate_weighting=False):
 
     """
     if alternate_weighting:
-        return _drpls(y, baseline, iteration)
+        return _drpls(residual, iteration=iteration)
 
-    residual = y - baseline
     neg_residual = residual[residual < 0]
     if neg_residual.size < 2:
         exit_early = True
         warnings.warn(
             ('almost all baseline points are below the data, indicating that "tol"'
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
-             stacklevel=2
+            stacklevel=3
         )
-        return np.zeros_like(y), exit_early
+        return np.zeros(residual.shape), exit_early
     else:
         exit_early = False
 

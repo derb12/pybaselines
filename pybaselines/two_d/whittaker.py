@@ -188,7 +188,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data.ravel())
-            weights = _weighting._iasls(data, baseline.reshape(self._shape), p)
+            weights = _weighting._iasls(data - baseline.reshape(self._shape), p)
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
@@ -199,7 +199,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = whittaker_system.solve(y, weight_array, rhs_extra=p1_y)
-            new_weights = _weighting._iasls(y, baseline, p)
+            new_weights = _weighting._iasls(y - baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -436,7 +436,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         for i in range(1, max_iter + 2):
             lhs = partial_penalty + weight_matrix @ partial_penalty_2
             baseline = whittaker_system.direct_solve(lhs, weight_array * y)
-            new_weights, exit_early = _weighting._drpls(y, baseline, i)
+            new_weights, exit_early = _weighting._drpls(y - baseline, i)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -635,8 +635,9 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         for i in range(max_iter + 1):
             penalty = alpha_matrix @ whittaker_system.penalty
             baseline = whittaker_system.solve(y, weight_array, penalty=penalty)
-            new_weights, residual, exit_early = _weighting._aspls(
-                y, baseline, asymmetric_coef, alternate_weighting
+            residual = y - baseline
+            new_weights, exit_early = _weighting._aspls(
+                residual, asymmetric_coef, alternate_weighting
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct

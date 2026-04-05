@@ -144,7 +144,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         eps : float, optional
             A small value added to the square of the residual to prevent dividing by 0.
             Default is None, which uses the square of the maximum-absolute-value of the
-            fit each iteration multiplied by 1e-6.
+            residual each iteration multiplied by 1e-4.
 
         Returns
         -------
@@ -359,7 +359,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data.ravel())
-            weights = _weighting._iasls(data, baseline.reshape(self._shape), p)
+            weights = _weighting._iasls(data - baseline.reshape(self._shape), p)
 
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
@@ -376,7 +376,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
-            new_weights = _weighting._iasls(y, baseline, p)
+            new_weights = _weighting._iasls(y - baseline, p)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

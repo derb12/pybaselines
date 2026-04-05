@@ -613,7 +613,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         eps : float, optional
             A small value added to the square of the residual to prevent dividing by 0.
             Default is None, which uses the square of the maximum-absolute-value of the
-            fit each iteration multiplied by 1e-6.
+            residual each iteration multiplied by 1e-4.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input `x_data` and return them in the params dictionary.

@@ -454,7 +454,7 @@ class _PolynomialNDMixin:
         eps : float, optional
             A small value added to the square of the residual to prevent dividing by 0.
             Default is None, which uses the square of the maximum-absolute-value of the
-            fit each iteration multiplied by 1e-6.
+            residual each iteration multiplied by 1e-4.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the `x_data` and `z_data` values and return them in the params
@@ -526,7 +526,7 @@ class _PolynomialNDMixin:
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
-            sqrt_w = np.sqrt(_weighting._quantile(y, baseline, quantile, eps))
+            sqrt_w = np.sqrt(_weighting._quantile(y - baseline, quantile, eps))
             baseline_old = baseline
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
