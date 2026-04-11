@@ -469,18 +469,19 @@ class BaseTester:
         if hasattr(_nd, mod_name) or pls_module:
             nd_module = 'pls' if pls_module else mod_name
             cls_name = '_PLSNDMixin' if pls_module else f'_{mod_name.capitalize()}NDMixin'
-            nd_mixin = getattr(getattr(_nd, nd_module), cls_name)
-            if mod_name == 'spline':
-                method_name = f'_{self.func_name.removeprefix("pspline_")}'
-            elif pls_module:
-                method_name = f'_{self.func_name}'
-            else:
-                method_name = self.func_name
-            if hasattr(nd_mixin, method_name):
-                # method should not be wrapped, only the ND method
-                assert not hasattr(self.class_func, '__wrapped__')
-                assert hasattr(getattr(nd_mixin, method_name), '__wrapped__')
-                return
+            if hasattr(getattr(_nd, nd_module), cls_name):
+                nd_mixin = getattr(getattr(_nd, nd_module), cls_name)
+                if mod_name == 'spline':
+                    method_name = f'_{self.func_name.removeprefix("pspline_")}'
+                elif pls_module:
+                    method_name = f'_{self.func_name}'
+                else:
+                    method_name = self.func_name
+                if hasattr(nd_mixin, method_name):
+                    # method should not be wrapped, only the ND method
+                    assert not hasattr(self.class_func, '__wrapped__')
+                    assert hasattr(getattr(nd_mixin, method_name), '__wrapped__')
+                    return
 
         assert hasattr(self.class_func, '__wrapped__')
 
@@ -857,25 +858,26 @@ class BaseTester2D:
         if hasattr(_nd, mod_name) or pls_module:
             nd_module = 'pls' if pls_module else mod_name
             cls_name_nd = '_PLSNDMixin' if pls_module else f'_{mod_name.capitalize()}NDMixin'
-            nd_mixin = getattr(getattr(_nd, nd_module), cls_name_nd)
-            if mod_name == 'spline':
-                method_name = f'_{self.func_name.removeprefix("pspline_")}'
-            elif pls_module:
-                method_name = f'_{self.func_name}'
-            else:
-                method_name = self.func_name
-            if hasattr(nd_mixin, method_name):
-                assert hasattr(getattr(nd_mixin, method_name), '__wrapped__')
-                # some 2D methods are directly inherited without subclassing
-                cls_name_2d = f'_{mod_name.capitalize()}'
-                class_2d = getattr(self.module, cls_name_2d)
-                if (
-                    hasattr(class_2d, method_name)
-                    and inspect.getmodule(getattr(class_2d, method_name)) is self.module
-                ):
-                    # method should not be wrapped, only the ND method
-                    assert not hasattr(self.class_func, '__wrapped__')
-                return
+            if hasattr(getattr(_nd, nd_module), cls_name_nd):
+                nd_mixin = getattr(getattr(_nd, nd_module), cls_name_nd)
+                if mod_name == 'spline':
+                    method_name = f'_{self.func_name.removeprefix("pspline_")}'
+                elif pls_module:
+                    method_name = f'_{self.func_name}'
+                else:
+                    method_name = self.func_name
+                if hasattr(nd_mixin, method_name):
+                    assert hasattr(getattr(nd_mixin, method_name), '__wrapped__')
+                    # some 2D methods are directly inherited without subclassing
+                    cls_name_2d = f'_{mod_name.capitalize()}'
+                    class_2d = getattr(self.module, cls_name_2d)
+                    if (
+                        hasattr(class_2d, method_name)
+                        and inspect.getmodule(getattr(class_2d, method_name)) is self.module
+                    ):
+                        # method should not be wrapped, only the ND method
+                        assert not hasattr(self.class_func, '__wrapped__')
+                    return
 
         assert hasattr(self.class_func, '__wrapped__')
 
