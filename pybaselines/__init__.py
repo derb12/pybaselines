@@ -18,7 +18,7 @@ except ImportError:
     __version__ = '1.2.1.post1.dev0'
 
 # import utils first since it is imported by other modules; likewise, import
-# optimizers and api last since they import the other modules
+# api last since it imports the other modules
 from . import (
     utils, classification, misc, morphological, polynomial, spline, whittaker, smooth,
     optimizers, api
