@@ -18,14 +18,14 @@ import warnings
 import numpy as np
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
+from ._nd.optimizers import _OptimizersNDMixin
 from ._validation import _check_optional_array
 from .utils import ParameterWarning, _check_scalar, _get_edges, _sort_array, gaussian
 
 
-class _Optimizers(_Algorithm):
+class _Optimizers(_Algorithm, _OptimizersNDMixin):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm._handle_io(ensure_dims=False, skip_sorting=True)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).
@@ -51,9 +51,9 @@ class _Optimizers(_Algorithm):
 
         Returns
         -------
-        baselines : np.ndarray, shape (M, N)
+        np.ndarray, shape (M, N)
             An array of all of the baselines.
-        params : dict
+        dict
             A dictionary with the following items:
 
             * 'average_weights': numpy.ndarray, shape (N,)
@@ -84,65 +84,9 @@ class _Optimizers(_Algorithm):
         in Chemistry, 2018, 2018.
 
         """
-        dataset, optimizer_obj, method_kws = self._setup_optimizer(
-            data, method, method_param={None: 'weights'}, method_kwargs=method_kwargs,
-            copy_kwargs=True
+        return super().collab_pls(
+            data, average_dataset=average_dataset, method=method, method_kwargs=method_kwargs
         )
-        data_shape = dataset.shape
-        if len(data_shape) != 2:
-            raise ValueError((
-                'the input data must have a shape of (number of measurements, number of points), '
-                f'but instead has a shape of {data_shape}'
-            ))
-        # if using aspls or pspline_aspls, also need to calculate the alpha array
-        # for the entire dataset
-        calc_alpha = optimizer_obj.method in ('aspls', 'pspline_aspls')
-
-        # step 1: calculate weights for the entire dataset
-        if average_dataset:
-            _, fit_params = optimizer_obj.method_call(np.mean(dataset, axis=0), **method_kws)
-            method_kws['weights'] = fit_params['weights']
-            if calc_alpha:
-                method_kws['alpha'] = fit_params['alpha']
-        else:
-            weights = np.empty(data_shape)
-            if calc_alpha:
-                alpha = np.empty(data_shape)
-            for i, entry in enumerate(dataset):
-                _, fit_params = optimizer_obj.method_call(entry, **method_kws)
-                # TODO should this also try looking at mask? Does this work
-                # well for classifiers outside of fabc?
-                weights[i] = fit_params['weights']
-                if calc_alpha:
-                    alpha[i] = fit_params['alpha']
-            method_kws['weights'] = np.mean(weights, axis=0)
-            if calc_alpha:
-                method_kws['alpha'] = np.mean(alpha, axis=0)
-
-        # step 2: use the dataset weights from step 1 (stored in method_kws['weights'])
-        # to fit each individual data entry; set tol to infinity so that only one
-        # iteration is done and new weights are not calculated
-        if (
-            'tol' in optimizer_obj.method_signature.parameters
-            and optimizer_obj.method not in ('mpls', 'pspline_mpls')
-        ):
-            method_kws['tol'] = np.inf
-        if 'tol_2' in optimizer_obj.method_signature.parameters:  # brpls
-            method_kws['tol_2'] = np.inf
-        baselines = np.empty(data_shape)
-        params = {'average_weights': method_kws['weights'], 'method_params': defaultdict(list)}
-        if calc_alpha:
-            params['average_alpha'] = method_kws['alpha']
-        if optimizer_obj.method == 'fabc':
-            # set weights as mask so it just fits the data
-            method_kws['weights_as_mask'] = True
-
-        for i, entry in enumerate(dataset):
-            baselines[i], param = optimizer_obj.method_call(entry, **method_kws)
-            for key, value in param.items():
-                params['method_params'][key].append(value)
-
-        return baselines, params
 
     @_Algorithm._handle_io(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
