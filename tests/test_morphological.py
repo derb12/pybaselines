@@ -14,7 +14,9 @@ import pytest
 
 from pybaselines import _banded_utils, morphological
 
-from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
+from .base_tests import (
+    BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin, ensure_deprecation
+)
 
 
 class MorphologicalTester(BaseTester):
@@ -47,7 +49,7 @@ class IterativeMorphologicalTester(MorphologicalTester):
         assert params['tol_history'].size == max_iter + 1
 
 
-class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin):
+class TestMPLS(MorphologicalTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin):
     """Class for testing mpls baseline."""
 
     func_name = 'mpls'

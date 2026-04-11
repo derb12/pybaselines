@@ -15,7 +15,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 import pybaselines
-from pybaselines import Baseline, Baseline2D, _nd
+from pybaselines import Baseline, Baseline2D, _nd, results
 from pybaselines.two_d._algorithm_setup import _Algorithm2D
 
 
@@ -1210,3 +1210,77 @@ class MaskingMixin:
         masked_fit, _ = self.class_func(y_bad, weights=weights, **self.kwargs, **kwargs)
 
         assert_allclose(masked_fit, normal_fit, rtol=1e-10, atol=1e-4)
+
+
+class ResultMixin:
+    """Mixin for checking result object for various methods."""
+
+    result_obj_cls = None
+
+    def test_result_obj_type(self):
+        """Ensures the `result` item in the output params is a the correct result object."""
+        _, params = self.class_func(self.y, **self.kwargs)
+        # don't use isinstance since don't want to allow subclasses
+        assert type(params['result']) is self.result_obj_cls
+
+
+class WhittakerResultMixin(ResultMixin):
+    """Mixin for checking result object for methods that perform 1D Whittaker smoothing."""
+
+    result_obj_cls = results.WhittakerResult
+
+    def test_result_obj_fit(self):
+        """Ensures the lhs and rhs of the result object correctly recreate the fit.
+
+        The hat/projection matrix of the result object should be defined such that
+        doing ``solve(lhs, rhs @ y)`` should be the exact same as the calculated baseline.
+
+        """
+        baseline, params = self.class_func(self.y, **self.kwargs)
+        result_obj = params['result']
+
+        result_fit = result_obj._penalized_object.direct_solve(
+            result_obj._lhs, result_obj._rhs @ self.y
+        )
+        assert_allclose(result_fit, baseline, rtol=1e-13, atol=1e-14)
+
+
+class WhittakerResult2DMixin(WhittakerResultMixin):
+    """Mixin for checking result object for methods that perform 2D Whittaker smoothing."""
+
+    result_obj_cls = results.WhittakerResult2D
+
+    def test_result_obj_fit(self):
+        """Ensures the lhs and rhs of the result object correctly recreate the fit.
+
+        The hat/projection matrix of the result object should be defined such that
+        doing ``solve(lhs, rhs @ y)`` should be the exact same as the calculated baseline.
+
+        """
+        kwargs = {k: v for k, v in self.kwargs.items() if k != 'num_eigens'}
+        # when using eigendecomposition, the system is set up like splines such that
+        # the hat is defined with lhs=(B.T @ W @ B + P) and rhs=(B.T @ W @ B), so cannot
+        # recreate the fit with solve(lhs, rhs @ y)
+        if 'num_eigens' in inspect.signature(self.class_func).parameters:
+            kwargs['num_eigens'] = None
+
+        baseline, params = self.class_func(self.y, **kwargs)
+        result_obj = params['result']
+
+        result_fit = result_obj._penalized_object.direct_solve(
+            result_obj._lhs, result_obj._rhs @ self.y.ravel()
+        ).reshape(self.y.shape)
+        # asls and iasls require higher rtol compared to ~1e-10 for all others; not sure why...
+        assert_allclose(result_fit, baseline, rtol=1e-7, atol=1e-10)
+
+
+class PSplineResultMixin(ResultMixin):
+    """Mixin for checking result object for methods that perform 1D penalized spline smoothing."""
+
+    result_obj_cls = results.PSplineResult
+
+
+class PSplineResult2DMixin(ResultMixin):
+    """Mixin for checking result object for methods that perform 2D penalized spline smoothing."""
+
+    result_obj_cls = results.PSplineResult2D

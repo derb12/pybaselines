@@ -14,11 +14,12 @@ import pytest
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _weighting, whittaker
-from pybaselines.results import WhittakerResult
 from pybaselines.utils import relative_difference, ParameterWarning
 from pybaselines._compat import diags, identity
 
-from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
+from .base_tests import (
+    BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin, ensure_deprecation
+)
 
 
 def sparse_iasls(data, lam, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, diff_order=2):
@@ -91,7 +92,7 @@ def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coe
     return baseline
 
 
-class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
+class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
@@ -137,12 +138,6 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
         _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
-
-    def test_result_obj(self):
-        """Ensures the `result` item in the output params is a WhittakerResult."""
-        _, params = self.class_func(self.y, **self.kwargs)
-        # don't use isinstance since don't want to allow subclasses
-        assert type(params['result']) is WhittakerResult
 
 
 class TestAsLS(WhittakerTester):

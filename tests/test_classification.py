@@ -16,7 +16,7 @@ import scipy
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning, gaussian, whittaker_smooth
 
-from .base_tests import BaseTester, InputWeightsMixin, ensure_deprecation
+from .base_tests import BaseTester, InputWeightsMixin, WhittakerResultMixin, ensure_deprecation
 from .data import PYWAVELETS_HAAR
 
 
@@ -390,7 +390,7 @@ class TestCwtBR(ClassificationTester):
         super().test_output(scales=scales)
 
 
-class TestFabc(ClassificationTester):
+class TestFabc(ClassificationTester, WhittakerResultMixin):
     """Class for testing fabc baseline."""
 
     func_name = 'fabc'

@@ -13,10 +13,11 @@ from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import _spline_utils, classification, morphological, spline, Baseline
-from pybaselines.results import PSplineResult
 from pybaselines.utils import ParameterWarning
 
-from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
+from .base_tests import (
+    BaseTester, InputWeightsMixin, PSplineResultMixin, RecreationMixin, ensure_deprecation
+)
 
 
 class WhittakerComparisonMixin:
@@ -45,7 +46,7 @@ class WhittakerComparisonMixin:
         assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
 
 
-class SplineTester(BaseTester):
+class SplineTester(BaseTester, PSplineResultMixin):
     """Base testing class for spline functions."""
 
     module = spline
@@ -64,12 +65,6 @@ class SplineTester(BaseTester):
             numba_output = self.class_func(self.y)[0]
 
         assert_allclose(numba_output, normal_output, rtol=1e-10, atol=1e-10)
-
-    def test_result_obj(self):
-        """Ensures the `result` item in the output params is a PSplineResult."""
-        _, params = self.class_func(self.y, **self.kwargs)
-        # don't use isinstance since don't want to allow subclasses
-        assert type(params['result']) is PSplineResult
 
     def test_check_spline_degree(self):
         """
