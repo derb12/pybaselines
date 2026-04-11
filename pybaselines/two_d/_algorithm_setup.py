@@ -13,6 +13,7 @@ import warnings
 import numpy as np
 
 from ..results import PSplineResult2D, WhittakerResult2D
+from .._nd.optimizers import _OptimizerHelper
 from .._validation import (
     _check_array, _check_half_window, _check_optional_array, _check_scalar_variable,
     _check_sized_array, _yxz_arrays
@@ -911,84 +912,72 @@ class _Algorithm2D:
 
         return y, weight_array
 
-    def _get_function(self, method, modules, ensure_new=False):
+    def _spawn_fitter(self, method, ensure_new=False):
         """
-        Tries to retrieve the indicated function from a list of modules.
+        Creates an appropriate fitting object for the indicated method.
 
         Parameters
         ----------
         method : str
-            The string name of the desired function. Case does not matter.
-        modules : Sequence
-            A sequence of modules in which to look for the method.
+            The string name of the desired method.
         ensure_new : bool, optional
-            If True, will ensure that the output `class_object` and `func`
+            If True, will ensure that the output `class_object`
             correspond to a new object rather than `self`.
 
         Returns
         -------
-        func : Callable
-            The corresponding function.
-        func_module : str
-            The module that `func` belongs to.
         class_object : pybaselines.two_d_algorithm_setup._Algorithm2D
             The `_Algorithm2D` object which will be used for fitting.
 
         Raises
         ------
         AttributeError
-            Raised if no matching function is found within the modules.
+            Raised if `method` is not an available Baseline2D method.
 
         """
-        function_string = method.lower()
-        self_has = hasattr(self, function_string)
-        for module in modules:
-            func_module = module.__name__.split('.')[-1]
-            module_class = getattr(module, '_' + func_module.capitalize())
-            if hasattr(module_class, function_string):
-                # if self is a Baseline2D class, can just use its method
-                if self_has and not ensure_new:
-                    func = getattr(self, function_string)
-                    class_object = self
-                else:
-                    klass = self.__class__ if self_has else module_class
-                    # have to reset x and z ordering so that all outputs and parameters are
-                    # correctly sorted
-                    if self._sort_order is None:
+        self_has = hasattr(self, method)
+
+        # if self is a Baseline2D class, can just use its method
+        if self_has and not ensure_new:
+            class_object = self
+        else:
+            if self_has:
+                klass = self.__class__
+            else:
+                # just directly use Baseline2D rather than the individual private classes
+                from .api import Baseline2D
+                if not hasattr(Baseline2D, method):
+                    raise AttributeError(f'{method} is not a valid method')
+                klass = Baseline2D
+            # have to reset x and z ordering so that all outputs and parameters are
+            # correctly sorted
+            if self._sort_order is None:
+                x = self.x
+                z = self.z
+                assume_sorted = True
+            else:
+                assume_sorted = False
+                if isinstance(self._sort_order, tuple):
+                    if self._sort_order[0] is Ellipsis:
                         x = self.x
-                        z = self.z
-                        assume_sorted = True
+                        z = self.z[self._inverted_order[1]]
                     else:
-                        assume_sorted = False
-                        if isinstance(self._sort_order, tuple):
-                            if self._sort_order[0] is Ellipsis:
-                                x = self.x
-                                z = self.z[self._inverted_order[1]]
-                            else:
-                                x = self.x[self._inverted_order[0][:, 0]]
-                                z = self.z[self._inverted_order[1][0]]
-                        else:
-                            x = self.x[self._inverted_order]
-                            z = self.z
+                        x = self.x[self._inverted_order[0][:, 0]]
+                        z = self.z[self._inverted_order[1][0]]
+                else:
+                    x = self.x[self._inverted_order]
+                    z = self.z
 
-                    class_object = klass(
-                        x, z, check_finite=self._check_finite, assume_sorted=assume_sorted,
-                        output_dtype=self._dtype
-                    )
-                    class_object.banded_solver = self.banded_solver
-                    func = getattr(class_object, function_string)
-                break
-        else:  # in case no break
-            mod_names = [module.__name__ for module in modules]
-            raise AttributeError((
-                f'unknown method "{method}" or method is not within the allowed '
-                f'modules: {mod_names}'
-            ))
+            class_object = klass(
+                x, z, check_finite=self._check_finite, assume_sorted=assume_sorted,
+                output_dtype=self._dtype
+            )
+            class_object.banded_solver = self.banded_solver
 
-        return func, func_module, class_object
+        return class_object
 
-    def _setup_optimizer(self, y, method, modules, method_kwargs=None, copy_kwargs=True,
-                         ensure_new=False):
+    def _setup_optimizer(self, y, method, method_param=None, method_kwargs=None, copy_kwargs=True,
+                         ensure_new=False, needed_params=None):
         """
         Sets the starting parameters for doing optimizer algorithms.
 
@@ -999,8 +988,13 @@ class _Algorithm2D:
             array by :meth:`~._Algorithm2D._handle_io`.
         method : str
             The string name of the desired function, like 'asls'. Case does not matter.
-        modules : Sequence[module, ...]
-            The modules to search for the indicated `method` function.
+        method_param : dict, optional
+            A dictionary indicating potential parameter keys to use, with the default having
+            a key of None. For example, a `method_param` of {'method1': 'a', None: ('b', 'c')}
+            would specify that parameter 'a' should be used for `method`='method1'; otherwise,
+            either 'b' or 'c' could be potential parameters, which would then be filtered by
+            looking at the signature of the indicated method. Default is None, which indicates
+            that the optimizer method being used does not require any parameter key.
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the fitting function. Default
             is None, which uses an empty dictionary.
@@ -1013,22 +1007,26 @@ class _Algorithm2D:
             thread safety for methods which would modify internal state not typically
             assumed to change when using threading, such as changing polynomial degrees.
             Default is False.
+        needed_params : Iterable, optional
+            An iterature of other necessary parameter keys that the method must have in its
+            signature. For example ['weights', 'tol'] would error if either 'weights' or 'tol'
+            are not valid inputs. Default is None.
 
         Returns
         -------
         y : numpy.ndarray
             The y-values of the measured data.
-        baseline_func : Callable
-            The function for fitting the baseline.
-        func_module : str
-            The string name of the module that contained `fit_func`.
+        optimizer_obj : _OptimizerHelper
+            The object containing the fitting object to use and all relevant fields
+            for optimizer-type methods.
         method_kws : dict
             A dictionary of keyword arguments to pass to `fit_func`.
-        class_object : pybaselines.two_d._algorithm_setup._Algorithm2D
-            The `_Algorithm2D` object which will be used for fitting.
 
         """
-        baseline_func, func_module, class_object = self._get_function(method, modules, ensure_new)
+        optimizer_obj = _OptimizerHelper(
+            method, self, ensure_new=ensure_new, method_param=method_param,
+            needed_params=needed_params
+        )
         if method_kwargs is None:
             method_kws = {}
         elif copy_kwargs:
@@ -1036,7 +1034,7 @@ class _Algorithm2D:
         else:
             method_kws = method_kwargs
 
-        return y, baseline_func, func_module, method_kws, class_object
+        return y, optimizer_obj, method_kws
 
     def _setup_misc(self, y):
         """

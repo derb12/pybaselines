@@ -12,10 +12,7 @@ import pytest
 from scipy.sparse import kron
 
 from pybaselines._compat import identity
-from pybaselines.two_d import (
-    Baseline2D, _algorithm_setup, optimizers, polynomial, whittaker,
-    _spline_utils, _whittaker_utils
-)
+from pybaselines.two_d import Baseline2D, _algorithm_setup, _spline_utils, _whittaker_utils
 from pybaselines.results import PSplineResult2D, WhittakerResult2D
 from pybaselines.utils import ParameterWarning, SortingWarning, difference_matrix, estimate_window
 from pybaselines._validation import _check_scalar
@@ -1147,28 +1144,14 @@ def test_override_x(algorithm):
         new_algorithm = algorithm._override_x(new_x)
 
 
-@pytest.mark.parametrize(
-    'method_and_outputs', (
-        ('collab_pls', 'collab_pls', 'optimizers'),
-        ('COLLAB_pls', 'collab_pls', 'optimizers'),
-        ('modpoly', 'modpoly', 'polynomial'),
-        ('asls', 'asls', 'whittaker')
-    )
-)
+@pytest.mark.parametrize('method', ('collab_pls', 'modpoly', 'asls'))
 @pytest.mark.parametrize('ensure_new', (True, False))
-def test_get_function(method_and_outputs, ensure_new):
-    """Ensures _get_function gets the correct method, regardless of case."""
-    method, expected_func, expected_module = method_and_outputs
-    tested_modules = [optimizers, polynomial, whittaker]
-
+def test_spawn_fitter(method, ensure_new):
+    """Ensures _spawn_fitter gets the correct method and creates new object when appropriate."""
     algorithm = Baseline2D(
         x_data=np.arange(10), z_data=np.arange(20), assume_sorted=True, check_finite=False
     )
-    selected_func, module, class_object = algorithm._get_function(
-        method, tested_modules, ensure_new
-    )
-    assert selected_func.__name__ == expected_func
-    assert module == expected_module
+    class_object = algorithm._spawn_fitter(method, ensure_new=ensure_new)
     assert isinstance(class_object, _algorithm_setup._Algorithm2D)
     if ensure_new:
         assert class_object is not algorithm
@@ -1176,10 +1159,10 @@ def test_get_function(method_and_outputs, ensure_new):
         assert class_object is algorithm
 
 
-def test_get_function_fails_wrong_method(algorithm):
+def test_spawn_fitter_fails_wrong_method(algorithm):
     """Ensures _get_function fails when an no function with the input name is available."""
     with pytest.raises(AttributeError):
-        algorithm._get_function('unknown function', [optimizers])
+        algorithm._spawn_fitter('unknown function')
 
 
 def test_get_function_fails_no_module(algorithm):
@@ -1189,13 +1172,13 @@ def test_get_function_fails_no_module(algorithm):
 
 
 @pytest.mark.parametrize('ensure_new', (True, False))
-def test_get_function_sorting_x(ensure_new):
+def test_spawn_fitter_sorting_x(ensure_new):
     """Ensures the sort order is correct for the output class object when x is reversed."""
     num_points = 10
     x = np.arange(num_points)
     ordering = np.arange(num_points)
     algorithm = Baseline2D(x[::-1], assume_sorted=False)
-    func, func_module, class_object = algorithm._get_function('asls', [whittaker], ensure_new)
+    class_object = algorithm._spawn_fitter('asls', ensure_new=ensure_new)
 
     assert_array_equal(class_object.x, x)
     assert_array_equal(class_object._sort_order, ordering[::-1])
@@ -1209,13 +1192,13 @@ def test_get_function_sorting_x(ensure_new):
 
 
 @pytest.mark.parametrize('ensure_new', (True, False))
-def test_get_function_sorting_z(ensure_new):
+def test_spawn_fitter_sorting_z(ensure_new):
     """Ensures the sort order is correct for the output class object when z is reversed."""
     num_points = 10
     z = np.arange(num_points)
     ordering = np.arange(num_points)
     algorithm = Baseline2D(None, z[::-1], assume_sorted=False)
-    func, func_module, class_object = algorithm._get_function('asls', [whittaker], ensure_new)
+    class_object = algorithm._spawn_fitter('asls', ensure_new=ensure_new)
 
     assert_array_equal(class_object.z, z)
     assert class_object._sort_order[0] is Ellipsis
@@ -1233,7 +1216,7 @@ def test_get_function_sorting_z(ensure_new):
 
 
 @pytest.mark.parametrize('ensure_new', (True, False))
-def test_get_function_sorting_xz(ensure_new):
+def test_spawn_fitter_sorting_xz(ensure_new):
     """Ensures the sort order is correct for the output class object when x and z are reversed."""
     num_x_points = 10
     num_z_points = 11
@@ -1243,7 +1226,7 @@ def test_get_function_sorting_xz(ensure_new):
     z_ordering = np.arange(num_z_points)
 
     algorithm = Baseline2D(x[::-1], z[::-1], assume_sorted=False)
-    func, func_module, class_object = algorithm._get_function('asls', [whittaker], ensure_new)
+    class_object = algorithm._spawn_fitter('asls', ensure_new=ensure_new)
 
     assert_array_equal(class_object.x, x)
     assert_array_equal(class_object.z, z)
@@ -1269,28 +1252,33 @@ def test_setup_optimizer(small_data2d, method_kwargs, ensure_new):
     algorithm = Baseline2D(
         x_data=np.arange(num_x), z_data=np.arange(num_z), assume_sorted=True, check_finite=False
     )
-    y, fit_func, func_module, output_kwargs, class_object = algorithm._setup_optimizer(
-        small_data2d, 'asls', [whittaker], method_kwargs, ensure_new=ensure_new
+    y, optimizer_obj, output_kwargs = algorithm._setup_optimizer(
+        small_data2d, 'asls', method_kwargs=method_kwargs, ensure_new=ensure_new
     )
 
     assert isinstance(y, np.ndarray)
     assert_allclose(y, small_data2d)
-    assert fit_func.__name__ == 'asls'
-    assert func_module == 'whittaker'
+    assert callable(optimizer_obj.method_call)
+    assert optimizer_obj.method_call.__name__ == 'asls'
+    assert optimizer_obj.module == 'whittaker'
     assert isinstance(output_kwargs, dict)
-    assert isinstance(class_object, _algorithm_setup._Algorithm2D)
-    if ensure_new:
-        assert class_object is not algorithm
+    if method_kwargs is not None:
+        assert output_kwargs == method_kwargs
     else:
-        assert class_object is algorithm
+        assert output_kwargs == {}
+    assert isinstance(optimizer_obj.fitter, _algorithm_setup._Algorithm2D)
+    if ensure_new:
+        assert optimizer_obj.fitter is not algorithm
+    else:
+        assert optimizer_obj.fitter is algorithm
 
 
 @pytest.mark.parametrize('copy_kwargs', (True, False))
 def test_setup_optimizer_copy_kwargs(small_data2d, algorithm, copy_kwargs):
     """Ensures the copy behavior of the input keyword argument dictionary."""
     input_kwargs = {'a': 1}
-    y, _, _, output_kwargs, _ = algorithm._setup_optimizer(
-        small_data2d, 'asls', [whittaker], input_kwargs, copy_kwargs
+    _, _, output_kwargs = algorithm._setup_optimizer(
+        small_data2d, 'asls', method_kwargs=input_kwargs, copy_kwargs=copy_kwargs
     )
 
     output_kwargs['a'] = 2
