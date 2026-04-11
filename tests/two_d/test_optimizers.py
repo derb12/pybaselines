@@ -115,6 +115,12 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(AttributeError):
             self.class_func(self.y, method='unknown function')
 
+    @pytest.mark.parametrize('method', ('mor', 'rolling_ball', 'noise_median'))
+    def test_disallowed_method_fails(self, method):
+        """Ensures function fails when a method that does not work is given."""
+        with pytest.raises(ValueError, match=f'{method} is not a supported method'):
+            self.class_func(self.y, method=method)
+
     def test_single_dataset_fails(self):
         """Ensures an error is raised if the input has the shape (M, N)."""
         with pytest.raises(ValueError, match='the input data must'):
@@ -188,6 +194,12 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
         """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):
             self.class_func(self.y, method='unknown')
+
+    @pytest.mark.parametrize('method', ('mor', 'rolling_ball', 'noise_median'))
+    def test_disallowed_method_fails(self, method):
+        """Ensures function fails when a method that does not work is given."""
+        with pytest.raises(ValueError, match=f'{method} is not a supported method'):
+            self.class_func(self.y, method=method)
 
     @pytest.mark.parametrize('poly_order', (None, 0, [0], (0, 1)))
     def test_polyorder_inputs(self, poly_order):

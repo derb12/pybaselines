@@ -117,6 +117,12 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(AttributeError):
             self.class_func(self.y, method='unknown function')
 
+    @pytest.mark.parametrize('method', ('mor', 'rolling_ball', 'snip', 'beads'))
+    def test_disallowed_method_fails(self, method):
+        """Ensures function fails when a method that does not work is given."""
+        with pytest.raises(ValueError, match=f'{method} is not a supported method'):
+            self.class_func(self.y, method=method)
+
     def test_single_dataset_fails(self):
         """Ensures an error is raised if the input has the shape (N,)."""
         with pytest.raises(ValueError, match='the input data must'):
@@ -197,6 +203,12 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):
             self.class_func(self.y, method='unknown function')
+
+    @pytest.mark.parametrize('method', ('mor', 'rolling_ball', 'snip'))
+    def test_disallowed_method_fails(self, method):
+        """Ensures function fails when a method that does not work is given."""
+        with pytest.raises(ValueError, match=f'{method} is not a supported method'):
+            self.class_func(self.y, method=method)
 
     def test_unknown_side_fails(self):
         """Ensures function fails when the input side is not 'left', 'right', or 'both'."""
@@ -509,6 +521,12 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
         with pytest.raises(AttributeError):
             self.class_func(self.y, method='unknown')
 
+    @pytest.mark.parametrize('method', ('mor', 'rolling_ball', 'snip', 'arpls', 'mixture_model'))
+    def test_disallowed_method_fails(self, method):
+        """Ensures function fails when a method that does not work is given."""
+        with pytest.raises(ValueError, match=f'{method} is not a supported method'):
+            self.class_func(self.y, method=method)
+
     @pytest.mark.parametrize('poly_order', (None, 0, [0], (0, 1)))
     def test_polyorder_inputs(self, poly_order):
         """Tests valid inputs for poly_order."""
@@ -726,6 +744,12 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         """Ensures method fails when an unknown baseline method is given."""
         with pytest.raises(AttributeError):
             self.class_func(self.y, method='aaaaa')
+
+    @pytest.mark.parametrize('method', ('mor', 'rolling_ball', 'snip'))
+    def test_disallowed_method_fails(self, method):
+        """Ensures function fails when a method that does not work is given."""
+        with pytest.raises(ValueError, match=f'{method} is not a supported method'):
+            self.class_func(self.y, method=method)
 
     def test_unknown_opt_method_fails(self):
         """Ensures method fails when an unknown opt_method is given."""
