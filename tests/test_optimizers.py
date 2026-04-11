@@ -173,6 +173,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
             'derpsalsa', 'mpspline', 'mixture_model', 'irsqr', 'dietrich', 'cwt_br', 'fabc',
             'pspline_asls', 'pspline_iasls', 'pspline_airpls', 'pspline_arpls', 'pspline_drpls',
             'pspline_iarpls', 'pspline_aspls', 'pspline_psalsa', 'pspline_derpsalsa', 'rubberband',
+            'beads', 'jbcd',
         )
     )
     def test_all_methods(self, method):
@@ -180,13 +181,17 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         # reduce number of calculations since this is just checking that calling works
         kwargs = {'min_value': 1, 'max_value': 3}
         # use height_scale=0.1 to avoid exponential overflow warning for arpls and aspls
-        output = self.class_func(
+        output, params = self.class_func(
             self.y, method=method, height_scale=0.1, **kwargs, **self.kwargs
         )
-        if 'weights' in output[1]['method_params']:
-            assert self.y.shape == output[1]['method_params']['weights'].shape
-        elif 'alpha' in output[1]['method_params']:
-            assert self.y.shape == output[1]['method_params']['alpha'].shape
+        for key in ('weights', 'alpha', 'signal', 'mask', 'opening'):
+            if key in params['method_params']:
+                assert self.y.shape == params['method_params'][key].shape
+
+        # more general check than above in case other methods add array-like keys later
+        for key, value in params['method_params'].items():
+            if isinstance(value, np.ndarray) and key != 'tol_history':
+                assert self.y.shape == value.shape
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""

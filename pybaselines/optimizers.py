@@ -279,7 +279,7 @@ class _Optimizers(_Algorithm):
 
         y, optimizer_obj, method_kws = self._setup_optimizer(
             data, method,
-            method_param={None: ('lam', 'poly_order')},
+            method_param={'beads': 'alpha', 'jbcd': 'beta', None: ('lam', 'poly_order')},
             method_kwargs=method_kwargs, copy_kwargs=True
         )
         variables = _param_grid(
