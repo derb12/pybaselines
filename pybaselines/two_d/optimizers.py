@@ -16,7 +16,6 @@ from math import ceil
 
 import numpy as np
 
-from . import morphological, polynomial, spline, whittaker
 from .._validation import _check_optional_array, _get_row_col_values
 from ..api import Baseline
 from ..utils import _check_scalar, _sort_array2d
@@ -85,9 +84,9 @@ class _Optimizers(_Algorithm2D):
         in Chemistry, 2018, 2018.
 
         """
-        dataset, baseline_func, _, method_kws, _ = self._setup_optimizer(
-            data, method, (whittaker, morphological, spline), method_kwargs,
-            True
+        dataset, optimizer_obj, method_kws = self._setup_optimizer(
+            data, method, method_param={None: 'weights'}, method_kwargs=method_kwargs,
+            copy_kwargs=True
         )
         data_shape = dataset.shape
         if len(data_shape) != 3:
@@ -95,14 +94,13 @@ class _Optimizers(_Algorithm2D):
                 'the input data must have a shape of (number of measurements, number of x points,'
                 f' number of y points), but instead has a shape of {data_shape}'
             ))
-        method = method.lower()
         # if using aspls or pspline_aspls, also need to calculate the alpha array
         # for the entire dataset
-        calc_alpha = method in ('aspls', 'pspline_aspls')
+        calc_alpha = optimizer_obj.method in ('aspls', 'pspline_aspls')
 
         # step 1: calculate weights for the entire dataset
         if average_dataset:
-            _, fit_params = baseline_func(np.mean(dataset, axis=0), **method_kws)
+            _, fit_params = optimizer_obj.method_call(np.mean(dataset, axis=0), **method_kws)
             method_kws['weights'] = fit_params['weights']
             if calc_alpha:
                 method_kws['alpha'] = fit_params['alpha']
@@ -111,7 +109,7 @@ class _Optimizers(_Algorithm2D):
             if calc_alpha:
                 alpha = np.empty(data_shape)
             for i, entry in enumerate(dataset):
-                _, fit_params = baseline_func(entry, **method_kws)
+                _, fit_params = optimizer_obj.method_call(entry, **method_kws)
                 weights[i] = fit_params['weights']
                 if calc_alpha:
                     alpha[i] = fit_params['alpha']
@@ -122,19 +120,17 @@ class _Optimizers(_Algorithm2D):
         # step 2: use the dataset weights from step 1 (stored in method_kws['weights'])
         # to fit each individual data entry; set tol to infinity so that only one
         # iteration is done and new weights are not calculated
-        method_kws['tol'] = np.inf
-        if method in ('brpls', 'pspline_brpls'):
+        if 'tol' in optimizer_obj.method_signature.parameters:
+            method_kws['tol'] = np.inf
+        if 'tol_2' in optimizer_obj.method_signature.parameters:  # brpls
             method_kws['tol_2'] = np.inf
         baselines = np.empty(data_shape)
         params = {'average_weights': method_kws['weights'], 'method_params': defaultdict(list)}
         if calc_alpha:
             params['average_alpha'] = method_kws['alpha']
-        if method == 'fabc':
-            # set weights as mask so it just fits the data
-            method_kws['weights_as_mask'] = True
 
         for i, entry in enumerate(dataset):
-            baselines[i], param = baseline_func(entry, **method_kws)
+            baselines[i], param = optimizer_obj.method_call(entry, **method_kws)
             for key, value in param.items():
                 params['method_params'][key].append(value)
 
@@ -214,8 +210,9 @@ class _Optimizers(_Algorithm2D):
             1199-1205.
 
         """
-        y, baseline_func, _, method_kws, _ = self._setup_optimizer(
-            data, method, [polynomial], method_kwargs, False, ensure_new=True
+        y, optimizer_obj, method_kws = self._setup_optimizer(
+            data, method, method_param={None: 'poly_order'}, method_kwargs=method_kwargs,
+            copy_kwargs=False, ensure_new=True, needed_params=('weights',)
         )
         sort_weights = weights is not None
         weight_array = _check_optional_array(
@@ -223,7 +220,7 @@ class _Optimizers(_Algorithm2D):
         )
         if poly_order is None:
             poly_orders = _determine_polyorders(
-                y, estimation_poly_order, weight_array, baseline_func, **method_kws
+                y, estimation_poly_order, weight_array, optimizer_obj.method_call, **method_kws
             )
         else:
             poly_orders, scalar_poly_order = _check_scalar(poly_order, 2, True, dtype=int)
@@ -266,7 +263,7 @@ class _Optimizers(_Algorithm2D):
         for i, (p_order, weight) in enumerate(
             itertools.product(poly_orders, (weight_array, constrained_weights))
         ):
-            baselines[i], method_params = baseline_func(
+            baselines[i], method_params = optimizer_obj.method_call(
                 data=y, poly_order=p_order, weights=weight, **method_kws
             )
             for key, value in method_params.items():
