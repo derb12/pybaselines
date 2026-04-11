@@ -10,10 +10,9 @@ import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
-from pybaselines.results import PSplineResult2D
 from pybaselines.two_d import Baseline2D, spline
 
-from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin
+from ..base_tests import BaseTester2D, InputWeightsMixin, PSplineResult2DMixin, RecreationMixin
 
 
 class WhittakerComparisonMixin:
@@ -47,16 +46,10 @@ class WhittakerComparisonMixin:
         assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
 
 
-class SplineTester(BaseTester2D):
+class SplineTester(BaseTester2D, PSplineResult2DMixin):
     """Base testing class for spline functions."""
 
     module = spline
-
-    def test_result_obj(self):
-        """Ensures the `result` item in the output params is a PSplineResult2D."""
-        _, params = self.class_func(self.y, **self.kwargs)
-        # don't use isinstance since don't want to allow subclasses
-        assert type(params['result']) is PSplineResult2D
 
     @pytest.mark.parametrize('spline_degree', (None, (None, 1), (3, None), (None, None)))
     def test_check_spline_degree(self, spline_degree):

@@ -272,13 +272,15 @@ class PSplineResult(WhittakerResult):
         In the most basic formulation, the linear equation for P-spline smoothing
         is ``(B.T @ W @ B + P) c = B.T @ W @ y`` and ``v = B @ c``.
         ``(W + P) @ v = W @ y``. Then the hat matrix would be
-        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W)`` or, equivalently
+        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W)``. The trace of the hat matrix is
+        equivalent to the trace of its rearrangement:
         ``(B.T @ W @ B + P)^-1 @ (B.T @ W @ B)``. The latter expression is preferred
         since it reduces the dimensionality of intermediate calculations.
 
         For more complex usages, the equation can be expressed as:
         ``(B.T @ W @ B + P) @ c = (B.T @ W + rhs_partial) @ y``, such that the hat is given as:
-        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W + rhs_partial)``, or equivalently
+        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W + rhs_partial)``. The trace of the hat matrix is
+        equivalent to the trace of its rearrangement:
         ``(B.T @ W @ B + P)^-1 @ (B.T @ W + rhs_partial) @ B``. Simplifying leads to
         ``(B.T @ W @ B + P)^-1 @ (B.T @ W @ B + rhs_extra)``.
 
@@ -488,13 +490,15 @@ class PSplineResult2D(PSplineResult):
         In the most basic formulation, the linear equation for P-spline smoothing
         is ``(B.T @ W @ B + P) c = B.T @ W @ y`` and ``v = B @ c``.
         ``(W + P) @ v = W @ y``. Then the hat matrix would be
-        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W)`` or, equivalently
+        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W)``. The trace of the hat matrix is
+        equivalent to the trace of its rearrangement:
         ``(B.T @ W @ B + P)^-1 @ (B.T @ W @ B)``. The latter expression is preferred
         since it reduces the dimensionality of intermediate calculations.
 
         For more complex usages, the equation can be expressed as:
         ``(B.T @ W @ B + P) @ c = (B.T @ W + rhs_partial) @ y``, such that the hat is given as:
-        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W + rhs_partial)``, or equivalently
+        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W + rhs_partial)``. The trace of the hat matrix is
+        equivalent to the trace of its rearrangement:
         ``(B.T @ W @ B + P)^-1 @ (B.T @ W + rhs_partial) @ B``. Simplifying leads to
         ``(B.T @ W @ B + P)^-1 @ (B.T @ W @ B + rhs_extra)``.
 
