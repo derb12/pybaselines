@@ -15,7 +15,7 @@ from scipy.linalg import cholesky_banded
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils
-from pybaselines._banded_solvers import penta_factorize
+from pybaselines._banded_linalg import penta_factorize
 from pybaselines._compat import dia_object, diags, identity
 
 

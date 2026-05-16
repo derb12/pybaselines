@@ -13,7 +13,7 @@ from scipy.linalg import (
 
 from scipy.sparse.linalg import factorized
 
-from ._banded_solvers import penta_factorize, penta_factorize_solve, solve_banded_penta
+from ._banded_linalg import penta_factorize, penta_factorize_solve, solve_banded_penta
 from ._compat import _HAS_NUMBA, dia_object, diags, identity
 from ._validation import _check_lam
 

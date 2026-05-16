@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for pybaselines._banded_solvers.
+"""Tests for pybaselines._banded_linalg.
 
 The functions `pentapy_ptrans1` and `pentapy_ptrans2` were adapted from `pentapy`
 (https://github.com/GeoStat-Framework/pentapy) (last accessed March 25, 2025), which was
@@ -37,7 +37,7 @@ from numpy.testing import assert_allclose
 import pytest
 from scipy.linalg import solve_banded
 
-from pybaselines import _banded_solvers, _banded_utils
+from pybaselines import _banded_linalg, _banded_utils
 from pybaselines._compat import jit
 
 from .base_tests import get_data
@@ -230,9 +230,9 @@ def _compare_solvers(lhs, rhs, pentapy_lhs, solver):
     pentapy_solver = {1: pentapy_ptrans1, 2: pentapy_ptrans2}[solver]
     pentapy_solution, pentapy_factorization = pentapy_solver(pentapy_lhs, rhs)
 
-    output = _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+    output = _banded_linalg.solve_banded_penta(lhs, rhs, solver=solver)
     # also test the underlying solver
-    underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
+    underlying_solver = {1: _banded_linalg._ptrans_1, 2: _banded_linalg._ptrans_2}[solver]
     output2, info = underlying_solver(lhs, rhs)
     assert info == 0
 
@@ -245,14 +245,14 @@ def _compare_solvers(lhs, rhs, pentapy_lhs, solver):
 
     # also test the factorizations
     underlying_factorizer = {
-        1: _banded_solvers._ptrans_1_factorize, 2: _banded_solvers._ptrans_2_factorize
+        1: _banded_linalg._ptrans_1_factorize, 2: _banded_linalg._ptrans_2_factorize
     }[solver]
-    factorization = _banded_solvers.penta_factorize(lhs, solver=solver)
+    factorization = _banded_linalg.penta_factorize(lhs, solver=solver)
     factorization2, info2 = underlying_factorizer(lhs)
     assert info2 == 0
 
-    output3 = _banded_solvers.penta_factorize_solve(factorization, rhs, solver=solver)
-    output4 = _banded_solvers.penta_factorize_solve(factorization2, rhs, solver=solver)
+    output3 = _banded_linalg.penta_factorize_solve(factorization, rhs, solver=solver)
+    output4 = _banded_linalg.penta_factorize_solve(factorization2, rhs, solver=solver)
 
     assert_allclose(output3, scipy_solution, atol=1e-10, rtol=5e-8)
     assert_allclose(output4, scipy_solution, atol=1e-10, rtol=5e-8)
@@ -349,7 +349,7 @@ def test_overwrite_solve(data_size, solver, overwrite_ab, overwrite_b):
     else:
         input_rhs = rhs
 
-    output = _banded_solvers.solve_banded_penta(
+    output = _banded_linalg.solve_banded_penta(
         input_lhs, input_rhs, solver=solver, overwrite_ab=overwrite_ab, overwrite_b=overwrite_b
     )
     # ensure it actually overwrites the input when expected to, and doesn't when not
@@ -371,7 +371,7 @@ def test_overwrite_solve(data_size, solver, overwrite_ab, overwrite_b):
         input_rhs = rhs.copy()
     else:
         input_rhs = rhs
-    underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
+    underlying_solver = {1: _banded_linalg._ptrans_1, 2: _banded_linalg._ptrans_2}[solver]
     output2, info = underlying_solver(
         input_lhs, input_rhs, overwrite_ab=overwrite_ab, overwrite_b=overwrite_b
     )
@@ -416,10 +416,10 @@ def test_overwrite_factorize(data_size, solver, overwrite_ab, overwrite_b):
     else:
         input_rhs = rhs
 
-    factorization = _banded_solvers.penta_factorize(
+    factorization = _banded_linalg.penta_factorize(
         input_lhs, solver=solver, overwrite_ab=overwrite_ab
     )
-    output = _banded_solvers.penta_factorize_solve(
+    output = _banded_linalg.penta_factorize_solve(
         factorization, input_rhs, solver=solver, overwrite_b=overwrite_b
     )
 
@@ -444,10 +444,10 @@ def test_overwrite_factorize(data_size, solver, overwrite_ab, overwrite_b):
         input_rhs = rhs
 
     underlying_factorizer = {
-        1: _banded_solvers._ptrans_1_factorize, 2: _banded_solvers._ptrans_2_factorize
+        1: _banded_linalg._ptrans_1_factorize, 2: _banded_linalg._ptrans_2_factorize
     }[solver]
     underlying_factorizer_solver = {
-        1: _banded_solvers._ptrans_1_factorize_solve, 2: _banded_solvers._ptrans_2_factorize_solve
+        1: _banded_linalg._ptrans_1_factorize_solve, 2: _banded_linalg._ptrans_2_factorize_solve
     }[solver]
 
     factorization2, info = underlying_factorizer(input_lhs, overwrite_ab=overwrite_ab)
@@ -482,9 +482,9 @@ def test_paper_solutions(solver):
            Mathematical Problems in Engineering, 2015, 232456.
 
     """
-    underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
+    underlying_solver = {1: _banded_linalg._ptrans_1, 2: _banded_linalg._ptrans_2}[solver]
     underlying_factorizer = {
-        1: _banded_solvers._ptrans_1_factorize, 2: _banded_solvers._ptrans_2_factorize
+        1: _banded_linalg._ptrans_1_factorize, 2: _banded_linalg._ptrans_2_factorize
     }[solver]
 
     # case 1
@@ -498,14 +498,14 @@ def test_paper_solutions(solver):
     y = np.array([8, 33, 8, 24, 29, 98, 99, 17, 57, 108], dtype=float)
     solution = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=float)
 
-    output = _banded_solvers.solve_banded_penta(ab, y, solver=solver)
+    output = _banded_linalg.solve_banded_penta(ab, y, solver=solver)
     output2, info = underlying_solver(ab, y)
     assert info == 0
-    factorization = _banded_solvers.penta_factorize(ab, solver=solver)
+    factorization = _banded_linalg.penta_factorize(ab, solver=solver)
     factorization2, info2 = underlying_factorizer(ab)
     assert info2 == 0
-    output3 = _banded_solvers.penta_factorize_solve(factorization, y, solver=solver)
-    output4 = _banded_solvers.penta_factorize_solve(factorization2, y, solver=solver)
+    output3 = _banded_linalg.penta_factorize_solve(factorization, y, solver=solver)
+    output4 = _banded_linalg.penta_factorize_solve(factorization2, y, solver=solver)
 
     # machine precision for float(10) ~ 1.8e-15
     assert_allclose(output, solution, atol=1e-15, rtol=2e-15)
@@ -532,14 +532,14 @@ def test_paper_solutions(solver):
     y[1] = -1
     solution = np.ones(size)
 
-    output = _banded_solvers.solve_banded_penta(ab, y, solver=solver)
+    output = _banded_linalg.solve_banded_penta(ab, y, solver=solver)
     output2, info = underlying_solver(ab, y)
     assert info == 0
-    factorization = _banded_solvers.penta_factorize(ab, solver=solver)
+    factorization = _banded_linalg.penta_factorize(ab, solver=solver)
     factorization2, info2 = underlying_factorizer(ab)
     assert info2 == 0
-    output3 = _banded_solvers.penta_factorize_solve(factorization, y, solver=solver)
-    output4 = _banded_solvers.penta_factorize_solve(factorization2, y, solver=solver)
+    output3 = _banded_linalg.penta_factorize_solve(factorization, y, solver=solver)
+    output4 = _banded_linalg.penta_factorize_solve(factorization2, y, solver=solver)
 
     # solver 2 should match completely and solver 1 with a relative error of ~1.5856e-7
     rtol = 1e-16 if solver == 2 else 1.59e-7
@@ -563,9 +563,9 @@ def test_paper_failures(solver):
            Mathematical Problems in Engineering, 2015, 232456.
 
     """
-    underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
+    underlying_solver = {1: _banded_linalg._ptrans_1, 2: _banded_linalg._ptrans_2}[solver]
     underlying_factorizer = {
-        1: _banded_solvers._ptrans_1_factorize, 2: _banded_solvers._ptrans_2_factorize
+        1: _banded_linalg._ptrans_1_factorize, 2: _banded_linalg._ptrans_2_factorize
     }[solver]
 
     ab = np.array([
@@ -579,27 +579,27 @@ def test_paper_failures(solver):
 
     if solver == 1:
         with pytest.raises(np.linalg.LinAlgError):
-            _banded_solvers.solve_banded_penta(ab, y, solver=solver)
+            _banded_linalg.solve_banded_penta(ab, y, solver=solver)
         _, info = underlying_solver(ab, y)
         assert info > 0
         with pytest.raises(np.linalg.LinAlgError):
-            _banded_solvers.penta_factorize(ab, solver=solver)
+            _banded_linalg.penta_factorize(ab, solver=solver)
         _, info2 = underlying_factorizer(ab)
         assert info2 > 0
     else:
         solution = np.array([1, 1, 1, 1], dtype=float)
-        output = _banded_solvers.solve_banded_penta(ab, y, solver=solver)
+        output = _banded_linalg.solve_banded_penta(ab, y, solver=solver)
         output2, info = underlying_solver(ab, y)
         assert info == 0
         assert_allclose(output, solution, atol=1e-15, rtol=5e-16)
         assert_allclose(output2, solution, atol=1e-15, rtol=5e-16)
 
-        factorization = _banded_solvers.penta_factorize(ab, solver=solver)
+        factorization = _banded_linalg.penta_factorize(ab, solver=solver)
         factorization2, info2 = underlying_factorizer(ab)
         assert info2 == 0
 
-        output3 = _banded_solvers.penta_factorize_solve(factorization, y, solver=solver)
-        output4 = _banded_solvers.penta_factorize_solve(factorization2, y, solver=solver)
+        output3 = _banded_linalg.penta_factorize_solve(factorization, y, solver=solver)
+        output4 = _banded_linalg.penta_factorize_solve(factorization2, y, solver=solver)
 
         assert_allclose(output3, solution, atol=1e-15, rtol=5e-16)
         assert_allclose(output4, solution, atol=1e-15, rtol=5e-16)
@@ -613,15 +613,15 @@ def test_low_columns(solver):
     rhs = np.array([1., 2, 3])
 
     scipy_solution = solve_banded((2, 2), lhs, rhs)
-    output = _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+    output = _banded_linalg.solve_banded_penta(lhs, rhs, solver=solver)
 
     assert_allclose(output, scipy_solution, atol=1e-10, rtol=1e-15)
 
     # the factorization should fail however
     with pytest.raises(ValueError, match='penta_factorize requires at least 4 columns'):
-        _banded_solvers.penta_factorize(lhs, solver=solver)
+        _banded_linalg.penta_factorize(lhs, solver=solver)
     with pytest.raises(ValueError, match='penta_factorize_solve requires at least 4 columns'):
-        _banded_solvers.penta_factorize_solve(lhs, rhs, solver=solver)
+        _banded_linalg.penta_factorize_solve(lhs, rhs, solver=solver)
 
 
 @pytest.mark.parametrize('diff_order', (1, 3, 4))
@@ -635,11 +635,11 @@ def test_non_pentadiagonal_fails(diff_order, size, solver):
     lhs = penalized_system.add_diagonal(1.)
     rhs = np.random.default_rng(123).normal(0, 0.5, size)
     with pytest.raises(ValueError, match='ab matrix must have 5 rows'):
-        _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+        _banded_linalg.solve_banded_penta(lhs, rhs, solver=solver)
     with pytest.raises(ValueError, match='ab matrix must have 5 rows'):
-        _banded_solvers.penta_factorize(lhs, solver=solver)
+        _banded_linalg.penta_factorize(lhs, solver=solver)
     with pytest.raises(ValueError, match='ab_factorization matrix must have 5 rows'):
-        _banded_solvers.penta_factorize_solve(lhs, rhs, solver=solver)
+        _banded_linalg.penta_factorize_solve(lhs, rhs, solver=solver)
 
 
 @pytest.mark.parametrize('solver', (1, 2))
@@ -651,9 +651,9 @@ def test_mismatch_ab_b_fails(size, solver):
     rhs = np.random.default_rng(123).normal(0, 0.5, size - 1)
 
     with pytest.raises(ValueError, match='shape mismatch between ab and b'):
-        _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+        _banded_linalg.solve_banded_penta(lhs, rhs, solver=solver)
     with pytest.raises(ValueError, match='shape mismatch between ab_factorization and b'):
-        _banded_solvers.penta_factorize_solve(lhs, rhs, solver=solver)
+        _banded_linalg.penta_factorize_solve(lhs, rhs, solver=solver)
 
 
 def test_unknown_solver_fails():
@@ -666,11 +666,11 @@ def test_unknown_solver_fails():
     solver_inputs = ['1', '2', 0, 3, 4]
     for solver in solver_inputs:
         with pytest.raises(ValueError, match='solver must be 1 or 2'):
-            _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+            _banded_linalg.solve_banded_penta(lhs, rhs, solver=solver)
         with pytest.raises(ValueError, match='solver must be 1 or 2'):
-            _banded_solvers.penta_factorize(lhs, solver=solver)
+            _banded_linalg.penta_factorize(lhs, solver=solver)
         with pytest.raises(ValueError, match='solver must be 1 or 2'):
-            _banded_solvers.penta_factorize_solve(lhs, rhs, solver=solver)
+            _banded_linalg.penta_factorize_solve(lhs, rhs, solver=solver)
 
 
 @pytest.mark.parametrize('solver', (1, 2))
@@ -699,15 +699,15 @@ def test_ill_conditioned_fails(solver):
     lhs = penalized_system.add_diagonal(1.)
     rhs = np.random.default_rng(123).normal(0, 0.5, size)
 
-    underlying_solver = {1: _banded_solvers._ptrans_1, 2: _banded_solvers._ptrans_2}[solver]
+    underlying_solver = {1: _banded_linalg._ptrans_1, 2: _banded_linalg._ptrans_2}[solver]
     underlying_factorizer = {
-        1: _banded_solvers._ptrans_1_factorize, 2: _banded_solvers._ptrans_2_factorize
+        1: _banded_linalg._ptrans_1_factorize, 2: _banded_linalg._ptrans_2_factorize
     }[solver]
 
     with pytest.raises(np.linalg.LinAlgError):
-        _banded_solvers.solve_banded_penta(lhs, rhs, solver=solver)
+        _banded_linalg.solve_banded_penta(lhs, rhs, solver=solver)
     with pytest.raises(np.linalg.LinAlgError):
-        _banded_solvers.penta_factorize(lhs, solver=solver)
+        _banded_linalg.penta_factorize(lhs, solver=solver)
 
     _, info = underlying_solver(lhs, rhs)
     assert info > 0
