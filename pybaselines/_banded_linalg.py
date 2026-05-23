@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Dedicated solvers for pentadiagonal banded linear systems.
+"""Linear algebra for banded linear systems.
 
 @author: Donald Erb
 Created on February 20, 2025
@@ -30,6 +30,41 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+_cholesky_inv_diag and _cho_inv_diag were derived from SciPy
+(https://github.com/scipy/scipy, v1.17.1) which was licensed under the BSD-3-Clause below.
+
+Copyright (c) 2001-2002 Enthought, Inc.  2003, SciPy Developers.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above
+   copyright notice, this list of conditions and the following
+   disclaimer in the documentation and/or other materials provided
+   with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 """
 
@@ -1014,3 +1049,133 @@ def penta_factorize_solve(ab_factorization, b, solver=1, overwrite_b=False):
     result = func(lhs, rhs, overwrite_b)
 
     return result
+
+
+def _lower_to_upper(matrix):
+    """
+    Converts from lower banded format to upper banded format.
+
+    Parameters
+    ----------
+    matrix : numpy.ndarray, shape (M, N)
+        The lower banded array. Is modified internally.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (M, N)
+        The upper banded array.
+
+    """
+    output = matrix[::-1]
+    for i in range(2, matrix.shape[0] + 1):
+        output[-i] = np.roll(output[-i], i - 1)
+
+    return output
+
+
+# adapted from scipy (scipy.interpolate._bsplines._compute_optimal_gcv_parameter
+# inner function compute_b_inv); see license above
+@jit(nopython=True, cache=True)
+def _cho_inv_diag(factorization, d_inv):
+    """
+    Calculates the diagonal of the inverse of a matrix from its Cholesky factorization.
+
+    Calculates the diagonal of ``A^-1`` given the factorization of `A` in
+    ``U.T @ D^-1 @ U`` format.
+
+    Parameters
+    ----------
+    factorization : numpy.ndarray, shape (M, N)
+        The unit upper triangular banded factorization of `A`, `U`.
+    d_inv : numpy.ndarray, shape (N,)
+        The diagonal portion of the factorization, ``D^-1``.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N,)
+        The diagonal of the inverse of `A`.
+
+    Notes
+    -----
+    This only calculates the inner bands of the inverse that are needed for
+    calculating the diagonal, so `partial_inv` does not contain the complete
+    inverse, which is typically fully dense.
+
+    References
+    ----------
+    Hutchinson, M., et al. Smoothing noisy data with spline functions. Numerische Mathematik,
+    1985, 47(1), 99-106.
+
+    """
+    num_rows, num_cols = factorization.shape
+    # compared to reference, num_rows == `m` and num_cols == `n`
+    partial_inv = np.zeros(shape=(num_rows, num_cols))
+    for i in range(num_cols - 1, -1, -1):
+        matmul_range = min(num_rows, num_cols - i)  # defined as `l` in the reference
+        for j in range(matmul_range - 1, 0, -1):  # equation 3.4
+            non_diag_sum = 0.
+            for k in range(1, matmul_range):
+                diag = abs(k - j)
+                non_diag_sum -= (
+                    factorization[-k - 1, i + k] * partial_inv[-diag - 1, i + min(k, j) + diag]
+                )
+            partial_inv[-j - 1, i + j] = non_diag_sum
+
+        # note that using arrays to represent all rows and cols and doing the dot
+        # product is slower than doing a loop, even without numba
+        diag_sum = 0.
+        for j in range(1, matmul_range):  # equation 3.5
+            row = -j - 1
+            col = i + j
+            diag_sum -= factorization[row, col] * partial_inv[row, col]
+        partial_inv[-1, i] = d_inv[i] + diag_sum
+
+    return partial_inv[-1]  # only the diagonal is of interest
+
+
+# adapted from scipy (scipy.interpolate._bsplines._compute_optimal_gcv_parameter
+# inner function compute_b_inv); see license above
+def _cholesky_inv_diag(factorization, lower=False, overwrite_f=False):
+    """
+    Computes the diagonal of the inverse of a matrix from its banded Cholesky factorization.
+
+    For the banded matrix `A`, this computes the diagonal of ``A^-1`` given the
+    banded factorization of `A`,
+
+    Parameters
+    ----------
+    factorization : numpy.ndarray, shape (M, N)
+        The Cholesky factorization of `A`, stored in upper or lower LAPACK banded format,
+        as output by :func:`scipy.linalg.cholesky_banded`.
+    lower : bool, optional
+        If True, denotes the factorization is stored in lower format; False (default)
+        denotes upper format.
+    overwrite_f : bool, optional
+        Whether to overwrite `factorization`. Default is False.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N,)
+        The diagonal of the inverse of `A`.
+
+    References
+    ----------
+    Hutchinson, M., et al. Smoothing noisy data with spline functions. Numerische Mathematik,
+    1985, 47(1), 99-106.
+
+    """
+    if not overwrite_f:
+        factorization = factorization.copy()
+
+    if lower:
+        factorization = _lower_to_upper(factorization)
+
+    # convert from U1.T @ U1 format output by scipy.linalg.cholesky_banded to
+    # U.T @ D^-1 @ U format required for Hutchinson's method; all of the divisions
+    # are safe since they're guaranteed to be non-zero during factorization
+    for i in range(2, factorization.shape[0] + 1):
+        factorization[-i, i - 1:] /= factorization[-1, :-i + 1]
+    d_inv = 1. / (factorization[-1])**2
+    factorization[-1] = 1.
+
+    return _cho_inv_diag(factorization, d_inv)

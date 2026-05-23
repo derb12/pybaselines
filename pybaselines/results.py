@@ -9,6 +9,7 @@ Created on November 15, 2025
 import numpy as np
 from scipy.sparse import issparse
 
+from ._banded_linalg import _cholesky_inv_diag
 from ._banded_utils import _banded_to_sparse, _add_diagonals
 from ._compat import diags, _sparse_col_index
 from .utils import _get_rng
@@ -176,31 +177,17 @@ class WhittakerResult:
         smoothing splines. Communications in Statistics - Simulation and Computation, (1990),
         19(2), 433-450.
 
+        Hutchinson, M., et al. Smoothing noisy data with spline functions. Numerische Mathematik,
+        1985, 47(1), 99-106.
+
         Meyer, R., et al. Hutch++: Optimal Stochastic Trace Estimation. 2021 Symposium on
         Simplicity in Algorithms (SOSA), (2021), 142-155.
 
         """
-        # NOTE if diff_order is 2 and matrix is symmetric, could use the fast trace calculation from
-        # Frasso G, Eilers PH. L- and V-curves for optimal smoothing. Statistical Modelling.
-        # (2014), 15(1), 91-111. https://doi.org/10.1177/1471082X14549288, which is in turn based on
-        # Hutchinson, M, et al. Smoothing noisy data with spline functions. Numerische Mathematik.
-        # (1985), 47, 99-106. https://doi.org/10.1007/BF01389878
-        # For non-symmetric matrices, can use the slightly more involved algorithm from:
+        # TODO For non-symmetric matrices, can use the slightly more involved algorithm from:
         # Erisman, A., et al. On Computing Certain Elements of the Inverse of a Sparse Matrix.
         # Communication of the ACM. (1975) 18(3), 177-179. https://doi.org/10.1145/360680.360704
-        # -> worth the effort? -> maybe...? For diff_order=2 and symmetric lhs, the timing is
-        # much faster than even the stochastic calculation and does not increase much with data
-        # size, and it provides the exact trace rather than an estimate -> however, this is only
-        # useful for GCV/BIC calculations atm, which are going to be very very rarely used -> could
-        # allow calculating the full inverse hat diagonal to allow calculating the baseline fit
-        # errors, but that's still incredibly niche...
-        # Also note that doing so would require performing inv(lhs) @ rhs, which is typically less
-        # numerically stable than solve(lhs, rhs) and would be complicated for non diagonal rhs;
-        # as such, I'd rather not implement it and just leave the above for reference.
 
-        # TODO could maybe make default n_samples to None and decide to use analytical or
-        # stochastic trace based on data size; data size > 1000 use stochastic with default
-        # n_samples = 100?
         if n_samples == 0:
             if self._trace is not None:
                 return self._trace
@@ -219,13 +206,19 @@ class WhittakerResult:
             factorization = self._penalized_object.factorize(self._lhs)
             trace = 0
             if self._rhs_extra is None:
-                # note: about an order of magnitude faster to omit the sparse rhs for the simple
-                # case of lhs @ v = w * y
-                eye = np.zeros(self._penalized_object.tot_bases)
-                for i in range(self._penalized_object.tot_bases):
-                    eye[i] = self._weights[i]
-                    trace += self._penalized_object.factorized_solve(factorization, eye)[i]
-                    eye[i] = 0
+                if len(self._penalized_object.shape) == 1 and self._penalized_object.lower:
+                    trace = (
+                        _cholesky_inv_diag(factorization, lower=True, overwrite_f=True)
+                        @ self._weights
+                    )
+                else:
+                    # note: about an order of magnitude faster to omit the sparse rhs for the simple
+                    # case of lhs @ v = w * y
+                    eye = np.zeros(self._penalized_object.tot_bases)
+                    for i in range(self._penalized_object.tot_bases):
+                        eye[i] = self._weights[i]
+                        trace += self._penalized_object.factorized_solve(factorization, eye)[i]
+                        eye[i] = 0
             else:
                 rhs = self._rhs.tocsc()
                 for i in range(self._penalized_object.tot_bases):

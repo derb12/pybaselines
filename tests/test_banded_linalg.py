@@ -35,7 +35,7 @@ Created on April 10, 2025
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
-from scipy.linalg import solve_banded
+from scipy.linalg import cholesky_banded, solve_banded
 
 from pybaselines import _banded_linalg, _banded_utils
 from pybaselines._compat import jit
@@ -713,3 +713,86 @@ def test_ill_conditioned_fails(solver):
     assert info > 0
     _, info = underlying_factorizer(lhs)
     assert info > 0
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('size', (100, 401))
+def test_lower_to_upper(diff_order, size):
+    """Ensures _lower_to_upper works correctly."""
+    banded_penalty = _banded_utils.diff_penalty_diagonals(
+        size, diff_order=diff_order, lower_only=False
+    )
+    lower_penalty = banded_penalty[diff_order:]
+    expected_upper = banded_penalty[:diff_order + 1]
+
+    output = _banded_linalg._lower_to_upper(lower_penalty)
+    assert_allclose(output, expected_upper, rtol=1e-14, atol=1e-14)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('size', (100, 401))
+@pytest.mark.parametrize('unit_weights', (True, False))
+@pytest.mark.parametrize('lower', (True, False))
+@pytest.mark.parametrize('overwrite_f', (True, False))
+def test_cholesky_inv_diag(diff_order, size, unit_weights, lower, overwrite_f):
+    """Ensures correctness of the inverse diagonal calculation for Cholesky systems."""
+    if unit_weights:
+        weights = np.ones(size)
+    else:
+        weights = np.random.default_rng(0).normal(0.8, 0.05, size)
+        weights = np.clip(weights, 0, 1).astype(float)
+
+    lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
+    banded_penalty = lam * _banded_utils.diff_penalty_diagonals(
+        size, diff_order=diff_order, lower_only=False
+    )
+    banded_penalty[diff_order] += weights
+    if lower:
+        banded_penalty = banded_penalty[diff_order:]
+    else:
+        banded_penalty = banded_penalty[:diff_order + 1]
+
+    output = _banded_linalg._cholesky_inv_diag(
+        cholesky_banded(banded_penalty, lower=lower), lower=lower, overwrite_f=overwrite_f
+    )
+
+    # setup to ensure it goes through Cholesky solver for better rtol match
+    penalized_system = _banded_utils.PenalizedSystem(
+        size, lam=lam, diff_order=diff_order, allow_lower=True,
+        reverse_diags=False, allow_penta=False
+    )
+    penalized_system.add_diagonal(weights)
+    factorization = penalized_system.factorize(penalized_system.penalty)
+    expected_diag = np.empty(size)
+    eye = np.zeros(size)
+    for i in range(size):
+        eye[i] = 1.
+        expected_diag[i] = penalized_system.factorized_solve(factorization, eye)[i]
+        eye[i] = 0.
+
+    rtol = {1: 1e-14, 2: 1e-14, 3: 1e-9}[diff_order]
+    assert_allclose(output, expected_diag, rtol=rtol, atol=1e-14)
+
+
+@pytest.mark.parametrize('overwrite_f', (True, False))
+@pytest.mark.parametrize('lower', (True, False))
+def test_cholesky_inv_diag_overwrite(overwrite_f, lower):
+    """Ensures _cholesky_inv_diag respects overwrite input."""
+    diff_order = 2
+    banded_penalty = _banded_utils.diff_penalty_diagonals(
+        100, diff_order=diff_order, lower_only=False
+    )
+    banded_penalty[diff_order] += 1.
+    if lower:
+        banded_penalty = banded_penalty[diff_order:]
+    else:
+        banded_penalty = banded_penalty[:diff_order + 1]
+
+    original_factorization = cholesky_banded(banded_penalty, lower=lower)
+    input_factorization = original_factorization.copy()
+    _banded_linalg._cholesky_inv_diag(input_factorization, lower=lower, overwrite_f=overwrite_f)
+    if overwrite_f:
+        with pytest.raises(AssertionError):
+            assert_allclose(input_factorization, original_factorization, rtol=1e-14, atol=1e-14)
+    else:
+        assert_allclose(input_factorization, original_factorization, rtol=1e-14, atol=1e-14)
