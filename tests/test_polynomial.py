@@ -526,6 +526,61 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
         delta = 0.05 * (self.x.max() - self.x.min())  # use a larger delta to speed up method
         super().test_threading(conserve_memory=conserve_memory, delta=delta)
 
+    def test_custom_sigma_func(self):
+        """Ensures input sigma_func modifies the reweighting."""
+        baseline, params = self.class_func(self.y)
+        baseline2, params2 = self.class_func(self.y, sigma_func=lambda vals: np.std(vals[vals < 0]))
+
+        # simple check that different sigma calcs produced different baselines and weights
+        with pytest.raises(AssertionError):
+            assert_allclose(baseline2, baseline, rtol=1e-4, atol=1e-3)
+        with pytest.raises(AssertionError):
+            assert_allclose(params2['weights'], params['weights'], rtol=1e-1, atol=1e-1)
+
+    def test_incorrect_sigma_func_fails(self):
+        """Ensures an exception is raised if input sigma_func does not return a float."""
+        with pytest.raises(TypeError, match='"sigma_func" must return a float'):
+            self.class_func(self.y, sigma_func=lambda vals: 'a')
+
+    def test_zero_sigma_exits(self):
+        """Ensures the method exits early when the calculated noise sigma is ~0.
+
+        Replicates statsmodels issue #2108.
+
+        """
+        x = np.arange(20)
+        y = np.array([0] * 10 + [1] * 10, dtype=float)
+        fraction = 2 / 3
+        total_points = int(len(x) * fraction)
+        with pytest.warns(ParameterWarning, match='calculated noise scale is near 0'):
+            output = self.algorithm_base(x).loess(
+                y, total_points=total_points, max_iter=3, delta=0,
+                scale=4.0469385011764905, symmetric_weights=True, tol=-1
+            )[0]
+        expected_output = np.array([
+            0, 0, 0, 0, 0, 0, 0, 0.03796574, 0.29511209, 0.44982749, 0.55017251, 0.70488791,
+            0.96203426, 1, 1, 1, 1, 1, 1, 1
+        ])
+        assert_allclose(output, expected_output, rtol=1e-6, atol=1e-9)
+
+    def test_zero_sigma_exits_2(self):
+        """Ensures the method exits early when the calculated noise sigma is ~0.
+
+        Replicates the first part of statsmodels issue #1798.
+
+        """
+        x = np.arange(20)
+        y = np.arange(20, dtype=float)
+        fraction = 0.4
+        total_points = int(len(x) * fraction)
+        with pytest.warns(ParameterWarning, match='calculated noise scale is near 0'):
+            output = self.algorithm_base(x).loess(
+                y, total_points=total_points, max_iter=3, delta=0,
+                scale=4.0469385011764905, symmetric_weights=True, tol=-1
+            )[0]
+        expected_output = y  # should be a perfect fit
+        assert_allclose(output, expected_output, rtol=1e-14, atol=1e-13)
+
     @pytest.mark.parametrize('use_threshold', (True, False))
     def test_masking(self, use_threshold):
         """Masking only works if `use_threshold` is True."""

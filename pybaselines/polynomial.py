@@ -368,7 +368,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
     def loess(self, data, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
               tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False,
               num_std=1, use_original=False, weights=None, return_coef=False,
-              conserve_memory=True, delta=None):
+              conserve_memory=True, delta=None, sigma_func=None):
         """
         Locally estimated scatterplot smoothing (LOESS).
 
@@ -438,6 +438,18 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             statsmodels [6]_ and Cleveland's original Fortran lowess implementation [7]_).
             Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
             `0.01 * (max(x_data) - min(x_data))`.
+        sigma_func : callable, optional
+            The function that calculates the estimated experimental noise by which the residuals
+            are scaled before weighting each iteration. Must have the call signature::
+
+                sigma_func(residual: numpy.ndarray) -> float
+
+            where the input `residual` array is ``data - baseline`` for that iteration, and the
+            output is a float. If None (default), the function is the standardized median
+            absolute value, ``median(abs(residual)) / 0.6745`` [2]_. Other options, as suggested
+            by the REBS (robust extraction of baseline signal) method [8]_, are to use the
+            standard deviation of residual values less than 0 or less than the mode if values
+            are known to follow some distribution.
 
         Returns
         -------
@@ -466,6 +478,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             Raised if the number of points per window for the fitting is less than
             `poly_order` + 1 or greater than the total number of points, or if the
             values in `self.x` are not strictly increasing.
+        TypeError
+            Raised if the input `sigma_func` does not return a float.
 
         Notes
         -----
@@ -474,7 +488,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         fit data based on the residuals, as proposed by [3]_, similar to the modpoly
         and imodpoly techniques.
 
-        In baseline literature, this procedure is sometimes called "rbe", meaning
+        In baseline literature, this procedure is often called "rbe", meaning
         "robust baseline estimate".
 
         References
@@ -496,6 +510,9 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                 1363-1367.
         .. [6] https://github.com/statsmodels/statsmodels.
         .. [7] https://www.netlib.org/go (lowess.f is the file).
+        .. [8] Ruckstuhl, A.F., et al. Robust extraction of baseline signal of atmospheric trace
+                species using local regression. Atmospheric Measurement Techniques, 2012,
+                5(11), 2613-2624.
 
         """
         if total_points is None:
@@ -513,6 +530,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                  ' consider using a polynomial order of 1 or 2 instead'),
                 ParameterWarning, stacklevel=2
             )
+        if sigma_func is None:
+            sigma_func = _median_absolute_value
 
         y, weight_array = self._setup_polynomial(data, weights, poly_order, calc_vander=True)
         if use_original:
@@ -572,11 +591,18 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                     y0 if use_original else y, baseline + num_std * np.std(residual[pos_wt_mask])
                 )
             else:
-                # TODO median_absolute_value can be 0 if more than half of residuals are
-                # 0 (perfect fit); can that ever really happen? if so, should prevent dividing by 0
-                sqrt_w = _tukey_square(
-                    residual / _median_absolute_value(residual), scale, symmetric_weights
-                )
+                noise_sigma = sigma_func(residual)
+                if not isinstance(noise_sigma, float):
+                    raise TypeError('"sigma_func" must return a float')
+                elif noise_sigma < np.finfo(float).eps:
+                    # break rather than setting noise_sigma to eps since any further reweighting
+                    # will still be unstable; see statsmodels issue#2108
+                    warnings.warn(
+                        'calculated noise scale is near 0; terminating early', ParameterWarning,
+                        stacklevel=3
+                    )
+                    break
+                sqrt_w = _tukey_square(residual, scale * noise_sigma, symmetric_weights)
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
         if return_coef:
@@ -1179,12 +1205,12 @@ def _tukey_square(residual, scale=3, symmetric=False):
     """
     if symmetric:
         inner = residual / scale
-        weights = np.maximum(0, 1 - inner * inner)
+        weights = np.maximum(0., 1. - inner**2)
     else:
         weights = np.ones_like(residual)
         mask = residual > 0
         inner = residual[mask] / scale
-        weights[mask] = np.maximum(0, 1 - inner * inner)
+        weights[mask] = np.maximum(0., 1. - inner**2)
     return weights
 
 
@@ -1600,7 +1626,8 @@ def _determine_fits(x, num_x, total_points, delta):
 @_polynomial_wrapper
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
           tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
-          use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=None):
+          use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=None,
+          sigma_func=None):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -1673,6 +1700,18 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         statsmodels [14]_ and Cleveland's original Fortran lowess implementation [15]_).
         Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
         `0.01 * (max(x_data) - min(x_data))`.
+    sigma_func : callable, optional
+        The function that calculates the estimated experimental noise by which the residuals
+        are scaled before weighting each iteration. Must have the call signature::
+
+            sigma_func(residual: numpy.ndarray) -> float
+
+        where the input `residual` array is ``data - baseline`` for that iteration, and the
+        output is a float. If None (default), the function is the standardized median
+        absolute value, ``median(abs(residual)) / 0.6745`` [10]_. Other options, as suggested
+        by the REBS (robust extraction of baseline signal) method [20]_, are to use the
+        standard deviation of residual values less than 0 or less than the mode if values
+        are known to follow some distribution.
 
     Returns
     -------
@@ -1730,6 +1769,9 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             1363-1367.
     .. [14] https://github.com/statsmodels/statsmodels.
     .. [15] https://www.netlib.org/go (lowess.f is the file).
+    .. [20] Ruckstuhl, A.F., et al. Robust extraction of baseline signal of atmospheric trace
+            species using local regression. Atmospheric Measurement Techniques, 2012,
+            5(11), 2613-2624.
 
     """
 
