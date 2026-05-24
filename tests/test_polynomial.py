@@ -11,6 +11,7 @@ from math import ceil
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy import stats
 
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
@@ -789,7 +790,13 @@ def test_median_absolute_value(values):
     mav_calc = polynomial._median_absolute_value(values)
     mav_actual = np.median(np.abs(values)) / 0.6744897501960817
 
-    assert_allclose(mav_calc, mav_actual)
+    assert_allclose(mav_calc, mav_actual, rtol=1e-14, atol=1e-14)
+
+    # also compare against scipy, set center to 0 to make the MAD into MAV
+    mav_scipy = stats.median_abs_deviation(
+        values, scale='normal', center=lambda *args, **kwargs: 0
+    )
+    assert_allclose(mav_calc, mav_scipy, rtol=1e-14, atol=1e-14)
 
 
 def test_loess_solver():
@@ -802,7 +809,7 @@ def test_loess_solver():
 
     solved_coefs = polynomial._loess_solver(vander.T, y)
 
-    assert_allclose(solved_coefs, coefs)
+    assert_allclose(solved_coefs, coefs, rtol=1e-12, atol=1e-14)
 
 
 def test_determine_fits_simple():
