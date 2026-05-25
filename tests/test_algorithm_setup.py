@@ -657,9 +657,8 @@ def test_setup_optimizer_copy_kwargs(small_data, algorithm, copy_kwargs):
 @pytest.mark.parametrize('input_x', (True, False))
 @pytest.mark.parametrize('check_finite', (True, False))
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
-def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype, change_order):
+def test_algorithm_class_init(input_x, check_finite, assume_sorted, change_order):
     """Tests the initialization of _Algorithm objects."""
     sort_order = slice(0, 10)
     if input_x:
@@ -677,16 +676,14 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
         with pytest.warns(SortingWarning):
             algorithm = _algorithm_setup._Algorithm(
                 x, check_finite=check_finite, assume_sorted=assume_sorted,
-                output_dtype=output_dtype
             )
     else:
         algorithm = _algorithm_setup._Algorithm(
-            x, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
+            x, check_finite=check_finite, assume_sorted=assume_sorted
         )
 
     assert_array_equal(algorithm.x, expected_x)
     assert algorithm._check_finite == check_finite
-    assert algorithm._dtype == output_dtype
     assert algorithm.banded_solver == 2
     assert algorithm._penta_solver == 2
 
@@ -717,10 +714,55 @@ def test_algorithm_class_init(input_x, check_finite, assume_sorted, output_dtype
         assert algorithm._validated_x
 
 
+@ensure_deprecation(1, 5)  # remove output_dtype from _Algorithm in v1.5
+@pytest.mark.parametrize('output_dtype', ('deprecated', int, float, np.float64))
+def test_algorithm_class_init_dtype(output_dtype):
+    """Ensures specifying output_dtype gives DeprecationWarning."""
+    x = np.arange(20)
+    y = 5. * x
+
+    class SubClass(_algorithm_setup._Algorithm):
+        @_algorithm_setup._Algorithm._handle_io
+        def func(self, data, *args, **kwargs):
+            """For checking sorting of output parameters."""
+            expected_x = np.arange(20)
+            expected_input = 5 * expected_x
+
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_input, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, expected_x, 1e-16, 1e-16)
+
+            params = {
+                'a': np.arange(len(x)),
+                'b': np.arange(len(x))
+            }
+            return 1 * data, params
+
+    expected_baseline = 1. * y
+    if output_dtype == 'deprecated':
+        expected_dtype = float
+        expected_attribute = 'deprecated'
+    else:
+        expected_baseline = expected_baseline.astype(output_dtype)
+        expected_dtype = expected_baseline.dtype
+        expected_attribute = expected_dtype
+
+    if output_dtype != 'deprecated':
+        with pytest.warns(DeprecationWarning, match='specifying "output_dtype" is deprecated'):
+            algorithm = SubClass(x, output_dtype=output_dtype)
+    else:
+        algorithm = SubClass(x, output_dtype=output_dtype)
+
+    output, _ = algorithm.func(y)
+    assert output.dtype == expected_dtype
+    assert algorithm._dtype == expected_attribute
+
+
+@ensure_deprecation(1, 5)  # remove dtype from _Algorithm._return_results in v1.5
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
-def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
+def test_algorithm_return_results(assume_sorted, change_order):
     """Ensures the _return_results method returns the correctly sorted outputs."""
     x, _ = get_data()
     baseline = np.arange(len(x))
@@ -746,38 +788,50 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order):
 
     if change_order and assume_sorted:
         with pytest.warns(SortingWarning):
-            algorithm = _algorithm_setup._Algorithm(
-                x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-            )
+            algorithm = _algorithm_setup._Algorithm(x, assume_sorted=assume_sorted)
     else:
-        algorithm = _algorithm_setup._Algorithm(
-            x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-        )
+        algorithm = _algorithm_setup._Algorithm(x, assume_sorted=assume_sorted)
+
     output, output_params = algorithm._return_results(
-        baseline, params, dtype=output_dtype, sort_keys=('a',)
+        baseline, params, dtype='deprecated', sort_keys=('a',)
     )
-
-    if not change_order and (output_dtype is None or baseline.dtype == output_dtype):
-        assert np.shares_memory(output, baseline)  # should be the same object
-    else:
-        assert baseline is not output
-
-    if output_dtype is not None:
-        assert output.dtype == output_dtype
-    else:
-        assert output.dtype == baseline.dtype
-
     assert_allclose(output, expected_baseline, 1e-16, 1e-16)
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key])
 
 
+@ensure_deprecation(1, 5)  # remove dtype from _Algorithm._return_results in v1.5
+@pytest.mark.parametrize('output_dtype', ('deprecated', int, float, np.float64))
+def test_algorithm_return_results_dtype(output_dtype):
+    """Ensures the _return_results method respects specified dtypes."""
+    x, _ = get_data()
+    baseline = np.arange(len(x))
+    expected_baseline = baseline.copy()
+
+    if output_dtype != 'deprecated':
+        with pytest.warns(DeprecationWarning, match='specifying "output_dtype" is deprecated'):
+            algorithm = _algorithm_setup._Algorithm(x, output_dtype=output_dtype)
+    else:
+        algorithm = _algorithm_setup._Algorithm(x, output_dtype=output_dtype)
+    output, _ = algorithm._return_results(baseline, {}, dtype=output_dtype, sort_keys=('a',))
+
+    if (output_dtype == 'deprecated' or output.dtype == baseline.dtype):
+        assert np.shares_memory(output, baseline)  # should be the same object
+    else:
+        assert baseline is not output
+
+    if output_dtype != 'deprecated':
+        assert output.dtype == output_dtype
+    else:
+        assert output.dtype == baseline.dtype
+    assert_allclose(output, expected_baseline, 1e-16, 1e-16)
+
+
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
 @pytest.mark.parametrize('skip_sorting', (True, False))
-def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, list_input, skip_sorting):
+def test_algorithm_handle_io(assume_sorted, change_order, list_input, skip_sorting):
     """
     Ensures the _handle_io wrapper method returns the correctly sorted outputs.
 
@@ -841,11 +895,8 @@ def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, list_inp
     if change_order:
         x[sort_indices] = x[sort_indices][::-1]
         y[sort_indices] = y[sort_indices][::-1]
-    expected_baseline = (1 * y).astype(output_dtype)
-    if output_dtype is None:
-        expected_dtype = y.dtype
-    else:
-        expected_dtype = expected_baseline.dtype
+    expected_baseline = 1. * y
+    expected_dtype = float
     if list_input:
         x = x.tolist()
         y = y.tolist()
@@ -859,13 +910,9 @@ def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, list_inp
 
     if change_order and assume_sorted:
         with pytest.warns(SortingWarning):
-            algorithm = SubClass(
-                x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-            )
+            algorithm = SubClass(x, assume_sorted=assume_sorted)
     else:
-        algorithm = SubClass(
-            x, assume_sorted=assume_sorted, output_dtype=output_dtype, check_finite=False
-        )
+        algorithm = SubClass(x, assume_sorted=assume_sorted)
     output, output_params = algorithm.func(y)
 
     # baseline should always match y-order on the output; only sorted within the

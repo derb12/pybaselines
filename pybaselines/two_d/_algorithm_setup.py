@@ -52,7 +52,7 @@ class _Algorithm2D:
     """
 
     def __init__(self, x_data=None, z_data=None, check_finite=True, assume_sorted=False,
-                 output_dtype=None):
+                 output_dtype='deprecated'):
         """
         Initializes the algorithm object.
 
@@ -76,8 +76,11 @@ class _Algorithm2D:
             ascending order. Note that some methods will raise an error if `x_data` or `z_data`
             values are not unique.
         output_dtype : type or numpy.dtype, optional
-            The dtype to cast the output array. Default is None, which uses the typing
-            of the input data.
+            The dtype to cast the output array. Default behavior keeps the dtype as float.
+
+            .. deprecated:: 1.3
+                `output_dtype` is deprecated and will be removed in version 1.5. Use
+                :func:`numpy.astype` on the output baseline instead.
 
         """
         x_sort_order = None
@@ -89,7 +92,6 @@ class _Algorithm2D:
             self.x = None
             self.x_domain = np.array([-1., 1.])
         else:
-            # TODO allow int or float32 x-values later; have to address in individual methods
             self.x = _check_array(x_data, dtype=float, check_finite=check_finite)
             if assume_sorted and np.any(self.x[1:] < self.x[:-1]):
                 warnings.warn(
@@ -109,7 +111,6 @@ class _Algorithm2D:
             self.z = None
             self.z_domain = np.array([-1., 1.])
         else:
-            # TODO allow int or float32 z-values later; have to address in individual methods
             self.z = _check_array(z_data, dtype=float, check_finite=check_finite)
             if assume_sorted and np.any(self.z[1:] < self.z[:-1]):
                 warnings.warn(
@@ -136,6 +137,12 @@ class _Algorithm2D:
         else:
             self._sort_order = (x_sort_order[:, None], z_sort_order[None, :])
             self._inverted_order = (x_inverted_order[:, None], z_inverted_order[None, :])
+
+        if output_dtype != 'deprecated':
+            warnings.warn(
+                'specifying "output_dtype" is deprecated and will be removed in version 1.5. '
+                'Use np.astype on the output baseline instead.', DeprecationWarning, stacklevel=3
+            )
 
         self._polynomial = None
         self._spline_basis = None
@@ -311,7 +318,8 @@ class _Algorithm2D:
 
             if not skip_sorting:
                 baseline = _sort_array2d(baseline, sort_order=self._inverted_order)
-        baseline = np.asarray(baseline, dtype=dtype)
+        if dtype != 'deprecated':
+            baseline = np.asarray(baseline, dtype=dtype)
 
         return baseline, params
 
@@ -410,18 +418,12 @@ class _Algorithm2D:
 
             if not skip_sorting:
                 y = _sort_array2d(y, sort_order=self._sort_order)
-            if self._dtype is None:
-                output_dtype = y.dtype
-            else:
-                output_dtype = self._dtype
-            # TODO allow int or float32 y-values later?; have to address in individual methods;
-            # often x and y need to have the same dtype too
-            y = np.asarray(y, dtype=float)
 
+            y = np.asarray(y, dtype=float)
             baseline, params = func(self, y, *args, **kwargs)
 
             return self._return_results(
-                baseline, params, dtype=output_dtype, sort_keys=sort_keys, ensure_dims=ensure_dims,
+                baseline, params, dtype=self._dtype, sort_keys=sort_keys, ensure_dims=ensure_dims,
                 reshape_keys=reshape_keys, skip_sorting=skip_sorting
             )
 

@@ -53,7 +53,7 @@ class _Algorithm:
     """
 
     def __init__(self, x_data=None, check_finite=True, assume_sorted=False,
-                 output_dtype=None):
+                 output_dtype='deprecated'):
         """
         Initializes the algorithm object.
 
@@ -72,8 +72,11 @@ class _Algorithm:
             is assumed to be sorted, although it will still be checked to be in ascending order.
             Note that some methods will raise an error if `x_data` values are not unique.
         output_dtype : type or numpy.dtype, optional
-            The dtype to cast the output array. Default is None, which uses the typing
-            of the input data.
+            The dtype to cast the output array. Default behavior keeps the dtype as float.
+
+            .. deprecated:: 1.3
+                `output_dtype` is deprecated and will be removed in version 1.5. Use
+                :func:`numpy.astype` on the output baseline instead.
 
         """
         no_x = x_data is None
@@ -82,7 +85,6 @@ class _Algorithm:
             self.x_domain = np.array([-1., 1.])
             self._size = None
         else:
-            # TODO allow int or float32 x-values later; have to address in individual methods
             self.x = _check_array(x_data, dtype=float, check_finite=check_finite)
             self._size = len(self.x)
             self.x_domain = np.polynomial.polyutils.getdomain(self.x)
@@ -100,6 +102,12 @@ class _Algorithm:
             self._sort_order, self._inverted_order = _determine_sorts(self.x)
             if self._sort_order is not None:
                 self.x = self.x[self._sort_order]
+
+        if output_dtype != 'deprecated':
+            warnings.warn(
+                'specifying "output_dtype" is deprecated and will be removed in version 1.5. '
+                'Use np.astype on the output baseline instead.', DeprecationWarning, stacklevel=3
+            )
 
         self.banded_solver = 2
         self._polynomial = None
@@ -266,7 +274,8 @@ class _Algorithm:
             if not skip_sorting:
                 baseline = _sort_array(baseline, sort_order=self._inverted_order)
 
-        baseline = np.asarray(baseline, dtype=dtype)
+        if dtype != 'deprecated':
+            baseline = np.asarray(baseline, dtype=dtype)
 
         return baseline, params
 
@@ -343,17 +352,10 @@ class _Algorithm:
             if input_y and not skip_sorting:
                 y = _sort_array(y, sort_order=self._sort_order)
 
-            if input_y and self._dtype is None:
-                output_dtype = y.dtype
-            else:
-                output_dtype = self._dtype
-            # TODO allow int or float32 y-values later?; have to address in individual methods;
-            # often x and y need to have the same dtype too
             y = np.asarray(y, dtype=float)
-
             baseline, params = func(self, y, *args, **kwargs)
 
-            return self._return_results(baseline, params, output_dtype, sort_keys, skip_sorting)
+            return self._return_results(baseline, params, self._dtype, sort_keys, skip_sorting)
 
         return inner
 

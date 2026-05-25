@@ -568,10 +568,8 @@ def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
 @pytest.mark.parametrize('input_z', (True, False))
 @pytest.mark.parametrize('check_finite', (True, False))
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
-def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, output_dtype,
-                              change_order):
+def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, change_order):
     """Tests the initialization of _Algorithm2D objects."""
     sort_order = slice(0, 10)
     expected_x = None
@@ -603,16 +601,14 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         with pytest.warns(SortingWarning):
             algorithm = _algorithm_setup._Algorithm2D(
                 x, z, check_finite=check_finite, assume_sorted=assume_sorted,
-                output_dtype=output_dtype
             )
     else:
         algorithm = _algorithm_setup._Algorithm2D(
-            x, z, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
+            x, z, check_finite=check_finite, assume_sorted=assume_sorted
         )
     assert_array_equal(algorithm.x, expected_x)
     assert_array_equal(algorithm.z, expected_z)
     assert algorithm._check_finite == check_finite
-    assert algorithm._dtype == output_dtype
 
     expected_shape = [None, None]
     if input_x:
@@ -670,13 +666,31 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         assert algorithm._validated_z
 
 
+@ensure_deprecation(1, 5)  # remove output_dtype from _Algorithm2D in v1.5
+@pytest.mark.parametrize('output_dtype', ('deprecated', int, float, np.float64))
+def test_algorithm_class_init_dtype(output_dtype):
+    """Ensures specifying output_dtype gives DeprecationWarning."""
+    x, z, _ = get_data2d()
+
+    if output_dtype != 'deprecated':
+        with pytest.warns(DeprecationWarning, match='specifying "output_dtype" is deprecated'):
+            algorithm = _algorithm_setup._Algorithm2D(x, z, output_dtype=output_dtype)
+    else:
+        algorithm = _algorithm_setup._Algorithm2D(x, z, output_dtype=output_dtype)
+
+    if output_dtype == 'deprecated':
+        expected_attribute = 'deprecated'
+    else:
+        expected_attribute = output_dtype
+    assert algorithm._dtype == expected_attribute
+
+
+@ensure_deprecation(1, 5)  # remove dtype from _Algorithm2D._return_results in v1.5
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('reshape_baseline', (True, False))
 @pytest.mark.parametrize('three_d', (True, False))
-def test_algorithm_return_results(assume_sorted, output_dtype, change_order, reshape_baseline,
-                                  three_d):
+def test_algorithm_return_results(assume_sorted, change_order, reshape_baseline, three_d):
     """Ensures the _return_results method returns the correctly sorted outputs."""
     x, z, y = get_data2d()
     baseline = np.arange(y.size).reshape(y.shape)
@@ -712,40 +726,50 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
 
     if assume_sorted and change_order:
         with pytest.warns(SortingWarning):
-            algorithm = _algorithm_setup._Algorithm2D(
-                x, z, check_finite=False, assume_sorted=assume_sorted,
-                output_dtype=output_dtype
-            )
+            algorithm = _algorithm_setup._Algorithm2D(x, z, assume_sorted=assume_sorted)
     else:
-        algorithm = _algorithm_setup._Algorithm2D(
-            x, z, check_finite=False, assume_sorted=assume_sorted, output_dtype=output_dtype
-        )
+        algorithm = _algorithm_setup._Algorithm2D(x, z, assume_sorted=assume_sorted)
     output, output_params = algorithm._return_results(
-        baseline, params, dtype=output_dtype, sort_keys=('a', 'd'),
+        baseline, params, dtype='deprecated', sort_keys=('a', 'd'),
         reshape_keys=('c', 'd'), ensure_dims=not three_d
     )
-
-    if not change_order and (output_dtype is None or baseline.dtype == output_dtype):
-        assert np.shares_memory(output, baseline)  # should be the same object
-    else:
-        assert baseline is not output
-
-    if output_dtype is not None:
-        assert output.dtype == output_dtype
-    else:
-        assert output.dtype == baseline.dtype
 
     assert_allclose(output, expected_baseline, 1e-14, 1e-14)
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key])
 
 
+@ensure_deprecation(1, 5)  # remove dtype from _Algorithm2D._return_results in v1.5
+@pytest.mark.parametrize('output_dtype', ('deprecated', int, float, np.float64))
+def test_algorithm_return_results_dtype(output_dtype):
+    """Ensures the _return_results method respects specified dtypes."""
+    x, z, y = get_data2d()
+    baseline = np.arange(y.size).reshape(y.shape)
+
+    if output_dtype != 'deprecated':
+        with pytest.warns(DeprecationWarning, match='specifying "output_dtype" is deprecated'):
+            algorithm = _algorithm_setup._Algorithm2D(x, z, output_dtype=output_dtype)
+    else:
+        algorithm = _algorithm_setup._Algorithm2D(x, z, output_dtype=output_dtype)
+
+    output, _ = algorithm._return_results(baseline, {}, dtype=output_dtype)
+
+    if (output_dtype == 'deprecated' or output.dtype == baseline.dtype):
+        assert np.shares_memory(output, baseline)  # should be the same object
+    else:
+        assert baseline is not output
+
+    if output_dtype != 'deprecated':
+        assert output.dtype == output_dtype
+    else:
+        assert output.dtype == baseline.dtype
+
+
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('skip_sorting', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
-def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sorting, list_input):
+def test_algorithm_handle_io(assume_sorted, change_order, skip_sorting, list_input):
     """
     Ensures the _handle_io wrapper method returns the correctly sorted and shaped outputs.
 
@@ -853,11 +877,8 @@ def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sor
         'c': np.arange(y.size).reshape(y.shape),
         'd': np.arange(y.size).reshape(y.shape),
     }
-    expected_baseline = (1 * y).astype(output_dtype)
-    if output_dtype is None:
-        expected_dtype = y.dtype
-    else:
-        expected_dtype = expected_baseline.dtype
+    expected_baseline = 1. * y
+    expected_dtype = float
     if list_input:
         x = x.tolist()
         z = z.tolist()
@@ -869,14 +890,9 @@ def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sor
 
     if assume_sorted and change_order:
         with pytest.warns(SortingWarning):
-            algorithm = SubClass(
-                x, z, check_finite=False, assume_sorted=assume_sorted,
-                output_dtype=output_dtype
-            )
+            algorithm = SubClass(x, z, assume_sorted=assume_sorted)
     else:
-        algorithm = SubClass(
-            x, z, check_finite=False, assume_sorted=assume_sorted, output_dtype=output_dtype
-        )
+        algorithm = SubClass(x, z, assume_sorted=assume_sorted)
 
     output, output_params = algorithm.func(y)
 
