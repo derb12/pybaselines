@@ -23,14 +23,14 @@ from .base_tests import (
 class WhittakerComparisonMixin:
     """Mixin for comparing penalized spline versions of Whittaker-smoothing algorithms."""
 
-    def test_whittaker_comparison(self, lam=1e5, test_rtol=1e-6, test_atol=1e-12, **kwargs):
+    def test_whittaker_comparison(self, lam=1e5, test_rtol=1e-8, **kwargs):
         """
         Compares the output of the penalized spline (P-spline) versions of Whittaker functions.
 
-        The number of knots for the P-splines are set to ``len(data) + 1`` and the spline
-        degree is set to 0; the result is that the spline basis becomes the identity matrix,
-        and the P-spline version should give the same output as the Whittaker version if
-        the weighting and linear systems were correctly set up.
+        The number of knots for the P-splines are set to ``len(data)`` and the spline
+        degree is set to 1; the result is that the spline basis becomes the identity matrix
+        with basis midpoints centered on each value, and the P-spline version should give the same
+        output as the Whittaker version if the weighting and linear systems were correctly set up.
 
         """
         fitter = Baseline(self.x, check_finite=False, assume_sorted=True)
@@ -38,12 +38,46 @@ class WhittakerComparisonMixin:
         fitter.banded_solver = 3
         whittaker_func = getattr(fitter, self.func_name.split('pspline_')[-1])
 
-        whittaker_output = whittaker_func(self.y, lam=lam, **kwargs)[0]
-        spline_output = self.class_func(
-            self.y, lam=lam, num_knots=len(self.y) + 1, spline_degree=0, **kwargs
-        )[0]
+        whittaker_output, whittaker_params = whittaker_func(self.y, lam=lam, **kwargs)
+        spline_output, spline_params = self.class_func(
+            self.y, lam=lam, num_knots=len(self.y), spline_degree=1, **kwargs
+        )
 
-        assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
+        assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=1e-12)
+        assert_allclose(
+            spline_params['weights'], whittaker_params['weights'], rtol=1e-10, atol=1e-6
+        )
+        if 'tol_history' in whittaker_params and whittaker_params['tol_history'].ndim == 1:
+            assert whittaker_params['tol_history'].shape == spline_params['tol_history'].shape
+
+
+def test_ensure_whittaker_comparison_setup():
+    """Ensures the configuration within test_whittaker_comparison actually does what is expected.
+
+    Checks that the spline basis is the identity matrix, and the midpoint of each spline
+    basis is centered on the x-values.
+
+    """
+    # simple case first as a sanity check
+    x = np.array([1, 2, 3, 4], dtype=float)
+    basis = _spline_utils.SplineBasis(x, x.size, spline_degree=1)
+
+    assert_allclose(basis.basis.toarray(), np.eye(x.size), rtol=1e-16, atol=1e-16)
+    assert_allclose(basis.knots, [0, 1, 2, 3, 4, 5], rtol=1e-16, atol=1e-16)
+    assert_allclose(
+        _spline_utils._basis_midpoints(basis.knots, spline_degree=1), x, rtol=1e-16, atol=1e-16
+    )
+
+    x = np.linspace(1, 1500, 1000)
+    dx = np.mean(np.diff(x))
+    basis = _spline_utils.SplineBasis(x, x.size, spline_degree=1)
+
+    assert_allclose(basis.basis.toarray(), np.eye(x.size), rtol=1e-16, atol=1e-16)
+    expected_knots = np.concatenate(([x[0] - dx], x, [x[-1] + dx]))
+    assert_allclose(basis.knots, expected_knots, rtol=1e-16, atol=1e-16)
+    assert_allclose(
+        _spline_utils._basis_midpoints(basis.knots, spline_degree=1), x, rtol=1e-16, atol=1e-16
+    )
 
 
 class SplineTester(BaseTester, PSplineResultMixin):
@@ -405,13 +439,8 @@ class TestPsplineDrPLS(IterativeSplineTester, WhittakerComparisonMixin):
     @pytest.mark.parametrize('eta', (0.2, 0.8))
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_whittaker_comparison(self, lam, eta, diff_order):
-        """
-        Ensures the P-spline version is the same as the Whittaker version.
-
-        Have to use a larger tolerance since pspline_drpls uses interpolation to
-        get the weight at the coefficients' x-values.
-        """
-        super().test_whittaker_comparison(lam=lam, eta=eta, diff_order=diff_order, test_rtol=5e-3)
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        super().test_whittaker_comparison(lam=lam, eta=eta, diff_order=diff_order)
 
     @pytest.mark.parametrize('eta', (-1, 2))
     def test_outside_eta_fails(self, eta):
@@ -514,23 +543,14 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
     @pytest.mark.parametrize('alternate_weighting', (True, False))
     def test_whittaker_comparison(self, lam, diff_order, alternate_weighting):
-        """
-        Ensures the P-spline version is the same as the Whittaker version.
-
-        Have to use a larger tolerance since pspline_aspls uses interpolation to
-        get the alpha values at the coefficients' x-values.
-        """
-        if diff_order == 2:
-            rtol = 3e-3
-        else:
-            rtol = 5e-2
+        """Ensures the P-spline version is the same as the Whittaker version."""
         if alternate_weighting:
             asymmetric_coef = 2.
         else:
             asymmetric_coef = 0.5
         super().test_whittaker_comparison(
             lam=lam, diff_order=diff_order, alternate_weighting=alternate_weighting,
-            asymmetric_coef=asymmetric_coef, test_rtol=rtol
+            asymmetric_coef=asymmetric_coef
         )
 
     @pytest.mark.parametrize('asymmetric_coef', (0, -1))

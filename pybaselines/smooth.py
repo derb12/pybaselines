@@ -47,7 +47,7 @@ class _Smooth(_Algorithm):
             the same value as `half_window`.
         sigma : float, optional
             The standard deviation of the smoothing Gaussian kernel. Default is None,
-            which will use (2 * `smooth_half_window` + 1) / 6.
+            which will use ``(2 * smooth_half_window + 1) / 6``.
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for padding
             the edges of the data to prevent edge effects from convolution. Default is None.
@@ -68,6 +68,26 @@ class _Smooth(_Algorithm):
         ----------
         Friedrichs, M., A model-free algorithm for the removal of baseline
         artifacts. J. Biomolecular NMR, 1995, 5, 147-153.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data()
+        >>> baseline_fitter = Baseline(x)
+
+        The main parameter to adjust is ``half_window``, which defines the size
+        of the moving median window. If the value is too low, the baseline can
+        clip into peaks.
+
+        >>> fit_1, params_1 = baseline_fitter.noise_median(y, half_window=40)
+        >>> fit_2, params_2 = baseline_fitter.noise_median(y, half_window=80)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_1, label='half_window=40')
+        >>> plt.plot(x, fit_2, '--', label='half_window=80')
+        >>> plt.legend()
+        >>> plt.show()
 
         """
         y, half_window = self._setup_smooth(
