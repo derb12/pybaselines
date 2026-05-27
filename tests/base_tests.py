@@ -1123,7 +1123,10 @@ class BasePolyTester2D(BaseTester2D):
 
         Checks both the manual way using the Vandermonde and directly using numpy's polyval2d.
         """
-        baseline, params = self.class_func(
+        # don't reuse the same _Algorithm2D object since changing the polynomial order
+        # and max_cross are unsafe under threaded testing with pytest-run-parallel
+        fitter = self.algorithm_base(self.x, self.z, check_finite=False, assume_sorted=True)
+        baseline, params = getattr(fitter, self.func_name)(
             data=self.y, poly_order=poly_order, max_cross=max_cross, **self.kwargs, return_coef=True
         )
 

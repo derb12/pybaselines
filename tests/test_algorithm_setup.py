@@ -949,7 +949,7 @@ def test_algorithm_handle_io(assume_sorted, change_order, list_input, skip_sorti
 
 @pytest.mark.parametrize('input_x', (True, False))
 @pytest.mark.parametrize('change_order', (True, False))
-def test_algorithm_handle_io_2d(data_fixture, input_x, change_order):
+def test_algorithm_handle_io_2d(input_x, change_order):
     """Ensures 2D data is allowed for 1D algorithms only when specified.
 
     Also checks _Algorithm setup when given 2D data as the first call.
@@ -1003,7 +1003,7 @@ def test_algorithm_handle_io_2d(data_fixture, input_x, change_order):
 
             return data * 1, {}
 
-    x_, y_1d = data_fixture
+    x_, y_1d = get_data()
     if change_order:
         x_[sort_indices] = x_[sort_indices][::-1]
         y_1d[sort_indices] = y_1d[sort_indices][::-1]

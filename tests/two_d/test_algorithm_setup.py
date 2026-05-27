@@ -1062,7 +1062,7 @@ def test_algorithm_handle_io_1d_fails(data_fixture):
 @pytest.mark.parametrize('input_x', (True, False))
 @pytest.mark.parametrize('input_z', (True, False))
 @pytest.mark.parametrize('change_order', (True, False))
-def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z, change_order):
+def test_algorithm_handle_io_3d(input_x, input_z, change_order):
     """Ensures 3D data is allowed for 2D algorithms only when specified.
 
     Also checks _Algorithm2D setup when given 3D data as the first call.
@@ -1135,7 +1135,7 @@ def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z, change_order):
 
             return data * 1, {}
 
-    x_, z_, y_2d = data_fixture2d
+    x_, z_, y_2d = get_data2d()
     if change_order:
         x_ = x_[::-1]
         z_ = z_[::-1]
