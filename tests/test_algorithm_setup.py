@@ -416,6 +416,7 @@ def test_setup_classification_weights(small_data, algorithm, weight_enum):
 
     assert isinstance(weight_array, np.ndarray)
     assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == bool
 
 
 @pytest.mark.parametrize('num_knots', (5, 15, 100))

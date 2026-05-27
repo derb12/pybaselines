@@ -371,6 +371,33 @@ def test_setup_smooth_kwargs_warns(small_data2d, algorithm):
             )
 
 
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+def test_setup_classification_weights(small_data2d, algorithm, weight_enum):
+    """Ensures output weight array is correctly handled in classification setup."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones_like(small_data2d, dtype=bool)
+    elif weight_enum == 1:
+        # uniform 1 weighting
+        weights = np.ones_like(small_data2d, dtype=bool)
+        desired_weights = np.ones_like(small_data2d, dtype=bool)
+    elif weight_enum == 2:
+        # different weights for all points
+        weights = np.arange(small_data2d.size).astype(bool).reshape(small_data2d.shape)
+        desired_weights = np.arange(small_data2d.size).astype(bool).reshape(small_data2d.shape)
+    elif weight_enum == 3:
+        # different weights for all points, and weights input as a list
+        weights = np.arange(small_data2d.size).astype(bool).reshape(small_data2d.shape).tolist()
+        desired_weights = np.arange(small_data2d.size).astype(bool).reshape(small_data2d.shape)
+
+    _, weight_array = algorithm._setup_classification(small_data2d, weights=weights)
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == bool
+
+
 @pytest.mark.parametrize('num_knots', (10, 30, (20, 30)))
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3)))
 def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
