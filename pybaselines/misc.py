@@ -305,6 +305,11 @@ class _Misc(_Algorithm):
         readily observed by looking at the 'signal' key within the output parameter dictionary
         with varying `lam_0`, `lam_1`, `lam_2`, or `alpha` values.
 
+        If `parabola_len` is greater than 0, compares the endpoints of `data` to the standardized
+        median absolute deviation of the edges to reject endpoints if they are outliers and
+        instead use the median of the edge values for constructing the parabola, which prevents
+        edge effects. See https://github.com/derb12/pybaselines/issues/70.
+
         References
         ----------
         .. [1] Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
