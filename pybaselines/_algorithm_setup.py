@@ -4,13 +4,6 @@
 Created on March 31, 2021
 @author: Donald Erb
 
-TODO: non-finite values (nan or inf) could be replaced for algorithms that use weighting
-by setting their values to arbitrary value (eg. 0) within the output y, set their weights
-to 0, and then back-fill after the calculation; something to consider, rather than just
-raising an exception when encountering a non-finite value; could also interpolate rather
-than just filling back in the nan or inf value. Could accomplish by setting check_finite
-to something like 'mask'.
-
 """
 
 from functools import partial, wraps
@@ -53,7 +46,7 @@ class _Algorithm:
     """
 
     def __init__(self, x_data=None, check_finite=True, assume_sorted=False,
-                 output_dtype='deprecated'):
+                 output_dtype='deprecated', mask=None, strict_mask=True):
         """
         Initializes the algorithm object.
 
@@ -77,6 +70,15 @@ class _Algorithm:
             .. deprecated:: 1.3
                 `output_dtype` is deprecated and will be removed in version 1.5. Use
                 :func:`numpy.astype` on the output baseline instead.
+
+        mask : array-like, shape (N,), optional
+            A Boolean array, in which all indices that are `True` denote indices that should
+            be ignored during baseline correction. If None (default), denotes all values should
+            be included.
+        strict_mask : bool, optional
+            If True (default) and `mask` is not None, calling any method that does not support
+            masking will raise an exception. Setting `strict_mask` to False will instead perform
+            linear interpolation following `mask` before calling those methods.
 
         """
         no_x = x_data is None
@@ -115,6 +117,51 @@ class _Algorithm:
         self._check_finite = check_finite
         self._dtype = output_dtype
         self._validated_x = no_x
+        self._strict_mask = strict_mask
+        self.mask = mask
+
+    @property
+    def mask(self):
+        """
+        Designates which points should be omitted during baseline correction.
+
+        .. versionadded:: 1.3.0
+
+        A Boolean array, in which all indices that are `True` denote indices that should
+        be ignored during baseline correction. If None, denotes all values should be included.
+
+        Note that not all methods support masking, so by default, a non-None `mask` will raise
+        an exception upon calling those methods. This behavior can be changed by setting
+        `strict_mask` to `False` during initialization.
+
+        """
+        return self._mask
+
+    @mask.setter
+    def mask(self, values):
+        """
+        Sets the baseline fitting mask.
+
+        Parameters
+        ----------
+        values : array-like, shape (N,), optional
+            A Boolean array, in which all indices that are `True` denote indices that should
+            be omitted during baseline correction. If None, denotes all values should
+            be included.
+
+        """
+        if values is None:
+            self._mask = None
+        else:
+            if self._size is None:
+                input_mask = _check_array(values, dtype=bool)
+                self._size = len(input_mask)
+                self.x = np.linspace(-1., 1., self._size)
+            else:
+                input_mask = _check_sized_array(values, self._size, name='mask', dtype=bool)
+            self._mask = _sort_array(input_mask, self._sort_order)
+            # TODO should ensure some lower bound for input_mask.sum() so that there
+            # are actually enough points to do calculations; maybe 5-10% of the points?
 
     @property
     def _size(self):
@@ -281,7 +328,7 @@ class _Algorithm:
 
     @classmethod
     def _handle_io(cls, func=None, *, sort_keys=(), ensure_dims=True, skip_sorting=False,
-                   require_unique=False, reshape_keys=None):
+                   require_unique=False, reshape_keys=None, mask_support=-1):
         """
         Wraps a baseline method to validate inputs and correct outputs.
 
@@ -308,6 +355,14 @@ class _Algorithm:
         reshape_keys : None, optional
             Not used within this method, simply added to have the same call signature
             as `_Algorithm2D._handle_io`.
+        mask_support : bool, optional
+            An integer designating how the wrapped function handles masking. The default value,
+            `-1`, means that masking is not supported and will raise an error if `self.mask` is
+            not None. A value of `1` means that masking is supported through weighted
+            interpolation and will replace both input data and weights with zeros following the
+            mask. A value of `0` means to ignore the mask, for use within some optimizers.
+            `mask_support` values not equal to 0 or 1 will replace values within the input data
+            with linear interpolation so that no issues with NaN values occur.
 
         Returns
         -------
@@ -320,17 +375,18 @@ class _Algorithm:
         if func is None:
             return partial(
                 cls._handle_io, sort_keys=sort_keys, ensure_dims=ensure_dims,
-                skip_sorting=skip_sorting, require_unique=require_unique
+                skip_sorting=skip_sorting, require_unique=require_unique,
+                mask_support=mask_support
             )
 
         @wraps(func)
         def inner(self, data=None, *args, **kwargs):
-            if self.x is None:
+            if self.x is None:  # also means self.mask is None
                 if data is None:
                     raise TypeError('"data" and "x_data" cannot both be None')
                 input_y = True
                 y, self.x = _yx_arrays(
-                    data, check_finite=self._check_finite, ensure_1d=ensure_dims
+                    data, check_finite=self._check_finite, ensure_1d=ensure_dims, dtype=float
                 )
                 self._size = y.shape[-1]
             else:
@@ -341,10 +397,18 @@ class _Algorithm:
                         self._validated_x = True
                 if data is not None:
                     input_y = True
-                    y = _check_sized_array(
-                        data, self._size, check_finite=self._check_finite, ensure_1d=ensure_dims,
-                        name='data'
-                    )
+                    if self.mask is None:
+                        y = _check_sized_array(
+                            data, self._size, check_finite=self._check_finite,
+                            ensure_1d=ensure_dims, name='data', dtype=float
+                        )
+                    else:
+                        y = _check_sized_array(
+                            data, self._size, check_finite=False, ensure_1d=ensure_dims,
+                            name='data', dtype=float
+                        )
+                        if self._check_finite:
+                            np.asarray_chkfinite(y[np.logical_not(self.mask)])
                 else:
                     y = data
                     input_y = False
@@ -352,14 +416,28 @@ class _Algorithm:
             if input_y and not skip_sorting:
                 y = _sort_array(y, sort_order=self._sort_order)
 
-            y = np.asarray(y, dtype=float)
+            if self.mask is not None:
+                if mask_support == -1 and self._strict_mask:
+                    raise NotImplementedError(f'masking is not supported for {func.__name__}')
+
+                # TODO maybe add a private bool attribute like "_mask_fill" that allows skipping
+                # the zero-filling/interpolation for testing purposes to ensure everything actually
+                # works -> probably would only be useful for weighted methods, with non-nan y
+                if mask_support != 0:
+                    if mask_support == 1:
+                        # algorithm strictly uses weighted fitting, so can just zero-fill the mask;
+                        # faster than interpolation, so use whenever possible
+                        y = np.where(self.mask, 0., y)
+                    else:
+                        inv_mask = np.logical_not(self.mask)
+                        y = np.interp(self.x, self.x[inv_mask], y[inv_mask])
             baseline, params = func(self, y, *args, **kwargs)
 
             return self._return_results(baseline, params, self._dtype, sort_keys, skip_sorting)
 
         return inner
 
-    def _override_x(self, new_x, new_sort_order=None):
+    def _override_x(self, new_x, new_sort_order=None, new_mask=None):
         """
         Creates a new fitting object for the given x-values.
 
@@ -380,12 +458,14 @@ class _Algorithm:
         """
         new_object = type(self)(
             x_data=new_x, check_finite=self._check_finite, assume_sorted=True,
-            output_dtype=self._dtype
+            output_dtype=self._dtype, strict_mask=self._strict_mask
         )
         new_object.banded_solver = self.banded_solver
         new_object._sort_order = new_sort_order
         if new_sort_order is not None:
             new_object._inverted_order = _inverted_sort(new_sort_order)
+        # add mask after setting sort order so it's correctly sorted
+        new_object.mask = new_mask
 
         return new_object
 
@@ -448,12 +528,15 @@ class _Algorithm:
                  ' consider using a difference order of 2 or 1 instead'),
                 ParameterWarning, stacklevel=2
             )
+        has_mask = self.mask is not None
         weight_array = _check_optional_array(
-            self._size, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            dtype=float
+            self._size, weights, copy_input=copy_weights or has_mask,
+            check_finite=self._check_finite, dtype=float
         )
         if weights is not None:
             weight_array = _sort_array(weight_array, self._sort_order)
+        if has_mask:
+            weight_array[self.mask] = 0
 
         allow_lower = allow_lower and self.banded_solver < 4
         allow_penta = self.banded_solver < 3
@@ -515,12 +598,15 @@ class _Algorithm:
         x would otherwise cause difficulty when doing least squares minimization.
 
         """
+        has_mask = self.mask is not None
         weight_array = _check_optional_array(
-            self._size, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            dtype=float
+            self._size, weights, copy_input=copy_weights or has_mask,
+            check_finite=self._check_finite, dtype=float
         )
         if weights is not None:
             weight_array = _sort_array(weight_array, self._sort_order)
+        if has_mask:
+            weight_array[self.mask] = 0
 
         if calc_vander:
             if self._polynomial is None:
@@ -533,7 +619,7 @@ class _Algorithm:
         elif not calc_vander:
             raise ValueError('if calc_pinv is True, then calc_vander must also be True')
 
-        if weights is None:
+        if weights is None and not has_mask:
             pseudo_inverse = self._polynomial.pseudo_inverse
         else:
             pseudo_inverse = np.linalg.pinv(
@@ -603,12 +689,15 @@ class _Algorithm:
         is defined by convention as ``degree + 1``.
 
         """
+        has_mask = self.mask is not None
         weight_array = _check_optional_array(
-            self._size, weights, dtype=float, order='C', copy_input=copy_weights,
-            check_finite=self._check_finite
+            self._size, weights, dtype=float, order='C',
+            copy_input=copy_weights or has_mask, check_finite=self._check_finite
         )
         if weights is not None:
             weight_array = _sort_array(weight_array, self._sort_order)
+        if has_mask:
+            weight_array[self.mask] = 0
 
         if not make_basis:
             return y, weight_array
@@ -852,11 +941,17 @@ class _Algorithm:
 
         """
         self._deprecate_pad_kwargs(**kwargs)
+        has_mask = self.mask is not None
         weight_array = _check_optional_array(
-            self._size, weights, dtype=bool, check_finite=self._check_finite
+            self._size, weights, dtype=bool, check_finite=self._check_finite,
+            copy_input=has_mask
         )
         if weights is not None:
             weight_array = _sort_array(weight_array, self._sort_order)
+        if has_mask:
+            # for classification methods, weight = False means masked points cannot be
+            # used to determine the background, which seems like the correct logic
+            weight_array[self.mask] = False
 
         return y, weight_array
 
@@ -907,7 +1002,7 @@ class _Algorithm:
                 assume_sorted = True
             class_object = klass(
                 x, check_finite=self._check_finite, assume_sorted=assume_sorted,
-                output_dtype=self._dtype
+                output_dtype=self._dtype, mask=self.mask, strict_mask=self._strict_mask
             )
             class_object.banded_solver = self.banded_solver
 

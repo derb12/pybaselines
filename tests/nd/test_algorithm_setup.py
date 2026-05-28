@@ -20,22 +20,24 @@ from pybaselines._nd import _algorithm_setup
 from ..base_tests import get_data, get_data2d
 
 
-def test_handle_io_signature():
+@pytest.mark.parametrize('one_d', (True, False))
+def test_handle_io_signature(one_d):
     """Ensures _handle_io has the same signature and defaults as _Algorithm and _Algorithm2D."""
     wrapper_parameters = signature(_algorithm_setup._handle_io).parameters
 
-    algorithm_parameters = signature(_algorithm_setup1d._Algorithm._handle_io).parameters
-    algorithm2d_parameters = signature(_algorithm_setup2d._Algorithm2D._handle_io).parameters
+    if one_d:
+        algorithm_parameters = signature(_algorithm_setup1d._Algorithm._handle_io).parameters
+    else:
+        algorithm_parameters = signature(_algorithm_setup2d._Algorithm2D._handle_io).parameters
 
-    for alg_parameters in (algorithm_parameters, algorithm2d_parameters):
-        assert len(wrapper_parameters) == len(alg_parameters)
-        # ensure key and values for all parameters match for both signatures
-        for key in wrapper_parameters:
-            assert key in alg_parameters
-            wrapper_value = alg_parameters[key].default
-            algorithm_value = alg_parameters[key].default
-            # all the defaults should just be booleans and empty tuples
-            assert wrapper_value == algorithm_value, f'Parameter mismatch for key "{key}"'
+    assert len(wrapper_parameters) == len(algorithm_parameters)
+    # ensure key and values for all parameters match for both signatures
+    for key in wrapper_parameters:
+        assert key in algorithm_parameters
+        wrapper_value = algorithm_parameters[key].default
+        algorithm_value = algorithm_parameters[key].default
+        # all the defaults should just be booleans and empty tuples
+        assert wrapper_value == algorithm_value, f'Parameter mismatch for key "{key}"'
 
 
 @pytest.mark.parametrize('assume_sorted', (True, False))
