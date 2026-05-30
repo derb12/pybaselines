@@ -1186,15 +1186,15 @@ class RecreationMixin:
         assert_allclose(second_baseline, first_baseline, rtol=1e-12, atol=1e-12)
 
 
-class MaskingMixin:
-    """A mixin for BaseTester and BaseTester2D to ensure masking works when expected.
+class WeightMaskingMixin:
+    """A mixin for BaseTester and BaseTester2D to ensure weighted masking works when expected.
 
     Some methods should theoretically allow masking by simply inputting the mask as weights,
     so this mixin is for ensuring that behavior.
 
     """
 
-    def test_masking(self, **kwargs):
+    def test_weight_masking(self, **kwargs):
         """Ensures weights can be correctly used as a mask, when expected."""
         if hasattr(self, 'two_d'):  # BaseTester
             bad_region = (self.x > 30) & (self.x < 40)

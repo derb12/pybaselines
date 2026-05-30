@@ -16,7 +16,7 @@ from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
 from .base_tests import (
-    BasePolyTester, InputWeightsMixin, MaskingMixin, RecreationMixin, ensure_deprecation
+    BasePolyTester, InputWeightsMixin, WeightMaskingMixin, RecreationMixin, ensure_deprecation
 )
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
@@ -49,7 +49,7 @@ class IterativePolynomialTester(PolynomialTester):
 
 
 @pytest.mark.filterwarnings('ignore:"poly" is deprecated and will be removed in version 1.5.')
-class TestPoly(PolynomialTester, MaskingMixin):
+class TestPoly(PolynomialTester, WeightMaskingMixin):
     """Class for testing regular polynomial baseline."""
 
     func_name = 'poly'
@@ -150,7 +150,7 @@ def thresholding_polynomial(x, y, poly_order, max_iter, weights=None, use_origin
     return baseline
 
 
-class TestModPoly(IterativePolynomialTester, MaskingMixin):
+class TestModPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing modpoly baseline."""
 
     func_name = 'modpoly'
@@ -183,7 +183,7 @@ class TestModPoly(IterativePolynomialTester, MaskingMixin):
         assert_allclose(fit, simple_fit, rtol=1e-12, atol=1e-12)
 
 
-class TestIModPoly(IterativePolynomialTester, MaskingMixin):
+class TestIModPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing imodpoly baseline."""
 
     func_name = 'imodpoly'
@@ -226,7 +226,7 @@ class TestIModPoly(IterativePolynomialTester, MaskingMixin):
         assert_allclose(fit, simple_fit, rtol=1e-12, atol=1e-12)
 
 
-class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
+class TestPenalizedPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing penalized_poly baseline."""
 
     func_name = 'penalized_poly'
@@ -337,12 +337,12 @@ class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha_factor=alpha_factor)
 
-    def test_masking(self):
+    def test_weight_masking(self):
         """Masking only works if `threshold` is a fixed value."""
-        super().test_masking(threshold=np.std(self.y) / 10)
+        super().test_weight_masking(threshold=np.std(self.y) / 10)
 
 
-class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
+class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
     """Class for testing loess baseline."""
 
     func_name = 'loess'
@@ -526,13 +526,13 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
         super().test_threading(conserve_memory=conserve_memory, delta=delta)
 
     @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_masking(self, use_threshold):
+    def test_weight_masking(self, use_threshold):
         """Masking only works if `use_threshold` is True."""
         if use_threshold:
-            super().test_masking(use_threshold=use_threshold)
+            super().test_weight_masking(use_threshold=use_threshold)
         else:
             with pytest.raises(AssertionError):
-                super().test_masking(use_threshold=use_threshold)
+                super().test_weight_masking(use_threshold=use_threshold)
 
 
 class TestQuantReg(IterativePolynomialTester, RecreationMixin):
@@ -592,7 +592,7 @@ class TestQuantReg(IterativePolynomialTester, RecreationMixin):
         assert_allclose(output[0], STATSMODELS_QUANTILES[quantile], rtol=1e-6)
 
 
-class TestGoldindec(PolynomialTester, MaskingMixin):
+class TestGoldindec(PolynomialTester, WeightMaskingMixin):
     """Class for testing goldindec baseline."""
 
     func_name = 'goldindec'
