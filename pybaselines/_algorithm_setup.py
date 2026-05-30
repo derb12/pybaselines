@@ -408,7 +408,7 @@ class _Algorithm:
                             name='data', dtype=float
                         )
                         if self._check_finite:
-                            np.asarray_chkfinite(y[np.logical_not(self.mask)])
+                            np.asarray_chkfinite(y[..., np.logical_not(self.mask)])
                 else:
                     y = data
                     input_y = False
@@ -430,7 +430,13 @@ class _Algorithm:
                         y = np.where(self.mask, 0., y)
                     else:
                         inv_mask = np.logical_not(self.mask)
-                        y = np.interp(self.x, self.x[inv_mask], y[inv_mask])
+                        if y.ndim == 1:
+                            y = np.interp(self.x, self.x[inv_mask], y[inv_mask])
+                        else:
+                            y = np.vstack(
+                                [np.interp(self.x, self.x[inv_mask], row[inv_mask]) for row in y]
+                            )
+
             baseline, params = func(self, y, *args, **kwargs)
 
             return self._return_results(baseline, params, self._dtype, sort_keys, skip_sorting)
