@@ -29,6 +29,7 @@ class PolynomialTester(BasePolyTester, InputWeightsMixin):
 
     module = polynomial
     checked_keys = ('weights',)
+    mask_support = 1
 
 
 class IterativePolynomialTester(PolynomialTester):
@@ -337,10 +338,6 @@ class TestPenalizedPoly(IterativePolynomialTester, WeightMaskingMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha_factor=alpha_factor)
 
-    def test_weight_masking(self):
-        """Masking only works if `threshold` is a fixed value."""
-        super().test_weight_masking(threshold=np.std(self.y) / 10)
-
 
 class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
     """Class for testing loess baseline."""
@@ -348,6 +345,7 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
     func_name = 'loess'
     allows_zero_iteration = False
     requires_unique_x = True
+    mask_support = -1
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('delta', (0, 0.01))

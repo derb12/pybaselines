@@ -55,7 +55,7 @@ from .utils import ParameterWarning, _convert_coef, _interp_inplace, relative_di
 class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
     """A base class for all polynomial algorithms."""
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def poly(self, data, poly_order=2, weights=None, return_coef=False):
         """
         Computes a polynomial fit to the data.

@@ -48,7 +48,7 @@ from ._algorithm_setup import _handle_io
 class _PolynomialNDMixin:
     """A mixin class for providing polynomial methods for 1D and 2D."""
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def modpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                 use_original=False, mask_initial_peaks=False, return_coef=False, max_cross=None):
         """
@@ -159,7 +159,7 @@ class _PolynomialNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def imodpoly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                  use_original=False, mask_initial_peaks=True, return_coef=False,
                  num_std=1., max_cross=None):
@@ -288,7 +288,7 @@ class _PolynomialNDMixin:
     # adapted from
     # https://www.mathworks.com/matlabcentral/fileexchange/27429-background-correction;
     # see license above
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def penalized_poly(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                        cost_function='asymmetric_truncated_quadratic', threshold=None,
                        alpha_factor=0.99, return_coef=False, max_cross=None):
@@ -395,7 +395,7 @@ class _PolynomialNDMixin:
             data, weights, poly_order, calc_vander=True, calc_pinv=True, max_cross=max_cross
         )
         if threshold is None:
-            threshold = np.std(y) / 10
+            threshold = np.std(y[weight_array > 0]) / 10
         loss_kwargs = {
             'threshold': threshold, 'alpha_factor': alpha_factor, 'symmetric': symmetric_loss
         }
