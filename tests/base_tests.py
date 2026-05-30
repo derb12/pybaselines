@@ -428,6 +428,7 @@ class BaseTester:
     required_repeated_kwargs = None
     two_d = False
     requires_unique_x = False
+    mask_support = -1
 
     @classmethod
     def setup_class(cls):
@@ -726,6 +727,53 @@ class BaseTester:
             with np.errstate(divide='raise', invalid='raise'):
                 output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
             assert np.isfinite(output).all()
+
+    def test_masking(self, **kwargs):
+        """Ensures fitting with a mask produces better results than without the mask."""
+        # for the current x,y test values, the below indices are a mixture of peak and non-peak
+        # regions; leave endpoints without problem regions for methods that need padding
+        bad_indices = np.random.default_rng(1).uniform(20, len(self.x) - 20, 40).astype(np.intp)
+        y_bad = self.y.copy()
+        # make the problematic region negative so that it would otherwise have strong
+        # effects for most methods since they're designed to work with positive outliers (peaks)
+        y_bad[bad_indices] -= 500
+        mask = np.zeros(len(self.x), dtype=bool)
+        mask[bad_indices] = True
+
+        fitter = self.algorithm_base(self.x, mask=mask)
+        method = getattr(fitter, self.func_name)
+        if self.mask_support == -1:
+            with pytest.raises(
+                NotImplementedError, match=f'masking is not supported for {self.func_name}'
+            ):
+                method(y_bad)
+            return
+
+        masked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
+
+        fitter.mask = None
+        normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
+        nonmasked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
+
+        # sanity check that fitting the bad data without a mask should produce severally
+        # incorrect results; quant_reg is unfortunately also fairly robust when containing
+        # only a few negative outliers
+        nonmasked_close = np.allclose(
+            nonmasked_fit, normal_fit, rtol=5e-4, atol=0.1 if self.func_name == 'quant_reg' else 5
+        )
+        if nonmasked_close:
+            abs_err = abs(nonmasked_fit - normal_fit)
+            with np.errstate(invalid='ignore', divide='ignore'):
+                rel_err = abs_err / abs(normal_fit)
+            max_rel_err = rel_err[np.isfinite(rel_err)].max()
+            max_abs_err = abs_err.max()
+            raise AssertionError((
+                f'data does not cause incorrect fit; max atol: {max_abs_err} & rtol: {max_rel_err}'
+            ))
+
+        assert_allclose(
+            masked_fit, normal_fit, rtol=5e-4, atol=5e-1 if self.func_name == 'aspls' else 1e-3
+        )
 
 
 class BasePolyTester(BaseTester):
