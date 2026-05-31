@@ -736,16 +736,14 @@ class BaseTester:
         y_bad = self.y.copy()
         # make the problematic region negative so that it would otherwise have strong
         # effects for most methods since they're designed to work with positive outliers (peaks)
-        y_bad[bad_indices] -= 500
+        y_bad[..., bad_indices] -= 500
         mask = np.zeros(len(self.x), dtype=bool)
         mask[bad_indices] = True
 
         fitter = self.algorithm_base(self.x, mask=mask)
         method = getattr(fitter, self.func_name)
         if self.mask_support == -1:
-            with pytest.raises(
-                NotImplementedError, match=f'masking is not supported for {self.func_name}'
-            ):
+            with pytest.raises(NotImplementedError, match='masking is not supported'):
                 method(y_bad)
             return
 

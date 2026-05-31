@@ -418,9 +418,7 @@ class _Algorithm:
 
             if self.mask is not None:
                 if mask_support == -1 and self._strict_mask:
-                    raise NotImplementedError(
-                        f'masking is not supported for {func.__name__.lstrip("_")}'
-                    )
+                    raise NotImplementedError('masking is not supported for this method')
 
                 # TODO maybe add a private bool attribute like "_mask_fill" that allows skipping
                 # the zero-filling/interpolation for testing purposes to ensure everything actually

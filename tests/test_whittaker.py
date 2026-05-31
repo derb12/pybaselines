@@ -97,6 +97,7 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerR
 
     module = whittaker
     checked_keys = ('weights', 'tol_history', 'result')
+    mask_support = 1
 
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_scipy_solvers(self, diff_order):
@@ -519,6 +520,7 @@ class TestDerpsalsa(WhittakerTester):
     """Class for testing derpsalsa baseline."""
 
     func_name = 'derpsalsa'
+    mask_support = -1
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):

@@ -426,7 +426,7 @@ class _PolynomialNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def quant_reg(self, data, poly_order=2, quantile=0.05, tol=1e-6, max_iter=250,
                   weights=None, eps=None, return_coef=False, max_cross=None):
         """
@@ -526,7 +526,9 @@ class _PolynomialNDMixin:
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
-            sqrt_w = np.sqrt(_weighting._quantile(y - baseline, quantile=quantile, eps=eps))
+            sqrt_w = np.sqrt(
+                _weighting._quantile(y - baseline, quantile=quantile, eps=eps, mask=self.mask)
+            )
             baseline_old = baseline
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}

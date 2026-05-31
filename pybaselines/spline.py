@@ -532,7 +532,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def pspline_drpls(self, data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3,
                       diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -633,7 +633,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             )
             penalty = _add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
             baseline = pspline.solve(y, weight_array, penalty=penalty)
-            new_weights, exit_early = _weighting._drpls(y - baseline, iteration=i)
+            new_weights, exit_early = _weighting._drpls(y - baseline, iteration=i, mask=self.mask)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break

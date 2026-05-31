@@ -84,6 +84,7 @@ class SplineTester(BaseTester, PSplineResultMixin):
     """Base testing class for spline functions."""
 
     module = spline
+    mask_support = 1
 
     def test_numba_implementation(self):
         """
@@ -612,6 +613,7 @@ class TestPsplineDerpsalsa(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_derpsalsa baseline."""
 
     func_name = 'pspline_derpsalsa'
+    mask_support = -1
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -661,6 +663,7 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin)
 
     func_name = 'pspline_mpls'
     checked_keys = ('half_window', 'weights', 'result')
+    mask_support = -1
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):

@@ -1241,7 +1241,7 @@ def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask):
 
     algorithm = SubClass(x, mask=mask, strict_mask=strict_mask, check_finite=check_finite)
     if strict_mask:
-        with pytest.raises(NotImplementedError, match='masking is not supported for func'):
+        with pytest.raises(NotImplementedError, match='masking is not supported'):
             algorithm.func(y)
     else:
         output, _ = algorithm.func(y)
@@ -1315,7 +1315,7 @@ def test_algorithm_handle_io_2d_mask(strict_mask):
 
     algorithm = SubClass(x, mask=mask, strict_mask=strict_mask)
     if strict_mask:
-        with pytest.raises(NotImplementedError, match='masking is not supported for func'):
+        with pytest.raises(NotImplementedError, match='masking is not supported'):
             algorithm.func(y)
     else:
         output, _ = algorithm.func(y)

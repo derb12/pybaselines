@@ -543,7 +543,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def drpls(self, data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
         Doubly reweighted penalized least squares (drPLS) baseline.
@@ -624,7 +624,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             baseline = whittaker_system.direct_solve(
                 lhs, weight_array * y, overwrite_b=True, l_and_u=lower_upper_bands
             )
-            new_weights, exit_early = _weighting._drpls(y - baseline, iteration=i)
+            new_weights, exit_early = _weighting._drpls(y - baseline, iteration=i, mask=self.mask)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break

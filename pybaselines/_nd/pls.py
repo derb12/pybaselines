@@ -23,7 +23,7 @@ from ._algorithm_setup import _handle_io
 class _PLSNDMixin:
     """A mixin class for providing penalized least squares methods for 1D and 2D."""
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _asls(self, data, lam=1e6, p=1e-2, diff_order=2, max_iter=50, tol=1e-3, weights=None,
               spline_degree=None, num_knots=25, num_eigens=(10, 10), return_dof=False):
         """
@@ -119,7 +119,7 @@ class _PLSNDMixin:
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights = _weighting._asls(y - baseline, p=p)
+            new_weights = _weighting._asls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -135,7 +135,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                 spline_degree=None, num_knots=25, num_eigens=(10, 10), return_dof=False,
                 normalize_weights=False):
@@ -225,7 +225,7 @@ class _PLSNDMixin:
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
-                y - baseline, iteration=i, normalize_weights=normalize_weights
+                y - baseline, iteration=i, normalize_weights=normalize_weights, mask=self.mask
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -245,7 +245,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _arpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                spline_degree=None, num_knots=25, num_eigens=(10, 10), return_dof=False):
         """
@@ -328,7 +328,7 @@ class _PLSNDMixin:
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights, exit_early = _weighting._arpls(y - baseline)
+            new_weights, exit_early = _weighting._arpls(y - baseline, mask=self.mask)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -347,7 +347,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _iarpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                 spline_degree=None, num_knots=25, num_eigens=(10, 10), return_dof=False):
         """
@@ -431,7 +431,9 @@ class _PLSNDMixin:
         tol_history = np.empty(max_iter + 1)
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights, exit_early = _weighting._iarpls(y - baseline, iteration=i)
+            new_weights, exit_early = _weighting._iarpls(
+                y - baseline, iteration=i, mask=self.mask
+            )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -450,7 +452,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _psalsa(self, data, lam=1e5, p=0.5, k=None, diff_order=2, max_iter=50, tol=1e-3,
                 weights=None, spline_degree=None, num_knots=25, num_eigens=(10, 10),
                 return_dof=False):
@@ -562,14 +564,14 @@ class _PLSNDMixin:
             num_knots=num_knots, num_eigens=num_eigens
         )
         if k is None:
-            k = np.std(y) / 10
+            k = np.std(y[weight_array > 0]) / 10
         else:
             k = _check_scalar_variable(k, variable_name='k')
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
-            new_weights = _weighting._psalsa(y - baseline, p=p, k=k)
+            new_weights = _weighting._psalsa(y - baseline, p=p, k=k, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -737,7 +739,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _brpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, max_iter_2=50,
                tol_2=1e-3, weights=None, spline_degree=None, num_knots=10, num_eigens=(10, 10),
                return_dof=False):
@@ -836,7 +838,9 @@ class _PLSNDMixin:
         for i in range(max_iter_2 + 1):
             for j in range(max_iter + 1):
                 new_baseline = penalized_system.solve(y, weight_array)
-                new_weights, exit_early = _weighting._brpls(y - new_baseline, beta=beta)
+                new_weights, exit_early = _weighting._brpls(
+                    y - new_baseline, beta=beta, mask=self.mask
+                )
                 if exit_early:
                     j -= 1  # reduce j so that output tol_history indexing is correct
                     tol_2 = np.inf  # ensure it exits outer loop
@@ -872,7 +876,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _lsrpls(self, data, lam=1e5, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                 spline_degree=None, num_knots=25, num_eigens=(10, 10), return_dof=False,
                 alternate_weighting=False):
@@ -977,7 +981,7 @@ class _PLSNDMixin:
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._lsrpls(
-                y - baseline, iteration=i, alternate_weighting=alternate_weighting
+                y - baseline, iteration=i, alternate_weighting=alternate_weighting, mask=self.mask
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -1179,7 +1183,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _irsqr(self, data, lam=1e3, quantile=0.05, num_knots=25, spline_degree=None,
                diff_order=3, max_iter=100, tol=1e-6, weights=None, eps=None):
         """
@@ -1273,7 +1277,9 @@ class _PLSNDMixin:
             if calc_difference < tol:
                 break
             old_coef = penalized_system.coef
-            weight_array = _weighting._quantile(y - baseline, quantile=quantile, eps=eps)
+            weight_array = _weighting._quantile(
+                y - baseline, quantile=quantile, eps=eps, mask=self.mask
+            )
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
