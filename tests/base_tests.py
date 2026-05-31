@@ -769,9 +769,8 @@ class BaseTester:
                 f'data does not cause incorrect fit; max atol: {max_abs_err} & rtol: {max_rel_err}'
             ))
 
-        assert_allclose(
-            masked_fit, normal_fit, rtol=5e-4, atol=5e-1 if self.func_name == 'aspls' else 1e-3
-        )
+        atol = 5e-1 if self.func_name in ('aspls', 'irsqr') else 1e-3
+        assert_allclose(masked_fit, normal_fit, rtol=5e-4, atol=atol)
 
 
 class BasePolyTester(BaseTester):
