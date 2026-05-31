@@ -27,7 +27,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
     """A base class for all spline algorithms."""
 
     def mixture_model(self, data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_order=3,
-                      max_iter=50, tol=1e-3, weights=None, symmetric=False, num_bins=None):
+                      max_iter=50, tol=1e-3, weights=None, symmetric=False):
         """
         Considers the data as a mixture model composed of noise and peaks.
 
@@ -69,11 +69,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
             residuals. If True, an additional uniform distribution will be added to the
             mixture model for negative non-noise residuals. Only need to set `symmetric`
             to True when peaks are both positive and negative.
-        num_bins : int, optional, deprecated
-
-            .. deprecated:: 1.1.0
-                ``num_bins`` is deprecated since it is no longer necessary for performing
-                the expectation-maximization and will be removed in pybaselines version 1.3.0.
 
         Returns
         -------
@@ -107,11 +102,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
         preprint arXiv:1901.06708, 2019.
 
         """
-        if num_bins is not None:
-            warnings.warn(
-                '"num_bins" was deprecated in version 1.1.0 and will be removed in version 1.3.0',
-                DeprecationWarning, stacklevel=2
-            )
         _check_spline_degree(spline_degree)
         return super()._mixture_model(
             data, lam=lam, p=p, diff_order=diff_order, max_iter=max_iter, tol=tol,
@@ -1347,8 +1337,7 @@ _spline_wrapper = _class_wrapper(_Spline)
 
 @_spline_wrapper
 def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_order=3,
-                  max_iter=50, tol=1e-3, weights=None, symmetric=False, num_bins=None,
-                  x_data=None):
+                  max_iter=50, tol=1e-3, weights=None, symmetric=False, x_data=None):
     """
     Considers the data as a mixture model composed of noise and peaks.
 
@@ -1390,12 +1379,6 @@ def mixture_model(data, lam=1e5, p=1e-2, num_knots=100, spline_degree=3, diff_or
         residuals. If True, an additional uniform distribution will be added to the
         mixture model for negative non-noise residuals. Only need to set `symmetric`
         to True when peaks are both positive and negative.
-    num_bins : int, optional, deprecated
-
-        .. deprecated:: 1.1.0
-            ``num_bins`` is deprecated since it is no longer necessary for performing
-            the expectation-maximization and will be removed in pybaselines version 1.3.0.
-
     x_data : array-like, shape (N,), optional
         The x-values of the measured data. Default is None, which will create an
         array from -1 to 1 with N points.

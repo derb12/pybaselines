@@ -195,12 +195,6 @@ class TestMixtureModel(IterativeSplineTester):
         lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
-    @ensure_deprecation(1, 3)
-    def test_num_bins_deprecation(self):
-        """Ensures a DeprecationWarning is given when num_bins is input."""
-        with pytest.warns(DeprecationWarning):
-            self.class_func(self.y, num_bins=20)
-
 
 class TestIRSQR(IterativeSplineTester):
     """Class for testing irsqr baseline."""
