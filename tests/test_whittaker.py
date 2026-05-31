@@ -79,15 +79,14 @@ def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coe
         lhs = weight_matrix + alpha_matrix @ penalty_matrix
         baseline = spsolve(lhs, weight_array * y)
         residual = y - baseline
-        new_weights, _ = _weighting._aspls(
+        new_weights, _, new_alpha = _weighting._aspls(
             residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
-        abs_d = np.abs(residual)
-        alpha_matrix.setdiag(abs_d / abs_d.max())
+        alpha_matrix.setdiag(new_alpha)
 
     return baseline
 

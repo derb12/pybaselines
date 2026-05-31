@@ -398,7 +398,7 @@ def _iarpls(residual, iteration):
 
 
 @masked_weighting
-def _aspls(residual, asymmetric_coef=2., alternate_weighting=True):
+def _aspls_inner(residual, asymmetric_coef=2., alternate_weighting=True):
     """
     Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
 
@@ -435,14 +435,66 @@ def _aspls(residual, asymmetric_coef=2., alternate_weighting=True):
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
             stacklevel=3
         )
-        return np.zeros(residual.shape), exit_early
+        return np.zeros(residual.shape), exit_early, np.ones(residual.shape)
     else:
         exit_early = False
     std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since sampling subset
     offset = std - mean if alternate_weighting else std
     # add a negative sign since expit performs 1/(1+exp(-input))
     weights = expit(-(asymmetric_coef / std) * (residual - offset))
-    return weights, exit_early
+
+    # ensure alpha is not 0; otherwise, the sparsity of alpha @ penalty
+    # can change, which is inefficient, as well as potentially causing numerical issues
+    abs_d = np.maximum(abs(residual), _MIN_FLOAT)
+    alpha_array = abs_d / abs_d.max()
+
+    return weights, exit_early, alpha_array
+
+
+def _aspls(residual, asymmetric_coef=2., alternate_weighting=True, mask=None):
+    """
+    Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
+    asymmetric_coef : float, optional
+        The asymmetric coefficient for the weighting. Higher values leads to a steeper
+        weighting curve (ie. more step-like). Default is 2.
+    alternate_weighting : bool, optional
+        If True (default), subtracts the mean of the negative residuals within the weighting
+        equation. If False, uses the weighting equation as stated within the aspls paper.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,) or (M, N)
+        The calculated weights.
+    exit_early : bool
+        Designates if there is a potential error with the calculation such that no further
+        iterations should be performed.
+    alpha_array : numpy.ndarray, shape (N,) or (M, N)
+        The updated alpha values.
+
+    References
+    ----------
+    Zhang, F., et al. Baseline correction for infrared spectra using adaptive smoothness
+    parameter penalized least squares method. Spectroscopy Letters, 2020, 53(3), 222-233.
+
+    """
+    weights, exit_early, masked_alpha = _aspls_inner(
+        residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting,
+        mask=mask
+    )
+    if mask is None:
+        alpha_array = masked_alpha
+    else:
+        # for aspls, alpha ~ 1 denotes peak regions with weights ~ 0; so masked regions with
+        # weight=0 should have alpha=1
+        alpha_array = np.ones(residual.shape)
+        alpha_array[np.logical_not(mask)] = masked_alpha
+
+    return weights, exit_early, alpha_array
 
 
 @masked_weighting

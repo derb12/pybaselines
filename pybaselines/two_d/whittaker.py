@@ -636,8 +636,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             penalty = alpha_matrix @ whittaker_system.penalty
             baseline = whittaker_system.solve(y, weight_array, penalty=penalty)
             residual = y - baseline
-            new_weights, exit_early = _weighting._aspls(
-                residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
+            new_weights, exit_early, new_alpha = _weighting._aspls(
+                residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting,
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -647,10 +647,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             if calc_difference < tol:
                 break
             weight_array = new_weights
-            # add _MIN_FLOAT so that no values are 0; otherwise, the sparsity of alpha @ penalty
-            # can change, which is inefficient
-            abs_d = np.abs(residual) + _MIN_FLOAT
-            alpha_array = abs_d / abs_d.max()
+            alpha_array = new_alpha
             alpha_matrix.setdiag(alpha_array)
 
         params = {

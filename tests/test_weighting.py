@@ -968,6 +968,8 @@ def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
     -------
     weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
+    alpha_array : numpy.ndarray, shape (N,) or (M, N)
+        The updated alpha values.
 
     References
     ----------
@@ -985,7 +987,10 @@ def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
         shifted_residual = residual
     weights = 1 / (1 + np.exp(asymmetric_coef * (shifted_residual - std) / std))
 
-    return weights
+    abs_d = np.abs(residual)
+    alpha_array = abs_d / abs_d.max()
+
+    return weights, alpha_array
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -998,10 +1003,10 @@ def test_aspls_normal(one_d, asymmetric_coef, alternate_weighting):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, exit_early = _weighting._aspls(
+    weights, exit_early, alpha = _weighting._aspls(
         y_data - baseline, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
     )
-    expected_weights = expected_aspls(
+    expected_weights, expected_alpha = expected_aspls(
         y_data, baseline, asymmetric_coef, alternate_weighting
     )
 
@@ -1010,6 +1015,11 @@ def test_aspls_normal(one_d, asymmetric_coef, alternate_weighting):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
     assert ((weights >= 0) & (weights <= 1)).all()
+
+    assert isinstance(alpha, np.ndarray)
+    assert alpha.shape == y_data.shape
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
+    assert ((alpha >= 0) & (alpha <= 1)).all()
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -1022,10 +1032,10 @@ def test_aspls_all_above(one_d, asymmetric_coef, alternate_weighting):
     else:
         y_data, baseline = baseline_2d_all_above()
 
-    weights, exit_early = _weighting._aspls(
+    weights, exit_early, alpha = _weighting._aspls(
         y_data - baseline, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
     )
-    expected_weights = expected_aspls(
+    expected_weights, expected_alpha = expected_aspls(
         y_data, baseline, asymmetric_coef, alternate_weighting
     )
 
@@ -1033,6 +1043,11 @@ def test_aspls_all_above(one_d, asymmetric_coef, alternate_weighting):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
+
+    assert isinstance(alpha, np.ndarray)
+    assert alpha.shape == y_data.shape
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
+    assert ((alpha >= 0) & (alpha <= 1)).all()
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -1046,16 +1061,21 @@ def test_aspls_all_below(one_d, asymmetric_coef, alternate_weighting):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._aspls(
+        weights, exit_early, alpha = _weighting._aspls(
             y_data - baseline, asymmetric_coef=asymmetric_coef,
             alternate_weighting=alternate_weighting
         )
     expected_weights = np.zeros_like(y_data)
+    expected_alpha = np.ones_like(y_data)
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert exit_early
+
+    assert isinstance(alpha, np.ndarray)
+    assert alpha.shape == y_data.shape
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -1085,14 +1105,14 @@ def test_aspls_overflow(one_d, asymmetric_coef, alternate_weighting):
 
     # sanity check to ensure overflow actually should occur
     with pytest.warns(RuntimeWarning):
-        expected_weights = expected_aspls(
+        expected_weights, expected_alpha = expected_aspls(
             y_data, baseline, asymmetric_coef, alternate_weighting
         )
     # the resulting weights should still be finite since 1 / (1 + inf) == 0
     assert np.isfinite(expected_weights).all()
 
     with np.errstate(over='raise'):
-        weights, exit_early = _weighting._aspls(
+        weights, exit_early, alpha = _weighting._aspls(
             y_data - baseline, asymmetric_coef=asymmetric_coef,
             alternate_weighting=alternate_weighting
         )
@@ -1108,6 +1128,37 @@ def test_aspls_overflow(one_d, asymmetric_coef, alternate_weighting):
 
     # weights should still be the same as the naive calculation regardless of exponential overflow
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_aspls_masked(one_d, asymmetric_coef, alternate_weighting):
+    """Ensures aspls weighting works as intended for a normal baseline."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    mask_inv = np.logical_not(mask)
+
+    weights, exit_early, alpha = _weighting._aspls(
+        y_data - baseline, asymmetric_coef=asymmetric_coef,
+        alternate_weighting=alternate_weighting, mask=mask
+    )
+    partial_weights, partial_alpha = expected_aspls(
+       y_data[mask_inv], baseline[mask_inv], asymmetric_coef, alternate_weighting
+    )
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+    expected_alpha = np.ones_like(y_data)
+    expected_alpha[mask_inv] = partial_alpha
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+    assert isinstance(alpha, np.ndarray)
+    assert alpha.shape == y_data.shape
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
 
 
 def expected_psalsa(y, baseline, p, k):

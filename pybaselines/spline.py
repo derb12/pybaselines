@@ -717,7 +717,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights', 'alpha'))
+    @_Algorithm._handle_io(sort_keys=('weights', 'alpha'), mask_support=1)
     def pspline_aspls(self, data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
                       max_iter=100, tol=1e-3, weights=None, alpha=None, asymmetric_coef=2.,
                       alternate_weighting=True):
@@ -825,8 +825,10 @@ class _Spline(_Algorithm, _PLSNDMixin):
         alpha_array = _check_optional_array(
             self._size, alpha, check_finite=self._check_finite, name='alpha'
         )
-        if self._sort_order is not None and alpha is not None:
-            alpha_array = alpha_array[self._sort_order]
+        if alpha is not None:
+            alpha_array = _sort_array(alpha_array, self._sort_order)
+            if self.mask is not None:
+                alpha_array = np.where(self.mask, 1., alpha_array)
         asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
         interp_pts = _basis_midpoints(pspline.basis.knots, pspline.basis.spline_degree)
@@ -839,8 +841,9 @@ class _Spline(_Algorithm, _PLSNDMixin):
             )
             baseline = pspline.solve(y, weight_array, penalty=alpha_penalty)
             residual = y - baseline
-            new_weights, exit_early = _weighting._aspls(
-                residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
+            new_weights, exit_early, new_alpha = _weighting._aspls(
+                residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting,
+                mask=self.mask
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -850,8 +853,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             if calc_difference < tol:
                 break
             weight_array = new_weights
-            abs_d = np.abs(residual)
-            alpha_array = abs_d / abs_d.max()
+            alpha_array = new_alpha
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
