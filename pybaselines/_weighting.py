@@ -15,6 +15,10 @@ def masked_weighting(weighting_func):
     """
     A decorator that adds mask support for weighting functions.
 
+    Only valid indices, indicated with `False` values within `mask`, will be passed
+    to the wrapped weighting function. Remaining indices in the output weights will
+    have values set to 0.
+
     Parameters
     ----------
     weighting_func : Callable
@@ -480,7 +484,44 @@ def _psalsa(residual, p, k):
 
 
 @masked_weighting
-def _derpsalsa(residual, p, k, partial_weights):
+def _derpsalsa_inner(residual, p, k):
+    """
+    Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
+    p : float
+        The penalizing weighting factor. Must be between 0 and 1. Positive residuals
+        will be given ``p * exp(-[(residual) / k)]**2 / 2)`` weight, and negative residuals
+        will be given ``1 - p`` weight.
+    k : float
+        A factor that controls the exponential decay of the weights for baseline
+        values greater than the data. Should be approximately the height at which
+        a value could be considered a peak.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,) or (M, N)
+        The calculated weights.
+
+    References
+    ----------
+    Korepanov, V. Asymmetric least-squares baseline algorithm with peak screening for
+    automatic processing of the Raman spectra. Journal of Raman Spectroscopy. 2020,
+    51(10), 2061-2065.
+
+    """
+    # no need for caution since inner exponential is always negative, but still mask
+    # since it's faster than performing the square and exp on the full residual
+    weights = np.full(residual.shape, 1 - p, dtype=float)
+    mask = residual > 0
+    weights[mask] = p * np.exp(-0.5 * ((residual[mask] / k)**2))
+    return weights
+
+
+def _derpsalsa(residual, p, k, partial_weights, mask=None):
     """
     Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
 
@@ -520,11 +561,7 @@ def _derpsalsa(residual, p, k, partial_weights):
     51(10), 2061-2065.
 
     """
-    # no need for caution since inner exponential is always negative, but still mask
-    # since it's faster than performing the square and exp on the full residual
-    weights = np.full(residual.shape, 1 - p, dtype=float)
-    mask = residual > 0
-    weights[mask] = p * np.exp(-0.5 * ((residual[mask] / k)**2))
+    weights = _derpsalsa_inner(residual, p=p, k=k, mask=mask)
     weights *= partial_weights
     return weights
 
@@ -576,7 +613,7 @@ def _quantile(residual, quantile, eps=None):
 
     """
     if eps is None:
-        eps = (np.abs(residual).max() * 1e-4)**2
+        eps = (abs(residual).max() * 1e-4)**2
     numerator = np.where(residual > 0, quantile, 1 - quantile)
     # use max(eps, _MIN_FLOAT) to ensure that eps + 0 > 0
     denominator = np.sqrt(residual**2 + max(eps, _MIN_FLOAT))  # approximates abs(residual)
