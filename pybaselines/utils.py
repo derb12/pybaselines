@@ -1381,3 +1381,33 @@ def _get_rng(rng):
         output = np.random.default_rng(rng)
 
     return output
+
+
+def _masked_matvec(A, v, mask):
+    """
+    Performs matrix-vector multiplication of ``A @ v`` and removes all regions affected by a mask.
+
+    Parameters
+    ----------
+    A : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray, shape (M, N)
+        The matrix.
+    v : numpy.ndarray, shape (N,)
+        The vector.
+    mask : numpy.ndarray, shape(N,)
+        The mask of `v`, with True values indicating the matching index in `v` is invalid.
+
+    Returns
+    -------
+    output : numpy.ndarray, shape (N,)
+        The result of ``A @ v``, with all indices affected by the input `mask` set to 0.
+
+    Notes
+    -----
+    Sets masked region in `v` to NaN to allow removing all regions in the output where the mask
+    propagates. Note that using 0 instead of NaN as the fill value before performing ``A @ v``
+    does not work the same.
+
+    """
+    output = A @ np.where(mask, np.nan, v)
+    output[np.isnan(output)] = 0
+    return output

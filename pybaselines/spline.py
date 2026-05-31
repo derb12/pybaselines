@@ -20,7 +20,7 @@ from ._validation import (
     _check_lam, _check_optional_array, _check_scalar_variable, _check_spline_degree
 )
 from .results import PSplineResult
-from .utils import _sort_array, relative_difference
+from .utils import _masked_matvec, _sort_array, relative_difference
 
 
 class _Spline(_Algorithm, _PLSNDMixin):
@@ -266,7 +266,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def pspline_iasls(self, data, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
                       spline_degree=3, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
@@ -359,7 +359,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data)
-            weights = _weighting._iasls(data - baseline, p=p)
+            weights = _weighting._iasls(data - baseline, p=p, mask=self.mask)
 
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
@@ -370,7 +370,10 @@ class _Spline(_Algorithm, _PLSNDMixin):
             pspline.basis.basis.T
             @ (_check_lam(lam_1) * diff_penalty_matrix(self._size, 1))
         )
-        partial_rhs = d1_penalty @ y
+        if self.mask is None:
+            partial_rhs = d1_penalty @ y
+        else:
+            partial_rhs = _masked_matvec(d1_penalty, y, self.mask)
         # now change d1_penalty back to banded array
         d1_penalty = _sparse_to_banded(d1_penalty @ pspline.basis.basis)[0]
         if pspline.lower:
@@ -380,7 +383,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
-            new_weights = _weighting._iasls(y - baseline, p=p)
+            new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

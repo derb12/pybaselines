@@ -10,11 +10,11 @@ import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._banded_utils import _shift_rows, diff_penalty_diagonals
+from ._banded_utils import _shift_rows, diff_penalty_diagonals, diff_penalty_matrix
 from ._nd.pls import _PLSNDMixin
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import WhittakerResult
-from .utils import relative_difference, _sort_array
+from .utils import relative_difference, _masked_matvec, _sort_array
 
 
 class _Whittaker(_Algorithm, _PLSNDMixin):
@@ -145,7 +145,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             weights=weights
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def iasls(self, data, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
               weights=None, diff_order=2):
         r"""
@@ -309,7 +309,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data)
-            weights = _weighting._iasls(data - baseline, p=p)
+            weights = _weighting._iasls(data - baseline, p=p, mask=self.mask)
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
@@ -317,17 +317,20 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             self._size, 1, whittaker_system.lower, padding=diff_order - 1
         )
         whittaker_system.add_penalty(residual_penalty)
+        if self.mask is None:
+            # fast calculation of (D_1.T @ D_1) @ y
+            d1_y = y.copy()
+            d1_y[0] = y[0] - y[1]
+            d1_y[-1] = y[-1] - y[-2]
+            d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
+        else:
+            d1_y = _masked_matvec(diff_penalty_matrix(self._size, 1, 'csr'), y, self.mask)
 
-        # fast calculation of lam_1 * (D_1.T @ D_1) @ y
-        d1_y = y.copy()
-        d1_y[0] = y[0] - y[1]
-        d1_y[-1] = y[-1] - y[-2]
-        d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = whittaker_system.solve(y, weight_array, rhs_extra=d1_y)
-            new_weights = _weighting._iasls(y - baseline, p=p)
+            new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
