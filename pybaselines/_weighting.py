@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 from scipy.special import erf, expit
 
-from .utils import _MIN_FLOAT, ParameterWarning
+from .utils import _MIN_FLOAT, ParameterWarning, gaussian
 from ._compat import _np_ge_2
 
 
@@ -812,3 +812,90 @@ def _lsrpls(residual, iteration, alternate_weighting=False):
     inner = (10**(min(iteration, 100)) / std) * (residual - (2 * std - mean))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
     return weights, exit_early
+
+
+@masked_weighting
+def _em(residual, sigma, fraction_noise, fraction_positive, symmetric):
+    """
+    Expectation-maximization for a uniform-Gaussian mixture model.
+
+    Assumes the total model has a Gaussian distribution representing noise and
+    one or two uniform distributions covering positive and negative residuals.
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
+    sigma : float
+        The current standard deviation of the Gaussian model representing the noise.
+    fraction_noise : float
+        The current fraction of the mixture model pertaining to noise.
+    fraction_positive : float
+        The current fraction of the mixture model pertaining to the positive uniform
+        distribution.
+    symmetric : bool
+        If True, denotes the total model contains two uniform distributions for
+        both positive and negative residuals. False signifies there is only one
+        uniform distribution for positive residuals.
+
+    Returns
+    -------
+    posterior_prob_noise : numpy.ndarray, shape (N,) or (M, N)
+        The calculated weights, corresponding to the posterior probability of the
+        Gaussian model.
+    new_sigma : float
+        The updated standard deviation of the Gaussian model representing the noise.
+    new_fraction_noise : float
+        The updated fraction of the mixture model pertaining to noise.
+    new_fraction_positive : float
+        The updated fraction of the mixture model pertaining to the positive uniform
+        distribution.
+
+    References
+    ----------
+    de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
+    Intelligent Laboratory Systems, 2012, 117, 56-60.
+
+    Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
+    preprint arXiv:1901.06708, 2019.
+
+    """
+    # expectation part of expectation-maximization -> calc pdfs and
+    # posterior probabilities
+    positive_pdf = np.where(
+        residual >= 0, fraction_positive / max(abs(residual.max()), 1e-6), 0
+    )
+    noise_pdf = (
+        fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
+    )
+    total_pdf = noise_pdf + positive_pdf
+    if symmetric:
+        negative_pdf = np.where(
+            residual < 0,
+            (1 - fraction_noise - fraction_positive) / max(abs(residual.min()), 1e-6),
+            0
+        )
+        total_pdf += negative_pdf
+    posterior_prob_noise = noise_pdf / np.maximum(total_pdf, _MIN_FLOAT)
+
+    # maximization part of expectation-maximization -> update sigma and
+    # fractions of each pdf
+    noise_sum = posterior_prob_noise.sum()
+    # TODO can noise_sum ever be 0? Should terminate early if so, since all weights
+    # would be 0
+    new_sigma = np.sqrt((posterior_prob_noise * residual**2).sum() / noise_sum)
+    if not symmetric:
+        new_fraction_noise = posterior_prob_noise.mean()
+        new_fraction_positive = 1 - new_fraction_noise
+    else:
+        new_posterior_prob_positive = positive_pdf / total_pdf
+        new_posterior_prob_negative = negative_pdf / total_pdf
+
+        positive_sum = new_posterior_prob_positive.sum()
+        negative_sum = new_posterior_prob_negative.sum()
+        total_sum = noise_sum + positive_sum + negative_sum
+
+        new_fraction_noise = noise_sum / total_sum
+        new_fraction_positive = positive_sum / total_sum
+
+    return posterior_prob_noise, new_sigma, new_fraction_noise, new_fraction_positive

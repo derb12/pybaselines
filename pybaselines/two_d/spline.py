@@ -96,9 +96,6 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
         Intelligent Laboratory Systems, 2012, 117, 56-60.
 
-        Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
-        preprint arXiv:1901.06708, 2019.
-
         """
         _check_spline_degree(spline_degree)
         return super()._mixture_model(

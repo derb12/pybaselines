@@ -14,7 +14,7 @@ import numpy as np
 
 from .. import _weighting
 from ..utils import (
-    ParameterWarning, _mollifier_kernel, gaussian, pad_edges, padded_convolve, relative_difference
+    ParameterWarning, _mollifier_kernel, pad_edges, padded_convolve, relative_difference
 )
 from .._validation import _check_scalar_variable
 from ._algorithm_setup import _handle_io
@@ -1001,7 +1001,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _mixture_model(self, data, lam=1e5, p=1e-2, num_knots=25, spline_degree=None,
                        diff_order=3, max_iter=50, tol=1e-3, weights=None,
                        symmetric=False):
@@ -1083,9 +1083,6 @@ class _PLSNDMixin:
         de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
         Intelligent Laboratory Systems, 2012, 117, 56-60.
 
-        Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
-        preprint arXiv:1901.06708, 2019.
-
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
@@ -1116,11 +1113,11 @@ class _PLSNDMixin:
                 )
             for _ in range(2):
                 baseline = penalized_system.solve(y, weight_array)
-                weight_array = _weighting._asls(y - baseline, p=p)
+                weight_array = _weighting._asls(y - baseline, p=p, mask=self.mask)
 
         residual = y - baseline
         # the 0.2 * std(residual) is an "okay" starting sigma estimate
-        sigma = 0.2 * np.std(residual)
+        sigma = 0.2 * np.std(residual[weight_array > 0])
         fraction_noise = 0.5
         if symmetric:
             fraction_positive = 0.25
@@ -1128,47 +1125,14 @@ class _PLSNDMixin:
             fraction_positive = 1 - fraction_noise
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
-            # expectation part of expectation-maximization -> calc pdfs and
-            # posterior probabilities
-            positive_pdf = np.where(
-                residual >= 0, fraction_positive / max(abs(residual.max()), 1e-6), 0
+            posterior_prob_noise, sigma, fraction_noise, fraction_positive = _weighting._em(
+                y - baseline, sigma=sigma, fraction_noise=fraction_noise,
+                fraction_positive=fraction_positive, symmetric=symmetric, mask=self.mask
             )
-            noise_pdf = (
-                fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
-            )
-            total_pdf = noise_pdf + positive_pdf
-            if symmetric:
-                negative_pdf = np.where(
-                    residual < 0,
-                    (1 - fraction_noise - fraction_positive) / max(abs(residual.min()), 1e-6),
-                    0
-                )
-                total_pdf += negative_pdf
-            posterior_prob_noise = noise_pdf / np.maximum(total_pdf, np.finfo(float).eps)
-
             calc_difference = relative_difference(weight_array, posterior_prob_noise)
             tol_history[i] = calc_difference
             if calc_difference < tol:
                 break
-
-            # maximization part of expectation-maximization -> update sigma and
-            # fractions of each pdf
-            noise_sum = posterior_prob_noise.sum()
-            # TODO can noise_sum ever be 0? Should terminate early if so
-            sigma = np.sqrt((posterior_prob_noise * residual**2).sum() / noise_sum)
-            if not symmetric:
-                fraction_noise = posterior_prob_noise.mean()
-                fraction_positive = 1 - fraction_noise
-            else:
-                posterior_prob_positive = positive_pdf / total_pdf
-                posterior_prob_negative = negative_pdf / total_pdf
-
-                positive_sum = posterior_prob_positive.sum()
-                negative_sum = posterior_prob_negative.sum()
-                total_sum = noise_sum + positive_sum + negative_sum
-
-                fraction_noise = noise_sum / total_sum
-                fraction_positive = positive_sum / total_sum
 
             weight_array = posterior_prob_noise
             baseline = penalized_system.solve(y, weight_array)
