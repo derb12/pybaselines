@@ -416,7 +416,7 @@ class _Smooth(_Algorithm):
         roi : slice or array-like, shape(N,)
             The region of interest, such that ``np.asarray(data)[roi]`` gives the values
             for calculating the tolerance if `original_criteria` is True. Not used if
-            `original_criteria` is True. Default is None, which uses all values in `data`.
+            `original_criteria` is False. Default is None, which uses all values in `data`.
         original_criteria : bool, optional
             Whether to use the original exit criteria from the reference, which is difficult
             to use since it requires knowledge of how high the peaks should be after baseline
