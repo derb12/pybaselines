@@ -6,17 +6,19 @@ Created on March 20, 2021
 
 """
 
+from pathlib import Path
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.interpolate import BSpline
-from scipy.ndimage import grey_dilation, grey_erosion, grey_opening
+from scipy.ndimage import convolve, convolve1d, grey_dilation, grey_erosion, grey_opening
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils, utils
 from pybaselines._compat import dia_object, diags, identity
 
-from .base_tests import gaussian
+from .base_tests import gaussian, get_data, get_data2d
 
 
 @pytest.fixture(scope='module')
@@ -1090,3 +1092,129 @@ def test_masked_matvec(diff_order):
     output = utils._masked_matvec(matrix, vector, mask)
 
     assert_allclose(output, expected_output, rtol=1e-15, atol=1e-15)
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_masked_convolve(one_d):
+    """Compares _masked_convolve against Astropy's implementation.
+
+    The library Astropy has a well-tested masked convolution implementation, so
+    can compare the pybaselines implementation to Astropy to ensure correctness.
+
+    The Astropy data was generated using::
+
+        from astropy.convolution import convolve
+        astropy_output = convolve(y, kernel, mask=mask, boundary='extend')
+
+    using Astropy version 7.2.0.
+
+    """
+    window_size = 7
+    sigma = 1
+    if one_d:
+        y = get_data(num_points=200)[-1]
+        kernel = utils.gaussian_kernel(window_size, sigma)
+    else:
+        y = get_data2d(num_points=(20, 31))[-1]
+        x_win = np.arange(window_size) - (window_size - 1) / 2
+        kernel = utils.gaussian2d(
+            *np.meshgrid(x_win, x_win, indexing='ij'), 1, 0, 0, sigma, sigma
+        )
+        kernel /= kernel.sum()
+
+    mask = np.random.default_rng(0).choice((True, False), y.shape, p=(0.3, 0.7))
+
+    output = utils._masked_convolve(y, kernel, mask=mask, fill_nan=False)
+    astropy_output = np.loadtxt(
+        Path(__file__).parent.joinpath(f'data/masked_convolve_{"1d" if one_d else "2d"}.csv'),
+        delimiter=','
+    )
+    assert_allclose(output, astropy_output, rtol=1e-13, atol=1e-13)
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_masked_convolve_zeros_mask(one_d):
+    """Ensures an all False mask produces a regular convolution."""
+    if one_d:
+        y = get_data()[-1]
+    else:
+        y = get_data2d()[-1]
+
+    kernel = np.ones((11,) * y.ndim)
+    kernel /= kernel.sum()
+
+    output = utils._masked_convolve(y, kernel, mask=np.zeros(y.shape, dtype=bool))
+
+    convolve_func = convolve1d if y.ndim == 1 else convolve
+    expected = convolve_func(y, kernel, mode='nearest')
+
+    assert_allclose(output, expected, rtol=1e-13, atol=1e-13)
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_masked_convolve_kernel_dim_mismatch_fails(one_d):
+    """Ensures dimension mismatch between the data and kernel raises an error."""
+    if one_d:
+        y = get_data()[-1]
+        kernel_shape = (5, 5)
+    else:
+        y = get_data2d()[-1]
+        kernel_shape = 5
+
+    mask = np.random.default_rng(0).choice((True, False), y.shape, p=(0.3, 0.7))
+    kernel = np.ones(kernel_shape)
+    with pytest.raises(
+        ValueError, match='data and kernel must have the same number of dimensions'
+    ):
+        utils._masked_convolve(y, kernel, mask=mask)
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_masked_convolve_mask_mismatch_fails(one_d):
+    """Ensures shape mismatch between the data and mask raises an error."""
+    if one_d:
+        y = get_data()[-1]
+    else:
+        y = get_data2d()[-1]
+
+    mask = np.random.default_rng(0).choice((True, False), np.array(y.shape) + 1, p=(0.3, 0.7))
+    kernel = np.ones((1,) * y.ndim)
+    with pytest.raises(ValueError, match='y and mask much have the same shape'):
+        utils._masked_convolve(y, kernel, mask=mask)
+
+
+@pytest.mark.parametrize('kernel_shape', (8, (7, 8), (10, 10)))
+def test_masked_convolve_even_kernel_fails(kernel_shape):
+    """Ensures an even sized kernel fails."""
+    sigma = 1
+    if isinstance(kernel_shape, int):
+        y = get_data(num_points=200)[-1]
+        kernel = utils.gaussian_kernel(kernel_shape, sigma)
+    else:
+        y = get_data2d(num_points=(20, 31))[-1]
+        x_window = np.arange(kernel_shape[0]) - (kernel_shape[0] - 1) / 2
+        z_window = np.arange(kernel_shape[1]) - (kernel_shape[1] - 1) / 2
+        kernel = utils.gaussian2d(
+            *np.meshgrid(x_window, z_window, indexing='ij'), 1, 0, 0, sigma, sigma
+        )
+
+    mask = np.random.default_rng(0).choice((True, False), y.shape, p=(0.3, 0.7))
+    with pytest.raises(ValueError, match='kernel must have odd length in all dimensions'):
+        utils._masked_convolve(y, kernel, mask=mask)
+
+
+@pytest.mark.parametrize('fill_nan', (True, False))
+def test_masked_convolve_fill_nan(fill_nan):
+    """Ensures `fill_nan` behaves as expected."""
+    y = np.random.default_rng(0).uniform(0, 0.5, 20)
+    mask = np.zeros_like(y, dtype=bool)
+    mask[5:15] = True
+    kernel = utils.gaussian_kernel(3)
+
+    if fill_nan:
+        context = pytest.warns(utils.ParameterWarning, match='kernel is too small for the mask')
+    else:
+        context = pytest.raises(ValueError, match='kernel is too small for the mask')
+
+    with context:
+        utils._masked_convolve(y, kernel, mask, fill_nan=fill_nan)

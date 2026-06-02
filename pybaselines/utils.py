@@ -7,9 +7,12 @@ Created on March 5, 2021
 """
 
 from math import ceil
+import warnings
 
 import numpy as np
-from scipy.ndimage import grey_dilation, grey_erosion, grey_opening
+from scipy.ndimage import (
+    grey_dilation, grey_erosion, grey_opening, convolve as convolve_ndimage, convolve1d
+)
 from scipy.signal import convolve
 from scipy.special import binom
 from scipy.stats import skew
@@ -1411,3 +1414,87 @@ def _masked_matvec(A, v, mask):
     output = A @ np.where(mask, np.nan, v)
     output[np.isnan(output)] = 0
     return output
+
+
+def _masked_convolve(y, kernel, mask, fill_nan=False):
+    """
+    Convolves and fills masked values with kernel interpolation.
+
+    Convolution that interpolates with a normalized kernel to account for the uncertainty
+    of values, simplified here as a binary 0 or 1 mask, can be expressed as a weighted
+    least square fit [1]_. In pseudocode, following Eq. 9 from [2]_, the result can be
+    written as ``convolve(mask * y, kernel) / convolve(mask, kernel)``
+
+    Parameters
+    ----------
+    y : numpy.ndarray
+        The data to be masked and convolved.
+    kernel : numpy.ndarray
+        The convolution kernel. Must have the same number of dimensions as `y`,
+        and each dimension must have an odd number of items.
+    mask : numpy.ndarray
+        The Boolean mask of `y`, with `True` values indicating indices to omit. Must
+        match the shape of `y`.
+    fill_nan : bool, optional
+        If True, will replace any NaN values in the convolution result with the
+        original corresponding indices in `y`. If False (default), will raise an
+        exception if NaN is in the result.
+
+    Returns
+    -------
+    result : numpy.ndarray
+        The masked convolution, with the same shape as the input `y`.
+
+    Raises
+    ------
+    ValueError
+        Raised if `kernel` has an even number of items in any dimension, if `kernel`
+        has a different number of dimensions than `y`, if `y` and `mask` do not match
+        shapes, or if NaN values are in `result` and `fill_nans` is False.
+
+    Warns
+    -----
+    ParameterWarning
+        Emitted if NaN values are in the convolution result and `fill_nans` is True.
+
+    References
+    ----------
+    .. [1] Knutsson, H., et al. Normalized and differential convolution. Proceedings of IEEE
+           Conference on Computer Vision and Pattern Recognition, 1993, 515-523.
+    .. [2] Andersson, K., et al. Continuous normalized convolution. Proceedings of IEEE
+           International Conference on Multimedia and Expo, 2002, 1, 725-728.
+
+    """
+    if np.any(np.logical_not(np.mod(kernel.shape, 2))):
+        raise ValueError('kernel must have odd length in all dimensions')
+    elif kernel.ndim != y.ndim:
+        raise ValueError('data and kernel must have the same number of dimensions')
+    elif y.shape != mask.shape:
+        raise ValueError('y and mask much have the same shape')
+    norm_kernel = kernel / kernel.sum()
+
+    convolve_func = convolve1d if y.ndim == 1 else convolve_ndimage
+    # TODO should convolution mode be an input?
+    numerator = convolve_func(np.where(mask, 0., y), norm_kernel, mode='nearest')
+    # convolution weights are inverse of the mask, i.e. 0 for points to skip
+    denominator = convolve_func(np.logical_not(mask).astype(float), norm_kernel, mode='nearest')
+    with np.errstate(divide='ignore', invalid='ignore'):
+        # regions where kernel is too small to cover the mask will produce 0 in the denominator
+        result = numerator / denominator
+
+    nan_mask = np.isnan(result)
+    if nan_mask.any():
+        if fill_nan:
+            warnings.warn(
+                (
+                    'kernel is too small for the mask; replacing NaN in the convolution '
+                    'result with input values'
+                ), ParameterWarning, stacklevel=2
+            )
+            result[nan_mask] = y[nan_mask]
+        else:
+            raise ValueError(
+                'kernel is too small for the mask, causing NaN in the convolution result'
+            )
+
+    return result
