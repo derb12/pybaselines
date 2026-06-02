@@ -77,8 +77,9 @@ class _Algorithm:
             be included.
         strict_mask : bool, optional
             If True (default) and `mask` is not None, calling any method that does not support
-            masking will raise an exception. Setting `strict_mask` to False will instead perform
-            linear interpolation following `mask` before calling those methods.
+            masking or calculations using the mask that produce invalid results will raise an
+            exception. If `strict_mask` is False, will instead perform linear interpolation
+            following `mask` before performing baseline correction to prevent those issues.
 
         """
         no_x = x_data is None

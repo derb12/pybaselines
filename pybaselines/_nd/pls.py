@@ -14,7 +14,8 @@ import numpy as np
 
 from .. import _weighting
 from ..utils import (
-    ParameterWarning, _mollifier_kernel, pad_edges, padded_convolve, relative_difference
+    ParameterWarning, _masked_convolve, _mollifier_kernel, pad_edges, padded_convolve,
+    relative_difference
 )
 from .._validation import _check_scalar_variable
 from ._algorithm_setup import _handle_io
@@ -587,7 +588,7 @@ class _PLSNDMixin:
 
         return baseline, params
 
-    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',))
+    @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=2)
     def _derpsalsa(self, data, lam=1e6, p=1e-2, k=None, diff_order=2, max_iter=50, tol=1e-3,
                    weights=None, spline_degree=None, num_knots=10, smooth_half_window=None,
                    num_smooths=16, pad_kwargs=None, num_eigens=(10, 10), **kwargs):
@@ -694,21 +695,31 @@ class _PLSNDMixin:
             num_knots=num_knots, num_eigens=num_eigens
         )
         if k is None:
-            k = np.std(y) / 10
+            k = np.std(y[weight_array > 0]) / 10
         else:
             k = _check_scalar_variable(k, variable_name='k')
         if smooth_half_window is None:
             smooth_half_window = self._size // 200
         # could pad the data every iteration, but it is ~2-3 times slower and only affects
         # the edges, so it's not worth it
+        # TODO why is padding even necessary here??? the smoothed values are only
+        # used to setup partial weights from derivatives, so edge effects won't matter much
         self._deprecate_pad_kwargs(**kwargs)
-        pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
-        y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs, **kwargs)
+        y_smooth = y
         if smooth_half_window > 0:
             smooth_kernel = _mollifier_kernel(smooth_half_window)
-            for _ in range(num_smooths):
-                y_smooth = padded_convolve(y_smooth, smooth_kernel)
-        y_smooth = y_smooth[smooth_half_window:self._size + smooth_half_window]
+            if self.mask is None:
+                pad_kwargs = pad_kwargs if pad_kwargs is not None else {}
+                y_smooth = pad_edges(y, smooth_half_window, **pad_kwargs, **kwargs)
+                for _ in range(num_smooths):
+                    y_smooth = padded_convolve(y_smooth, smooth_kernel)
+                y_smooth = y_smooth[smooth_half_window:self._size + smooth_half_window]
+            else:
+                # no padding applied when masking
+                for _ in range(num_smooths):
+                    y_smooth = _masked_convolve(
+                        y_smooth, smooth_kernel, self.mask, fill_nan=not self._strict_mask
+                    )
 
         diff_y_1 = np.gradient(y_smooth)
         diff_y_2 = np.gradient(diff_y_1)
@@ -724,7 +735,7 @@ class _PLSNDMixin:
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
             new_weights = _weighting._derpsalsa(
-                y - baseline, p=p, k=k, partial_weights=partial_weights
+                y - baseline, p=p, k=k, partial_weights=partial_weights, mask=self.mask
             )
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
@@ -1095,7 +1106,7 @@ class _PLSNDMixin:
         # scale y between -1 and 1 so that the residual fit is more numerically stable
         # TODO is this still necessary now that expectation-maximization is used? -> still
         # helps to prevent overflows when using gaussian
-        y_domain = np.polynomial.polyutils.getdomain(y.ravel())
+        y_domain = np.polynomial.polyutils.getdomain(y[weight_array > 0].ravel())
         y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
 
         if weights is not None:

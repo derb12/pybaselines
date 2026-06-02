@@ -519,7 +519,6 @@ class TestDerpsalsa(WhittakerTester):
     """Class for testing derpsalsa baseline."""
 
     func_name = 'derpsalsa'
-    mask_support = -1
 
     @pytest.mark.parametrize('p', (-1, 2))
     def test_outside_p_fails(self, p):
@@ -554,6 +553,24 @@ class TestDerpsalsa(WhittakerTester):
         with pytest.raises(TypeError):
             with pytest.warns(DeprecationWarning):
                 self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
+
+    @pytest.mark.parametrize('strict_mask', (True, False))
+    def test_masking_small_kernel(self, strict_mask):
+        """Ensures behavior if the smoothing kernel is too small when using a mask."""
+        mask = np.zeros_like(self.y, dtype=bool)
+        mask[5:20] = True
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=strict_mask)
+        method = getattr(fitter, self.func_name)
+
+        if strict_mask:
+            context = pytest.raises(ValueError, match='kernel is too small for the mask')
+        else:
+            context = pytest.warns(ParameterWarning, match='kernel is too small for the mask')
+
+        with context:
+            result = method(self.y, smooth_half_window=3)
+        if not strict_mask:  # should handle without causing issues in the fit
+            assert np.isfinite(result[0]).all()
 
 
 class TestBrPLS(WhittakerTester):
