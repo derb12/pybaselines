@@ -623,12 +623,19 @@ def test_spawn_fitter_fails_wrong_method(algorithm):
 
 
 @pytest.mark.parametrize('ensure_new', (True, False))
-def test_spawn_fitter_sorting(ensure_new):
+@pytest.mark.parametrize('has_mask', (True, False))
+def test_spawn_fitter_sorting(ensure_new, has_mask):
     """Ensures the sort order is correct for the output class object."""
     num_points = 10
     x = np.arange(num_points)
     ordering = np.arange(num_points)
-    algorithm = Baseline(x[::-1], assume_sorted=False)
+    if has_mask:
+        mask = np.zeros_like(x, dtype=bool)
+        mask[:num_points // 2] = True
+        input_mask = mask[::-1]
+    else:
+        input_mask = None
+    algorithm = Baseline(x[::-1], assume_sorted=False, mask=input_mask)
     class_object = algorithm._spawn_fitter('asls', ensure_new=ensure_new)
 
     assert_array_equal(class_object.x, x)
@@ -640,6 +647,10 @@ def test_spawn_fitter_sorting(ensure_new):
         assert class_object is not algorithm
     else:
         assert class_object is algorithm
+    if has_mask:
+        assert_array_equal(class_object.mask, mask)
+    else:
+        assert class_object.mask is None
 
 
 @pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))

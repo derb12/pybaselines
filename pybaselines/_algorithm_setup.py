@@ -456,6 +456,8 @@ class _Algorithm:
             The x values to temporarily use.
         new_sort_order : numpy.ndarray, shape (M,), optional
             The sort order for the new x values. Default is None, which will not sort.
+        new_mask : numpy.ndarray, shape (M,), optional
+            The mask for the new x-values. Default is None.
 
         Returns
         -------
@@ -1001,15 +1003,18 @@ class _Algorithm:
                 klass = Baseline
             # have to reset x ordering so that all outputs and parameters are
             # correctly sorted
+            mask = self.mask
             if self._sort_order is not None:
                 x = self.x[self._inverted_order]
+                if self.mask is not None:
+                    mask = self.mask[self._inverted_order]
                 assume_sorted = False
             else:
                 x = self.x
                 assume_sorted = True
             class_object = klass(
                 x, check_finite=self._check_finite, assume_sorted=assume_sorted,
-                output_dtype=self._dtype, mask=self.mask, strict_mask=self._strict_mask
+                output_dtype=self._dtype, mask=mask, strict_mask=self._strict_mask
             )
             class_object.banded_solver = self.banded_solver
 
