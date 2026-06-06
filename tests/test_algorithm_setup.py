@@ -1189,10 +1189,11 @@ def test_algorithm_handle_io_2d(input_x, change_order):
     assert_allclose(output2, input_y, 1e-14, 1e-14)
 
 
+@pytest.mark.parametrize('two_d', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
 @pytest.mark.parametrize('check_finite', (True, False))
 @pytest.mark.parametrize('strict_mask', (True, False))
-def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask):
+def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask, two_d):
     """Ensures the _handle_io wrapper method works correctly with masks."""
     x = np.arange(20, dtype=float)
     y = np.sin(x)
@@ -1202,10 +1203,15 @@ def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask):
     expected_zero_fill = np.where(mask, 0., y)
     expected_interp = np.interp(x, x[~mask], y[~mask])
     y[mask] = np.nan
+    if two_d:
+        stacks = 3
+        y = np.repeat(y[None, :], stacks, axis=0)
+        expected_zero_fill = np.repeat(expected_zero_fill[None, :], stacks, axis=0)
+        expected_interp = np.repeat(expected_interp[None, :], stacks, axis=0)
 
     class SubClass(_algorithm_setup._Algorithm):
 
-        @_algorithm_setup._Algorithm._handle_io
+        @_algorithm_setup._Algorithm._handle_io(ensure_dims=not two_d)
         def func(self, data, *args, **kwargs):
             """Masking not supported; strict_mask=True will interpolate."""
             assert isinstance(data, np.ndarray)
@@ -1215,7 +1221,7 @@ def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask):
 
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm._handle_io(mask_support=0)
+        @_algorithm_setup._Algorithm._handle_io(mask_support=0, ensure_dims=not two_d)
         def func2(self, data, *args, **kwargs):
             """Ignores mask."""
             assert isinstance(data, np.ndarray)
@@ -1225,7 +1231,7 @@ def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask):
 
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm._handle_io(mask_support=1)
+        @_algorithm_setup._Algorithm._handle_io(mask_support=1, ensure_dims=not two_d)
         def func3(self, data, *args, **kwargs):
             """Replaces masked values with 0."""
             assert isinstance(data, np.ndarray)
@@ -1235,7 +1241,7 @@ def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask):
 
             return 1 * data, {}
 
-        @_algorithm_setup._Algorithm._handle_io(mask_support=2)
+        @_algorithm_setup._Algorithm._handle_io(mask_support=2, ensure_dims=not two_d)
         def func4(self, data, *args, **kwargs):
             """Interpolates following the mask."""
             assert isinstance(data, np.ndarray)
@@ -1250,80 +1256,6 @@ def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask):
         y = y.tolist()
 
     algorithm = SubClass(x, mask=mask, strict_mask=strict_mask, check_finite=check_finite)
-    if strict_mask:
-        with pytest.raises(NotImplementedError, match='masking is not supported'):
-            algorithm.func(y)
-    else:
-        output, _ = algorithm.func(y)
-        assert_allclose(output, expected_interp, 1e-16, 1e-16)
-
-    output2, _ = algorithm.func2(y)
-    assert_allclose(output2, y, 1e-16, 1e-16)
-
-    output3, _ = algorithm.func3(y)
-    assert_allclose(output3, expected_zero_fill, 1e-16, 1e-16)
-
-    output4, _ = algorithm.func4(y)
-    assert_allclose(output4, expected_interp, 1e-16, 1e-16)
-
-
-@pytest.mark.parametrize('strict_mask', (True, False))
-def test_algorithm_handle_io_2d_mask(strict_mask):
-    """Ensures mask handling works for 2D inputs."""
-    x = np.arange(20, dtype=float)
-    y = np.sin(x)
-    mask = np.zeros(x.shape, dtype=bool)
-    mask[[1, 11]] = True
-    stacks = 3
-
-    expected_zero_fill = np.repeat(np.where(mask, 0., y)[None, :], stacks, axis=0)
-    expected_interp = np.repeat(np.interp(x, x[~mask], y[~mask])[None, :], stacks, axis=0)
-    y[mask] = np.nan
-    y = np.repeat(y[None, :], stacks, axis=0)
-
-    class SubClass(_algorithm_setup._Algorithm):
-
-        @_algorithm_setup._Algorithm._handle_io(ensure_dims=False)
-        def func(self, data, *args, **kwargs):
-            """Masking not supported; strict_mask=True will interpolate."""
-            assert isinstance(data, np.ndarray)
-            assert_allclose(data, expected_interp, 1e-16, 1e-16)
-            assert isinstance(self.x, np.ndarray)
-            assert_allclose(self.x, x, 1e-16, 1e-16)
-
-            return 1 * data, {}
-
-        @_algorithm_setup._Algorithm._handle_io(mask_support=0, ensure_dims=False)
-        def func2(self, data, *args, **kwargs):
-            """Ignores mask."""
-            assert isinstance(data, np.ndarray)
-            assert_allclose(data, y, 1e-16, 1e-16)
-            assert isinstance(self.x, np.ndarray)
-            assert_allclose(self.x, x, 1e-16, 1e-16)
-
-            return 1 * data, {}
-
-        @_algorithm_setup._Algorithm._handle_io(mask_support=1, ensure_dims=False)
-        def func3(self, data, *args, **kwargs):
-            """Replaces masked values with 0."""
-            assert isinstance(data, np.ndarray)
-            assert_allclose(data, expected_zero_fill, 1e-16, 1e-16)
-            assert isinstance(self.x, np.ndarray)
-            assert_allclose(self.x, x, 1e-16, 1e-16)
-
-            return 1 * data, {}
-
-        @_algorithm_setup._Algorithm._handle_io(mask_support=2, ensure_dims=False)
-        def func4(self, data, *args, **kwargs):
-            """Interpolates following the mask."""
-            assert isinstance(data, np.ndarray)
-            assert_allclose(data, expected_interp, 1e-16, 1e-16)
-            assert isinstance(self.x, np.ndarray)
-            assert_allclose(self.x, x, 1e-16, 1e-16)
-
-            return 1 * data, {}
-
-    algorithm = SubClass(x, mask=mask, strict_mask=strict_mask)
     if strict_mask:
         with pytest.raises(NotImplementedError, match='masking is not supported'):
             algorithm.func(y)

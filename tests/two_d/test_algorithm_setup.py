@@ -9,6 +9,7 @@ Created on January 5, 2024
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy.interpolate import LinearNDInterpolator
 from scipy.sparse import kron
 
 from pybaselines._compat import identity
@@ -1346,6 +1347,138 @@ def test_algorithm_handle_io_3d(input_x, input_z, change_order):
     output3, _ = algorithm.func4(input_y)
     assert output3.shape == input_y.shape
     assert_allclose(output2, input_y, 1e-14, 1e-14)
+
+
+@pytest.mark.parametrize('three_d', (True, False))
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('check_finite', (True, False))
+@pytest.mark.parametrize('strict_mask', (True, False))
+def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask, three_d):
+    """Ensures the _handle_io wrapper method works correctly with masks."""
+    x, z, y = get_data2d(num_points=(30, 41))
+    mask = np.zeros(y.shape, dtype=bool)
+    mask[[1, 5], [1, 7]] = True
+    mask_inv = np.logical_not(mask)
+
+    expected_zero_fill = np.where(mask, 0., y)
+    X, Z = np.meshgrid(x, z, indexing='ij')
+    expected_interp = LinearNDInterpolator(
+        np.stack((X[mask_inv], Z[mask_inv]), axis=-1), y[mask_inv], fill_value=0
+    )(np.stack((X, Z), axis=-1)).reshape(y.shape)
+    y[mask] = np.nan
+    if three_d:
+        stacks = 3
+        y = np.repeat(y[None, :], stacks, axis=0)
+        expected_zero_fill = np.repeat(expected_zero_fill[None, :], stacks, axis=0)
+        expected_interp = np.repeat(expected_interp[None, :], stacks, axis=0)
+
+    class SubClass(_algorithm_setup._Algorithm2D):
+
+        @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=not three_d)
+        def func(self, data, *args, **kwargs):
+            """Masking not supported; strict_mask=True will interpolate."""
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_interp, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, x, 1e-16, 1e-16)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, z, 1e-16, 1e-16)
+
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(mask_support=0, ensure_dims=not three_d)
+        def func2(self, data, *args, **kwargs):
+            """Ignores mask."""
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, y, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, x, 1e-16, 1e-16)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, z, 1e-16, 1e-16)
+
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(mask_support=1, ensure_dims=not three_d)
+        def func3(self, data, *args, **kwargs):
+            """Replaces masked values with 0."""
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_zero_fill, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, x, 1e-16, 1e-16)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, z, 1e-16, 1e-16)
+
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(mask_support=2, ensure_dims=not three_d)
+        def func4(self, data, *args, **kwargs):
+            """Interpolates following the mask."""
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_interp, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, x, 1e-16, 1e-16)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, z, 1e-16, 1e-16)
+
+            return 1 * data, {}
+
+    if list_input:
+        x = x.tolist()
+        z = z.tolist()
+        y = y.tolist()
+
+    algorithm = SubClass(x, z, mask=mask, strict_mask=strict_mask, check_finite=check_finite)
+
+    if strict_mask:
+        with pytest.raises(NotImplementedError, match='masking is not supported'):
+            algorithm.func(y)
+    else:
+        output, _ = algorithm.func(y)
+        assert_allclose(output, expected_interp, 1e-16, 1e-16)
+
+    output2, _ = algorithm.func2(y)
+    assert_allclose(output2, y, 1e-16, 1e-16)
+
+    output3, _ = algorithm.func3(y)
+    assert_allclose(output3, expected_zero_fill, 1e-16, 1e-16)
+
+    output4, _ = algorithm.func4(y)
+    assert_allclose(output4, expected_interp, 1e-16, 1e-16)
+
+
+@pytest.mark.parametrize('three_d', (True, False))
+@pytest.mark.parametrize('check_finite', (True, False))
+def test_mask_check_finite(check_finite, three_d):
+    """Ensures proper behavior with both a mask and check_finite.
+
+    If a mask is supplied, only non-masked regions should be sugjected to the finite check.
+
+    """
+    x, z, y = get_data2d(num_points=(20, 21))
+    mask = np.zeros(y.shape, dtype=bool)
+    mask[[1, 11], [0, 5]] = True
+
+    y[mask] = np.nan
+    if three_d:
+        y = np.repeat(y[None, :], 3, axis=0)
+    y2 = y.copy()
+    y2[..., 5] = np.nan
+
+    class SubClass(_algorithm_setup._Algorithm2D):
+
+        @_algorithm_setup._Algorithm2D._handle_io(mask_support=0, ensure_dims=not three_d)
+        def func(self, data, *args, **kwargs):
+            return 1 * data, {}
+
+    algorithm = SubClass(x, z, check_finite=check_finite, mask=mask)
+
+    # check on y should always pass since it contains invalid points only in masked regions
+    algorithm.func(y)
+    if check_finite:
+        with pytest.raises(ValueError, match='array must not contain infs or NaNs'):
+            algorithm.func(y2)
+    else:
+        algorithm.func(y2)
 
 
 def test_override_x(algorithm):

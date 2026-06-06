@@ -434,8 +434,9 @@ class _Algorithm:
                         if y.ndim == 1:
                             y = np.interp(self.x, self.x[inv_mask], y[inv_mask])
                         else:
-                            y = np.vstack(
-                                [np.interp(self.x, self.x[inv_mask], row[inv_mask]) for row in y]
+                            y = np.stack(
+                                [np.interp(self.x, self.x[inv_mask], row[inv_mask]) for row in y],
+                                axis=0
                             )
 
             baseline, params = func(self, y, *args, **kwargs)

@@ -11,6 +11,7 @@ import itertools
 import warnings
 
 import numpy as np
+from scipy.interpolate import LinearNDInterpolator
 
 from ..results import PSplineResult2D, WhittakerResult2D
 from .._nd.optimizers import _OptimizerHelper
@@ -473,13 +474,22 @@ class _Algorithm2D:
                 else:
                     expected_shape = self._shape[1]
                     axis = -1
-                y = _check_sized_array(
-                    data, expected_shape, check_finite=self._check_finite, ensure_1d=False,
-                    axis=axis, name='data', ensure_2d=ensure_dims, two_d=True
-                )
-            else:
+                if self.mask is None:
+                    y = _check_sized_array(
+                        data, expected_shape, check_finite=self._check_finite, ensure_1d=False,
+                        axis=axis, name='data', ensure_2d=ensure_dims, two_d=True, dtype=float
+                    )
+                else:
+                    y = _check_sized_array(
+                        data, expected_shape, check_finite=False, ensure_1d=False,
+                        axis=axis, name='data', ensure_2d=ensure_dims, two_d=True, dtype=float
+                    )
+                    if self._check_finite:
+                        np.asarray_chkfinite(y[..., np.logical_not(self.mask)])
+            else:  # also means self.mask is None
                 y, self.x, self.z = _yxz_arrays(
-                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_dims
+                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_dims,
+                    dtype=float
                 )
 
             if not has_x:
@@ -502,7 +512,36 @@ class _Algorithm2D:
             if not skip_sorting:
                 y = _sort_array2d(y, sort_order=self._sort_order)
 
-            y = np.asarray(y, dtype=float)
+            if self.mask is not None:
+                if mask_support == -1 and self._strict_mask:
+                    raise NotImplementedError('masking is not supported for this method')
+
+                if mask_support != 0:
+                    if mask_support == 1:
+                        # algorithm strictly uses weighted fitting, so can just zero-fill the mask;
+                        # faster than interpolation, so use whenever possible
+                        y = np.where(self.mask, 0., y)
+                    else:
+                        inv_mask = np.logical_not(self.mask)
+                        X, Z = np.meshgrid(self.x, self.z, indexing='ij')
+                        if y.ndim == 2:
+                            # cannot use RegularGridInterpolator since non-masked points are not
+                            # guaranteed to be on a regular grid
+                            y = LinearNDInterpolator(
+                                np.stack((X[inv_mask], Z[inv_mask]), axis=-1), y[inv_mask],
+                                fill_value=0
+                            )(np.stack((X, Z), axis=-1)).reshape(self._shape)
+
+                        else:
+                            y = np.stack(
+                                [
+                                    LinearNDInterpolator(
+                                        np.stack((X[inv_mask], Z[inv_mask]), axis=-1),
+                                        row[inv_mask], fill_value=0
+                                    )(np.stack((X, Z), axis=-1)).reshape(self._shape) for row in y
+                                ], axis=0
+                            )
+
             baseline, params = func(self, y, *args, **kwargs)
 
             return self._return_results(
