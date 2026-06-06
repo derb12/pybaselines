@@ -632,10 +632,9 @@ def test_spawn_fitter_sorting(ensure_new, has_mask):
     if has_mask:
         mask = np.zeros_like(x, dtype=bool)
         mask[:num_points // 2] = True
-        input_mask = mask[::-1]
     else:
-        input_mask = None
-    algorithm = Baseline(x[::-1], assume_sorted=False, mask=input_mask)
+        mask = None
+    algorithm = Baseline(x[::-1], assume_sorted=False, mask=mask)
     class_object = algorithm._spawn_fitter('asls', ensure_new=ensure_new)
 
     assert_array_equal(class_object.x, x)
@@ -648,7 +647,7 @@ def test_spawn_fitter_sorting(ensure_new, has_mask):
     else:
         assert class_object is algorithm
     if has_mask:
-        assert_array_equal(class_object.mask, mask)
+        assert_array_equal(class_object.mask, mask[::-1])
     else:
         assert class_object.mask is None
 
@@ -853,7 +852,7 @@ def test_algorithm_mask_incorrect_size():
 
 
 def test_algorithm_mask_2d_fails():
-    """Ensures an exception is raised if x_data and mask sizes differ."""
+    """Ensures an exception is raised if mask is not 1D."""
     x = np.arange(10)
     mask = np.repeat(np.ones(x.size, dtype=bool)[None, :], 2, axis=0)
     with pytest.raises(ValueError, match='input data must be a one dimensional array'):
@@ -1709,9 +1708,10 @@ def test_setup_pls_whittaker_diff_matrix(small_data, algorithm, lam, diff_order,
     assert result_class is WhittakerResult
 
 
+@pytest.mark.parametrize('has_mask', (True, False))
 @pytest.mark.parametrize('spline_degree', (None, 3))
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_pls_weights(small_data, algorithm, spline_degree, weight_enum):
+def test_setup_pls_weights(small_data, algorithm, spline_degree, weight_enum, has_mask):
     """Ensures output weight array is correct when using _setup_pls."""
     if weight_enum == 0:
         # no weights specified
@@ -1729,6 +1729,12 @@ def test_setup_pls_weights(small_data, algorithm, spline_degree, weight_enum):
         # different weights for all points, and weights input as a list
         weights = np.arange(small_data.shape[0]).tolist()
         desired_weights = np.arange(small_data.shape[0])
+
+    if has_mask:
+        mask = np.zeros(algorithm._shape, dtype=bool)
+        mask[3:9] = True
+        algorithm.mask = mask
+        desired_weights = np.where(mask, 0., desired_weights)
 
     _, weight_array, penalized_system, result_class = algorithm._setup_pls(
         small_data, lam=1, diff_order=2, weights=weights, spline_degree=spline_degree
