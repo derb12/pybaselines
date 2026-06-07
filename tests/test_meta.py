@@ -52,7 +52,13 @@ class DummyModule:
                 x_data, original_domain, np.array([-1., 1.])
             )
 
-        polynomial = np.polynomial.Polynomial.fit(data, x, 1)
+        mask = kwargs.get('mask', None)
+        if kwargs.get('mask', None) is not None:
+            weights = np.logical_not(mask)
+            data = np.where(mask, 0., data)
+        else:
+            weights = None
+        polynomial = np.polynomial.Polynomial.fit(x, data, 1, w=weights)
         baseline = polynomial(x)
         params = {'a': 1}
         if return_coef:
@@ -203,35 +209,49 @@ class DummyModule:
             raise ValueError('x is non-sorted or non-unique')
         return 1 * data, {}
 
+    @staticmethod
+    def bad_masking_func(data, x_data=None, mask=None, **kwargs):
+        """Changes behavior if a mask is given."""
+        multiplier = 1 if mask is None else 2
+        return np.ones_like(data) * multiplier, {}
+
 
 class DummyAlgorithm:
     """A dummy object to serve as a fake Algorithm and Algorithm2D subclass."""
 
-    def __init__(self, x_data=None, z_data=None, *args, **kwargs):
+    def __init__(self, x_data=None, z_data=None, mask=None, strict_mask=True, *args, **kwargs):
         self.x = x_data
         self.z = z_data
         self.calls = 0
+        self.mask = mask
+        self._strict_mask = strict_mask
 
     @dummy_wrapper
     def good_func(self, data=None, **kwargs):
         """Dummy function."""
+        if self.mask is not None and self._strict_mask:
+            raise NotImplementedError('masking is not supported')
         return DummyModule.good_func(data=data, **kwargs)
 
     @dummy_wrapper
     def good_func2(self, data=None, **kwargs):
         """Dummy function."""
+        if self.mask is not None and self._strict_mask:
+            raise NotImplementedError('masking is not supported')
         return DummyModule.good_func2(data=data, **kwargs)
 
     @dummy_wrapper
     def good_poly_func(self, data, return_coef=False, **kwargs):
         """A good polynomial algorithm."""
         return DummyModule.good_poly_func(
-            data=data, x_data=self.x, return_coef=return_coef, **kwargs
+            data=data, x_data=self.x, return_coef=return_coef, mask=self.mask, **kwargs
         )
 
     @dummy_wrapper
     def bad_poly_func(self, data, return_coef=False, **kwargs):
         """A bad polynomial algorithm."""
+        if self.mask is not None and self._strict_mask:
+            raise NotImplementedError('masking is not supported')
         return DummyModule.bad_poly_func(
             data=data, x_data=self.x, return_coef=return_coef, **kwargs
         )
@@ -239,6 +259,8 @@ class DummyAlgorithm:
     @dummy_wrapper
     def good_weights_func(self, data, weights=None, **kwargs):
         """A good algorithm that can take weights."""
+        if self.mask is not None and self._strict_mask:
+            raise NotImplementedError('masking is not supported')
         return DummyModule.good_weights_func(
             data=data, x_data=self.x, weights=weights, **kwargs
         )
@@ -246,6 +268,8 @@ class DummyAlgorithm:
     @dummy_wrapper
     def good_mask_func(self, data, weights=None, **kwargs):
         """A good algorithm that can take weights and outputs them as the 'mask' key."""
+        if self.mask is not None and weights is None:
+            weights = np.logical_not(self.mask)
         return DummyModule.good_mask_func(
             data=data, x_data=self.x, weights=weights, **kwargs
         )
@@ -253,6 +277,8 @@ class DummyAlgorithm:
     @dummy_wrapper
     def bad_weights_func(self, data, weights=None, **kwargs):
         """An algorithm that incorrectly uses weights."""
+        if self.mask is not None and self._strict_mask:
+            raise NotImplementedError('masking is not supported')
         return DummyModule.bad_weights_func(
             data=data, x_data=self.x, weights=weights, **kwargs
         )
@@ -404,6 +430,11 @@ class DummyAlgorithm:
         """Dummy function."""
         raise NotImplementedError('need to set func')
 
+    @dummy_wrapper
+    def bad_masking_func(self, data=None):
+        """Changes behavior if a mask is given."""
+        return DummyModule.bad_masking_func(data=data, x_data=self.x, mask=self.mask)
+
 
 class TestBaseTesterWorks(BaseTester):
     """Ensures a basic subclass of BaseTester works."""
@@ -548,6 +579,7 @@ class TestBaseTesterFailures(BaseTester, SetFuncMixin):
     algorithm_base = DummyAlgorithm
     func_name = 'no_func'
     lock = Lock()
+    supports_mask = True
 
     def test_ensure_wrapped(self):
         """Ensures no wrapper fails."""
@@ -681,11 +713,25 @@ class TestBaseTesterFailures(BaseTester, SetFuncMixin):
         with self.set_func('non_unique_x_raises', attributes={'requires_unique_x': True}):
             super().test_non_unique_x()
 
+    @pytest.mark.parametrize('use_nan', (True, False))
+    def test_masking(self, use_nan):
+        """Ensures fitting with a mask produces better results than without the mask."""
+        with self.set_func('bad_masking_func'):
+            with pytest.raises(AssertionError):
+                super().test_masking(use_nan)
+
+    def test_masking_fit_all(self):
+        """Ensures a mask with all False values is the same as no mask."""
+        with self.set_func('bad_masking_func'):
+            with pytest.raises(AssertionError):
+                super().test_masking_fit_all()
+
 
 class TestBaseTesterNoFunc(BaseTester):
     """Ensures the BaseTester fails if not setup correctly."""
 
     algorithm_base = DummyAlgorithm
+    supports_mask = True
 
     @pytest.mark.parametrize('use_class', (True, False))
     def test_unchanged_data(self, use_class):
@@ -741,6 +787,17 @@ class TestBaseTesterNoFunc(BaseTester):
         with pytest.raises(NotImplementedError):
             super().test_non_unique_x()
 
+    @pytest.mark.parametrize('use_nan', (True, False))
+    def test_masking(self, use_nan):
+        """Ensures fitting with a mask produces better results than without the mask."""
+        with pytest.raises(NotImplementedError):
+            super().test_masking(use_nan)
+
+    def test_masking_fit_all(self):
+        """Ensures a mask with all False values is the same as no mask."""
+        with pytest.raises(NotImplementedError):
+            super().test_masking_fit_all()
+
 
 class TestBasePolyTesterWorks(BasePolyTester):
     """Ensures a basic subclass of BaseTester works."""
@@ -749,6 +806,7 @@ class TestBasePolyTesterWorks(BasePolyTester):
     algorithm_base = DummyAlgorithm
     func_name = 'good_poly_func'
     checked_keys = ['a']
+    supports_mask = True
 
 
 class TestBasePolyTesterFailures(BasePolyTester):
@@ -873,6 +931,7 @@ class TestBaseTester2DFailures(BaseTester2D, SetFuncMixin):
     algorithm_base = DummyAlgorithm
     func_name = 'no_func'
     lock = Lock()
+    supports_mask = True
 
     def test_ensure_wrapped(self):
         """Ensures no wrapper fails."""
@@ -989,11 +1048,25 @@ class TestBaseTester2DFailures(BaseTester2D, SetFuncMixin):
         with self.set_func('non_unique_x_raises', attributes={'requires_unique_xz': True}):
             super().test_non_unique_xz((True, True))
 
+    @pytest.mark.parametrize('use_nan', (True, False))
+    def test_masking(self, use_nan):
+        """Ensures fitting with a mask produces better results than without the mask."""
+        with self.set_func('bad_masking_func'):
+            with pytest.raises(AssertionError):
+                super().test_masking(use_nan)
+
+    def test_masking_fit_all(self):
+        """Ensures a mask with all False values is the same as no mask."""
+        with self.set_func('bad_masking_func'):
+            with pytest.raises(AssertionError):
+                super().test_masking_fit_all()
+
 
 class TestBaseTester2DNoFunc(BaseTester2D):
     """Ensures the BaseTester2D fails if not setup correctly."""
 
     algorithm_base = DummyAlgorithm
+    supports_mask = True
 
     @pytest.mark.parametrize('new_instance', (True, False))
     def test_unchanged_data(self, new_instance):
@@ -1039,3 +1112,14 @@ class TestBaseTester2DNoFunc(BaseTester2D):
         """Ensures handling of unique x and z values."""
         with pytest.raises(NotImplementedError):
             super().test_non_unique_xz((True, True))
+
+    @pytest.mark.parametrize('use_nan', (True, False))
+    def test_masking(self, use_nan):
+        """Ensures fitting with a mask produces better results than without the mask."""
+        with pytest.raises(NotImplementedError):
+            super().test_masking(use_nan)
+
+    def test_masking_fit_all(self):
+        """Ensures a mask with all False values is the same as no mask."""
+        with pytest.raises(NotImplementedError):
+            super().test_masking_fit_all()
