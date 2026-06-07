@@ -194,6 +194,11 @@ class _Algorithm2D:
             be omitted during baseline correction. If None, denotes all values should
             be included.
 
+        Raises
+        ------
+        ValueError
+            Raised if the input mask is `True` for over 90% of the points.
+
         """
         if values is None:
             self._mask = None
@@ -224,9 +229,10 @@ class _Algorithm2D:
                     values, self._shape, name='mask', dtype=bool,
                     ensure_1d=False, ensure_2d=True, two_d=True, axis=slice(None)
                 )
+
+            if input_mask.sum() / self._size > 0.9:
+                raise ValueError('mask must not cover over 90 percent of points')
             self._mask = _sort_array2d(input_mask, self._sort_order)
-            # TODO should ensure some lower bound for input_mask.sum() so that there
-            # are actually enough points to do calculations; maybe 5-10% of the points?
 
     @property
     def _shape(self):

@@ -1349,6 +1349,21 @@ def test_algorithm_handle_io_3d(input_x, input_z, change_order):
     assert_allclose(output2, input_y, 1e-14, 1e-14)
 
 
+def test_algorithm_mask_too_few():
+    """Ensures an exception is raised if mask covers too many points."""
+    x = np.arange(100)
+    z = np.arange(50)
+    mask = np.zeros((x.size, z.size), dtype=bool)
+    mask.flat[np.arange(mask.size - int(mask.size * 0.1) + 1, dtype=np.intp)] = True
+    with pytest.raises(ValueError, match='mask must not cover over'):
+        _algorithm_setup._Algorithm2D(x, z, mask=mask)
+
+    # also ensure it fails when setting the attribute
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+    with pytest.raises(ValueError, match='mask must not cover over'):
+        algorithm.mask = mask
+
+
 @pytest.mark.parametrize('three_d', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
 @pytest.mark.parametrize('check_finite', (True, False))

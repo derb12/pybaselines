@@ -784,6 +784,22 @@ class BaseTester:
                     f' & max rtol: {max_rel_err}'
                 ))
 
+    def test_masking_fit_all(self, **kwargs):
+        """Ensures a mask with all False values is the same as no mask."""
+        mask = np.zeros((self.x.size, ), dtype=bool)
+
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=False)
+        method = getattr(fitter, self.func_name)
+
+        masked_fit, _ = method(self.y, **self.kwargs, **kwargs)
+        fitter.mask = None
+        normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
+
+        # TODO the higher rtol for derpsalsa is a temporary shim since the masked convolution
+        # does not do padding; will change once it's decided how to handle
+        rtol = 1e-6 if 'derpsalsa' in self.func_name else 1e-14
+        assert_allclose(masked_fit, normal_fit, rtol=rtol, atol=1e-14)
+
 
 class BasePolyTester(BaseTester):
     """
@@ -1210,6 +1226,19 @@ class BaseTester2D:
                     f'data does not cause incorrect fit; max atol: {max_abs_err}'
                     f' & max rtol: {max_rel_err}'
                 ))
+
+    def test_masking_fit_all(self, **kwargs):
+        """Ensures a mask with all False values is the same as no mask."""
+        mask = np.zeros((self.x.size, self.z.size), dtype=bool)
+
+        fitter = self.algorithm_base(self.x, self.z, mask=mask, strict_mask=False)
+        method = getattr(fitter, self.func_name)
+
+        masked_fit, _ = method(self.y, **self.kwargs, **kwargs)
+        fitter.mask = None
+        normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
+
+        assert_allclose(masked_fit, normal_fit, rtol=1e-14, atol=1e-14)
 
 
 class BasePolyTester2D(BaseTester2D):

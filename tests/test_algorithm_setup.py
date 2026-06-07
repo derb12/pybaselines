@@ -864,6 +864,20 @@ def test_algorithm_mask_2d_fails():
         algorithm.mask = mask
 
 
+def test_algorithm_mask_too_few():
+    """Ensures an exception is raised if mask covers too many points."""
+    x = np.arange(100)
+    mask = np.zeros(x.size, dtype=bool)
+    mask[np.arange(mask.size - int(mask.size * 0.1) + 1, dtype=np.intp)] = True
+    with pytest.raises(ValueError, match='mask must not cover over'):
+        _algorithm_setup._Algorithm(x, mask=mask)
+
+    # also ensure it fails when setting the attribute
+    algorithm = _algorithm_setup._Algorithm(x)
+    with pytest.raises(ValueError, match='mask must not cover over'):
+        algorithm.mask = mask
+
+
 @ensure_deprecation(1, 5)  # remove output_dtype from _Algorithm in v1.5
 @pytest.mark.parametrize('output_dtype', ('deprecated', int, float, np.float64))
 def test_algorithm_class_init_dtype(output_dtype):

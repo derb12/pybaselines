@@ -10,8 +10,6 @@ import numpy as np
 from scipy.ndimage import grey_opening
 
 from ..utils import _avg_opening, _make_window, relative_difference
-
-
 from ._algorithm_setup import _handle_io
 
 
