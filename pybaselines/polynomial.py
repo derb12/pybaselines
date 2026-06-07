@@ -364,7 +364,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             return_coef=return_coef
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights', 'coef'), require_unique=True)
+    @_Algorithm._handle_io(sort_keys=('weights', 'coef'), require_unique=True, mask_support=2)
     def loess(self, data, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
               tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False,
               num_std=1, use_original=False, weights=None, return_coef=False,
@@ -425,7 +425,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
 
             .. deprecated:: 1.3
                 `conserve_memory` is deprecated and no longer has any effect. If
-                calculation time is too slow, increase `delta` instead.
+                calculation time is too slow, increase `delta` instead. Will be removed
+                in version 1.5.
 
         delta : float, optional
             If `delta` is > 0, will skip all but the last x-value in the range `x_last + delta`,
@@ -474,7 +475,9 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         ValueError
             Raised if the number of points per window for the fitting is less than
             ``poly_order + 2`` or greater than the total number of points, or if the
-            x-values are not strictly increasing.
+            x-values are not strictly increasing. Also raised if a window had too few
+            non-zero weights during fitting when ``Baseline.mask`` is not None and
+            the object was initialized with `strict_mask=True`.
         TypeError
             Raised if the input `sigma_func` does not return a float.
 
@@ -482,7 +485,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         -----
         ParameterWarning
             Emitted if `poly_order` is greater than 2, which can introduce numerical
-            issues with small window sizes.
+            issues with small window sizes. Also emitted if a window had too few
+            non-zero weights during fitting when ``Baseline.mask`` is None.
 
         Notes
         -----
@@ -575,9 +579,19 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
         for i in range(max_iter + 1):
             baseline_old = baseline
-            baseline = _loess_low_memory(
+            baseline, zero_wt_window = _loess_low_memory(
                 x, y, sqrt_w, coefs, vandermonde, self._size, windows, fits
             )
+            if zero_wt_window:
+                if self.mask is not None and self._strict_mask:
+                    # hard to know if zero-weighted window was from masking or too small a window,
+                    # so err on the side of caution
+                    raise ValueError('A window had too few non-zero weights to fit')
+                else:
+                    warnings.warn(
+                        ('A window had too few non-zero weights to fit; likely need to '
+                         'increase "fraction" or "total_points"'), ParameterWarning, stacklevel=2
+                    )
             _fill_skips(x, baseline, skips)
 
             calc_difference = relative_difference(baseline_old, baseline)
@@ -1354,6 +1368,8 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     -------
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
+    zero_wt_window : bool
+        Whether any window had too few non-zero values during fitting.
 
     Notes
     -----
@@ -1364,6 +1380,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     y_fit = y * weights
     vander_fit = vander.T * weights
     min_nonzero = vander.shape[1]
+    zero_wt_window = False
     for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
@@ -1379,6 +1396,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
         # statsmodels uses 1e-12 guard against 0 weights (statsmodels issue #7700),
         # but pybaselines uses sqrt(weights), so guard against sqrt(1e-12)
         if (kernel * weights[left:right] > 1e-6).sum() < min_nonzero:
+            zero_wt_window = True
             baseline[i] = y[i]
             coefs[i] = np.nan
         else:
@@ -1388,7 +1406,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
             baseline[i] = vander[i].dot(coef)
             coefs[i] = coef
 
-    return baseline
+    return baseline, zero_wt_window
 
 
 @jit(nopython=True, cache=True)

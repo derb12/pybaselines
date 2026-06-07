@@ -347,7 +347,6 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
     func_name = 'loess'
     allows_zero_iteration = False
     requires_unique_x = True
-    supports_mask = False
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('delta', (0, 0.01))
@@ -620,10 +619,11 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
             23.93591, 23.97028, 24.04745, 24.12475
         ])
         x = np.linspace(2160, 2559, len(y)) / 60
-        output = self.algorithm_base(x).loess(
-            y, poly_order=1, total_points=11, max_iter=max_iter, delta=0,
-            scale=4.0469385011764905, symmetric_weights=True, tol=-1
-        )[0]
+        with pytest.warns(ParameterWarning, match='A window had too few non-zero weights'):
+            output = self.algorithm_base(x).loess(
+                y, poly_order=1, total_points=11, max_iter=max_iter, delta=0,
+                scale=4.0469385011764905, symmetric_weights=True, tol=-1
+            )[0]
         expected_output = np.loadtxt(
             Path(__file__).parent.joinpath(f'data/lowess_zero_weights_iter{max_iter}.csv')
         )
@@ -635,12 +635,26 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
         Allows testing for which indices should fail.
 
         """
-        output, params = self.class_func(
-            self.y, delta=0, weights=np.zeros_like(self.y), max_iter=0, return_coef=True
-        )
+        with pytest.warns(ParameterWarning, match='A window had too few non-zero weights'):
+            output, params = self.class_func(
+                self.y, delta=0, weights=np.zeros_like(self.y), max_iter=0, return_coef=True
+            )
 
         assert_allclose(output, self.y, rtol=1e-14, atol=1e-14)
         assert np.isnan(params['coef']).all()
+
+    @pytest.mark.parametrize('strict_mask', (True, False))
+    def test_zero_weights_masking(self, strict_mask):
+        """Ensures behavior when a zero-weight window occurs when using masking."""
+        mask = np.zeros_like(self.y, dtype=bool)
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=strict_mask)
+        if strict_mask:
+            context = pytest.raises(ValueError, match='A window had too few non-zero weights')
+        else:
+            context = pytest.warns(ParameterWarning, match='A window had too few non-zero weights')
+
+        with context:
+            fitter.loess(self.y, delta=0, weights=np.zeros_like(self.y), max_iter=0)
 
     @pytest.mark.parametrize('use_threshold', (True, False))
     def test_weight_masking(self, use_threshold):
