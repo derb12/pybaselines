@@ -476,10 +476,16 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         ------
         ValueError
             Raised if the number of points per window for the fitting is less than
-            `poly_order` + 1 or greater than the total number of points, or if the
-            values in `self.x` are not strictly increasing.
+            ``poly_order + 2`` or greater than the total number of points, or if the
+            x-values are not strictly increasing.
         TypeError
             Raised if the input `sigma_func` does not return a float.
+
+        Warns
+        -----
+        ParameterWarning
+            Emitted if `poly_order` is greater than 2, which can introduce numerical
+            issues with small window sizes.
 
         Notes
         -----
@@ -517,8 +523,10 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         """
         if total_points is None:
             total_points = ceil(fraction * self._size)
-        if total_points < poly_order + 1:
-            raise ValueError('total points must be greater than polynomial order + 1')
+        # cutoff is poly_order + 2 rather than poly_order + 1 for other polynomials since
+        # furthest point in each window has a weight of 0
+        if total_points < poly_order + 2:
+            raise ValueError('total points must be greater than polynomial order + 2')
         elif total_points > self._size:
             raise ValueError((
                 'points per window is higher than total number of points; lower either '
@@ -1363,6 +1371,7 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
+    min_nonzero = vander.shape[1]
     for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
@@ -1375,11 +1384,19 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
         difference = 1 - difference
         kernel = np.sqrt(difference * difference * difference)
 
-        coef = _loess_solver(
-            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
-        )
-        baseline[i] = vander[i].dot(coef)
-        coefs[i] = coef
+        # statsmodels uses 1e-12 guard against 0 weights (statsmodels issue #7700),
+        # but pybaselines uses sqrt(weights), so guard against sqrt(1e-12)
+        if (kernel * weights[left:right] > 1e-6).sum() < min_nonzero:
+            # TODO should likely warn about a zero weight window; or return a 0/1 error
+            # code to allow warning/raising outside of this function based on if using a mask
+            baseline[i] = y[i]
+            coefs[i] = np.nan
+        else:
+            coef = _loess_solver(
+                kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
+            )
+            baseline[i] = vander[i].dot(coef)
+            coefs[i] = coef
 
     return baseline
 
@@ -1430,6 +1447,7 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
+    min_nonzero = vander.shape[1]
     for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
@@ -1443,11 +1461,15 @@ def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows
         kernel = np.sqrt(difference * difference * difference)
 
         kernels[i] = kernel
-        coef = _loess_solver(
-            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
-        )
-        baseline[i] = vander[i].dot(coef)
-        coefs[i] = coef
+        if (kernel * weights[left:right] > 1e-6).sum() < min_nonzero:
+            baseline[i] = y[i]
+            coefs[i] = np.nan
+        else:
+            coef = _loess_solver(
+                kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
+            )
+            baseline[i] = vander[i].dot(coef)
+            coefs[i] = coef
 
     return kernels, baseline
 
@@ -1493,17 +1515,22 @@ def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fi
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
+    min_nonzero = vander.shape[1]
     for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
         left = window[0]
         right = window[1]
         kernel = kernels[i]
-        coef = _loess_solver(
-            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
-        )
-        baseline[i] = vander[i].dot(coef)
-        coefs[i] = coef
+        if (kernel * weights[left:right] > 1e-6).sum() < min_nonzero:
+            baseline[i] = y[i]
+            coefs[i] = np.nan
+        else:
+            coef = _loess_solver(
+                kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
+            )
+            baseline[i] = vander[i].dot(coef)
+            coefs[i] = coef
 
     return baseline
 

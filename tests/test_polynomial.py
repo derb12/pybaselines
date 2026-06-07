@@ -7,6 +7,7 @@ Created on March 20, 2021
 """
 
 from math import ceil
+from pathlib import Path
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
@@ -373,8 +374,8 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
 
     @pytest.mark.parametrize('poly_order', (0, 1, 2, 3))
     def test_too_small_window_fails(self, poly_order):
-        """Ensures a window smaller than poly_order + 1 raises an exception."""
-        for num_points in range(poly_order + 1):
+        """Ensures a window smaller than poly_order + 2 raises an exception."""
+        for num_points in range(poly_order + 2):
             with pytest.raises(ValueError):
                 self.class_func(self.y, total_points=num_points, poly_order=poly_order)
 
@@ -578,6 +579,75 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
             )[0]
         expected_output = y  # should be a perfect fit
         assert_allclose(output, expected_output, rtol=1e-14, atol=1e-13)
+
+    @pytest.mark.parametrize('max_iter', (1, 2))
+    def test_zero_weights_fill(self, max_iter):
+        """Ensures a window with zero weights with fill with y instead of causing numerical issues.
+
+        Dataset is adapted from statsmodels issue #7700. The data files for statsmodels's output
+        were created using::
+
+            from statsmodels.nonparametric.smoothers_lowess import lowess
+            output = lowess(y, x, frac=11 / len(x), it=max_iter, delta=0).T[1]
+
+        with statsmodels version 0.14.6.
+
+        """
+        y = np.array([
+            29.60046, 29.70066, 29.99869, 30.18495,
+            30.52497, 30.88539, 31.06073, 31.16298, 31.3087, 31.34476, 31.4047, 31.27913,
+            31.29533, 31.14104, 31.033, 30.95522, 30.7452, 30.6161, 30.48558, 30.20304,
+            29.94876, 29.49816, 28.99673, 28.47641, 27.75036, 26.98692, 26.22662, 25.29733,
+            24.45699, 23.47883, 22.421, 21.46149, 20.50521, 19.55747, 18.71905, 17.97059,
+            17.4616, 17.15413, 17.02539, 17.23645, 17.69518, 18.47265, 19.49916, 20.87392,
+            22.47629, 24.34076, 26.46264, 28.66842, 31.13522, 33.57669, 35.95129, 38.50984,
+            40.9788, 43.45954, 45.54811, 47.72132, 49.50215, 51.28018, 52.67683, 53.87601,
+            54.98996, 55.89579, 56.45095, 56.88656, 57.15155, 57.16919, 57.04115, 56.87761,
+            56.42096, 55.93649, 55.2568, 54.47306, 53.79956, 52.8701, 51.84985, 50.93586,
+            49.95632, 48.73087, 47.77627, 46.75819, 45.54977, 44.36957, 43.32188, 42.29313,
+            41.24385, 40.14291, 39.15614, 38.17805, 37.27126, 36.13561, 35.32942, 34.35569,
+            33.69126, 32.67565, 31.91131, 31.0636, 30.32011, 29.60982, 28.88217, 28.10989,
+            27.56996, 27.03619, 26.36284, 25.82758, 25.27555, 24.80477, 24.25029, 23.74979,
+            23.31028, 22.95834, 22.56406, 22.13128, 21.81209, 21.42739, 21.12386, 20.8205,
+            20.52693, 20.26264, 19.94682, 19.74871, 19.47004, 19.28826, 19.09282, 18.8813,
+            18.69543, 18.51512, 18.37025, 18.21213, 18.09597, 18.00692, 17.84771, 17.7365,
+            17.70439, 17.54311, 17.50521, 17.42641, 17.32607, 17.29374, 17.17156, 17.14076,
+            17.18559, 17.12909, 17.11519, 17.06809, 17.05098, 17.06691, 17.02511, 17.01555,
+            17.07787, 17.05032, 17.05407, 17.06751, 17.12841, 17.12312, 17.16593, 17.21924,
+            17.19979, 17.25681, 17.31144, 17.36246, 17.43259, 17.43767, 17.5086, 17.58345,
+            17.62989, 17.70608, 17.70383, 17.81441, 17.82661, 17.8836, 18.00816, 18.05311,
+            18.16044, 18.19468, 18.24426, 18.32978, 18.41256, 18.47817, 18.57559, 18.6523,
+            18.71417, 18.79602, 18.89392, 18.96791, 19.0598, 19.17692, 19.25897, 19.33334,
+            19.45276, 19.56273, 19.63092, 19.71592, 19.83377, 19.91831, 19.97547, 20.07111,
+            20.15791, 20.23325, 20.38081, 20.49393, 20.54687, 20.62749, 20.70332, 20.81285,
+            20.87916, 21.01356, 21.07556, 21.19642, 21.26882, 21.35373, 21.45083, 21.55625,
+            21.66463, 21.75115, 21.8033, 21.9497, 22.06961, 22.1253, 22.20523, 22.32333,
+            22.41526, 22.50364, 22.62715, 22.70702, 22.80392, 22.89037, 23.02072, 23.12152,
+            23.18633, 23.29179, 23.39558, 23.4171, 23.56042, 23.59962, 23.76348, 23.7985,
+            23.93591, 23.97028, 24.04745, 24.12475
+        ])
+        x = np.linspace(2160, 2559, len(y)) / 60
+        output = self.algorithm_base(x).loess(
+            y, poly_order=1, total_points=11, max_iter=max_iter, delta=0,
+            scale=4.0469385011764905, symmetric_weights=True, tol=-1
+        )[0]
+        expected_output = np.loadtxt(
+            Path(__file__).parent.joinpath(f'data/lowess_zero_weights_iter{max_iter}.csv')
+        )
+        assert_allclose(output, expected_output, rtol=1e-11, atol=1e-11)
+
+    def test_zero_weights(self):
+        """Simpler version of test_zero_weights_fill, using input all-zeros weights.
+
+        Allows testing for which indices should fail.
+
+        """
+        output, params = self.class_func(
+            self.y, delta=0, weights=np.zeros_like(self.y), max_iter=0, return_coef=True
+        )
+
+        assert_allclose(output, self.y, rtol=1e-14, atol=1e-14)
+        assert np.isnan(params['coef']).all()
 
     @pytest.mark.parametrize('use_threshold', (True, False))
     def test_weight_masking(self, use_threshold):
