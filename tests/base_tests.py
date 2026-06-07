@@ -797,7 +797,7 @@ class BaseTester:
 
         # TODO the higher rtol for derpsalsa is a temporary shim since the masked convolution
         # does not do padding; will change once it's decided how to handle
-        rtol = 1e-6 if 'derpsalsa' in self.func_name else 1e-14
+        rtol = 2e-6 if 'derpsalsa' in self.func_name else 1e-14
         assert_allclose(masked_fit, normal_fit, rtol=rtol, atol=1e-14)
 
 

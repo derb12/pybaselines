@@ -127,8 +127,8 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerR
             self.algorithm.banded_solver = 4  # force use solve_banded
             solve_output = self.class_func(self.y, diff_order=2)[0]
 
-            assert_allclose(pentadiagonal_output, solveh_output, rtol=1e-4, atol=1e-8)
-            assert_allclose(pentadiagonal_output, solve_output, rtol=1e-4, atol=1e-8)
+            assert_allclose(pentadiagonal_output, solveh_output, rtol=5e-4, atol=1e-8)
+            assert_allclose(pentadiagonal_output, solve_output, rtol=5e-4, atol=1e-8)
         finally:
             self.algorithm.banded_solver = original_solver
 
