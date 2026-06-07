@@ -48,11 +48,9 @@ def get_public_methods(klass):
     """
     methods = []
     for method in dir(klass):
-        if (
-            not (method.startswith('_')
-            or method.startswith('pentapy_solver')
-            or method.startswith('banded_solver')
-            or method.startswith('get_method'))
+        if not (
+            method.startswith('_')
+            or method in ('mask', 'pentapy_solver', 'banded_solver')
         ):
             methods.append(method)
     return methods

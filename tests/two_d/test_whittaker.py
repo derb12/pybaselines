@@ -19,6 +19,7 @@ class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin, Whittake
 
     module = whittaker
     checked_keys = ('weights', 'tol_history', 'result')
+    supports_mask = True
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""

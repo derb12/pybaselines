@@ -9,6 +9,7 @@ Created on January 5, 2024
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy.interpolate import LinearNDInterpolator
 from scipy.sparse import kron
 
 from pybaselines._compat import identity
@@ -66,7 +67,8 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
 
 @pytest.mark.parametrize('num_eigens', (None, 3))
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_whittaker_weights(small_data2d, algorithm, num_eigens, weight_enum):
+@pytest.mark.parametrize('has_mask', (True, False))
+def test_setup_whittaker_weights(small_data2d, algorithm, num_eigens, weight_enum, has_mask):
     """Ensures output weight array is correct."""
     if weight_enum == 0:
         # no weights specified
@@ -84,6 +86,12 @@ def test_setup_whittaker_weights(small_data2d, algorithm, num_eigens, weight_enu
         # different weights for all points, and weights input as a list
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
+
+    if has_mask:
+        mask = np.zeros(algorithm._shape, dtype=bool)
+        mask[3:9] = True
+        algorithm.mask = mask
+        desired_weights = np.where(mask.ravel(), 0., desired_weights)
 
     if num_eigens is not None:
         desired_weights = desired_weights.reshape(small_data2d.shape)
@@ -143,8 +151,9 @@ def test_setup_whittaker_array_lam(small_data2d):
         )
 
 
+@pytest.mark.parametrize('has_mask', (True, False))
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_polynomial_weights(small_data2d, algorithm, weight_enum):
+def test_setup_polynomial_weights(small_data2d, algorithm, weight_enum, has_mask):
     """Ensures output weight array is correctly handled."""
     if weight_enum == 0:
         # no weights specified
@@ -162,6 +171,12 @@ def test_setup_polynomial_weights(small_data2d, algorithm, weight_enum):
         # different weights for all points, and weights input as a list
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
+
+    if has_mask:
+        mask = np.zeros(algorithm._shape, dtype=bool)
+        mask[3:9] = True
+        algorithm.mask = mask
+        desired_weights = np.where(mask.ravel(), 0., desired_weights)
 
     y, weight_array = algorithm._setup_polynomial(small_data2d, weights=weights)
 
@@ -371,6 +386,40 @@ def test_setup_smooth_kwargs_warns(small_data2d, algorithm):
             )
 
 
+@pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
+@pytest.mark.parametrize('has_mask', (True, False))
+def test_setup_classification_weights(small_data2d, algorithm, weight_enum, has_mask):
+    """Ensures output weight array is correctly handled in classification setup."""
+    if weight_enum == 0:
+        # no weights specified
+        weights = None
+        desired_weights = np.ones_like(small_data2d, dtype=bool)
+    elif weight_enum == 1:
+        # uniform 1 weighting
+        weights = np.ones_like(small_data2d, dtype=bool)
+        desired_weights = np.ones_like(small_data2d, dtype=bool)
+    elif weight_enum == 2:
+        # different weights for all points
+        weights = np.arange(small_data2d.size).astype(bool).reshape(small_data2d.shape)
+        desired_weights = np.arange(small_data2d.size).astype(bool).reshape(small_data2d.shape)
+    elif weight_enum == 3:
+        # different weights for all points, and weights input as a list
+        weights = np.arange(small_data2d.size).astype(bool).reshape(small_data2d.shape).tolist()
+        desired_weights = np.arange(small_data2d.size).astype(bool).reshape(small_data2d.shape)
+
+    if has_mask:
+        mask = np.zeros(algorithm._shape, dtype=bool)
+        mask[3:9] = True
+        algorithm.mask = mask
+        desired_weights = np.where(mask, False, desired_weights)
+
+    _, weight_array = algorithm._setup_classification(small_data2d, weights=weights)
+
+    assert isinstance(weight_array, np.ndarray)
+    assert_array_equal(weight_array, desired_weights)
+    assert weight_array.dtype == bool
+
+
 @pytest.mark.parametrize('num_knots', (10, 30, (20, 30)))
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3)))
 def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
@@ -534,8 +583,9 @@ def test_setup_spline_array_lam(small_data2d):
         )
 
 
+@pytest.mark.parametrize('has_mask', (True, False))
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
+def test_setup_spline_weights(small_data2d, algorithm, weight_enum, has_mask):
     """Ensures output weight array is correct."""
     if weight_enum == 0:
         # no weights specified
@@ -554,6 +604,12 @@ def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size).reshape(small_data2d.shape)
 
+    if has_mask:
+        mask = np.zeros(algorithm._shape, dtype=bool)
+        mask[3:9] = True
+        algorithm.mask = mask
+        desired_weights = np.where(mask, 0., desired_weights)
+
     y, weight_array, _ = algorithm._setup_spline(
         small_data2d, lam=1, diff_order=2, weights=weights
     )
@@ -568,10 +624,8 @@ def test_setup_spline_weights(small_data2d, algorithm, weight_enum):
 @pytest.mark.parametrize('input_z', (True, False))
 @pytest.mark.parametrize('check_finite', (True, False))
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
-def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, output_dtype,
-                              change_order):
+def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, change_order):
     """Tests the initialization of _Algorithm2D objects."""
     sort_order = slice(0, 10)
     expected_x = None
@@ -603,16 +657,14 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         with pytest.warns(SortingWarning):
             algorithm = _algorithm_setup._Algorithm2D(
                 x, z, check_finite=check_finite, assume_sorted=assume_sorted,
-                output_dtype=output_dtype
             )
     else:
         algorithm = _algorithm_setup._Algorithm2D(
-            x, z, check_finite=check_finite, assume_sorted=assume_sorted, output_dtype=output_dtype
+            x, z, check_finite=check_finite, assume_sorted=assume_sorted
         )
     assert_array_equal(algorithm.x, expected_x)
     assert_array_equal(algorithm.z, expected_z)
     assert algorithm._check_finite == check_finite
-    assert algorithm._dtype == output_dtype
 
     expected_shape = [None, None]
     if input_x:
@@ -670,13 +722,172 @@ def test_algorithm_class_init(input_x, input_z, check_finite, assume_sorted, out
         assert algorithm._validated_z
 
 
+@pytest.mark.parametrize('input_x', (True, False))
+@pytest.mark.parametrize('input_z', (True, False))
+@pytest.mark.parametrize('change_order', (True, False))
+def test_algorithm_class_init_mask(input_x, input_z, change_order):
+    """Tests the initialization of _Algorithm2D objects when given a mask."""
+    x_, z_, y = get_data2d()
+    mask = np.zeros(y.shape, dtype=bool)
+    mask[:mask.shape[0] // 2, :mask.shape[1] // 2] = True
+    expected_mask = mask.copy()
+    if input_x:
+        x = x_
+        expected_x = x.copy()
+        if change_order:
+            x = x[::-1]
+            expected_mask = expected_mask[::-1]
+    else:
+        x = None
+        expected_x = np.linspace(-1, 1, y.shape[0])
+
+    if input_z:
+        z = z_
+        expected_z = z.copy()
+        if change_order:
+            z = z[::-1]
+            expected_mask = expected_mask[:, ::-1]
+    else:
+        z = None
+        expected_z = np.linspace(-1, 1, y.shape[1])
+
+    algorithm = _algorithm_setup._Algorithm2D(x, z, mask=mask)
+    assert_allclose(algorithm.x, expected_x, rtol=1e-15, atol=1e-15)
+    assert_allclose(algorithm.z, expected_z, rtol=1e-15, atol=1e-15)
+    assert_array_equal(algorithm.mask, expected_mask)
+
+    assert isinstance(algorithm._shape, tuple)
+    assert algorithm._shape == y.shape
+    assert algorithm._size == y.size
+
+    if input_x:
+        assert not algorithm._validated_x
+    else:
+        assert algorithm._validated_x
+    if input_z:
+        assert not algorithm._validated_z
+    else:
+        assert algorithm._validated_z
+
+
+@pytest.mark.parametrize('input_x', (True, False))
+@pytest.mark.parametrize('input_z', (True, False))
+@pytest.mark.parametrize('change_order', (True, False))
+def test_algorithm_class_init_mask_attr(input_x, input_z, change_order):
+    """Like test_algorithm_class_init_mask, but sets mask after initialization."""
+    x_, z_, y = get_data2d()
+    mask = np.zeros(y.shape, dtype=bool)
+    mask[:mask.shape[0] // 2, :mask.shape[1] // 2] = True
+    expected_mask = mask.copy()
+    if input_x:
+        x = x_
+        expected_x = x.copy()
+        if change_order:
+            x = x[::-1]
+            expected_mask = expected_mask[::-1]
+    else:
+        x = None
+        expected_x = np.linspace(-1, 1, y.shape[0])
+
+    if input_z:
+        z = z_
+        expected_z = z.copy()
+        if change_order:
+            z = z[::-1]
+            expected_mask = expected_mask[:, ::-1]
+    else:
+        z = None
+        expected_z = np.linspace(-1, 1, y.shape[1])
+
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+    assert algorithm.mask is None
+    if input_x:
+        assert_allclose(algorithm.x, expected_x, rtol=1e-15, atol=1e-15)
+    else:
+        assert algorithm.x is None
+    if input_z:
+        assert_allclose(algorithm.z, expected_z, rtol=1e-15, atol=1e-15)
+    else:
+        assert algorithm.z is None
+
+    algorithm.mask = mask
+    assert_allclose(algorithm.x, expected_x, rtol=1e-15, atol=1e-15)
+    assert_allclose(algorithm.z, expected_z, rtol=1e-15, atol=1e-15)
+    assert_array_equal(algorithm.mask, expected_mask)
+
+    assert isinstance(algorithm._shape, tuple)
+    assert algorithm._shape == y.shape
+    assert algorithm._size == y.size
+
+    if input_x:
+        assert not algorithm._validated_x
+    else:
+        assert algorithm._validated_x
+    if input_z:
+        assert not algorithm._validated_z
+    else:
+        assert algorithm._validated_z
+
+
+@pytest.mark.parametrize('shape_mismatch', ((1, 0), (0, 1), (1, 1)))
+def test_algorithm_mask_incorrect_size(shape_mismatch):
+    """Ensures an exception is raised if x, z, and mask sizes differ."""
+    x = np.arange(10)
+    z = np.arange(11)
+    mask = np.zeros((x.size + shape_mismatch[0], z.size + shape_mismatch[1]))
+    with pytest.raises(ValueError, match='length mismatch for mask'):
+        _algorithm_setup._Algorithm2D(x, z, mask=mask)
+
+    # also ensure it fails when setting the attribute
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+    with pytest.raises(ValueError, match='length mismatch for mask'):
+        algorithm.mask = mask
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+def test_algorithm_mask_non2d_fails(one_d):
+    """Ensures an exception is raised if mask is not 2D."""
+    x = np.arange(10)
+    z = np.arange(11)
+    mask = np.zeros((x.size, z.size), dtype=bool)
+    if one_d:
+        mask = mask.ravel()
+    else:
+        mask = np.repeat(mask[None, :], 2, axis=0)
+    with pytest.raises(ValueError, match='input data must be a two dimensional array'):
+        _algorithm_setup._Algorithm2D(x, z, mask=mask)
+
+    # also ensure it fails when setting the attribute
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+    with pytest.raises(ValueError, match='input data must be a two dimensional array'):
+        algorithm.mask = mask
+
+
+@ensure_deprecation(1, 5)  # remove output_dtype from _Algorithm2D in v1.5
+@pytest.mark.parametrize('output_dtype', ('deprecated', int, float, np.float64))
+def test_algorithm_class_init_dtype(output_dtype):
+    """Ensures specifying output_dtype gives DeprecationWarning."""
+    x, z, _ = get_data2d()
+
+    if output_dtype != 'deprecated':
+        with pytest.warns(DeprecationWarning, match='specifying "output_dtype" is deprecated'):
+            algorithm = _algorithm_setup._Algorithm2D(x, z, output_dtype=output_dtype)
+    else:
+        algorithm = _algorithm_setup._Algorithm2D(x, z, output_dtype=output_dtype)
+
+    if output_dtype == 'deprecated':
+        expected_attribute = 'deprecated'
+    else:
+        expected_attribute = output_dtype
+    assert algorithm._dtype == expected_attribute
+
+
+@ensure_deprecation(1, 5)  # remove dtype from _Algorithm2D._return_results in v1.5
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('reshape_baseline', (True, False))
 @pytest.mark.parametrize('three_d', (True, False))
-def test_algorithm_return_results(assume_sorted, output_dtype, change_order, reshape_baseline,
-                                  three_d):
+def test_algorithm_return_results(assume_sorted, change_order, reshape_baseline, three_d):
     """Ensures the _return_results method returns the correctly sorted outputs."""
     x, z, y = get_data2d()
     baseline = np.arange(y.size).reshape(y.shape)
@@ -712,40 +923,50 @@ def test_algorithm_return_results(assume_sorted, output_dtype, change_order, res
 
     if assume_sorted and change_order:
         with pytest.warns(SortingWarning):
-            algorithm = _algorithm_setup._Algorithm2D(
-                x, z, check_finite=False, assume_sorted=assume_sorted,
-                output_dtype=output_dtype
-            )
+            algorithm = _algorithm_setup._Algorithm2D(x, z, assume_sorted=assume_sorted)
     else:
-        algorithm = _algorithm_setup._Algorithm2D(
-            x, z, check_finite=False, assume_sorted=assume_sorted, output_dtype=output_dtype
-        )
+        algorithm = _algorithm_setup._Algorithm2D(x, z, assume_sorted=assume_sorted)
     output, output_params = algorithm._return_results(
-        baseline, params, dtype=output_dtype, sort_keys=('a', 'd'),
+        baseline, params, dtype='deprecated', sort_keys=('a', 'd'),
         reshape_keys=('c', 'd'), ensure_dims=not three_d
     )
-
-    if not change_order and (output_dtype is None or baseline.dtype == output_dtype):
-        assert np.shares_memory(output, baseline)  # should be the same object
-    else:
-        assert baseline is not output
-
-    if output_dtype is not None:
-        assert output.dtype == output_dtype
-    else:
-        assert output.dtype == baseline.dtype
 
     assert_allclose(output, expected_baseline, 1e-14, 1e-14)
     for key, value in expected_params.items():
         assert_array_equal(value, output_params[key])
 
 
+@ensure_deprecation(1, 5)  # remove dtype from _Algorithm2D._return_results in v1.5
+@pytest.mark.parametrize('output_dtype', ('deprecated', int, float, np.float64))
+def test_algorithm_return_results_dtype(output_dtype):
+    """Ensures the _return_results method respects specified dtypes."""
+    x, z, y = get_data2d()
+    baseline = np.arange(y.size).reshape(y.shape)
+
+    if output_dtype != 'deprecated':
+        with pytest.warns(DeprecationWarning, match='specifying "output_dtype" is deprecated'):
+            algorithm = _algorithm_setup._Algorithm2D(x, z, output_dtype=output_dtype)
+    else:
+        algorithm = _algorithm_setup._Algorithm2D(x, z, output_dtype=output_dtype)
+
+    output, _ = algorithm._return_results(baseline, {}, dtype=output_dtype)
+
+    if (output_dtype == 'deprecated' or output.dtype == baseline.dtype):
+        assert np.shares_memory(output, baseline)  # should be the same object
+    else:
+        assert baseline is not output
+
+    if output_dtype != 'deprecated':
+        assert output.dtype == output_dtype
+    else:
+        assert output.dtype == baseline.dtype
+
+
 @pytest.mark.parametrize('assume_sorted', (True, False))
-@pytest.mark.parametrize('output_dtype', (None, int, float, np.float64))
 @pytest.mark.parametrize('change_order', (True, False))
 @pytest.mark.parametrize('skip_sorting', (True, False))
 @pytest.mark.parametrize('list_input', (True, False))
-def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sorting, list_input):
+def test_algorithm_handle_io(assume_sorted, change_order, skip_sorting, list_input):
     """
     Ensures the _handle_io wrapper method returns the correctly sorted and shaped outputs.
 
@@ -853,11 +1074,8 @@ def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sor
         'c': np.arange(y.size).reshape(y.shape),
         'd': np.arange(y.size).reshape(y.shape),
     }
-    expected_baseline = (1 * y).astype(output_dtype)
-    if output_dtype is None:
-        expected_dtype = y.dtype
-    else:
-        expected_dtype = expected_baseline.dtype
+    expected_baseline = 1. * y
+    expected_dtype = float
     if list_input:
         x = x.tolist()
         z = z.tolist()
@@ -869,14 +1087,9 @@ def test_algorithm_handle_io(assume_sorted, output_dtype, change_order, skip_sor
 
     if assume_sorted and change_order:
         with pytest.warns(SortingWarning):
-            algorithm = SubClass(
-                x, z, check_finite=False, assume_sorted=assume_sorted,
-                output_dtype=output_dtype
-            )
+            algorithm = SubClass(x, z, assume_sorted=assume_sorted)
     else:
-        algorithm = SubClass(
-            x, z, check_finite=False, assume_sorted=assume_sorted, output_dtype=output_dtype
-        )
+        algorithm = SubClass(x, z, assume_sorted=assume_sorted)
 
     output, output_params = algorithm.func(y)
 
@@ -1019,7 +1232,7 @@ def test_algorithm_handle_io_1d_fails(data_fixture):
 @pytest.mark.parametrize('input_x', (True, False))
 @pytest.mark.parametrize('input_z', (True, False))
 @pytest.mark.parametrize('change_order', (True, False))
-def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z, change_order):
+def test_algorithm_handle_io_3d(input_x, input_z, change_order):
     """Ensures 3D data is allowed for 2D algorithms only when specified.
 
     Also checks _Algorithm2D setup when given 3D data as the first call.
@@ -1092,7 +1305,7 @@ def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z, change_order):
 
             return data * 1, {}
 
-    x_, z_, y_2d = data_fixture2d
+    x_, z_, y_2d = get_data2d()
     if change_order:
         x_ = x_[::-1]
         z_ = z_[::-1]
@@ -1136,6 +1349,153 @@ def test_algorithm_handle_io_3d(data_fixture2d, input_x, input_z, change_order):
     assert_allclose(output2, input_y, 1e-14, 1e-14)
 
 
+def test_algorithm_mask_too_few():
+    """Ensures an exception is raised if mask covers too many points."""
+    x = np.arange(100)
+    z = np.arange(50)
+    mask = np.zeros((x.size, z.size), dtype=bool)
+    mask.flat[np.arange(mask.size - int(mask.size * 0.1) + 1, dtype=np.intp)] = True
+    with pytest.raises(ValueError, match='mask must not cover over'):
+        _algorithm_setup._Algorithm2D(x, z, mask=mask)
+
+    # also ensure it fails when setting the attribute
+    algorithm = _algorithm_setup._Algorithm2D(x, z)
+    with pytest.raises(ValueError, match='mask must not cover over'):
+        algorithm.mask = mask
+
+
+@pytest.mark.parametrize('three_d', (True, False))
+@pytest.mark.parametrize('list_input', (True, False))
+@pytest.mark.parametrize('check_finite', (True, False))
+@pytest.mark.parametrize('strict_mask', (True, False))
+def test_algorithm_handle_io_mask(list_input, check_finite, strict_mask, three_d):
+    """Ensures the _handle_io wrapper method works correctly with masks."""
+    x, z, y = get_data2d(num_points=(30, 41))
+    mask = np.zeros(y.shape, dtype=bool)
+    mask[[1, 5], [1, 7]] = True
+    mask_inv = np.logical_not(mask)
+
+    expected_zero_fill = np.where(mask, 0., y)
+    X, Z = np.meshgrid(x, z, indexing='ij')
+    expected_interp = LinearNDInterpolator(
+        np.stack((X[mask_inv], Z[mask_inv]), axis=-1), y[mask_inv], fill_value=0
+    )(np.stack((X, Z), axis=-1)).reshape(y.shape)
+    y[mask] = np.nan
+    if three_d:
+        stacks = 3
+        y = np.repeat(y[None, :], stacks, axis=0)
+        expected_zero_fill = np.repeat(expected_zero_fill[None, :], stacks, axis=0)
+        expected_interp = np.repeat(expected_interp[None, :], stacks, axis=0)
+
+    class SubClass(_algorithm_setup._Algorithm2D):
+
+        @_algorithm_setup._Algorithm2D._handle_io(ensure_dims=not three_d)
+        def func(self, data, *args, **kwargs):
+            """Masking not supported; strict_mask=True will interpolate."""
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_interp, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, x, 1e-16, 1e-16)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, z, 1e-16, 1e-16)
+
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(mask_support=0, ensure_dims=not three_d)
+        def func2(self, data, *args, **kwargs):
+            """Ignores mask."""
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, y, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, x, 1e-16, 1e-16)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, z, 1e-16, 1e-16)
+
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(mask_support=1, ensure_dims=not three_d)
+        def func3(self, data, *args, **kwargs):
+            """Replaces masked values with 0."""
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_zero_fill, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, x, 1e-16, 1e-16)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, z, 1e-16, 1e-16)
+
+            return 1 * data, {}
+
+        @_algorithm_setup._Algorithm2D._handle_io(mask_support=2, ensure_dims=not three_d)
+        def func4(self, data, *args, **kwargs):
+            """Interpolates following the mask."""
+            assert isinstance(data, np.ndarray)
+            assert_allclose(data, expected_interp, 1e-16, 1e-16)
+            assert isinstance(self.x, np.ndarray)
+            assert_allclose(self.x, x, 1e-16, 1e-16)
+            assert isinstance(self.z, np.ndarray)
+            assert_allclose(self.z, z, 1e-16, 1e-16)
+
+            return 1 * data, {}
+
+    if list_input:
+        x = x.tolist()
+        z = z.tolist()
+        y = y.tolist()
+
+    algorithm = SubClass(x, z, mask=mask, strict_mask=strict_mask, check_finite=check_finite)
+
+    if strict_mask:
+        with pytest.raises(NotImplementedError, match='masking is not supported'):
+            algorithm.func(y)
+    else:
+        output, _ = algorithm.func(y)
+        assert_allclose(output, expected_interp, 1e-16, 1e-16)
+
+    output2, _ = algorithm.func2(y)
+    assert_allclose(output2, y, 1e-16, 1e-16)
+
+    output3, _ = algorithm.func3(y)
+    assert_allclose(output3, expected_zero_fill, 1e-16, 1e-16)
+
+    output4, _ = algorithm.func4(y)
+    assert_allclose(output4, expected_interp, 1e-16, 1e-16)
+
+
+@pytest.mark.parametrize('three_d', (True, False))
+@pytest.mark.parametrize('check_finite', (True, False))
+def test_mask_check_finite(check_finite, three_d):
+    """Ensures proper behavior with both a mask and check_finite.
+
+    If a mask is supplied, only non-masked regions should be sugjected to the finite check.
+
+    """
+    x, z, y = get_data2d(num_points=(20, 21))
+    mask = np.zeros(y.shape, dtype=bool)
+    mask[[1, 11], [0, 5]] = True
+
+    y[mask] = np.nan
+    if three_d:
+        y = np.repeat(y[None, :], 3, axis=0)
+    y2 = y.copy()
+    y2[..., 5] = np.nan
+
+    class SubClass(_algorithm_setup._Algorithm2D):
+
+        @_algorithm_setup._Algorithm2D._handle_io(mask_support=0, ensure_dims=not three_d)
+        def func(self, data, *args, **kwargs):
+            return 1 * data, {}
+
+    algorithm = SubClass(x, z, check_finite=check_finite, mask=mask)
+
+    # check on y should always pass since it contains invalid points only in masked regions
+    algorithm.func(y)
+    if check_finite:
+        with pytest.raises(ValueError, match='array must not contain infs or NaNs'):
+            algorithm.func(y2)
+    else:
+        algorithm.func(y2)
+
+
 def test_override_x(algorithm):
     """Ensures the `override_x` method correctly initializes with the new x values."""
     new_len = 20
@@ -1172,12 +1532,18 @@ def test_get_function_fails_no_module(algorithm):
 
 
 @pytest.mark.parametrize('ensure_new', (True, False))
-def test_spawn_fitter_sorting_x(ensure_new):
+@pytest.mark.parametrize('has_mask', (True, False))
+def test_spawn_fitter_sorting_x(ensure_new, has_mask):
     """Ensures the sort order is correct for the output class object when x is reversed."""
     num_points = 10
     x = np.arange(num_points)
     ordering = np.arange(num_points)
-    algorithm = Baseline2D(x[::-1], assume_sorted=False)
+    if has_mask:
+        mask = np.zeros((num_points, num_points), dtype=bool)
+        mask[:num_points // 2, :num_points // 2] = True
+    else:
+        mask = None
+    algorithm = Baseline2D(x[::-1], assume_sorted=False, mask=mask)
     class_object = algorithm._spawn_fitter('asls', ensure_new=ensure_new)
 
     assert_array_equal(class_object.x, x)
@@ -1189,15 +1555,25 @@ def test_spawn_fitter_sorting_x(ensure_new):
         assert class_object is not algorithm
     else:
         assert class_object is algorithm
+    if has_mask:
+        assert_array_equal(class_object.mask, mask[::-1])
+    else:
+        assert class_object.mask is None
 
 
 @pytest.mark.parametrize('ensure_new', (True, False))
-def test_spawn_fitter_sorting_z(ensure_new):
+@pytest.mark.parametrize('has_mask', (True, False))
+def test_spawn_fitter_sorting_z(ensure_new, has_mask):
     """Ensures the sort order is correct for the output class object when z is reversed."""
     num_points = 10
     z = np.arange(num_points)
     ordering = np.arange(num_points)
-    algorithm = Baseline2D(None, z[::-1], assume_sorted=False)
+    if has_mask:
+        mask = np.zeros((num_points, num_points), dtype=bool)
+        mask[:num_points // 2, :num_points // 2] = True
+    else:
+        mask = None
+    algorithm = Baseline2D(None, z[::-1], assume_sorted=False, mask=mask)
     class_object = algorithm._spawn_fitter('asls', ensure_new=ensure_new)
 
     assert_array_equal(class_object.z, z)
@@ -1213,10 +1589,15 @@ def test_spawn_fitter_sorting_z(ensure_new):
         assert class_object is not algorithm
     else:
         assert class_object is algorithm
+    if has_mask:
+        assert_array_equal(class_object.mask, mask[:, ::-1])
+    else:
+        assert class_object.mask is None
 
 
 @pytest.mark.parametrize('ensure_new', (True, False))
-def test_spawn_fitter_sorting_xz(ensure_new):
+@pytest.mark.parametrize('has_mask', (True, False))
+def test_spawn_fitter_sorting_xz(ensure_new, has_mask):
     """Ensures the sort order is correct for the output class object when x and z are reversed."""
     num_x_points = 10
     num_z_points = 11
@@ -1224,8 +1605,13 @@ def test_spawn_fitter_sorting_xz(ensure_new):
     x_ordering = np.arange(num_x_points)
     z = np.arange(num_z_points)
     z_ordering = np.arange(num_z_points)
+    if has_mask:
+        mask = np.zeros((num_x_points, num_z_points), dtype=bool)
+        mask[:num_x_points // 2, :num_z_points // 2] = True
+    else:
+        mask = None
 
-    algorithm = Baseline2D(x[::-1], z[::-1], assume_sorted=False)
+    algorithm = Baseline2D(x[::-1], z[::-1], assume_sorted=False, mask=mask)
     class_object = algorithm._spawn_fitter('asls', ensure_new=ensure_new)
 
     assert_array_equal(class_object.x, x)
@@ -1242,6 +1628,10 @@ def test_spawn_fitter_sorting_xz(ensure_new):
         assert class_object is not algorithm
     else:
         assert class_object is algorithm
+    if has_mask:
+        assert_array_equal(class_object.mask, mask[::-1, ::-1])
+    else:
+        assert class_object.mask is None
 
 
 @pytest.mark.parametrize('method_kwargs', (None, {'a': 2}))
@@ -1349,10 +1739,12 @@ def test_setup_pls_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
     assert result_class is WhittakerResult2D
 
 
+@pytest.mark.parametrize('has_mask', (True, False))
 @pytest.mark.parametrize('spline_degree', (None, 3))
 @pytest.mark.parametrize('num_eigens', (None, 3))
 @pytest.mark.parametrize('weight_enum', (0, 1, 2, 3))
-def test_setup_pls_weights(small_data2d, algorithm, spline_degree, num_eigens, weight_enum):
+def test_setup_pls_weights(small_data2d, algorithm, spline_degree, num_eigens, weight_enum,
+                           has_mask):
     """Ensures output weight array is correct when using _setup_pls."""
     if weight_enum == 0:
         # no weights specified
@@ -1370,6 +1762,12 @@ def test_setup_pls_weights(small_data2d, algorithm, spline_degree, num_eigens, w
         # different weights for all points, and weights input as a list
         weights = np.arange(small_data2d.size).reshape(small_data2d.shape).tolist()
         desired_weights = np.arange(small_data2d.size)
+
+    if has_mask:
+        mask = np.zeros(algorithm._shape, dtype=bool)
+        mask[3:9] = True
+        algorithm.mask = mask
+        desired_weights = np.where(mask.ravel(), 0., desired_weights)
 
     if spline_degree is None and num_eigens is None:
         expected_y = small_data2d.ravel()

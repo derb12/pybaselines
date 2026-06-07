@@ -10,11 +10,11 @@ import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._banded_utils import _shift_rows, diff_penalty_diagonals
+from ._banded_utils import _shift_rows, diff_penalty_diagonals, diff_penalty_matrix
 from ._nd.pls import _PLSNDMixin
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import WhittakerResult
-from .utils import relative_difference
+from .utils import relative_difference, _masked_matvec, _sort_array
 
 
 class _Whittaker(_Algorithm, _PLSNDMixin):
@@ -145,7 +145,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             weights=weights
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def iasls(self, data, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
               weights=None, diff_order=2):
         r"""
@@ -309,7 +309,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data)
-            weights = _weighting._iasls(data, baseline, p)
+            weights = _weighting._iasls(data - baseline, p=p, mask=self.mask)
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
@@ -317,17 +317,20 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             self._size, 1, whittaker_system.lower, padding=diff_order - 1
         )
         whittaker_system.add_penalty(residual_penalty)
+        if self.mask is None:
+            # fast calculation of (D_1.T @ D_1) @ y
+            d1_y = y.copy()
+            d1_y[0] = y[0] - y[1]
+            d1_y[-1] = y[-1] - y[-2]
+            d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
+        else:
+            d1_y = _masked_matvec(diff_penalty_matrix(self._size, 1, 'csr'), y, self.mask)
 
-        # fast calculation of lam_1 * (D_1.T @ D_1) @ y
-        d1_y = y.copy()
-        d1_y[0] = y[0] - y[1]
-        d1_y[-1] = y[-1] - y[-2]
-        d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = whittaker_system.solve(y, weight_array, rhs_extra=d1_y)
-            new_weights = _weighting._iasls(y, baseline, p)
+            new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -543,7 +546,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def drpls(self, data, lam=1e5, eta=0.5, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
         Doubly reweighted penalized least squares (drPLS) baseline.
@@ -624,7 +627,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             baseline = whittaker_system.direct_solve(
                 lhs, weight_array * y, overwrite_b=True, l_and_u=lower_upper_bands
             )
-            new_weights, exit_early = _weighting._drpls(y, baseline, i)
+            new_weights, exit_early = _weighting._drpls(y - baseline, iteration=i, mask=self.mask)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -693,7 +696,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             data, lam=lam, diff_order=diff_order, max_iter=max_iter, tol=tol, weights=weights
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights', 'alpha'))
+    @_Algorithm._handle_io(sort_keys=('weights', 'alpha'), mask_support=1)
     def aspls(self, data, lam=1e5, diff_order=2, max_iter=100, tol=1e-3,
               weights=None, alpha=None, asymmetric_coef=2., alternate_weighting=True):
         """
@@ -788,8 +791,10 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         alpha_array = _check_optional_array(
             self._size, alpha, check_finite=self._check_finite, name='alpha'
         )
-        if self._sort_order is not None and alpha is not None:
-            alpha_array = alpha_array[self._sort_order]
+        if alpha is not None:
+            alpha_array = _sort_array(alpha_array, self._sort_order)
+            if self.mask is not None:
+                alpha_array = np.where(self.mask, 1., alpha_array)
         asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
         tol_history = np.empty(max_iter + 1)
@@ -798,8 +803,10 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             baseline = whittaker_system.solve(
                 y, weight_array, penalty=_shift_rows(lhs, diff_order, diff_order)
             )
-            new_weights, residual, exit_early = _weighting._aspls(
-                y, baseline, asymmetric_coef, alternate_weighting
+            residual = y - baseline
+            new_weights, exit_early, new_alpha = _weighting._aspls(
+                residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting,
+                mask=self.mask
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -809,8 +816,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             if calc_difference < tol:
                 break
             weight_array = new_weights
-            abs_d = np.abs(residual)
-            alpha_array = abs_d / abs_d.max()
+            alpha_array = new_alpha
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],

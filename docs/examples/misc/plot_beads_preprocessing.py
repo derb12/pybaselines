@@ -59,7 +59,7 @@ linestyles = cycle(('-', '--'))
 # the raw data after subtracting the parabola.
 x = np.linspace(0, 1000, 1000)
 
-baseline_fitter = Baseline(x_data=x)
+baseline_fitter = Baseline(x)
 
 figure, axes = plt.subplots(nrows=3)
 for i in range(3):
@@ -120,5 +120,28 @@ for subtract_parabola in (False, True):
     plt.plot(fit_baseline, ls=next(linestyles), label=f'parabola subtracted: {subtract_parabola}')
 plt.plot(baseline, ':', label='true baseline')
 plt.legend()
+
+# %%
+# When the endpoints of the data contain outliers, this parabola preprocessing can
+# unintentionally produce erroneous fits. To work around this, the parameter `parabola_len`
+# was added to :meth:`~pybaselines.Baseline.beads` in version 1.3 to allow outlier
+# rejection on the edges. `parabola_len` needs to be increased according to how large the
+# artifacts on the edges are, as demonstrated below.
+
+y, baseline = make_data(x, baseline_type=1)
+# the endpoints will be distorted with a single outlier point on the left, and
+# a partial peak on the right
+y += gaussian(x, 9, 990, 7)
+y[0] += 20
+_, axes = plt.subplots(3, constrained_layout=True)
+for ax, parabola_len in zip(axes, (0, 3, (3, 80))):
+    fit_baseline = baseline_fitter.beads(
+        y, lam_0=0.015, lam_1=0.1, lam_2=1, fit_parabola=True, parabola_len=parabola_len
+    )[0]
+    ax.plot(y, '.-', label='data')
+    ax.plot(fit_baseline, '--', label='fit baseline')
+    ax.set_title(f'parabola_len={parabola_len}')
+
+ax.legend()
 
 plt.show()

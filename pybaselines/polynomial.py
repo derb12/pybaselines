@@ -55,7 +55,7 @@ from .utils import ParameterWarning, _convert_coef, _interp_inplace, relative_di
 class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
     """A base class for all polynomial algorithms."""
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def poly(self, data, poly_order=2, weights=None, return_coef=False):
         """
         Computes a polynomial fit to the data.
@@ -364,11 +364,11 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             return_coef=return_coef
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights', 'coef'), require_unique=True)
+    @_Algorithm._handle_io(sort_keys=('weights', 'coef'), require_unique=True, mask_support=2)
     def loess(self, data, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
               tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False,
               num_std=1, use_original=False, weights=None, return_coef=False,
-              conserve_memory=True, delta=None):
+              conserve_memory='deprecated', delta=None, sigma_func=None):
         """
         Locally estimated scatterplot smoothing (LOESS).
 
@@ -421,15 +421,13 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input x_data and return them in the params dictionary.
             Default is False, since the conversion takes time.
-        conserve_memory : bool, optional
-            If False, will cache the distance-weighted kernels for each value
-            in `x_data` on the first iteration and reuse them on subsequent iterations to
-            save time. The shape of the array of kernels is (len(`x_data`), `total_points`).
-            If True (default), will recalculate the kernels each iteration, which uses very
-            little memory, but is slower. Can usually set to False unless `x_data` and`total_points`
-            are quite large and the function causes memory issues when caching the kernels. If
-            numba is installed, there is no significant time difference since the calculations are
-            sped up.
+        conserve_memory
+
+            .. deprecated:: 1.3
+                `conserve_memory` is deprecated and no longer has any effect. If
+                calculation time is too slow, increase `delta` instead. Will be removed
+                in version 1.5.
+
         delta : float, optional
             If `delta` is > 0, will skip all but the last x-value in the range `x_last + delta`,
             where `x_last` is the last x-value to be fit using weighted least squares, and instead
@@ -438,6 +436,18 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             statsmodels [6]_ and Cleveland's original Fortran lowess implementation [7]_).
             Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
             `0.01 * (max(x_data) - min(x_data))`.
+        sigma_func : Callable, optional
+            The function that calculates the estimated experimental noise by which the residuals
+            are scaled before weighting each iteration. Must have the call signature::
+
+                sigma_func(residual: numpy.ndarray) -> float
+
+            where the input `residual` array is ``data - baseline`` for that iteration, and the
+            output is a float. If None (default), the function is the standardized median
+            absolute value, ``median(abs(residual)) / 0.6745`` [2]_. Other options, as suggested
+            by the REBS (robust extraction of baseline signal) method [8]_, are to use the
+            standard deviation of residual values less than 0 or less than the mode if values
+            are known to follow some distribution.
 
         Returns
         -------
@@ -464,8 +474,19 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         ------
         ValueError
             Raised if the number of points per window for the fitting is less than
-            `poly_order` + 1 or greater than the total number of points, or if the
-            values in `self.x` are not strictly increasing.
+            ``poly_order + 2`` or greater than the total number of points, or if the
+            x-values are not strictly increasing. Also raised if a window had too few
+            non-zero weights during fitting when ``Baseline.mask`` is not None and
+            the object was initialized with `strict_mask=True`.
+        TypeError
+            Raised if the input `sigma_func` does not return a float.
+
+        Warns
+        -----
+        ParameterWarning
+            Emitted if `poly_order` is greater than 2, which can introduce numerical
+            issues with small window sizes. Also emitted if a window had too few
+            non-zero weights during fitting when ``Baseline.mask`` is None.
 
         Notes
         -----
@@ -474,7 +495,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         fit data based on the residuals, as proposed by [3]_, similar to the modpoly
         and imodpoly techniques.
 
-        In baseline literature, this procedure is sometimes called "rbe", meaning
+        In baseline literature, this procedure is often called "rbe", meaning
         "robust baseline estimate".
 
         References
@@ -496,23 +517,35 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                 1363-1367.
         .. [6] https://github.com/statsmodels/statsmodels.
         .. [7] https://www.netlib.org/go (lowess.f is the file).
+        .. [8] Ruckstuhl, A.F., et al. Robust extraction of baseline signal of atmospheric trace
+                species using local regression. Atmospheric Measurement Techniques, 2012,
+                5(11), 2613-2624.
 
         """
         if total_points is None:
             total_points = ceil(fraction * self._size)
-        if total_points < poly_order + 1:
-            raise ValueError('total points must be greater than polynomial order + 1')
+        # cutoff is poly_order + 2 rather than poly_order + 1 for other polynomials since
+        # furthest point in each window has a weight of 0
+        if total_points < poly_order + 2:
+            raise ValueError('total points must be greater than polynomial order + 2')
         elif total_points > self._size:
             raise ValueError((
                 'points per window is higher than total number of points; lower either '
                 '"fraction" or "total_points"'
             ))
-        elif poly_order > 2:
+        if poly_order > 2:
             warnings.warn(
                 ('polynomial orders greater than 2 can have numerical issues;'
                  ' consider using a polynomial order of 1 or 2 instead'),
                 ParameterWarning, stacklevel=2
             )
+        if conserve_memory != 'deprecated':
+            warnings.warn(
+                ('conserve_memory is deprecated and no longer has any effect'),
+                DeprecationWarning, stacklevel=2
+            )
+        if sigma_func is None:
+            sigma_func = _median_absolute_value
 
         y, weight_array = self._setup_polynomial(data, weights, poly_order, calc_vander=True)
         if use_original:
@@ -546,19 +579,19 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
         for i in range(max_iter + 1):
             baseline_old = baseline
-            if conserve_memory:
-                baseline = _loess_low_memory(
-                    x, y, sqrt_w, coefs, vandermonde, self._size, windows, fits
-                )
-            elif i == 0:
-                kernels, baseline = _loess_first_loop(
-                    x, y, sqrt_w, coefs, vandermonde, total_points, self._size, windows, fits
-                )
-            else:
-                baseline = _loess_nonfirst_loops(
-                    y, sqrt_w, coefs, vandermonde, kernels, windows, self._size, fits
-                )
-
+            baseline, zero_wt_window = _loess_low_memory(
+                x, y, sqrt_w, coefs, vandermonde, self._size, windows, fits
+            )
+            if zero_wt_window:
+                if self.mask is not None and self._strict_mask:
+                    # hard to know if zero-weighted window was from masking or too small a window,
+                    # so err on the side of caution
+                    raise ValueError('A window had too few non-zero weights to fit')
+                else:
+                    warnings.warn(
+                        ('A window had too few non-zero weights to fit; likely need to '
+                         'increase "fraction" or "total_points"'), ParameterWarning, stacklevel=2
+                    )
             _fill_skips(x, baseline, skips)
 
             calc_difference = relative_difference(baseline_old, baseline)
@@ -572,11 +605,18 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                     y0 if use_original else y, baseline + num_std * np.std(residual[pos_wt_mask])
                 )
             else:
-                # TODO median_absolute_value can be 0 if more than half of residuals are
-                # 0 (perfect fit); can that ever really happen? if so, should prevent dividing by 0
-                sqrt_w = _tukey_square(
-                    residual / _median_absolute_value(residual), scale, symmetric_weights
-                )
+                noise_sigma = sigma_func(residual)
+                if not isinstance(noise_sigma, float):
+                    raise TypeError('"sigma_func" must return a float')
+                elif noise_sigma < np.finfo(float).eps:
+                    # break rather than setting noise_sigma to eps since any further reweighting
+                    # will still be unstable; see statsmodels issue#2108
+                    warnings.warn(
+                        'calculated noise scale is near 0; terminating early', ParameterWarning,
+                        stacklevel=3
+                    )
+                    break
+                sqrt_w = _tukey_square(residual, scale * noise_sigma, symmetric_weights)
 
         params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
         if return_coef:
@@ -613,7 +653,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         eps : float, optional
             A small value added to the square of the residual to prevent dividing by 0.
             Default is None, which uses the square of the maximum-absolute-value of the
-            fit each iteration multiplied by 1e-6.
+            residual each iteration multiplied by 1e-4.
         return_coef : bool, optional
             If True, will convert the polynomial coefficients for the fit baseline to
             a form that fits the input `x_data` and return them in the params dictionary.
@@ -664,7 +704,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             weights=weights, eps=eps, return_coef=return_coef
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def goldindec(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                   cost_function='asymmetric_indec', peak_ratio=0.5, alpha_factor=0.99,
                   tol_2=1e-3, tol_3=1e-6, max_iter_2=100, return_coef=False):
@@ -796,6 +836,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
 
         coef = pseudo_inverse @ y_fit
         initial_baseline = self._polynomial.vandermonde @ coef
+        pos_wt_mask = weight_array > 0
+        total_points = pos_wt_mask.sum()
 
         a = 0
         # reference used b=1, but normalized y before fitting; instead, set b as max of
@@ -824,8 +866,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                     break
             j_max = max(j, j_max)
 
-            up_count = (y > baseline).sum()
-            up_down_ratio = up_count / max(1, self._size - up_count)
+            up_count = (y > baseline)[pos_wt_mask].sum()
+            up_down_ratio = up_count / max(1, total_points - up_count)
             calc_difference = up_down_ratio - up_down_ratio_goal
             tol_history[0, i] = calc_difference
             if calc_difference > tol_2:
@@ -1179,12 +1221,12 @@ def _tukey_square(residual, scale=3, symmetric=False):
     """
     if symmetric:
         inner = residual / scale
-        weights = np.maximum(0, 1 - inner * inner)
+        weights = np.maximum(0., 1. - inner**2)
     else:
         weights = np.ones_like(residual)
         mask = residual > 0
         inner = residual[mask] / scale
-        weights[mask] = np.maximum(0, 1 - inner * inner)
+        weights[mask] = np.maximum(0., 1. - inner**2)
     return weights
 
 
@@ -1326,6 +1368,8 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     -------
     baseline : numpy.ndarray, shape (N,)
         The calculated baseline.
+    zero_wt_window : bool
+        Whether any window had too few non-zero values during fitting.
 
     Notes
     -----
@@ -1335,6 +1379,8 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
     baseline = np.empty(num_x)
     y_fit = y * weights
     vander_fit = vander.T * weights
+    min_nonzero = vander.shape[1]
+    zero_wt_window = False
     for idx in range(fits.shape[0]):
         i = fits[idx]
         window = windows[idx]
@@ -1347,137 +1393,20 @@ def _loess_low_memory(x, y, weights, coefs, vander, num_x, windows, fits):
         difference = 1 - difference
         kernel = np.sqrt(difference * difference * difference)
 
-        coef = _loess_solver(
-            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
-        )
-        baseline[i] = vander[i].dot(coef)
-        coefs[i] = coef
+        # statsmodels uses 1e-12 guard against 0 weights (statsmodels issue #7700),
+        # but pybaselines uses sqrt(weights), so guard against sqrt(1e-12)
+        if (kernel * weights[left:right] > 1e-6).sum() < min_nonzero:
+            zero_wt_window = True
+            baseline[i] = y[i]
+            coefs[i] = np.nan
+        else:
+            coef = _loess_solver(
+                kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
+            )
+            baseline[i] = vander[i].dot(coef)
+            coefs[i] = coef
 
-    return baseline
-
-
-# adapted from (https://gist.github.com/agramfort/850437); see license above
-@jit(nopython=True, cache=True)
-def _loess_first_loop(x, y, weights, coefs, vander, total_points, num_x, windows, fits):
-    """
-    The initial fit for loess that also caches the window values for each x-value.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The x-values of the measured data, with N data points.
-    y : numpy.ndarray, shape (N,)
-        The y-values of the measured data, with N points.
-    weights : numpy.ndarray, shape (N,)
-        The array of weights.
-    coefs : numpy.ndarray, shape (N, ``poly_order + 1``)
-        The array of polynomial coefficients (with polynomial order poly_order),
-        for each value in `x`.
-    vander : numpy.ndarray, shape (N, ``poly_order + 1``)
-        The Vandermonde matrix for the `x` array.
-    total_points : int
-        The number of points to include when fitting each x-value.
-    num_x : int
-        The number of data points in `x`, also known as N.
-    windows : numpy.ndarray, shape (F, 2)
-        An array of left and right indices that define the fitting window for each fit
-        x-value. The length is F, which is the total number of fit points. If `fit_dx`
-        is <= 0, F is equal to N, the total number of x-values.
-    fits : numpy.ndarray, shape (F,)
-        The array of indices indicating which x-values to fit.
-
-    Returns
-    -------
-    kernels : numpy.ndarray, shape (N, total_points)
-        The array containing the distance-weighted kernel for each x-value.
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
-
-    Notes
-    -----
-    The coefficient array, `coefs`, is modified inplace.
-
-    """
-    kernels = np.empty((num_x, total_points))
-    baseline = np.empty(num_x)
-    y_fit = y * weights
-    vander_fit = vander.T * weights
-    for idx in range(fits.shape[0]):
-        i = fits[idx]
-        window = windows[idx]
-        left = window[0]
-        right = window[1]
-
-        difference = np.abs(x[left:right] - x[i])
-        difference = difference / max(difference[0], difference[-1])
-        difference = difference * difference * difference
-        difference = 1 - difference
-        kernel = np.sqrt(difference * difference * difference)
-
-        kernels[i] = kernel
-        coef = _loess_solver(
-            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
-        )
-        baseline[i] = vander[i].dot(coef)
-        coefs[i] = coef
-
-    return kernels, baseline
-
-
-@jit(nopython=True, cache=True)
-def _loess_nonfirst_loops(y, weights, coefs, vander, kernels, windows, num_x, fits):
-    """
-    The loess fit to use after the first loop that uses the cached window values.
-
-    Parameters
-    ----------
-    y : numpy.ndarray, shape (N,)
-        The y-values of the measured data, with N points.
-    weights : numpy.ndarray, shape (N,)
-        The array of weights.
-    coefs : numpy.ndarray, shape (N, ``poly_order + 1``)
-        The array of polynomial coefficients (with polynomial order poly_order),
-        for each value in `x`.
-    vander : numpy.ndarray, shape (N, ``poly_order + 1``)
-        The Vandermonde matrix for the `x` array.
-    kernels : numpy.ndarray, shape (N, total_points)
-        The array containing the distance-weighted kernel for each x-value. Each
-        kernel has a length of total_points.
-    windows : numpy.ndarray, shape (F, 2)
-        An array of left and right indices that define the fitting window for each fit
-        x-value. The length is F, which is the total number of fit points. If `fit_dx`
-        is <= 0, F is equal to N, the total number of x-values.
-    num_x : int
-        The total number of values, N.
-    fits : numpy.ndarray, shape (F,)
-        The array of indices indicating which x-values to fit.
-
-    Returns
-    -------
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
-
-    Notes
-    -----
-    The coefficient array, `coefs`, is modified inplace.
-
-    """
-    baseline = np.empty(num_x)
-    y_fit = y * weights
-    vander_fit = vander.T * weights
-    for idx in range(fits.shape[0]):
-        i = fits[idx]
-        window = windows[idx]
-        left = window[0]
-        right = window[1]
-        kernel = kernels[i]
-        coef = _loess_solver(
-            kernel * vander_fit[:, left:right], kernel * y_fit[left:right]
-        )
-        baseline[i] = vander[i].dot(coef)
-        coefs[i] = coef
-
-    return baseline
+    return baseline, zero_wt_window
 
 
 @jit(nopython=True, cache=True)
@@ -1600,7 +1529,8 @@ def _determine_fits(x, num_x, total_points, delta):
 @_polynomial_wrapper
 def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scale=3.0,
           tol=1e-3, max_iter=10, symmetric_weights=False, use_threshold=False, num_std=1,
-          use_original=False, weights=None, return_coef=False, conserve_memory=True, delta=None):
+          use_original=False, weights=None, return_coef=False, conserve_memory='deprecated',
+          delta=None, sigma_func=None):
     """
     Locally estimated scatterplot smoothing (LOESS).
 
@@ -1673,6 +1603,18 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
         statsmodels [14]_ and Cleveland's original Fortran lowess implementation [15]_).
         Fits all x-values if `delta` is <= 0. Default is None, which sets `delta` to
         `0.01 * (max(x_data) - min(x_data))`.
+    sigma_func : callable, optional
+        The function that calculates the estimated experimental noise by which the residuals
+        are scaled before weighting each iteration. Must have the call signature::
+
+            sigma_func(residual: numpy.ndarray) -> float
+
+        where the input `residual` array is ``data - baseline`` for that iteration, and the
+        output is a float. If None (default), the function is the standardized median
+        absolute value, ``median(abs(residual)) / 0.6745`` [10]_. Other options, as suggested
+        by the REBS (robust extraction of baseline signal) method [20]_, are to use the
+        standard deviation of residual values less than 0 or less than the mode if values
+        are known to follow some distribution.
 
     Returns
     -------
@@ -1730,6 +1672,9 @@ def loess(data, x_data=None, fraction=0.2, total_points=None, poly_order=1, scal
             1363-1367.
     .. [14] https://github.com/statsmodels/statsmodels.
     .. [15] https://www.netlib.org/go (lowess.f is the file).
+    .. [20] Ruckstuhl, A.F., et al. Robust extraction of baseline signal of atmospheric trace
+            species using local regression. Atmospheric Measurement Techniques, 2012,
+            5(11), 2613-2624.
 
     """
 

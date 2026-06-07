@@ -7,16 +7,18 @@ Created on March 20, 2021
 """
 
 from math import ceil
+from pathlib import Path
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy import stats
 
 from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
 from .base_tests import (
-    BasePolyTester, InputWeightsMixin, MaskingMixin, RecreationMixin, ensure_deprecation
+    BasePolyTester, InputWeightsMixin, WeightMaskingMixin, RecreationMixin, ensure_deprecation
 )
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
@@ -29,6 +31,7 @@ class PolynomialTester(BasePolyTester, InputWeightsMixin):
 
     module = polynomial
     checked_keys = ('weights',)
+    supports_mask = True
 
 
 class IterativePolynomialTester(PolynomialTester):
@@ -49,7 +52,7 @@ class IterativePolynomialTester(PolynomialTester):
 
 
 @pytest.mark.filterwarnings('ignore:"poly" is deprecated and will be removed in version 1.5.')
-class TestPoly(PolynomialTester, MaskingMixin):
+class TestPoly(PolynomialTester, WeightMaskingMixin):
     """Class for testing regular polynomial baseline."""
 
     func_name = 'poly'
@@ -150,7 +153,7 @@ def thresholding_polynomial(x, y, poly_order, max_iter, weights=None, use_origin
     return baseline
 
 
-class TestModPoly(IterativePolynomialTester, MaskingMixin):
+class TestModPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing modpoly baseline."""
 
     func_name = 'modpoly'
@@ -183,7 +186,7 @@ class TestModPoly(IterativePolynomialTester, MaskingMixin):
         assert_allclose(fit, simple_fit, rtol=1e-12, atol=1e-12)
 
 
-class TestIModPoly(IterativePolynomialTester, MaskingMixin):
+class TestIModPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing imodpoly baseline."""
 
     func_name = 'imodpoly'
@@ -226,7 +229,7 @@ class TestIModPoly(IterativePolynomialTester, MaskingMixin):
         assert_allclose(fit, simple_fit, rtol=1e-12, atol=1e-12)
 
 
-class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
+class TestPenalizedPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing penalized_poly baseline."""
 
     func_name = 'penalized_poly'
@@ -337,12 +340,8 @@ class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha_factor=alpha_factor)
 
-    def test_masking(self):
-        """Masking only works if `threshold` is a fixed value."""
-        super().test_masking(threshold=np.std(self.y) / 10)
 
-
-class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
+class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
     """Class for testing loess baseline."""
 
     func_name = 'loess'
@@ -351,14 +350,10 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('delta', (0, 0.01))
-    @pytest.mark.parametrize('conserve_memory', (True, False))
     @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_unchanged_data(self, use_class, use_threshold, conserve_memory, delta):
+    def test_unchanged_data(self, use_class, use_threshold, delta):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(
-            use_class, use_threshold=use_threshold,
-            conserve_memory=conserve_memory, delta=delta
-        )
+        super().test_unchanged_data(use_class, use_threshold=use_threshold, delta=delta)
 
     @pytest.mark.parametrize('use_threshold', (True, False))
     @pytest.mark.parametrize('use_original', (True, False))
@@ -374,8 +369,8 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
 
     @pytest.mark.parametrize('poly_order', (0, 1, 2, 3))
     def test_too_small_window_fails(self, poly_order):
-        """Ensures a window smaller than poly_order + 1 raises an exception."""
-        for num_points in range(poly_order + 1):
+        """Ensures a window smaller than poly_order + 2 raises an exception."""
+        for num_points in range(poly_order + 2):
             with pytest.raises(ValueError):
                 self.class_func(self.y, total_points=num_points, poly_order=poly_order)
 
@@ -408,8 +403,7 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
 
         assert_allclose(baseline, recreated_poly)
 
-    @pytest.mark.parametrize('conserve_memory', (True, False))
-    def test_compare_to_statsmodels(self, conserve_memory):
+    def test_compare_to_statsmodels(self):
         """
         Compares the output of loess to the output of statsmodels.lowess.
 
@@ -453,9 +447,8 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
         # test several iterations to ensure weighting is correct
         for iterations in range(4):
             output = self.algorithm_base(x, check_finite=False, assume_sorted=True).loess(
-                y, conserve_memory=conserve_memory, total_points=total_points,
-                max_iter=iterations, tol=-1, scale=4.0469385011764905, symmetric_weights=True,
-                delta=0.0
+                y, total_points=total_points, max_iter=iterations, tol=-1,
+                scale=4.0469385011764905, symmetric_weights=True, delta=0.0
             )
 
             assert_allclose(
@@ -519,20 +512,147 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, MaskingMixin):
         super().test_input_weights(use_threshold=use_threshold)
 
     @pytest.mark.threaded_test
-    @pytest.mark.parametrize('conserve_memory', (True, False))
-    def test_threading(self, conserve_memory):
+    def test_threading(self):
         """Tests the different possible computation routes under threading."""
-        delta = 0.05 * (self.x.max() - self.x.min())  # use a larger delta to speed up method
-        super().test_threading(conserve_memory=conserve_memory, delta=delta)
+        # use a larger delta to speed up method
+        super().test_threading(delta=0.05 * (self.x.max() - self.x.min()))
+
+    def test_custom_sigma_func(self):
+        """Ensures input sigma_func modifies the reweighting."""
+        baseline, params = self.class_func(self.y)
+        baseline2, params2 = self.class_func(self.y, sigma_func=lambda vals: np.std(vals[vals < 0]))
+
+        # simple check that different sigma calcs produced different baselines and weights
+        with pytest.raises(AssertionError):
+            assert_allclose(baseline2, baseline, rtol=1e-4, atol=1e-3)
+        with pytest.raises(AssertionError):
+            assert_allclose(params2['weights'], params['weights'], rtol=1e-1, atol=1e-1)
+
+    def test_incorrect_sigma_func_fails(self):
+        """Ensures an exception is raised if input sigma_func does not return a float."""
+        with pytest.raises(TypeError, match='"sigma_func" must return a float'):
+            self.class_func(self.y, sigma_func=lambda vals: 'a')
+
+    def test_zero_sigma_exits(self):
+        """Ensures the method exits early when the calculated noise sigma is ~0.
+
+        Replicates statsmodels issue #2108.
+
+        """
+        x = np.arange(20)
+        y = np.array([0] * 10 + [1] * 10, dtype=float)
+        fraction = 2 / 3
+        total_points = int(len(x) * fraction)
+        with pytest.warns(ParameterWarning, match='calculated noise scale is near 0'):
+            output = self.algorithm_base(x).loess(
+                y, total_points=total_points, max_iter=3, delta=0,
+                scale=4.0469385011764905, symmetric_weights=True, tol=-1
+            )[0]
+        expected_output = np.array([
+            0, 0, 0, 0, 0, 0, 0, 0.03796574, 0.29511209, 0.44982749, 0.55017251, 0.70488791,
+            0.96203426, 1, 1, 1, 1, 1, 1, 1
+        ])
+        assert_allclose(output, expected_output, rtol=1e-6, atol=1e-9)
+
+    @pytest.mark.parametrize('max_iter', (1, 2))
+    def test_zero_weights_fill(self, max_iter):
+        """Ensures a window with zero weights with fill with y instead of causing numerical issues.
+
+        Dataset is adapted from statsmodels issue #7700. The data files for statsmodels's output
+        were created using::
+
+            from statsmodels.nonparametric.smoothers_lowess import lowess
+            output = lowess(y, x, frac=11 / len(x), it=max_iter, delta=0).T[1]
+
+        with statsmodels version 0.14.6.
+
+        """
+        y = np.array([
+            29.60046, 29.70066, 29.99869, 30.18495,
+            30.52497, 30.88539, 31.06073, 31.16298, 31.3087, 31.34476, 31.4047, 31.27913,
+            31.29533, 31.14104, 31.033, 30.95522, 30.7452, 30.6161, 30.48558, 30.20304,
+            29.94876, 29.49816, 28.99673, 28.47641, 27.75036, 26.98692, 26.22662, 25.29733,
+            24.45699, 23.47883, 22.421, 21.46149, 20.50521, 19.55747, 18.71905, 17.97059,
+            17.4616, 17.15413, 17.02539, 17.23645, 17.69518, 18.47265, 19.49916, 20.87392,
+            22.47629, 24.34076, 26.46264, 28.66842, 31.13522, 33.57669, 35.95129, 38.50984,
+            40.9788, 43.45954, 45.54811, 47.72132, 49.50215, 51.28018, 52.67683, 53.87601,
+            54.98996, 55.89579, 56.45095, 56.88656, 57.15155, 57.16919, 57.04115, 56.87761,
+            56.42096, 55.93649, 55.2568, 54.47306, 53.79956, 52.8701, 51.84985, 50.93586,
+            49.95632, 48.73087, 47.77627, 46.75819, 45.54977, 44.36957, 43.32188, 42.29313,
+            41.24385, 40.14291, 39.15614, 38.17805, 37.27126, 36.13561, 35.32942, 34.35569,
+            33.69126, 32.67565, 31.91131, 31.0636, 30.32011, 29.60982, 28.88217, 28.10989,
+            27.56996, 27.03619, 26.36284, 25.82758, 25.27555, 24.80477, 24.25029, 23.74979,
+            23.31028, 22.95834, 22.56406, 22.13128, 21.81209, 21.42739, 21.12386, 20.8205,
+            20.52693, 20.26264, 19.94682, 19.74871, 19.47004, 19.28826, 19.09282, 18.8813,
+            18.69543, 18.51512, 18.37025, 18.21213, 18.09597, 18.00692, 17.84771, 17.7365,
+            17.70439, 17.54311, 17.50521, 17.42641, 17.32607, 17.29374, 17.17156, 17.14076,
+            17.18559, 17.12909, 17.11519, 17.06809, 17.05098, 17.06691, 17.02511, 17.01555,
+            17.07787, 17.05032, 17.05407, 17.06751, 17.12841, 17.12312, 17.16593, 17.21924,
+            17.19979, 17.25681, 17.31144, 17.36246, 17.43259, 17.43767, 17.5086, 17.58345,
+            17.62989, 17.70608, 17.70383, 17.81441, 17.82661, 17.8836, 18.00816, 18.05311,
+            18.16044, 18.19468, 18.24426, 18.32978, 18.41256, 18.47817, 18.57559, 18.6523,
+            18.71417, 18.79602, 18.89392, 18.96791, 19.0598, 19.17692, 19.25897, 19.33334,
+            19.45276, 19.56273, 19.63092, 19.71592, 19.83377, 19.91831, 19.97547, 20.07111,
+            20.15791, 20.23325, 20.38081, 20.49393, 20.54687, 20.62749, 20.70332, 20.81285,
+            20.87916, 21.01356, 21.07556, 21.19642, 21.26882, 21.35373, 21.45083, 21.55625,
+            21.66463, 21.75115, 21.8033, 21.9497, 22.06961, 22.1253, 22.20523, 22.32333,
+            22.41526, 22.50364, 22.62715, 22.70702, 22.80392, 22.89037, 23.02072, 23.12152,
+            23.18633, 23.29179, 23.39558, 23.4171, 23.56042, 23.59962, 23.76348, 23.7985,
+            23.93591, 23.97028, 24.04745, 24.12475
+        ])
+        x = np.linspace(2160, 2559, len(y)) / 60
+        with pytest.warns(ParameterWarning, match='A window had too few non-zero weights'):
+            output = self.algorithm_base(x).loess(
+                y, poly_order=1, total_points=11, max_iter=max_iter, delta=0,
+                scale=4.0469385011764905, symmetric_weights=True, tol=-1
+            )[0]
+        expected_output = np.loadtxt(
+            Path(__file__).parent.joinpath(f'data/lowess_zero_weights_iter{max_iter}.csv')
+        )
+        assert_allclose(output, expected_output, rtol=1e-11, atol=1e-11)
+
+    def test_zero_weights(self):
+        """Simpler version of test_zero_weights_fill, using input all-zeros weights.
+
+        Allows testing for which indices should fail.
+
+        """
+        with pytest.warns(ParameterWarning, match='A window had too few non-zero weights'):
+            output, params = self.class_func(
+                self.y, delta=0, weights=np.zeros_like(self.y), max_iter=0, return_coef=True
+            )
+
+        assert_allclose(output, self.y, rtol=1e-14, atol=1e-14)
+        assert np.isnan(params['coef']).all()
+
+    @pytest.mark.parametrize('strict_mask', (True, False))
+    def test_zero_weights_masking(self, strict_mask):
+        """Ensures behavior when a zero-weight window occurs when using masking."""
+        mask = np.zeros_like(self.y, dtype=bool)
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=strict_mask)
+        if strict_mask:
+            context = pytest.raises(ValueError, match='A window had too few non-zero weights')
+        else:
+            context = pytest.warns(ParameterWarning, match='A window had too few non-zero weights')
+
+        with context:
+            fitter.loess(self.y, delta=0, weights=np.zeros_like(self.y), max_iter=0)
 
     @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_masking(self, use_threshold):
+    def test_weight_masking(self, use_threshold):
         """Masking only works if `use_threshold` is True."""
         if use_threshold:
-            super().test_masking(use_threshold=use_threshold)
+            super().test_weight_masking(use_threshold=use_threshold)
         else:
             with pytest.raises(AssertionError):
-                super().test_masking(use_threshold=use_threshold)
+                super().test_weight_masking(use_threshold=use_threshold)
+
+    @ensure_deprecation(1, 5)
+    @pytest.mark.parametrize('conserve_memory', (True, False))
+    def test_conserve_memory_deprecation(self, conserve_memory):
+        """Ensures a warning if emitted if conserve_memory is input."""
+        with pytest.warns(DeprecationWarning, match='conserve_memory is deprecated'):
+            self.class_func(self.y, conserve_memory=conserve_memory)
 
 
 class TestQuantReg(IterativePolynomialTester, RecreationMixin):
@@ -592,7 +712,7 @@ class TestQuantReg(IterativePolynomialTester, RecreationMixin):
         assert_allclose(output[0], STATSMODELS_QUANTILES[quantile], rtol=1e-6)
 
 
-class TestGoldindec(PolynomialTester, MaskingMixin):
+class TestGoldindec(PolynomialTester, WeightMaskingMixin):
     """Class for testing goldindec baseline."""
 
     func_name = 'goldindec'
@@ -789,7 +909,13 @@ def test_median_absolute_value(values):
     mav_calc = polynomial._median_absolute_value(values)
     mav_actual = np.median(np.abs(values)) / 0.6744897501960817
 
-    assert_allclose(mav_calc, mav_actual)
+    assert_allclose(mav_calc, mav_actual, rtol=1e-14, atol=1e-14)
+
+    # also compare against scipy, set center to 0 to make the MAD into MAV
+    mav_scipy = stats.median_abs_deviation(
+        values, scale='normal', center=lambda *args, **kwargs: 0
+    )
+    assert_allclose(mav_calc, mav_scipy, rtol=1e-14, atol=1e-14)
 
 
 def test_loess_solver():
@@ -802,7 +928,7 @@ def test_loess_solver():
 
     solved_coefs = polynomial._loess_solver(vander.T, y)
 
-    assert_allclose(solved_coefs, coefs)
+    assert_allclose(solved_coefs, coefs, rtol=1e-12, atol=1e-14)
 
 
 def test_determine_fits_simple():
