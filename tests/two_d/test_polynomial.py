@@ -26,6 +26,7 @@ class PolynomialTester(BasePolyTester2D, InputWeightsMixin):
 
     module = polynomial
     checked_keys = ('weights',)
+    supports_mask = True
 
 
 class IterativePolynomialTester(PolynomialTester):

@@ -102,6 +102,7 @@ class SplineTester(BaseTester2D, PSplineResult2DMixin):
     """Base testing class for spline functions."""
 
     module = spline
+    supports_mask = True
 
     @pytest.mark.parametrize('spline_degree', (None, (None, 1), (3, None), (None, None)))
     def test_check_spline_degree(self, spline_degree):
