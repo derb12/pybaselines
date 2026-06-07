@@ -743,7 +743,7 @@ class _Algorithm2D:
         elif not calc_vander:
             raise ValueError('if calc_pinv is True, then calc_vander must also be True')
 
-        if weights is None:
+        if weights is None and not has_mask:
             pseudo_inverse = self._polynomial.pseudo_inverse
         else:
             pseudo_inverse = np.linalg.pinv(

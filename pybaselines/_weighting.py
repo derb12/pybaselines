@@ -39,6 +39,8 @@ def masked_weighting(weighting_func):
             input_residual = residual
         else:
             fit_mask = np.logical_not(mask)
+            if residual.ndim == 1 and mask.ndim == 2:  # some 2D methods ravel data
+                fit_mask = fit_mask.ravel()
             input_residual = residual[fit_mask]
 
         output = weighting_func(input_residual, **kwargs)
@@ -492,7 +494,10 @@ def _aspls(residual, asymmetric_coef=2., alternate_weighting=True, mask=None):
         # for aspls, alpha ~ 1 denotes peak regions with weights ~ 0; so masked regions with
         # weight=0 should have alpha=1
         alpha_array = np.ones(residual.shape)
-        alpha_array[np.logical_not(mask)] = masked_alpha
+        fit_mask = np.logical_not(mask)
+        if residual.ndim == 1 and mask.ndim == 2:
+            fit_mask = fit_mask.ravel()
+        alpha_array[fit_mask] = masked_alpha
 
     return weights, exit_early, alpha_array
 

@@ -1917,3 +1917,27 @@ def test_masked_weighting(one_d):
     assert_allclose(masked_output[1], a, rtol=1e-14, atol=1e-14)
     assert_allclose(masked_output[2], b, rtol=1e-14, atol=1e-14)
     assert masked_output[2].shape == residual[mask_inverse].shape
+
+
+def test_masked_weighting_dim_mismatch():
+    """Ensures `masked_weighting` works when mask is 2D and residual is 1D.
+
+    This case arises for some 2D methods that solve a flattened 1D system.
+
+    """
+    @_weighting.masked_weighting
+    def func(residual):
+        weights = np.where(residual > 0, 1., 0.)
+        return weights
+
+    residual = np.linspace(-1, 1, 100)
+    expected_weights = np.where(residual > 0, 1., 0.)
+
+    mask = np.zeros(residual.shape, dtype=bool).reshape(25, 4)
+    mask[1, 1] = True
+    masked_output = func(residual, mask=mask)
+    assert masked_output.ndim == 1
+    assert_allclose(
+        masked_output, np.where(mask.ravel(), 0., expected_weights),
+        rtol=1e-14, atol=1e-14
+    )
