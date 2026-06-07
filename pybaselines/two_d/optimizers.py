@@ -19,6 +19,7 @@ import numpy as np
 from .._nd.optimizers import _OptimizersNDMixin
 from .._validation import _check_optional_array, _get_row_col_values
 from ..api import Baseline
+from ..optimizers import _determine_polyorders
 from ..utils import _check_scalar, _sort_array2d
 from ._algorithm_setup import _Algorithm2D
 
@@ -26,7 +27,7 @@ from ._algorithm_setup import _Algorithm2D
 class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
     """A base class for all optimizer algorithms."""
 
-    @_Algorithm2D._handle_io(skip_sorting=True)
+    @_Algorithm2D._handle_io(skip_sorting=True, mask_support=0)
     def adaptive_minmax(self, data, poly_order=None, method='modpoly', weights=None,
                         constrained_fraction=0.01, constrained_weight=1e5,
                         estimation_poly_order=2, method_kwargs=None):
@@ -77,10 +78,6 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (M, N)
-                The weight array used for fitting the data.
-            * 'constrained_weights': numpy.ndarray, shape (M, N)
-                The weight array used for the endpoint-constrained fits.
             * 'poly_order': numpy.ndarray, shape (2,)
                 An array of the two polynomial orders used for the fitting.
             * 'method_params': dict[str, list]
@@ -110,7 +107,8 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         )
         if poly_order is None:
             poly_orders = _determine_polyorders(
-                y, estimation_poly_order, weight_array, optimizer_obj.method_call, **method_kws
+                y, estimation_poly_order, weight_array, optimizer_obj.method_call,
+                optimizer_obj.fitter, **method_kws
             )
         else:
             poly_orders, scalar_poly_order = _check_scalar(poly_order, 2, True, dtype=int)
@@ -144,7 +142,6 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             constrained_weights = _sort_array2d(constrained_weights, self._inverted_order)
 
         params = {
-            'weights': weight_array, 'constrained_weights': constrained_weights,
             'poly_order': poly_orders, 'method_params': defaultdict(list)
         }
         # order of inputs is (poly_orders[0], weight_array), (poly_orders[0], constrained_weights),
@@ -279,54 +276,3 @@ def _update_params(func, params, data, **kwargs):
     for key, val in baseline_params.items():
         params[key].append(val)
     return baseline
-
-
-def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
-    """
-    Selects the appropriate polynomial orders based on the baseline-to-signal ratio.
-
-    Parameters
-    ----------
-    y : numpy.ndarray
-        The array of y-values.
-    poly_order : int
-        The polynomial order for fitting.
-    weights : numpy.ndarray
-        The weight array for fitting.
-    fit_function : Callable
-        The function to use for the polynomial fit.
-    **fit_kwargs
-        Additional keyword arguments to pass to `fit_function`.
-
-    Returns
-    -------
-    orders : numpy.ndarray, shape (2,)
-        The two polynomial orders to use based on the baseline to signal
-        ratio according to the reference.
-
-    References
-    ----------
-    Cao, A., et al. A robust method for automated background subtraction
-    of tissue fluorescence. Journal of Raman Spectroscopy, 2007, 38, 1199-1205.
-
-    """
-    baseline = fit_function(y, poly_order=poly_order, weights=weights, **fit_kwargs)[0]
-    signal = y - baseline
-    baseline_to_signal = (baseline.max() - baseline.min()) / (signal.max() - signal.min())
-    # Table 2 in reference  # TODO in 2D does this need changed?
-    if baseline_to_signal < 0.2:
-        orders = (1, 2)
-    elif baseline_to_signal < 0.75:
-        orders = (2, 3)
-    elif baseline_to_signal < 8.5:
-        orders = (3, 4)
-    elif baseline_to_signal < 55:
-        orders = (4, 5)
-    elif baseline_to_signal < 240:
-        orders = (5, 6)
-    elif baseline_to_signal < 517:
-        orders = (6, 7)
-    else:
-        orders = (6, 8)  # not a typo, use 6 and 8 rather than 7 and 8
-
-    return np.array(orders)

@@ -20,7 +20,7 @@ from ._validation import (
     _check_lam, _check_optional_array, _check_scalar_variable, _check_spline_degree
 )
 from .results import PSplineResult
-from .utils import _sort_array, relative_difference
+from .utils import _masked_matvec, _sort_array, relative_difference
 
 
 class _Spline(_Algorithm, _PLSNDMixin):
@@ -98,9 +98,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
         de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
         Intelligent Laboratory Systems, 2012, 117, 56-60.
 
-        Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
-        preprint arXiv:1901.06708, 2019.
-
         """
         _check_spline_degree(spline_degree)
         return super()._mixture_model(
@@ -143,7 +140,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
         eps : float, optional
             A small value added to the square of the residual to prevent dividing by 0.
             Default is None, which uses the square of the maximum-absolute-value of the
-            fit each iteration multiplied by 1e-6.
+            residual each iteration multiplied by 1e-4.
 
         Returns
         -------
@@ -259,7 +256,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def pspline_iasls(self, data, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
                       spline_degree=3, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
@@ -352,7 +349,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data)
-            weights = _weighting._iasls(data, baseline, p)
+            weights = _weighting._iasls(data - baseline, p=p, mask=self.mask)
 
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
@@ -363,7 +360,10 @@ class _Spline(_Algorithm, _PLSNDMixin):
             pspline.basis.basis.T
             @ (_check_lam(lam_1) * diff_penalty_matrix(self._size, 1))
         )
-        partial_rhs = d1_penalty @ y
+        if self.mask is None:
+            partial_rhs = d1_penalty @ y
+        else:
+            partial_rhs = _masked_matvec(d1_penalty, y, self.mask)
         # now change d1_penalty back to banded array
         d1_penalty = _sparse_to_banded(d1_penalty @ pspline.basis.basis)[0]
         if pspline.lower:
@@ -373,7 +373,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
-            new_weights = _weighting._iasls(y, baseline, p)
+            new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
@@ -522,7 +522,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def pspline_drpls(self, data, lam=1e3, eta=0.5, num_knots=100, spline_degree=3,
                       diff_order=2, max_iter=50, tol=1e-3, weights=None):
         """
@@ -623,7 +623,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             )
             penalty = _add_diagonals(pspline.penalty, diff_n_w_diagonals, lower_only=False)
             baseline = pspline.solve(y, weight_array, penalty=penalty)
-            new_weights, exit_early = _weighting._drpls(y, baseline, i)
+            new_weights, exit_early = _weighting._drpls(y - baseline, iteration=i, mask=self.mask)
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
                 break
@@ -707,7 +707,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights', 'alpha'))
+    @_Algorithm._handle_io(sort_keys=('weights', 'alpha'), mask_support=1)
     def pspline_aspls(self, data, lam=1e4, num_knots=100, spline_degree=3, diff_order=2,
                       max_iter=100, tol=1e-3, weights=None, alpha=None, asymmetric_coef=2.,
                       alternate_weighting=True):
@@ -815,8 +815,10 @@ class _Spline(_Algorithm, _PLSNDMixin):
         alpha_array = _check_optional_array(
             self._size, alpha, check_finite=self._check_finite, name='alpha'
         )
-        if self._sort_order is not None and alpha is not None:
-            alpha_array = alpha_array[self._sort_order]
+        if alpha is not None:
+            alpha_array = _sort_array(alpha_array, self._sort_order)
+            if self.mask is not None:
+                alpha_array = np.where(self.mask, 1., alpha_array)
         asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
         interp_pts = _basis_midpoints(pspline.basis.knots, pspline.basis.spline_degree)
@@ -828,8 +830,10 @@ class _Spline(_Algorithm, _PLSNDMixin):
                 pspline.num_bands, pspline.num_bands
             )
             baseline = pspline.solve(y, weight_array, penalty=alpha_penalty)
-            new_weights, residual, exit_early = _weighting._aspls(
-                y, baseline, asymmetric_coef, alternate_weighting
+            residual = y - baseline
+            new_weights, exit_early, new_alpha = _weighting._aspls(
+                residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting,
+                mask=self.mask
             )
             if exit_early:
                 i -= 1  # reduce i so that output tol_history indexing is correct
@@ -839,8 +843,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             if calc_difference < tol:
                 break
             weight_array = new_weights
-            abs_d = np.abs(residual)
-            alpha_array = abs_d / abs_d.max()
+            alpha_array = new_alpha
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],

@@ -15,7 +15,8 @@ import pytest
 from pybaselines.two_d import polynomial
 
 from ..base_tests import (
-    BasePolyTester2D, InputWeightsMixin, MaskingMixin, RecreationMixin, ensure_deprecation, _Poly2D
+    BasePolyTester2D, InputWeightsMixin, WeightMaskingMixin, RecreationMixin, ensure_deprecation,
+    _Poly2D
 )
 from ..data import STATSMODELS_QUANTILES_2D
 
@@ -25,6 +26,7 @@ class PolynomialTester(BasePolyTester2D, InputWeightsMixin):
 
     module = polynomial
     checked_keys = ('weights',)
+    supports_mask = True
 
 
 class IterativePolynomialTester(PolynomialTester):
@@ -45,7 +47,7 @@ class IterativePolynomialTester(PolynomialTester):
 
 
 @pytest.mark.filterwarnings('ignore:"poly" is deprecated and will be removed in version 1.5.')
-class TestPoly(PolynomialTester, MaskingMixin):
+class TestPoly(PolynomialTester, WeightMaskingMixin):
     """Class for testing regular polynomial baseline."""
 
     func_name = 'poly'
@@ -57,7 +59,7 @@ class TestPoly(PolynomialTester, MaskingMixin):
             self.class_func(data=self.y)
 
 
-class TestModPoly(IterativePolynomialTester, MaskingMixin):
+class TestModPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing modpoly baseline."""
 
     func_name = 'modpoly'
@@ -72,7 +74,7 @@ class TestModPoly(IterativePolynomialTester, MaskingMixin):
         )
 
 
-class TestIModPoly(IterativePolynomialTester, MaskingMixin):
+class TestIModPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing imodpoly baseline."""
 
     func_name = 'imodpoly'
@@ -96,7 +98,7 @@ class TestIModPoly(IterativePolynomialTester, MaskingMixin):
             self.class_func(self.y, num_std=num_std)
 
 
-class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
+class TestPenalizedPoly(IterativePolynomialTester, WeightMaskingMixin):
     """Class for testing penalized_poly baseline."""
 
     func_name = 'penalized_poly'
@@ -200,9 +202,9 @@ class TestPenalizedPoly(IterativePolynomialTester, MaskingMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, alpha_factor=alpha_factor)
 
-    def test_masking(self):
+    def test_weight_masking(self):
         """Masking only works if `threshold` is a fixed value."""
-        super().test_masking(threshold=np.std(self.y) / 10)
+        super().test_weight_masking(threshold=np.std(self.y) / 10)
 
 
 class TestQuantReg(IterativePolynomialTester, RecreationMixin):

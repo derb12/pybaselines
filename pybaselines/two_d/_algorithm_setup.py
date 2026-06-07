@@ -11,6 +11,7 @@ import itertools
 import warnings
 
 import numpy as np
+from scipy.interpolate import LinearNDInterpolator
 
 from ..results import PSplineResult2D, WhittakerResult2D
 from .._nd.optimizers import _OptimizerHelper
@@ -52,7 +53,7 @@ class _Algorithm2D:
     """
 
     def __init__(self, x_data=None, z_data=None, check_finite=True, assume_sorted=False,
-                 output_dtype='deprecated'):
+                 output_dtype='deprecated', mask=None, strict_mask=True):
         """
         Initializes the algorithm object.
 
@@ -81,6 +82,16 @@ class _Algorithm2D:
             .. deprecated:: 1.3
                 `output_dtype` is deprecated and will be removed in version 1.5. Use
                 :func:`numpy.astype` on the output baseline instead.
+
+        mask : array-like, shape (M, N), optional
+            A Boolean array, in which all indices that are `True` denote indices that should
+            be ignored during baseline correction. If None (default), denotes all values should
+            be included.
+        strict_mask : bool, optional
+            If True (default) and `mask` is not None, calling any method that does not support
+            masking or calculations using the mask that produce invalid results will raise an
+            exception. If `strict_mask` is False, will instead perform linear interpolation
+            following `mask` before performing baseline correction to prevent those issues.
 
         """
         x_sort_order = None
@@ -151,6 +162,77 @@ class _Algorithm2D:
         self.banded_solver = 2
         self._validated_x = no_x
         self._validated_z = no_z
+        self._strict_mask = strict_mask
+        self.mask = mask
+
+    @property
+    def mask(self):
+        """
+        Designates which points should be omitted during baseline correction.
+
+        .. versionadded:: 1.3.0
+
+        A Boolean array, in which all indices that are `True` denote indices that should
+        be ignored during baseline correction. If None, denotes all values should be included.
+
+        Note that not all methods support masking, so by default, a non-None `mask` will raise
+        an exception upon calling those methods. This behavior can be changed by setting
+        `strict_mask` to `False` during initialization.
+
+        """
+        return self._mask
+
+    @mask.setter
+    def mask(self, values):
+        """
+        Sets the baseline fitting mask.
+
+        Parameters
+        ----------
+        values : array-like, shape (M, N), optional
+            A Boolean array, in which all indices that are `True` denote indices that should
+            be omitted during baseline correction. If None, denotes all values should
+            be included.
+
+        Raises
+        ------
+        ValueError
+            Raised if the input mask is `True` for over 90% of the points.
+
+        """
+        if values is None:
+            self._mask = None
+        else:
+            if self._shape == (None, None):
+                input_mask = _check_array(
+                    values, dtype=bool, ensure_1d=False, ensure_2d=True, two_d=True
+                )
+                self._shape = input_mask.shape
+                self.x = np.linspace(-1., 1., self._shape[0])
+                self.z = np.linspace(-1., 1., self._shape[1])
+            elif self._shape[0] is None:
+                input_mask = _check_sized_array(
+                    values, self._shape[1], name='mask', dtype=bool,
+                    ensure_1d=False, ensure_2d=True, two_d=True, axis=1
+                )
+                self._shape = input_mask.shape
+                self.x = np.linspace(-1., 1., self._shape[0])
+            elif self._shape[1] is None:
+                input_mask = _check_sized_array(
+                    values, self._shape[0], name='mask', dtype=bool,
+                    ensure_1d=False, ensure_2d=True, two_d=True, axis=0
+                )
+                self._shape = input_mask.shape
+                self.z = np.linspace(-1., 1., self._shape[1])
+            else:
+                input_mask = _check_sized_array(
+                    values, self._shape, name='mask', dtype=bool,
+                    ensure_1d=False, ensure_2d=True, two_d=True, axis=slice(None)
+                )
+
+            if input_mask.sum() / self._size > 0.9:
+                raise ValueError('mask must not cover over 90 percent of points')
+            self._mask = _sort_array2d(input_mask, self._sort_order)
 
     @property
     def _shape(self):
@@ -325,7 +407,7 @@ class _Algorithm2D:
 
     @classmethod
     def _handle_io(cls, func=None, *, sort_keys=(), ensure_dims=True, reshape_keys=(),
-                   skip_sorting=False, require_unique=False):
+                   skip_sorting=False, require_unique=False, mask_support=-1):
         """
         Wraps a baseline method to validate inputs and correct outputs.
 
@@ -355,6 +437,14 @@ class _Algorithm2D:
             If True, will check ``self.x`` and ``self.z`` to ensure all values are unique and will
             raise an error if non-unique values are present. Default is False, which skips the
             check.
+        mask_support : bool, optional
+            An integer designating how the wrapped function handles masking. The default value,
+            `-1`, means that masking is not supported and will raise an error if `self.mask` is
+            not None. A value of `1` means that masking is supported through weighted
+            interpolation and will replace both input data and weights with zeros following the
+            mask. A value of `0` means to ignore the mask, for use within some optimizers.
+            `mask_support` values not equal to 0 or 1 will replace values within the input data
+            with linear interpolation so that no issues with NaN values occur.
 
         Returns
         -------
@@ -368,7 +458,7 @@ class _Algorithm2D:
             return partial(
                 cls._handle_io, sort_keys=sort_keys, ensure_dims=ensure_dims,
                 reshape_keys=reshape_keys, skip_sorting=skip_sorting,
-                require_unique=require_unique
+                require_unique=require_unique, mask_support=mask_support
             )
 
         @wraps(func)
@@ -390,13 +480,22 @@ class _Algorithm2D:
                 else:
                     expected_shape = self._shape[1]
                     axis = -1
-                y = _check_sized_array(
-                    data, expected_shape, check_finite=self._check_finite, ensure_1d=False,
-                    axis=axis, name='data', ensure_2d=ensure_dims, two_d=True
-                )
-            else:
+                if self.mask is None:
+                    y = _check_sized_array(
+                        data, expected_shape, check_finite=self._check_finite, ensure_1d=False,
+                        axis=axis, name='data', ensure_2d=ensure_dims, two_d=True, dtype=float
+                    )
+                else:
+                    y = _check_sized_array(
+                        data, expected_shape, check_finite=False, ensure_1d=False,
+                        axis=axis, name='data', ensure_2d=ensure_dims, two_d=True, dtype=float
+                    )
+                    if self._check_finite:
+                        np.asarray_chkfinite(y[..., np.logical_not(self.mask)])
+            else:  # also means self.mask is None
                 y, self.x, self.z = _yxz_arrays(
-                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_dims
+                    data, self.x, self.z, check_finite=self._check_finite, ensure_2d=ensure_dims,
+                    dtype=float
                 )
 
             if not has_x:
@@ -419,7 +518,36 @@ class _Algorithm2D:
             if not skip_sorting:
                 y = _sort_array2d(y, sort_order=self._sort_order)
 
-            y = np.asarray(y, dtype=float)
+            if self.mask is not None:
+                if mask_support == -1 and self._strict_mask:
+                    raise NotImplementedError('masking is not supported for this method')
+
+                if mask_support != 0:
+                    if mask_support == 1:
+                        # algorithm strictly uses weighted fitting, so can just zero-fill the mask;
+                        # faster than interpolation, so use whenever possible
+                        y = np.where(self.mask, 0., y)
+                    else:
+                        inv_mask = np.logical_not(self.mask)
+                        X, Z = np.meshgrid(self.x, self.z, indexing='ij')
+                        if y.ndim == 2:
+                            # cannot use RegularGridInterpolator since non-masked points are not
+                            # guaranteed to be on a regular grid
+                            y = LinearNDInterpolator(
+                                np.stack((X[inv_mask], Z[inv_mask]), axis=-1), y[inv_mask],
+                                fill_value=0
+                            )(np.stack((X, Z), axis=-1)).reshape(self._shape)
+
+                        else:
+                            y = np.stack(
+                                [
+                                    LinearNDInterpolator(
+                                        np.stack((X[inv_mask], Z[inv_mask]), axis=-1),
+                                        row[inv_mask], fill_value=0
+                                    )(np.stack((X, Z), axis=-1)).reshape(self._shape) for row in y
+                                ], axis=0
+                            )
+
             baseline, params = func(self, y, *args, **kwargs)
 
             return self._return_results(
@@ -429,7 +557,7 @@ class _Algorithm2D:
 
         return inner
 
-    def _override_x(self, new_x, new_sort_order=None):
+    def _override_x(self, new_x, new_sort_order=None, new_mask=None):
         """
         Creates a new fitting object for the given x-values and z-values.
 
@@ -441,10 +569,12 @@ class _Algorithm2D:
             The x values to temporarily use.
         new_sort_order : numpy.ndarray, optional
             The sort order for the new x values. Default is None, which will not sort.
+        new_mask : numpy.ndarray, optional
+            The mask for the new values. Default is None.
 
         Returns
         -------
-        pybaselines._algorithm_setup._Algorithm
+        pybaselines._algorithm_setup._Algorithm2D
             The _Algorithm object with the new x attribute.
 
         Raises
@@ -513,12 +643,15 @@ class _Algorithm2D:
                  ' consider using a difference order of 2 or 1 instead'),
                 ParameterWarning, stacklevel=2
             )
+        has_mask = self.mask is not None
         weight_array = _check_optional_array(
-            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False, axis=slice(None), dtype=float
+            self._shape, weights, copy_input=copy_weights or has_mask,
+            check_finite=self._check_finite, ensure_1d=False, axis=slice(None), dtype=float
         )
         if weights is not None:
             weight_array = _sort_array2d(weight_array, self._sort_order)
+        if has_mask:
+            weight_array[self.mask] = 0
 
         # TODO can probably keep the basis for reuse if using SVD, like _setup_spline does, and
         # retain the unmodified penalties for the rows and columns if possible to skip that
@@ -589,12 +722,15 @@ class _Algorithm2D:
             ]).flatten()
 
         """
+        has_mask = self.mask is not None
         weight_array = _check_optional_array(
-            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False, axis=slice(None), dtype=float
+            self._shape, weights, copy_input=copy_weights or has_mask,
+            check_finite=self._check_finite, ensure_1d=False, axis=slice(None), dtype=float
         )
         if weights is not None:
             weight_array = _sort_array2d(weight_array, self._sort_order)
+        if has_mask:
+            weight_array[self.mask] = 0
         weight_array = weight_array.ravel()
 
         if calc_vander:
@@ -613,7 +749,7 @@ class _Algorithm2D:
         elif not calc_vander:
             raise ValueError('if calc_pinv is True, then calc_vander must also be True')
 
-        if weights is None:
+        if weights is None and not has_mask:
             pseudo_inverse = self._polynomial.pseudo_inverse
         else:
             pseudo_inverse = np.linalg.pinv(
@@ -676,12 +812,15 @@ class _Algorithm2D:
         is defined by convention as ``degree + 1``.
 
         """
+        has_mask = self.mask is not None
         weight_array = _check_optional_array(
-            self._shape, weights, copy_input=copy_weights, check_finite=self._check_finite,
-            ensure_1d=False, axis=slice(None), dtype=float
+            self._shape, weights, copy_input=copy_weights or has_mask,
+            check_finite=self._check_finite, ensure_1d=False, axis=slice(None), dtype=float
         )
         if weights is not None:
             weight_array = _sort_array2d(weight_array, self._sort_order)
+        if has_mask:
+            weight_array[self.mask] = 0
         diff_order = _check_scalar_variable(
             diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
         )
@@ -904,13 +1043,17 @@ class _Algorithm2D:
             The weight array for the data, with boolean dtype.
 
         """
+        has_mask = self.mask is not None
         weight_array = _check_optional_array(
             self._shape, weights, check_finite=self._check_finite, dtype=bool,
-            ensure_1d=False, axis=slice(None)
+            ensure_1d=False, axis=slice(None), copy_input=has_mask
         )
         if weights is not None:
             weight_array = _sort_array2d(weight_array, self._sort_order)
-        weight_array = weight_array
+        if has_mask:
+            # for classification methods, weight = False means masked points cannot be
+            # used to determine the background, which seems like the correct logic
+            weight_array[self.mask] = False
 
         return y, weight_array
 
@@ -953,6 +1096,7 @@ class _Algorithm2D:
                 klass = Baseline2D
             # have to reset x and z ordering so that all outputs and parameters are
             # correctly sorted
+            mask = self.mask
             if self._sort_order is None:
                 x = self.x
                 z = self.z
@@ -969,10 +1113,12 @@ class _Algorithm2D:
                 else:
                     x = self.x[self._inverted_order]
                     z = self.z
+                if self.mask is not None:
+                    mask = _sort_array2d(self._mask, self._inverted_order)
 
             class_object = klass(
                 x, z, check_finite=self._check_finite, assume_sorted=assume_sorted,
-                output_dtype=self._dtype
+                output_dtype=self._dtype, mask=mask, strict_mask=self._strict_mask
             )
             class_object.banded_solver = self.banded_solver
 

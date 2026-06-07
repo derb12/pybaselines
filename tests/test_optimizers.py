@@ -95,6 +95,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     checked_method_keys = ('weights', 'tol_history', 'result')
     two_d = True
     weight_keys = ('average_weights', 'weights')
+    supports_mask = True
 
     @ensure_deprecation(1, 5)  # remove the warnings filter after version 1.5
     @pytest.mark.filterwarnings('ignore:"pspline_mpls" is deprecated')
@@ -497,7 +498,8 @@ def test_determine_polyorders(baseline_ptp):
         expected_orders = (6, 8)
 
     output_orders = optimizers._determine_polyorders(
-        y + true_baseline, poly_order=1, weights=None, fit_function=fitter.modpoly
+        y + true_baseline, poly_order=1, weights=None, fit_function=fitter.modpoly,
+        fitter=fitter
     )
 
     assert_array_equal(output_orders, expected_orders)
@@ -507,9 +509,10 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
     """Class for testing adaptive_minmax baseline."""
 
     func_name = 'adaptive_minmax'
-    checked_keys = ('weights', 'constrained_weights', 'poly_order')
+    checked_keys = ('poly_order',)
     checked_method_keys = ('weights', 'tol_history')
-    weight_keys = ('weights', 'constrained_weights')
+    weight_keys = ()
+    supports_mask = True
 
     @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
     def test_methods(self, method):

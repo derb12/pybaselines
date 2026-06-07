@@ -84,6 +84,7 @@ class SplineTester(BaseTester, PSplineResultMixin):
     """Base testing class for spline functions."""
 
     module = spline
+    supports_mask = True
 
     def test_numba_implementation(self):
         """
@@ -648,6 +649,24 @@ class TestPsplineDerpsalsa(IterativeSplineTester, WhittakerComparisonMixin):
             with pytest.warns(DeprecationWarning):
                 self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
 
+    @pytest.mark.parametrize('strict_mask', (True, False))
+    def test_masking_small_kernel(self, strict_mask):
+        """Ensures behavior if the smoothing kernel is too small when using a mask."""
+        mask = np.zeros_like(self.y, dtype=bool)
+        mask[5:20] = True
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=strict_mask)
+        method = getattr(fitter, self.func_name)
+
+        if strict_mask:
+            context = pytest.raises(ValueError, match='kernel is too small for the mask')
+        else:
+            context = pytest.warns(ParameterWarning, match='kernel is too small for the mask')
+
+        with context:
+            result = method(self.y, smooth_half_window=3)
+        if not strict_mask:  # should handle without causing issues in the fit
+            assert np.isfinite(result[0]).all()
+
 
 @pytest.mark.filterwarnings('ignore:"pspline_mpls" is deprecated')
 class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin):
@@ -655,6 +674,7 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin)
 
     func_name = 'pspline_mpls'
     checked_keys = ('half_window', 'weights', 'result')
+    supports_mask = False
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):

@@ -147,7 +147,7 @@ class _OptimizerHelper:
 class _OptimizersNDMixin:
     """A mixin class for providing optimizer methods for 1D and 2D."""
 
-    @_handle_io(ensure_dims=False, skip_sorting=True)
+    @_handle_io(ensure_dims=False, skip_sorting=True, mask_support=0)
     def collab_pls(self, data, average_dataset=True, method='asls', method_kwargs=None):
         """
         Collaborative Penalized Least Squares (collab-PLS).

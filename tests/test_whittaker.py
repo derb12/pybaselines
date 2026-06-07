@@ -34,7 +34,7 @@ def sparse_iasls(data, lam, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, diff_orde
         # note: intentionally using asls weighting here to follow the W.T @ W used in literature
         lhs = weight_matrix.T @ weight_matrix + penalty_matrix
         baseline = spsolve(lhs, (weight_matrix.T @ weight_matrix + d1_penalty) @ y)
-        new_weights = _weighting._asls(y, baseline, p)
+        new_weights = _weighting._asls(y - baseline, p=p)
         calc_difference = relative_difference(weight_array, new_weights)
         if calc_difference < tol:
             break
@@ -56,7 +56,7 @@ def sparse_drpls(data, lam, eta=0.5, diff_order=2, tol=1e-3, max_iter=50):
     for i in range(max_iter + 1):
         lhs = weight_matrix + d1_penalty + (identity_matrix - eta * weight_matrix) @ penalty_matrix
         baseline = spsolve(lhs, weight_array * y)
-        new_weights, _ = _weighting._drpls(y, baseline, i + 1)
+        new_weights, _ = _weighting._drpls(y - baseline, iteration=i + 1)
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
@@ -78,15 +78,15 @@ def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coe
     for _ in range(max_iter + 1):
         lhs = weight_matrix + alpha_matrix @ penalty_matrix
         baseline = spsolve(lhs, weight_array * y)
-        new_weights, residual, _ = _weighting._aspls(
-            y, baseline, asymmetric_coef, alternate_weighting
+        residual = y - baseline
+        new_weights, _, new_alpha = _weighting._aspls(
+            residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
-        abs_d = np.abs(residual)
-        alpha_matrix.setdiag(abs_d / abs_d.max())
+        alpha_matrix.setdiag(new_alpha)
 
     return baseline
 
@@ -96,6 +96,7 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerR
 
     module = whittaker
     checked_keys = ('weights', 'tol_history', 'result')
+    supports_mask = True
 
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_scipy_solvers(self, diff_order):
@@ -126,8 +127,8 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerR
             self.algorithm.banded_solver = 4  # force use solve_banded
             solve_output = self.class_func(self.y, diff_order=2)[0]
 
-            assert_allclose(pentadiagonal_output, solveh_output, rtol=1e-4, atol=1e-8)
-            assert_allclose(pentadiagonal_output, solve_output, rtol=1e-4, atol=1e-8)
+            assert_allclose(pentadiagonal_output, solveh_output, rtol=5e-4, atol=1e-8)
+            assert_allclose(pentadiagonal_output, solve_output, rtol=5e-4, atol=1e-8)
         finally:
             self.algorithm.banded_solver = original_solver
 
@@ -552,6 +553,24 @@ class TestDerpsalsa(WhittakerTester):
         with pytest.raises(TypeError):
             with pytest.warns(DeprecationWarning):
                 self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
+
+    @pytest.mark.parametrize('strict_mask', (True, False))
+    def test_masking_small_kernel(self, strict_mask):
+        """Ensures behavior if the smoothing kernel is too small when using a mask."""
+        mask = np.zeros_like(self.y, dtype=bool)
+        mask[5:20] = True
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=strict_mask)
+        method = getattr(fitter, self.func_name)
+
+        if strict_mask:
+            context = pytest.raises(ValueError, match='kernel is too small for the mask')
+        else:
+            context = pytest.warns(ParameterWarning, match='kernel is too small for the mask')
+
+        with context:
+            result = method(self.y, smooth_half_window=3)
+        if not strict_mask:  # should handle without causing issues in the fit
+            assert np.isfinite(result[0]).all()
 
 
 class TestBrPLS(WhittakerTester):

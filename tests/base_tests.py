@@ -428,6 +428,7 @@ class BaseTester:
     required_repeated_kwargs = None
     two_d = False
     requires_unique_x = False
+    supports_mask = False
 
     @classmethod
     def setup_class(cls):
@@ -727,6 +728,78 @@ class BaseTester:
                 output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
             assert np.isfinite(output).all()
 
+    @pytest.mark.parametrize('use_nan', (True, False))
+    def test_masking(self, use_nan, **kwargs):
+        """Ensures fitting with a mask produces better results than without the mask.
+
+        Tests both NaN and non-NaN fills to ensure values are handled correctly.
+
+        """
+        # for the current x,y test values, the below indices are a mixture of peak and non-peak
+        # regions; leave endpoints without problem regions for methods that need padding
+        bad_indices = np.random.default_rng(1).choice(
+            np.arange(20, len(self.x) - 20, dtype=np.intp), 30, replace=False
+        )
+        mask = np.zeros(len(self.x), dtype=bool)
+        mask[bad_indices] = True
+        y_bad = self.y.copy()
+        # make the problematic region negative so that it would otherwise have strong
+        # effects for most methods since they're designed to work with positive outliers (peaks)
+        if use_nan:
+            y_bad[..., mask] = np.nan
+        else:
+            y_bad[..., mask] -= 500
+
+        fitter = self.algorithm_base(self.x, mask=mask)
+        method = getattr(fitter, self.func_name)
+        if not self.supports_mask:
+            with pytest.raises(NotImplementedError, match='masking is not supported'):
+                method(y_bad)
+            return
+
+        masked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
+
+        fitter.mask = None
+        normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
+
+        rtol = 5e-4
+        atol = 8e-1 if self.func_name in ('aspls', 'irsqr') else 1e-3
+        assert_allclose(masked_fit, normal_fit, rtol=rtol, atol=atol)
+        if not use_nan:
+            nonmasked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
+
+            # sanity check that fitting the bad data without a mask should produce severally
+            # incorrect results; some methods are also fairly robust when containing
+            # only a few negative outliers
+            atol_2 = 1e-2 if self.func_name in ('quant_reg', 'adaptive_minmax') else 5
+            nonmasked_close = np.allclose(nonmasked_fit, normal_fit, rtol=rtol, atol=atol_2)
+            if nonmasked_close:
+                abs_err = abs(nonmasked_fit - normal_fit)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    rel_err = abs_err / abs(normal_fit)
+                max_rel_err = rel_err[np.isfinite(rel_err)].max()
+                max_abs_err = abs_err.max()
+                raise AssertionError((
+                    f'data does not cause incorrect fit; max atol: {max_abs_err}'
+                    f' & max rtol: {max_rel_err}'
+                ))
+
+    def test_masking_fit_all(self, **kwargs):
+        """Ensures a mask with all False values is the same as no mask."""
+        mask = np.zeros((self.x.size, ), dtype=bool)
+
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=False)
+        method = getattr(fitter, self.func_name)
+
+        masked_fit, _ = method(self.y, **self.kwargs, **kwargs)
+        fitter.mask = None
+        normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
+
+        # TODO the higher rtol for derpsalsa is a temporary shim since the masked convolution
+        # does not do padding; will change once it's decided how to handle
+        rtol = 2e-6 if 'derpsalsa' in self.func_name else 1e-14
+        assert_allclose(masked_fit, normal_fit, rtol=rtol, atol=1e-14)
+
 
 class BasePolyTester(BaseTester):
     """
@@ -819,6 +892,7 @@ class BaseTester2D:
     required_repeated_kwargs = None
     three_d = False
     requires_unique_xz = False
+    supports_mask = False
 
     @classmethod
     def setup_class(cls):
@@ -1096,6 +1170,76 @@ class BaseTester2D:
                 output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
             assert np.isfinite(output).all()
 
+    @pytest.mark.parametrize('use_nan', (True, False))
+    def test_masking(self, use_nan, **kwargs):
+        """Ensures fitting with a mask produces better results than without the mask.
+
+        Tests both NaN and non-NaN fills to ensure values are handled correctly.
+
+        """
+        # for the current x,z,y test values, the below indices are a mixture of peak and non-peak
+        # regions; leave endpoints without problem regions for methods that need padding
+        x_ind = np.arange(5, self.x.size - 5)
+        z_ind = np.arange(5, self.z.size - 5)
+        possible_indices = np.array(
+            np.meshgrid(x_ind, z_ind, indexing='ij'), dtype=np.intp
+        ).reshape(2, -1)
+        bad_indices = np.random.default_rng(1).choice(possible_indices, 70, replace=False, axis=1)
+        mask = np.zeros((self.x.size, self.z.size), dtype=bool)
+        mask[bad_indices[0], bad_indices[1]] = True
+        y_bad = self.y.copy()
+        # make the problematic region negative so that it would otherwise have strong
+        # effects for most methods since they're designed to work with positive outliers (peaks)
+        if use_nan:
+            y_bad[..., mask] = np.nan
+        else:
+            y_bad[..., mask] -= 500
+        fitter = self.algorithm_base(self.x, self.z, mask=mask)
+        method = getattr(fitter, self.func_name)
+        if not self.supports_mask:
+            with pytest.raises(NotImplementedError, match='masking is not supported'):
+                method(y_bad)
+            return
+
+        masked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
+
+        fitter.mask = None
+        normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
+
+        rtol = 5e-4
+        atol = 1e-2 if self.func_name in ('quant_reg', 'irsqr') else 1e-3
+        assert_allclose(masked_fit, normal_fit, rtol=rtol, atol=atol)
+        if not use_nan:
+            nonmasked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
+
+            # sanity check that fitting the bad data without a mask should produce severally
+            # incorrect results
+            atol_2 = 5
+            nonmasked_close = np.allclose(nonmasked_fit, normal_fit, rtol=rtol, atol=atol_2)
+            if nonmasked_close:
+                abs_err = abs(nonmasked_fit - normal_fit)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    rel_err = abs_err / abs(normal_fit)
+                max_rel_err = rel_err[np.isfinite(rel_err)].max()
+                max_abs_err = abs_err.max()
+                raise AssertionError((
+                    f'data does not cause incorrect fit; max atol: {max_abs_err}'
+                    f' & max rtol: {max_rel_err}'
+                ))
+
+    def test_masking_fit_all(self, **kwargs):
+        """Ensures a mask with all False values is the same as no mask."""
+        mask = np.zeros((self.x.size, self.z.size), dtype=bool)
+
+        fitter = self.algorithm_base(self.x, self.z, mask=mask, strict_mask=False)
+        method = getattr(fitter, self.func_name)
+
+        masked_fit, _ = method(self.y, **self.kwargs, **kwargs)
+        fitter.mask = None
+        normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
+
+        assert_allclose(masked_fit, normal_fit, rtol=1e-14, atol=1e-14)
+
 
 class BasePolyTester2D(BaseTester2D):
     """
@@ -1186,15 +1330,15 @@ class RecreationMixin:
         assert_allclose(second_baseline, first_baseline, rtol=1e-12, atol=1e-12)
 
 
-class MaskingMixin:
-    """A mixin for BaseTester and BaseTester2D to ensure masking works when expected.
+class WeightMaskingMixin:
+    """A mixin for BaseTester and BaseTester2D to ensure weighted masking works when expected.
 
     Some methods should theoretically allow masking by simply inputting the mask as weights,
     so this mixin is for ensuring that behavior.
 
     """
 
-    def test_masking(self, **kwargs):
+    def test_weight_masking(self, **kwargs):
         """Ensures weights can be correctly used as a mask, when expected."""
         if hasattr(self, 'two_d'):  # BaseTester
             bad_region = (self.x > 30) & (self.x < 40)

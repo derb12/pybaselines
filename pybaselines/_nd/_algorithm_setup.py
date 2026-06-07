@@ -10,7 +10,7 @@ from functools import partial, wraps
 
 
 def _handle_io(func=None, *, sort_keys=(), ensure_dims=True, reshape_keys=(),
-               skip_sorting=False, require_unique=False):
+               skip_sorting=False, require_unique=False, mask_support=-1):
     """
     Wraps a baseline method to validate inputs and correct outputs.
 
@@ -40,6 +40,14 @@ def _handle_io(func=None, *, sort_keys=(), ensure_dims=True, reshape_keys=(),
         If True, will check ``self.x`` and potentially ``self.z`` to ensure all values are
         unique and will raise an error if non-unique values are present. Default is False,
         which skips the check.
+    mask_support : bool, optional
+        An integer designating how the wrapped function handles masking. The default value `-1`
+        means that masking is not supported and will raise an error if `self.mask` is not None.
+        A value of `1` means that masking is supported through weighted interpolation and will
+        replace both input data and weights with zeros following the mask. A value
+        of `0` means to ignore the mask, for use within some optimizers. `mask_support` values
+        not equal to 0 or 1 will replace values within the input data with linear interpolation
+        so that no issues with NaN values occur.
 
     Returns
     -------
@@ -55,13 +63,13 @@ def _handle_io(func=None, *, sort_keys=(), ensure_dims=True, reshape_keys=(),
     if func is None:
         return partial(
             _handle_io, sort_keys=sort_keys, ensure_dims=ensure_dims, reshape_keys=reshape_keys,
-            skip_sorting=skip_sorting, require_unique=require_unique
+            skip_sorting=skip_sorting, require_unique=require_unique, mask_support=mask_support
         )
 
     @wraps(func)
     def inner(self, *args, **kwargs):
         return self._handle_io(
             func, sort_keys=sort_keys, ensure_dims=ensure_dims, reshape_keys=reshape_keys,
-            skip_sorting=skip_sorting, require_unique=require_unique
+            skip_sorting=skip_sorting, require_unique=require_unique, mask_support=mask_support
         )(self, *args, **kwargs)
     return inner

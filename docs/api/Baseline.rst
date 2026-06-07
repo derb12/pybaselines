@@ -8,7 +8,7 @@ algorithms under a single interface.
 .. currentmodule:: pybaselines
 
 .. autoclass:: Baseline
-   :members: banded_solver, pentapy_solver
+   :members: banded_solver, mask, pentapy_solver
 
 
 Polynomial Algorithms
