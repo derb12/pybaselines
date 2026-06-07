@@ -501,7 +501,7 @@ def _check_optional_array(data_size, array=None, dtype=None, order=None, check_f
 
     """
     if array is None:
-        output_array = np.ones(data_size)
+        output_array = np.ones(data_size, dtype=dtype)
     else:
         output_array = _check_sized_array(
             array, data_size, dtype=dtype, order=order, check_finite=check_finite,

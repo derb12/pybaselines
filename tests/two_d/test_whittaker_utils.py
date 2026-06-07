@@ -14,7 +14,7 @@ from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import spsolve
 
 from pybaselines._banded_utils import diff_penalty_diagonals
-from pybaselines._compat import dia_object, identity
+from pybaselines._compat import csr_object, dia_object, identity
 from pybaselines.two_d import _spline_utils, _whittaker_utils
 from pybaselines.utils import difference_matrix
 
@@ -235,7 +235,8 @@ def test_penalized_system_add_penalty(diff_order):
     assert_allclose(whittaker_system.main_diagonal, expected_diagonal, rtol=1e-12, atol=1e-13)
 
 
-def test_face_splitting():
+@pytest.mark.parametrize('sparse_input', (True, False))
+def test_face_splitting(sparse_input):
     """Ensures the face-splitting algorithms works as intended."""
     basis = np.array([
         [1., 2, 3],
@@ -243,16 +244,19 @@ def test_face_splitting():
         [7, 8, 9],
         [10, 11, 12]
     ])
-
-    output = _whittaker_utils._face_splitting(basis)
+    input_basis = csr_object(basis) if sparse_input else basis
+    output = _whittaker_utils._face_splitting(input_basis)
 
     assert output.shape == (basis.shape[0], basis.shape[1]**2)
-    assert issparse(output)
+    assert issparse(output) == sparse_input
 
-    expected_output = kron(basis, np.ones((1, basis.shape[1]))).multiply(
-        kron(np.ones((1, basis.shape[1])), basis)
+    expected_output = (
+        np.kron(basis, np.ones((1, basis.shape[1])))
+        * np.kron(np.ones((1, basis.shape[1])), basis)
     )
-    assert_allclose(output.toarray(), expected_output.toarray(), rtol=0, atol=1e-12)
+    assert_allclose(
+        output.toarray() if sparse_input else output, expected_output, rtol=0, atol=1e-12
+    )
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
@@ -452,7 +456,7 @@ def test_whittaker_system_setup_eigenvalues(data_fixture2d, num_eigens, diff_ord
         identity(num_eigens_r),
         lam_c * dia_object((eigenvalues_cols, 0), shape=(num_eigens_c, num_eigens_c))
     )
-    expected_basis = kron(expected_basis_rows, expected_basis_cols)
+    expected_basis = np.kron(expected_basis_rows, expected_basis_cols)
 
     assert whittaker_system.penalty.shape == (num_eigens_r * num_eigens_c,)
     assert_allclose(
@@ -473,7 +477,7 @@ def test_whittaker_system_setup_eigenvalues(data_fixture2d, num_eigens, diff_ord
             rtol=1e-12, atol=1e-12
         )
         assert_allclose(
-            np.abs(whittaker_system.basis.toarray()), np.abs(expected_basis.toarray()),
+            np.abs(whittaker_system.basis), np.abs(expected_basis),
             rtol=1e-12, atol=1e-12
         )
     else:
@@ -486,7 +490,7 @@ def test_whittaker_system_setup_eigenvalues(data_fixture2d, num_eigens, diff_ord
             rtol=1e-12, atol=1e-12
         )
         assert_allclose(
-            whittaker_system.basis.toarray(), expected_basis.toarray(),
+            whittaker_system.basis, expected_basis,
             rtol=1e-12, atol=1e-12
         )
 
@@ -628,7 +632,7 @@ def test_whittaker_system_solve_eigenvalues(data_fixture2d, num_eigens, diff_ord
     weights = np.random.default_rng(0).normal(0.8, 0.05, y.size)
     weights = np.clip(weights, 0, 1, dtype=float)
 
-    basis = kron(basis_r, basis_c)
+    basis = csr_object(np.kron(basis_r, basis_c))
     CWT = basis.multiply(
         np.repeat(weights.ravel(), num_bases[0] * num_bases[1]).reshape(len(x) * len(z), -1)
     ).T
@@ -721,7 +725,7 @@ def test_whittaker_system_factorized_solve_eigenvalues(data_fixture2d, num_eigen
     weights = np.random.default_rng(0).normal(0.8, 0.05, y.size)
     weights = np.clip(weights, 0, 1, dtype=float)
 
-    basis = kron(basis_r, basis_c)
+    basis = csr_object(np.kron(basis_r, basis_c))
     CWT = basis.multiply(
         np.repeat(weights.ravel(), num_bases[0] * num_bases[1]).reshape(len(x) * len(z), -1)
     ).T
@@ -795,7 +799,7 @@ def test_whittaker_system_direct_solve_eigenvalues(data_fixture2d, num_eigens, d
     weights = np.random.default_rng(0).normal(0.8, 0.05, y.size)
     weights = np.clip(weights, 0, 1, dtype=float)
 
-    basis = kron(basis_r, basis_c)
+    basis = csr_object(np.kron(basis_r, basis_c))
     CWT = basis.multiply(
         np.repeat(weights.ravel(), num_bases[0] * num_bases[1]).reshape(len(x) * len(z), -1)
     ).T

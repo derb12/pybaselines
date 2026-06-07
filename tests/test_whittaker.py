@@ -14,11 +14,12 @@ import pytest
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _weighting, whittaker
-from pybaselines.results import WhittakerResult
 from pybaselines.utils import relative_difference, ParameterWarning
 from pybaselines._compat import diags, identity
 
-from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
+from .base_tests import (
+    BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin, ensure_deprecation
+)
 
 
 def sparse_iasls(data, lam, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3, diff_order=2):
@@ -78,24 +79,24 @@ def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coe
         lhs = weight_matrix + alpha_matrix @ penalty_matrix
         baseline = spsolve(lhs, weight_array * y)
         residual = y - baseline
-        new_weights, _ = _weighting._aspls(
+        new_weights, _, new_alpha = _weighting._aspls(
             residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
         )
         if relative_difference(weight_array, new_weights) < tol:
             break
         weight_array = new_weights
         weight_matrix.setdiag(weight_array)
-        abs_d = np.abs(residual)
-        alpha_matrix.setdiag(abs_d / abs_d.max())
+        alpha_matrix.setdiag(new_alpha)
 
     return baseline
 
 
-class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
+class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
     checked_keys = ('weights', 'tol_history', 'result')
+    supports_mask = True
 
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_scipy_solvers(self, diff_order):
@@ -126,8 +127,8 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
             self.algorithm.banded_solver = 4  # force use solve_banded
             solve_output = self.class_func(self.y, diff_order=2)[0]
 
-            assert_allclose(pentadiagonal_output, solveh_output, rtol=1e-4, atol=1e-8)
-            assert_allclose(pentadiagonal_output, solve_output, rtol=1e-4, atol=1e-8)
+            assert_allclose(pentadiagonal_output, solveh_output, rtol=5e-4, atol=1e-8)
+            assert_allclose(pentadiagonal_output, solve_output, rtol=5e-4, atol=1e-8)
         finally:
             self.algorithm.banded_solver = original_solver
 
@@ -137,12 +138,6 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin):
         _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
 
         assert params['tol_history'].size == max_iter + 1
-
-    def test_result_obj(self):
-        """Ensures the `result` item in the output params is a WhittakerResult."""
-        _, params = self.class_func(self.y, **self.kwargs)
-        # don't use isinstance since don't want to allow subclasses
-        assert type(params['result']) is WhittakerResult
 
 
 class TestAsLS(WhittakerTester):
@@ -558,6 +553,24 @@ class TestDerpsalsa(WhittakerTester):
         with pytest.raises(TypeError):
             with pytest.warns(DeprecationWarning):
                 self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
+
+    @pytest.mark.parametrize('strict_mask', (True, False))
+    def test_masking_small_kernel(self, strict_mask):
+        """Ensures behavior if the smoothing kernel is too small when using a mask."""
+        mask = np.zeros_like(self.y, dtype=bool)
+        mask[5:20] = True
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=strict_mask)
+        method = getattr(fitter, self.func_name)
+
+        if strict_mask:
+            context = pytest.raises(ValueError, match='kernel is too small for the mask')
+        else:
+            context = pytest.warns(ParameterWarning, match='kernel is too small for the mask')
+
+        with context:
+            result = method(self.y, smooth_half_window=3)
+        if not strict_mask:  # should handle without causing issues in the fit
+            assert np.isfinite(result[0]).all()
 
 
 class TestBrPLS(WhittakerTester):

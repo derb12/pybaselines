@@ -7,13 +7,17 @@ import warnings
 import numpy as np
 from scipy.special import erf, expit
 
-from .utils import _MIN_FLOAT, ParameterWarning
+from .utils import _MIN_FLOAT, ParameterWarning, gaussian
 from ._compat import _np_ge_2
 
 
 def masked_weighting(weighting_func):
     """
     A decorator that adds mask support for weighting functions.
+
+    Only valid indices, indicated with `False` values within `mask`, will be passed
+    to the wrapped weighting function. Remaining indices in the output weights will
+    have values set to 0.
 
     Parameters
     ----------
@@ -35,6 +39,8 @@ def masked_weighting(weighting_func):
             input_residual = residual
         else:
             fit_mask = np.logical_not(mask)
+            if residual.ndim == 1 and mask.ndim == 2:  # some 2D methods ravel data
+                fit_mask = fit_mask.ravel()
             input_residual = residual[fit_mask]
 
         output = weighting_func(input_residual, **kwargs)
@@ -394,7 +400,7 @@ def _iarpls(residual, iteration):
 
 
 @masked_weighting
-def _aspls(residual, asymmetric_coef=2., alternate_weighting=True):
+def _aspls_inner(residual, asymmetric_coef=2., alternate_weighting=True):
     """
     Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
 
@@ -431,14 +437,69 @@ def _aspls(residual, asymmetric_coef=2., alternate_weighting=True):
              ' is too low and/or "max_iter" is too high'), ParameterWarning,
             stacklevel=3
         )
-        return np.zeros(residual.shape), exit_early
+        return np.zeros(residual.shape), exit_early, np.ones(residual.shape)
     else:
         exit_early = False
     std, mean = _safe_std_mean(neg_residual, ddof=1)  # use dof=1 since sampling subset
     offset = std - mean if alternate_weighting else std
     # add a negative sign since expit performs 1/(1+exp(-input))
     weights = expit(-(asymmetric_coef / std) * (residual - offset))
-    return weights, exit_early
+
+    # ensure alpha is not 0; otherwise, the sparsity of alpha @ penalty
+    # can change, which is inefficient, as well as potentially causing numerical issues
+    abs_d = np.maximum(abs(residual), _MIN_FLOAT)
+    alpha_array = abs_d / abs_d.max()
+
+    return weights, exit_early, alpha_array
+
+
+def _aspls(residual, asymmetric_coef=2., alternate_weighting=True, mask=None):
+    """
+    Weighting for the adaptive smoothness penalized least squares smoothing (aspls).
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
+    asymmetric_coef : float, optional
+        The asymmetric coefficient for the weighting. Higher values leads to a steeper
+        weighting curve (ie. more step-like). Default is 2.
+    alternate_weighting : bool, optional
+        If True (default), subtracts the mean of the negative residuals within the weighting
+        equation. If False, uses the weighting equation as stated within the aspls paper.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,) or (M, N)
+        The calculated weights.
+    exit_early : bool
+        Designates if there is a potential error with the calculation such that no further
+        iterations should be performed.
+    alpha_array : numpy.ndarray, shape (N,) or (M, N)
+        The updated alpha values.
+
+    References
+    ----------
+    Zhang, F., et al. Baseline correction for infrared spectra using adaptive smoothness
+    parameter penalized least squares method. Spectroscopy Letters, 2020, 53(3), 222-233.
+
+    """
+    weights, exit_early, masked_alpha = _aspls_inner(
+        residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting,
+        mask=mask
+    )
+    if mask is None:
+        alpha_array = masked_alpha
+    else:
+        # for aspls, alpha ~ 1 denotes peak regions with weights ~ 0; so masked regions with
+        # weight=0 should have alpha=1
+        alpha_array = np.ones(residual.shape)
+        fit_mask = np.logical_not(mask)
+        if residual.ndim == 1 and mask.ndim == 2:
+            fit_mask = fit_mask.ravel()
+        alpha_array[fit_mask] = masked_alpha
+
+    return weights, exit_early, alpha_array
 
 
 @masked_weighting
@@ -480,7 +541,44 @@ def _psalsa(residual, p, k):
 
 
 @masked_weighting
-def _derpsalsa(residual, p, k, partial_weights):
+def _derpsalsa_inner(residual, p, k):
+    """
+    Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
+    p : float
+        The penalizing weighting factor. Must be between 0 and 1. Positive residuals
+        will be given ``p * exp(-[(residual) / k)]**2 / 2)`` weight, and negative residuals
+        will be given ``1 - p`` weight.
+    k : float
+        A factor that controls the exponential decay of the weights for baseline
+        values greater than the data. Should be approximately the height at which
+        a value could be considered a peak.
+
+    Returns
+    -------
+    weights : numpy.ndarray, shape (N,) or (M, N)
+        The calculated weights.
+
+    References
+    ----------
+    Korepanov, V. Asymmetric least-squares baseline algorithm with peak screening for
+    automatic processing of the Raman spectra. Journal of Raman Spectroscopy. 2020,
+    51(10), 2061-2065.
+
+    """
+    # no need for caution since inner exponential is always negative, but still mask
+    # since it's faster than performing the square and exp on the full residual
+    weights = np.full(residual.shape, 1 - p, dtype=float)
+    mask = residual > 0
+    weights[mask] = p * np.exp(-0.5 * ((residual[mask] / k)**2))
+    return weights
+
+
+def _derpsalsa(residual, p, k, partial_weights, mask=None):
     """
     Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
 
@@ -520,11 +618,7 @@ def _derpsalsa(residual, p, k, partial_weights):
     51(10), 2061-2065.
 
     """
-    # no need for caution since inner exponential is always negative, but still mask
-    # since it's faster than performing the square and exp on the full residual
-    weights = np.full(residual.shape, 1 - p, dtype=float)
-    mask = residual > 0
-    weights[mask] = p * np.exp(-0.5 * ((residual[mask] / k)**2))
+    weights = _derpsalsa_inner(residual, p=p, k=k, mask=mask)
     weights *= partial_weights
     return weights
 
@@ -576,7 +670,7 @@ def _quantile(residual, quantile, eps=None):
 
     """
     if eps is None:
-        eps = (np.abs(residual).max() * 1e-4)**2
+        eps = (abs(residual).max() * 1e-4)**2
     numerator = np.where(residual > 0, quantile, 1 - quantile)
     # use max(eps, _MIN_FLOAT) to ensure that eps + 0 > 0
     denominator = np.sqrt(residual**2 + max(eps, _MIN_FLOAT))  # approximates abs(residual)
@@ -723,3 +817,90 @@ def _lsrpls(residual, iteration, alternate_weighting=False):
     inner = (10**(min(iteration, 100)) / std) * (residual - (2 * std - mean))
     weights = 0.5 * (1 - (inner / (1 + np.abs(inner))))
     return weights, exit_early
+
+
+@masked_weighting
+def _em(residual, sigma, fraction_noise, fraction_positive, symmetric):
+    """
+    Expectation-maximization for a uniform-Gaussian mixture model.
+
+    Assumes the total model has a Gaussian distribution representing noise and
+    one or two uniform distributions covering positive and negative residuals.
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (N,) or (M, N)
+        The current residual, ``data - baseline``.
+    sigma : float
+        The current standard deviation of the Gaussian model representing the noise.
+    fraction_noise : float
+        The current fraction of the mixture model pertaining to noise.
+    fraction_positive : float
+        The current fraction of the mixture model pertaining to the positive uniform
+        distribution.
+    symmetric : bool
+        If True, denotes the total model contains two uniform distributions for
+        both positive and negative residuals. False signifies there is only one
+        uniform distribution for positive residuals.
+
+    Returns
+    -------
+    posterior_prob_noise : numpy.ndarray, shape (N,) or (M, N)
+        The calculated weights, corresponding to the posterior probability of the
+        Gaussian model.
+    new_sigma : float
+        The updated standard deviation of the Gaussian model representing the noise.
+    new_fraction_noise : float
+        The updated fraction of the mixture model pertaining to noise.
+    new_fraction_positive : float
+        The updated fraction of the mixture model pertaining to the positive uniform
+        distribution.
+
+    References
+    ----------
+    de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
+    Intelligent Laboratory Systems, 2012, 117, 56-60.
+
+    Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
+    preprint arXiv:1901.06708, 2019.
+
+    """
+    # expectation part of expectation-maximization -> calc pdfs and
+    # posterior probabilities
+    positive_pdf = np.where(
+        residual >= 0, fraction_positive / max(abs(residual.max()), 1e-6), 0
+    )
+    noise_pdf = (
+        fraction_noise * gaussian(residual, 1 / (sigma * np.sqrt(2 * np.pi)), 0, sigma)
+    )
+    total_pdf = noise_pdf + positive_pdf
+    if symmetric:
+        negative_pdf = np.where(
+            residual < 0,
+            (1 - fraction_noise - fraction_positive) / max(abs(residual.min()), 1e-6),
+            0
+        )
+        total_pdf += negative_pdf
+    posterior_prob_noise = noise_pdf / np.maximum(total_pdf, _MIN_FLOAT)
+
+    # maximization part of expectation-maximization -> update sigma and
+    # fractions of each pdf
+    noise_sum = posterior_prob_noise.sum()
+    # TODO can noise_sum ever be 0? Should terminate early if so, since all weights
+    # would be 0
+    new_sigma = np.sqrt((posterior_prob_noise * residual**2).sum() / noise_sum)
+    if not symmetric:
+        new_fraction_noise = posterior_prob_noise.mean()
+        new_fraction_positive = 1 - new_fraction_noise
+    else:
+        new_posterior_prob_positive = positive_pdf / total_pdf
+        new_posterior_prob_negative = negative_pdf / total_pdf
+
+        positive_sum = new_posterior_prob_positive.sum()
+        negative_sum = new_posterior_prob_negative.sum()
+        total_sum = noise_sum + positive_sum + negative_sum
+
+        new_fraction_noise = noise_sum / total_sum
+        new_fraction_positive = positive_sum / total_sum
+
+    return posterior_prob_noise, new_sigma, new_fraction_noise, new_fraction_positive

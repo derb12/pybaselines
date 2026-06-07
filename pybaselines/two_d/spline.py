@@ -13,7 +13,7 @@ from .. import _weighting
 from .._nd.pls import _PLSNDMixin
 from .._validation import _check_spline_degree
 from ..results import PSplineResult2D
-from ..utils import relative_difference
+from ..utils import _masked_matvec, relative_difference
 from ._algorithm_setup import _Algorithm2D
 from ._whittaker_utils import PenalizedSystem2D
 
@@ -95,9 +95,6 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         ----------
         de Rooi, J., et al. Mixture models for baseline estimation. Chemometric and
         Intelligent Laboratory Systems, 2012, 117, 56-60.
-
-        Ghojogh, B., et al. Fitting A Mixture Distribution to Data: Tutorial. arXiv
-        preprint arXiv:1901.06708, 2019.
 
         """
         _check_spline_degree(spline_degree)
@@ -261,7 +258,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             weights=weights, spline_degree=spline_degree, num_knots=num_knots
         )
 
-    @_Algorithm2D._handle_io(sort_keys=('weights',))
+    @_Algorithm2D._handle_io(sort_keys=('weights',), mask_support=1)
     def pspline_iasls(self, data, lam=1e3, p=1e-2, lam_1=1e-4, num_knots=25,
                       spline_degree=3, max_iter=50, tol=1e-3, weights=None, diff_order=2):
         """
@@ -359,7 +356,7 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
                 data, weights=None, poly_order=2, calc_vander=True, calc_pinv=True
             )
             baseline = self._polynomial.vandermonde @ (pseudo_inverse @ data.ravel())
-            weights = _weighting._iasls(data - baseline.reshape(self._shape), p=p)
+            weights = _weighting._iasls(data - baseline.reshape(self._shape), p=p, mask=self.mask)
 
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam
@@ -368,15 +365,18 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         # B.T @ P_1 @ B and B.T @ P_1 @ y
         penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
         d1_penalty = pspline.basis.basis.T @ penalized_system_1.penalty
+        if self.mask is None:
+            partial_rhs = d1_penalty @ y.ravel()
+        else:
+            partial_rhs = _masked_matvec(d1_penalty, y.ravel(), self.mask.ravel())
 
-        partial_rhs = d1_penalty @ y.ravel()
         d1_penalty = d1_penalty @ pspline.basis.basis
         pspline.add_penalty(d1_penalty)
 
         tol_history = np.empty(max_iter + 1)
         for i in range(max_iter + 1):
             baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
-            new_weights = _weighting._iasls(y - baseline, p=p)
+            new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:

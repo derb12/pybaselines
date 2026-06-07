@@ -32,9 +32,9 @@ def _face_splitting(basis):
 
     Returns
     -------
-    scipy.sparse.spmatrix or scipy.sparse.sparray
+    output : numpy.ndarray or scipy.sparse.spmatrix or scipy.sparse.sparray
         The face-splitting product of the input basis matrix with itself, with
-        shape (`M`, `N**2`).
+        shape (`M`, `N**2`). Is the same sparse or dense type as the input.
 
     References
     ----------
@@ -45,7 +45,13 @@ def _face_splitting(basis):
 
     """
     ones = np.ones((1, basis.shape[1]))
-    return kron(basis, ones).multiply(kron(ones, basis))
+    # NOTE cannot just use np.multiply to generalize until scipy sparse matrices are no
+    # longer supported since they overload __mul__ for matrix multiplication
+    if issparse(basis):
+        output = kron(basis, ones).multiply(kron(ones, basis))
+    else:
+        output = np.kron(basis, ones) * (np.kron(ones, basis))
+    return output
 
 
 class PenalizedSystem2D:
@@ -377,11 +383,11 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
     Attributes
     ----------
-    basis_r : scipy.sparse.csr_matrix, shape (N, P)
+    basis_r : numpy.ndarray, shape (N, P)
         The spline basis for the rows. Has a shape of (`N,` `P`), where `N` is the number of
         points in `x`, and `P` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[0] + spline_degree[0] - 1``).
-    basis_c : scipy.sparse.csr_matrix, shape (M, Q)
+    basis_c : numpy.ndarray, shape (M, Q)
         The spline basis for the columns. Has a shape of (`M,` `Q`), where `M` is the number of
         points in `z`, and `Q` is the number of basis functions (equal to ``K - spline_degree - 1``
         or equivalently ``num_knots[1] + spline_degree[1] - 1``).
@@ -791,7 +797,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
             raise ValueError('No basis matrix when not using eigendecomposition')
 
         if self._basis is None:
-            self._basis = kron(self.basis_r, self.basis_c)
+            self._basis = np.kron(self.basis_r, self.basis_c)
         return self._basis
 
     def _calc_dof(self, weights, assume_a='pos'):

@@ -55,7 +55,7 @@ from .utils import ParameterWarning, _convert_coef, _interp_inplace, relative_di
 class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
     """A base class for all polynomial algorithms."""
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def poly(self, data, poly_order=2, weights=None, return_coef=False):
         """
         Computes a polynomial fit to the data.
@@ -690,7 +690,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             weights=weights, eps=eps, return_coef=return_coef
         )
 
-    @_Algorithm._handle_io(sort_keys=('weights',))
+    @_Algorithm._handle_io(sort_keys=('weights',), mask_support=1)
     def goldindec(self, data, poly_order=2, tol=1e-3, max_iter=250, weights=None,
                   cost_function='asymmetric_indec', peak_ratio=0.5, alpha_factor=0.99,
                   tol_2=1e-3, tol_3=1e-6, max_iter_2=100, return_coef=False):
@@ -822,6 +822,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
 
         coef = pseudo_inverse @ y_fit
         initial_baseline = self._polynomial.vandermonde @ coef
+        pos_wt_mask = weight_array > 0
+        total_points = pos_wt_mask.sum()
 
         a = 0
         # reference used b=1, but normalized y before fitting; instead, set b as max of
@@ -850,8 +852,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                     break
             j_max = max(j, j_max)
 
-            up_count = (y > baseline).sum()
-            up_down_ratio = up_count / max(1, self._size - up_count)
+            up_count = (y > baseline)[pos_wt_mask].sum()
+            up_down_ratio = up_count / max(1, total_points - up_count)
             calc_difference = up_down_ratio - up_down_ratio_goal
             tol_history[0, i] = calc_difference
             if calc_difference > tol_2:

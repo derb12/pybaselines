@@ -67,6 +67,16 @@ def baseline_2d_all_below():
     return y_data, baseline
 
 
+def data_and_mask(one_d):
+    """Generates data and mask for testing."""
+    if one_d:
+        y, baseline = baseline_1d_normal()
+    else:
+        y, baseline = baseline_2d_normal()
+
+    return y, baseline, np.random.default_rng(0).choice([True, False], y.shape, p=(0.3, 0.7))
+
+
 def test_safe_std_mean():
     """Checks that the calculated mean and standard deviation is correct."""
     array = np.arange(60, dtype=float)
@@ -156,9 +166,10 @@ def test_safe_std_mean_allow_nan(run_enum):
     assert np.isnan(calc_std)
 
 
-@pytest.mark.parametrize('quantile', np.linspace(0, 1, 21))
+@pytest.mark.parametrize('eps', (1e-10, None))
+@pytest.mark.parametrize('quantile', np.linspace(0, 1, 5))
 @pytest.mark.parametrize('one_d', (True, False))
-def test_quantile_weighting(quantile, one_d):
+def test_quantile_weighting(quantile, one_d, eps):
     """Ensures the quantile weighting calculation is correct."""
     if one_d:
         y, fit = baseline_1d_normal()
@@ -166,15 +177,37 @@ def test_quantile_weighting(quantile, one_d):
         y, fit = baseline_2d_normal()
 
     residual = y - fit
-    eps = 1e-10
     calc_loss = _weighting._quantile(y - fit, quantile=quantile, eps=eps)
 
     numerator = np.where(residual > 0, quantile, 1 - quantile)
-    denominator = np.sqrt(residual**2 + eps)
+    expected_eps = (abs(residual).max() * 1e-4)**2 if eps is None else eps
+    denominator = np.sqrt(residual**2 + expected_eps)
 
     expected_loss = numerator / denominator
 
-    assert_allclose(calc_loss, expected_loss)
+    assert_allclose(calc_loss, expected_loss, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('eps', (1e-10, None))
+@pytest.mark.parametrize('quantile', np.linspace(0, 1, 5))
+@pytest.mark.parametrize('one_d', (True, False))
+def test_quantile_masked(quantile, one_d, eps):
+    """Ensures quantile weighting works with masks."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    mask_inv = np.logical_not(mask)
+
+    residual = y_data - baseline
+    eps = 1e-10
+    calc_loss = _weighting._quantile(residual, quantile=quantile, eps=eps, mask=mask)
+
+    numerator = np.where(residual > 0, quantile, 1 - quantile)
+    expected_eps = (abs(residual[mask_inv]).max() * 1e-4)**2 if eps is None else eps
+    denominator = np.sqrt(residual**2 + expected_eps)
+
+    expected_loss = numerator / denominator
+    expected_loss[mask] = 0
+
+    assert_allclose(calc_loss, expected_loss, rtol=1e-12, atol=1e-12)
 
 
 @pytest.mark.parametrize('p', (0.01, 0.99))
@@ -192,7 +225,6 @@ def test_asls_normal(p, one_d):
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
 
@@ -228,6 +260,21 @@ def test_asls_all_below(p, one_d):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+def test_asls_masked(one_d):
+    """Ensures asls weighting works with masks."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    p = 0.1
+
+    weights = _weighting._asls(y_data - baseline, p=p, mask=mask)
+    expected_weights = np.where(y_data > baseline, p, 1 - p)
+    expected_weights[mask] = 0
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
 @pytest.mark.parametrize('p', (0.01, 0.99))
 @pytest.mark.parametrize('one_d', (True, False))
 def test_iasls_normal(p, one_d):
@@ -243,7 +290,6 @@ def test_iasls_normal(p, one_d):
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
     # also test against _asls, which should just be the sqrt of _iasls
@@ -283,6 +329,21 @@ def test_iasls_all_below(p, one_d):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+def test_iasls_masked(one_d):
+    """Ensures iasls weighting works with masks."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    p = 0.1
+
+    weights = _weighting._iasls(y_data - baseline, p=p, mask=mask)
+    expected_weights = np.where(y_data > baseline, p**2, (1 - p)**2)
+    expected_weights[mask] = 0
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
 def expected_airpls(y, baseline, iteration, normalize_weights):
     """
     The weighting for adaptive iteratively reweighted penalized least squares (airPLS).
@@ -291,9 +352,9 @@ def expected_airpls(y, baseline, iteration, normalize_weights):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
@@ -305,7 +366,7 @@ def expected_airpls(y, baseline, iteration, normalize_weights):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     Notes
@@ -449,6 +510,30 @@ def test_airpls_overflow(one_d, dtype, normalize):
     assert_allclose(residual_l1_norm, expected_residual_l1_norm, rtol=1e-12, atol=1e-12)
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+def test_airpls_masked(one_d):
+    """Ensures iasls weighting works with masks."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    iteration = 5
+    mask_inv = np.logical_not(mask)
+
+    weights, residual_l1_norm, exit_early = _weighting._airpls(
+        y_data - baseline, iteration=iteration, mask=mask
+    )
+    partial_weights = expected_airpls(y_data[mask_inv], baseline[mask_inv], iteration, False)
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    residual = (y_data - baseline)[mask_inv]
+    expected_residual_l1_norm = abs(residual[residual < 0].sum())
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert_allclose(residual_l1_norm, expected_residual_l1_norm, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
 def expected_arpls(y, baseline):
     """
     The weighting for asymmetrically reweighted penalized least squares smoothing (arpls).
@@ -457,14 +542,14 @@ def expected_arpls(y, baseline):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     References
@@ -495,7 +580,6 @@ def test_arpls_normal(one_d):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
 
@@ -580,6 +664,23 @@ def test_arpls_overflow(one_d):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+def test_arpls_masked(one_d):
+    """Ensures arpls weighting works with masks."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    mask_inv = np.logical_not(mask)
+
+    weights, exit_early = _weighting._arpls(y_data - baseline, mask=mask)
+    partial_weights = expected_arpls(y_data[mask_inv], baseline[mask_inv])
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
 def expected_drpls(y, baseline, iteration):
     """
     The weighting for doubly reweighted penalized least squares (drpls).
@@ -588,9 +689,9 @@ def expected_drpls(y, baseline, iteration):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
@@ -598,7 +699,7 @@ def expected_drpls(y, baseline, iteration):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     References
@@ -631,7 +732,6 @@ def test_drpls_normal(iteration, one_d):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
 
@@ -692,6 +792,24 @@ def test_drpls_overflow(one_d):
     assert not exit_early
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+def test_drpls_masked(one_d):
+    """Ensures drpls weighting works as intended for a normal baseline."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    iteration = 5
+    mask_inv = np.logical_not(mask)
+
+    weights, exit_early = _weighting._drpls(y_data - baseline, iteration=iteration, mask=mask)
+    partial_weights = expected_drpls(y_data[mask_inv], baseline[mask_inv], iteration)
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
 def expected_iarpls(y, baseline, iteration):
     """
     The weighting for doubly reweighted penalized least squares (drpls).
@@ -700,9 +818,9 @@ def expected_iarpls(y, baseline, iteration):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
@@ -710,7 +828,7 @@ def expected_iarpls(y, baseline, iteration):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     References
@@ -749,7 +867,6 @@ def test_iarpls_normal(iteration, one_d):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
 
@@ -810,6 +927,24 @@ def test_iarpls_overflow(one_d):
     assert not exit_early
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+def test_iarpls_masked(one_d):
+    """Ensures iarpls weighting works as intended for a normal baseline."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    iteration = 5
+    mask_inv = np.logical_not(mask)
+
+    weights, exit_early = _weighting._iarpls(y_data - baseline, iteration=iteration, mask=mask)
+    partial_weights = expected_iarpls(y_data[mask_inv], baseline[mask_inv], iteration)
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
 def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
     """
     The weighting for adaptive smoothness penalized least squares smoothing (aspls).
@@ -818,9 +953,9 @@ def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
     asymmetric_coef : float
         The asymmetric coefficient for the weighting. Higher values leads to a steeper
@@ -831,8 +966,10 @@ def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
+    alpha_array : numpy.ndarray, shape (N,) or (M, N)
+        The updated alpha values.
 
     References
     ----------
@@ -850,7 +987,10 @@ def expected_aspls(y, baseline, asymmetric_coef, alternate_weighting):
         shifted_residual = residual
     weights = 1 / (1 + np.exp(asymmetric_coef * (shifted_residual - std) / std))
 
-    return weights
+    abs_d = np.abs(residual)
+    alpha_array = abs_d / abs_d.max()
+
+    return weights, alpha_array
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -863,10 +1003,10 @@ def test_aspls_normal(one_d, asymmetric_coef, alternate_weighting):
     else:
         y_data, baseline = baseline_2d_normal()
 
-    weights, exit_early = _weighting._aspls(
+    weights, exit_early, alpha = _weighting._aspls(
         y_data - baseline, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
     )
-    expected_weights = expected_aspls(
+    expected_weights, expected_alpha = expected_aspls(
         y_data, baseline, asymmetric_coef, alternate_weighting
     )
 
@@ -874,8 +1014,12 @@ def test_aspls_normal(one_d, asymmetric_coef, alternate_weighting):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
+
+    assert isinstance(alpha, np.ndarray)
+    assert alpha.shape == y_data.shape
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
+    assert ((alpha >= 0) & (alpha <= 1)).all()
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -888,10 +1032,10 @@ def test_aspls_all_above(one_d, asymmetric_coef, alternate_weighting):
     else:
         y_data, baseline = baseline_2d_all_above()
 
-    weights, exit_early = _weighting._aspls(
+    weights, exit_early, alpha = _weighting._aspls(
         y_data - baseline, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting
     )
-    expected_weights = expected_aspls(
+    expected_weights, expected_alpha = expected_aspls(
         y_data, baseline, asymmetric_coef, alternate_weighting
     )
 
@@ -899,6 +1043,11 @@ def test_aspls_all_above(one_d, asymmetric_coef, alternate_weighting):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
+
+    assert isinstance(alpha, np.ndarray)
+    assert alpha.shape == y_data.shape
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
+    assert ((alpha >= 0) & (alpha <= 1)).all()
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -912,16 +1061,21 @@ def test_aspls_all_below(one_d, asymmetric_coef, alternate_weighting):
         y_data, baseline = baseline_2d_all_below()
 
     with pytest.warns(utils.ParameterWarning):
-        weights, exit_early = _weighting._aspls(
+        weights, exit_early, alpha = _weighting._aspls(
             y_data - baseline, asymmetric_coef=asymmetric_coef,
             alternate_weighting=alternate_weighting
         )
     expected_weights = np.zeros_like(y_data)
+    expected_alpha = np.ones_like(y_data)
 
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert exit_early
+
+    assert isinstance(alpha, np.ndarray)
+    assert alpha.shape == y_data.shape
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
 
 
 @pytest.mark.parametrize('one_d', (True, False))
@@ -951,14 +1105,14 @@ def test_aspls_overflow(one_d, asymmetric_coef, alternate_weighting):
 
     # sanity check to ensure overflow actually should occur
     with pytest.warns(RuntimeWarning):
-        expected_weights = expected_aspls(
+        expected_weights, expected_alpha = expected_aspls(
             y_data, baseline, asymmetric_coef, alternate_weighting
         )
     # the resulting weights should still be finite since 1 / (1 + inf) == 0
     assert np.isfinite(expected_weights).all()
 
     with np.errstate(over='raise'):
-        weights, exit_early = _weighting._aspls(
+        weights, exit_early, alpha = _weighting._aspls(
             y_data - baseline, asymmetric_coef=asymmetric_coef,
             alternate_weighting=alternate_weighting
         )
@@ -974,6 +1128,37 @@ def test_aspls_overflow(one_d, asymmetric_coef, alternate_weighting):
 
     # weights should still be the same as the naive calculation regardless of exponential overflow
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('asymmetric_coef', (0.5, 2, 4))
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_aspls_masked(one_d, asymmetric_coef, alternate_weighting):
+    """Ensures aspls weighting works as intended for a normal baseline."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    mask_inv = np.logical_not(mask)
+
+    weights, exit_early, alpha = _weighting._aspls(
+        y_data - baseline, asymmetric_coef=asymmetric_coef,
+        alternate_weighting=alternate_weighting, mask=mask
+    )
+    partial_weights, partial_alpha = expected_aspls(
+       y_data[mask_inv], baseline[mask_inv], asymmetric_coef, alternate_weighting
+    )
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+    expected_alpha = np.ones_like(y_data)
+    expected_alpha[mask_inv] = partial_alpha
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+    assert isinstance(alpha, np.ndarray)
+    assert alpha.shape == y_data.shape
+    assert_allclose(alpha, expected_alpha, rtol=1e-12, atol=1e-12)
 
 
 def expected_psalsa(y, baseline, p, k):
@@ -984,9 +1169,9 @@ def expected_psalsa(y, baseline, p, k):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
     p : float
         The penalizing weighting factor. Must be between 0 and 1. Values greater
@@ -999,7 +1184,7 @@ def expected_psalsa(y, baseline, p, k):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     References
@@ -1030,7 +1215,6 @@ def test_psalsa_normal(one_d, k, p):
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
 
@@ -1112,15 +1296,33 @@ def test_psalsa_overflow(one_d, k, p):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+def test_psalsa_masked(one_d):
+    """Ensures psalsa weighting works as intended for a normal baseline."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    mask_inv = np.logical_not(mask)
+    p = 0.5
+    k = 2
+
+    weights = _weighting._psalsa(y_data - baseline, p=p, k=k, mask=mask)
+    partial_weights = expected_psalsa(y_data[mask_inv], baseline[mask_inv], p, k)
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
 def expected_derpsalsa(y, baseline, p, k, partial_weights):
     """
     Weights for derivative peak-screening asymmetric least squares algorithm (derpsalsa).
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
     p : float
         The penalizing weighting factor. Must be between 0 and 1. Values greater
@@ -1130,12 +1332,12 @@ def expected_derpsalsa(y, baseline, p, k, partial_weights):
         A factor that controls the exponential decay of the weights for baseline
         values greater than the data. Should be approximately the height at which
         a value could be considered a peak.
-    partial_weights : numpy.ndarray, shape (N,)
+    partial_weights : numpy.ndarray, shape (N,) or (M, N)
         The weights associated with the first and second derivatives of the data.
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     Notes
@@ -1180,7 +1382,6 @@ def test_derpsalsa_normal(k, p):
     assert isinstance(weights, np.ndarray)
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
 
@@ -1230,6 +1431,36 @@ def test_derpsalsa_all_below(k, p):
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
 
 
+def test_derpsalsa_masked():
+    """Ensures derpsalsa weighting works as intended for a normal baseline."""
+    y_data, baseline, mask = data_and_mask(one_d=True)
+    mask_inv = np.logical_not(mask)
+    p = 0.1
+    k = 2
+
+    diff_y_1 = np.gradient(y_data)
+    diff_y_2 = np.gradient(diff_y_1)
+    rms_diff_1 = np.sqrt(diff_y_1.dot(diff_y_1) / y_data.size)
+    rms_diff_2 = np.sqrt(diff_y_2.dot(diff_y_2) / y_data.size)
+
+    diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
+    diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
+    partial_weights = diff_1_weights * diff_2_weights
+
+    weights = _weighting._derpsalsa(
+        y_data - baseline, p=p, k=k, partial_weights=partial_weights, mask=mask
+    )
+    partial_weights = expected_derpsalsa(
+        y_data[mask_inv], baseline[mask_inv], p, k, partial_weights[mask_inv]
+    )
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+
+
 def expected_brpls(y, baseline, beta):
     """
     The weighting for Bayesian Reweighted Penalized Least Squares (BrPLS).
@@ -1238,16 +1469,16 @@ def expected_brpls(y, baseline, beta):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
     beta : float
         A value between 0 and 1 designating the probability of signal within the data.
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     References
@@ -1294,7 +1525,6 @@ def test_brpls_normal(one_d, beta):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
 
@@ -1435,6 +1665,24 @@ def test_brpls_beta_extremes(one_d, beta):
     assert_allclose(weights, expected_weights, rtol=1e-10, atol=1e-10)
 
 
+@pytest.mark.parametrize('one_d', (True, False))
+def test_brpls_masked(one_d):
+    """Ensures brpls weighting works as intended for a normal baseline."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    mask_inv = np.logical_not(mask)
+    beta = 0.5
+
+    weights, exit_early = _weighting._brpls(y_data - baseline, beta=beta, mask=mask)
+    partial_weights = expected_brpls(y_data[mask_inv], baseline[mask_inv], beta)
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
 def expected_lsrpls(y, baseline, iteration, alternate_weighting):
     """
     The weighting for the locally symmetric reweighted penalized least squares (lsrpls).
@@ -1443,9 +1691,9 @@ def expected_lsrpls(y, baseline, iteration, alternate_weighting):
 
     Parameters
     ----------
-    y : numpy.ndarray, shape (N,)
+    y : numpy.ndarray, shape (N,) or (M, N)
         The measured data.
-    baseline : numpy.ndarray, shape (N,)
+    baseline : numpy.ndarray, shape (N,) or (M, N)
         The calculated baseline.
     iteration : int
         The iteration number. Should be 1-based, such that the first iteration is 1
@@ -1457,7 +1705,7 @@ def expected_lsrpls(y, baseline, iteration, alternate_weighting):
 
     Returns
     -------
-    weights : numpy.ndarray, shape (N,)
+    weights : numpy.ndarray, shape (N,) or (M, N)
         The calculated weights.
 
     Notes
@@ -1516,7 +1764,6 @@ def test_lsrpls_normal(iteration, one_d, alternate_weighting):
     assert weights.shape == y_data.shape
     assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
     assert not exit_early
-    # ensure all weights are between 0 and 1
     assert ((weights >= 0) & (weights <= 1)).all()
 
 
@@ -1592,6 +1839,34 @@ def test_lsrpls_overflow(one_d, alternate_weighting):
 
 
 @pytest.mark.parametrize('one_d', (True, False))
+@pytest.mark.parametrize('alternate_weighting', (True, False))
+def test_lsrpls_masked(one_d, alternate_weighting):
+    """Ensures lsrpls weighting works as intended for a normal baseline."""
+    y_data, baseline, mask = data_and_mask(one_d)
+    iteration = 5
+    mask_inv = np.logical_not(mask)
+
+    partial_weights = expected_drpls(y_data[mask_inv], baseline[mask_inv], iteration)
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    weights, exit_early = _weighting._lsrpls(
+        y_data - baseline, iteration=iteration, alternate_weighting=alternate_weighting,
+        mask=mask
+    )
+    partial_weights = expected_lsrpls(
+        y_data[mask_inv], baseline[mask_inv], iteration, alternate_weighting
+    )
+    expected_weights = np.zeros_like(y_data)
+    expected_weights[mask_inv] = partial_weights
+
+    assert isinstance(weights, np.ndarray)
+    assert weights.shape == y_data.shape
+    assert_allclose(weights, expected_weights, rtol=1e-12, atol=1e-12)
+    assert not exit_early
+
+
+@pytest.mark.parametrize('one_d', (True, False))
 def test_masked_weighting(one_d):
     """Tests basic functionality of `masked_weighting`."""
 
@@ -1642,3 +1917,27 @@ def test_masked_weighting(one_d):
     assert_allclose(masked_output[1], a, rtol=1e-14, atol=1e-14)
     assert_allclose(masked_output[2], b, rtol=1e-14, atol=1e-14)
     assert masked_output[2].shape == residual[mask_inverse].shape
+
+
+def test_masked_weighting_dim_mismatch():
+    """Ensures `masked_weighting` works when mask is 2D and residual is 1D.
+
+    This case arises for some 2D methods that solve a flattened 1D system.
+
+    """
+    @_weighting.masked_weighting
+    def func(residual):
+        weights = np.where(residual > 0, 1., 0.)
+        return weights
+
+    residual = np.linspace(-1, 1, 100)
+    expected_weights = np.where(residual > 0, 1., 0.)
+
+    mask = np.zeros(residual.shape, dtype=bool).reshape(25, 4)
+    mask[1, 1] = True
+    masked_output = func(residual, mask=mask)
+    assert masked_output.ndim == 1
+    assert_allclose(
+        masked_output, np.where(mask.ravel(), 0., expected_weights),
+        rtol=1e-14, atol=1e-14
+    )

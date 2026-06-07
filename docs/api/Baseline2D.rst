@@ -7,7 +7,7 @@ provides all of the various different algorithms under a single interface.
 .. currentmodule:: pybaselines
 
 .. autoclass:: Baseline2D
-   :members: banded_solver, pentapy_solver
+   :members: banded_solver, mask, pentapy_solver
 
 
 Polynomial Algorithms

@@ -14,6 +14,7 @@ import pytest
 from scipy.sparse import vstack
 
 from pybaselines import _banded_utils, misc
+from pybaselines.utils import gaussian
 from pybaselines._compat import dia_object, diags
 
 from .base_tests import BaseTester, ensure_deprecation, get_data
@@ -166,6 +167,49 @@ class TestBeads(MiscTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, lam_2=array_vals)
 
+    @pytest.mark.parametrize('reject_outliers', (True, False))
+    def test_parabola_len(self, reject_outliers):
+        """Ensures `parabola_len` allows ignoring outlier points on the edges for better beads fits.
+
+        Reproducer code slightly modified from https://github.com/derb12/pybaselines/issues/70.
+
+        """
+        x = np.linspace(0, 1000, 1000)
+        signal = (
+            gaussian(x, 9, 100, 12)
+            + gaussian(x, 6, 180, 5)
+            + gaussian(x, 8, 350, 11)
+            + gaussian(x, 15, 400, 18)
+            + gaussian(x, 6, 550, 6)
+            + gaussian(x, 13, 700, 8)
+            + gaussian(x, 9, 800, 9)
+            + gaussian(x, 9, 880, 7)
+        )
+        baseline = 15 - 10 * np.exp(-x / 600)
+        noise = np.random.default_rng(0).normal(0, 0.05, len(x))
+        y = signal + baseline + noise
+        y2 = 1. * y
+        y2 += gaussian(x, 9, 990, 7)
+        y2[0] += 20
+
+        fitter = self.algorithm_base(x)
+
+        parabola_len = (3, 80) if reject_outliers else 0
+        good_fit = fitter.beads(
+            y, lam_0=0.015, lam_1=0.1, lam_2=1, fit_parabola=True, parabola_len=parabola_len
+        )[0]
+        fit = fitter.beads(
+            y2, lam_0=0.015, lam_1=0.1, lam_2=1, fit_parabola=True, parabola_len=parabola_len
+        )[0]
+
+        if reject_outliers:
+            assert_allclose(fit, good_fit, rtol=0.05, atol=0.1)
+        else:
+            # sanity check that without outlier rejection on the end points, the fit on y2 is
+            # significantly worse
+            with pytest.raises(AssertionError):
+                assert_allclose(fit, good_fit, rtol=1, atol=10)
+
 
 def test_banded_dot_vector():
     """Ensures the dot product of a banded matrix and a vector is correct."""
@@ -257,9 +301,64 @@ def test_parabola():
 
     parabola = misc._parabola(y)
 
-    assert_allclose(parabola[0], y[0])
-    assert_allclose(parabola[-1], y[-1])
-    assert_allclose(parabola[mid_point], y.min())
+    assert_allclose(parabola[0], y[0], rtol=1e-14, atol=1e-14)
+    assert_allclose(parabola[-1], y[-1], rtol=1e-14, atol=1e-14)
+    assert_allclose(parabola[mid_point], y.min(), rtol=1e-14, atol=1e-14)
+
+
+@pytest.mark.parametrize('noisy_left', (True, False))
+@pytest.mark.parametrize('noisy_right', (True, False))
+@pytest.mark.parametrize('parabola_len', (3, (3, 60), 0, 1))
+def test_parabola_len(noisy_left, noisy_right, parabola_len):
+    """Ensures `parabola_len` allows ignoring outlier points on the edges when fitting a parabola.
+
+    Reproducer code from https://github.com/derb12/pybaselines/issues/70.
+
+    """
+    x = np.linspace(0, 1000, 1000)
+    signal = (
+        gaussian(x, 9, 100, 12)
+        + gaussian(x, 6, 180, 5)
+        + gaussian(x, 8, 350, 11)
+        + gaussian(x, 15, 400, 18)
+        + gaussian(x, 6, 550, 6)
+        + gaussian(x, 13, 700, 8)
+        + gaussian(x, 9, 800, 9)
+        + gaussian(x, 9, 880, 7)
+    )
+    baseline = 10 - 10 * np.exp(-x / 600)
+    noise = np.random.default_rng(0).normal(0, 0.05, len(x))
+    y = signal + baseline + noise
+    if isinstance(parabola_len, int):
+        left_edge = right_edge = parabola_len
+    else:
+        left_edge, right_edge = parabola_len
+
+    if noisy_right:
+        # partial peak on the end of the signal; needs a larger right edge to ignore
+        y += gaussian(x, 9, 990, 7)
+    if noisy_right and right_edge > 15:
+        expected_right = np.median(y[-right_edge - 1:])
+    else:
+        expected_right = y[-1]
+    if noisy_left:
+        y[0] += 20
+    if noisy_left and left_edge > 1:
+        expected_left = np.median(y[:left_edge + 1])
+    else:
+        expected_left = y[0]
+
+    A = y.min()
+    y1 = expected_left - A
+    y2 = expected_right - A
+    C = (y2 + y1) / 2
+    B = C - y1
+    parabola_x = np.linspace(-1, 1, len(y))
+    expected_parabola = A + B * parabola_x + C * parabola_x**2
+
+    parabola = misc._parabola(y, parabola_len=parabola_len)
+
+    assert_allclose(parabola, expected_parabola, rtol=1e-14, atol=1e-14)
 
 
 @pytest.mark.parametrize('filter_type', (1, 2))

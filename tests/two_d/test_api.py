@@ -15,6 +15,7 @@ import pytest
 from pybaselines.two_d import api, morphological, optimizers, polynomial, smooth, spline, whittaker
 
 from ..base_tests import get_data2d, check_param_keys, ensure_deprecation
+from ..test_api import get_public_methods
 
 
 _ALL_CLASSES = (
@@ -25,33 +26,6 @@ _ALL_CLASSES = (
     spline._Spline,
     whittaker._Whittaker
 )
-
-
-def get_public_methods(klass):
-    """
-    Gets all public methods from a class.
-
-    Parameters
-    ----------
-    klass : class
-        The class to use.
-
-    Returns
-    -------
-    list[str, ...]
-        The list of all public methods of the input class.
-
-    """
-    methods = []
-    for method in dir(klass):
-        if (
-            not (method.startswith('_')
-            or method.startswith('pentapy_solver')
-            or method.startswith('banded_solver')
-            or method.startswith('get_method'))
-        ):
-            methods.append(method)
-    return methods
 
 
 # will be like [('asls', whittaker._Whittaker), ('modpoly', polynomial._Polynomial), ...]

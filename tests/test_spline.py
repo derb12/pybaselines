@@ -13,23 +13,24 @@ from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines import _spline_utils, classification, morphological, spline, Baseline
-from pybaselines.results import PSplineResult
 from pybaselines.utils import ParameterWarning
 
-from .base_tests import BaseTester, InputWeightsMixin, RecreationMixin, ensure_deprecation
+from .base_tests import (
+    BaseTester, InputWeightsMixin, PSplineResultMixin, RecreationMixin, ensure_deprecation
+)
 
 
 class WhittakerComparisonMixin:
     """Mixin for comparing penalized spline versions of Whittaker-smoothing algorithms."""
 
-    def test_whittaker_comparison(self, lam=1e5, test_rtol=1e-6, test_atol=1e-12, **kwargs):
+    def test_whittaker_comparison(self, lam=1e5, test_rtol=1e-8, **kwargs):
         """
         Compares the output of the penalized spline (P-spline) versions of Whittaker functions.
 
-        The number of knots for the P-splines are set to ``len(data) + 1`` and the spline
-        degree is set to 0; the result is that the spline basis becomes the identity matrix,
-        and the P-spline version should give the same output as the Whittaker version if
-        the weighting and linear systems were correctly set up.
+        The number of knots for the P-splines are set to ``len(data)`` and the spline
+        degree is set to 1; the result is that the spline basis becomes the identity matrix
+        with basis midpoints centered on each value, and the P-spline version should give the same
+        output as the Whittaker version if the weighting and linear systems were correctly set up.
 
         """
         fitter = Baseline(self.x, check_finite=False, assume_sorted=True)
@@ -37,18 +38,53 @@ class WhittakerComparisonMixin:
         fitter.banded_solver = 3
         whittaker_func = getattr(fitter, self.func_name.split('pspline_')[-1])
 
-        whittaker_output = whittaker_func(self.y, lam=lam, **kwargs)[0]
-        spline_output = self.class_func(
-            self.y, lam=lam, num_knots=len(self.y) + 1, spline_degree=0, **kwargs
-        )[0]
+        whittaker_output, whittaker_params = whittaker_func(self.y, lam=lam, **kwargs)
+        spline_output, spline_params = self.class_func(
+            self.y, lam=lam, num_knots=len(self.y), spline_degree=1, **kwargs
+        )
 
-        assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=test_atol)
+        assert_allclose(spline_output, whittaker_output, rtol=test_rtol, atol=1e-12)
+        assert_allclose(
+            spline_params['weights'], whittaker_params['weights'], rtol=1e-10, atol=1e-6
+        )
+        if 'tol_history' in whittaker_params and whittaker_params['tol_history'].ndim == 1:
+            assert whittaker_params['tol_history'].shape == spline_params['tol_history'].shape
 
 
-class SplineTester(BaseTester):
+def test_ensure_whittaker_comparison_setup():
+    """Ensures the configuration within test_whittaker_comparison actually does what is expected.
+
+    Checks that the spline basis is the identity matrix, and the midpoint of each spline
+    basis is centered on the x-values.
+
+    """
+    # simple case first as a sanity check
+    x = np.array([1, 2, 3, 4], dtype=float)
+    basis = _spline_utils.SplineBasis(x, x.size, spline_degree=1)
+
+    assert_allclose(basis.basis.toarray(), np.eye(x.size), rtol=1e-16, atol=1e-16)
+    assert_allclose(basis.knots, [0, 1, 2, 3, 4, 5], rtol=1e-16, atol=1e-16)
+    assert_allclose(
+        _spline_utils._basis_midpoints(basis.knots, spline_degree=1), x, rtol=1e-16, atol=1e-16
+    )
+
+    x = np.linspace(1, 1500, 1000)
+    dx = np.mean(np.diff(x))
+    basis = _spline_utils.SplineBasis(x, x.size, spline_degree=1)
+
+    assert_allclose(basis.basis.toarray(), np.eye(x.size), rtol=1e-16, atol=1e-16)
+    expected_knots = np.concatenate(([x[0] - dx], x, [x[-1] + dx]))
+    assert_allclose(basis.knots, expected_knots, rtol=1e-16, atol=1e-16)
+    assert_allclose(
+        _spline_utils._basis_midpoints(basis.knots, spline_degree=1), x, rtol=1e-16, atol=1e-16
+    )
+
+
+class SplineTester(BaseTester, PSplineResultMixin):
     """Base testing class for spline functions."""
 
     module = spline
+    supports_mask = True
 
     def test_numba_implementation(self):
         """
@@ -64,12 +100,6 @@ class SplineTester(BaseTester):
             numba_output = self.class_func(self.y)[0]
 
         assert_allclose(numba_output, normal_output, rtol=1e-10, atol=1e-10)
-
-    def test_result_obj(self):
-        """Ensures the `result` item in the output params is a PSplineResult."""
-        _, params = self.class_func(self.y, **self.kwargs)
-        # don't use isinstance since don't want to allow subclasses
-        assert type(params['result']) is PSplineResult
 
     def test_check_spline_degree(self):
         """
@@ -165,12 +195,6 @@ class TestMixtureModel(IterativeSplineTester):
         """Ensure that other difference orders work."""
         lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
-
-    @ensure_deprecation(1, 3)
-    def test_num_bins_deprecation(self):
-        """Ensures a DeprecationWarning is given when num_bins is input."""
-        with pytest.warns(DeprecationWarning):
-            self.class_func(self.y, num_bins=20)
 
 
 class TestIRSQR(IterativeSplineTester):
@@ -410,13 +434,8 @@ class TestPsplineDrPLS(IterativeSplineTester, WhittakerComparisonMixin):
     @pytest.mark.parametrize('eta', (0.2, 0.8))
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_whittaker_comparison(self, lam, eta, diff_order):
-        """
-        Ensures the P-spline version is the same as the Whittaker version.
-
-        Have to use a larger tolerance since pspline_drpls uses interpolation to
-        get the weight at the coefficients' x-values.
-        """
-        super().test_whittaker_comparison(lam=lam, eta=eta, diff_order=diff_order, test_rtol=5e-3)
+        """Ensures the P-spline version is the same as the Whittaker version."""
+        super().test_whittaker_comparison(lam=lam, eta=eta, diff_order=diff_order)
 
     @pytest.mark.parametrize('eta', (-1, 2))
     def test_outside_eta_fails(self, eta):
@@ -519,23 +538,14 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
     @pytest.mark.parametrize('diff_order', (1, 2, 3))
     @pytest.mark.parametrize('alternate_weighting', (True, False))
     def test_whittaker_comparison(self, lam, diff_order, alternate_weighting):
-        """
-        Ensures the P-spline version is the same as the Whittaker version.
-
-        Have to use a larger tolerance since pspline_aspls uses interpolation to
-        get the alpha values at the coefficients' x-values.
-        """
-        if diff_order == 2:
-            rtol = 3e-3
-        else:
-            rtol = 5e-2
+        """Ensures the P-spline version is the same as the Whittaker version."""
         if alternate_weighting:
             asymmetric_coef = 2.
         else:
             asymmetric_coef = 0.5
         super().test_whittaker_comparison(
             lam=lam, diff_order=diff_order, alternate_weighting=alternate_weighting,
-            asymmetric_coef=asymmetric_coef, test_rtol=rtol
+            asymmetric_coef=asymmetric_coef
         )
 
     @pytest.mark.parametrize('asymmetric_coef', (0, -1))
@@ -639,6 +649,24 @@ class TestPsplineDerpsalsa(IterativeSplineTester, WhittakerComparisonMixin):
             with pytest.warns(DeprecationWarning):
                 self.class_func(self.y, pad_kwargs={'mode': 'extrapolate'}, mode='extrapolate')
 
+    @pytest.mark.parametrize('strict_mask', (True, False))
+    def test_masking_small_kernel(self, strict_mask):
+        """Ensures behavior if the smoothing kernel is too small when using a mask."""
+        mask = np.zeros_like(self.y, dtype=bool)
+        mask[5:20] = True
+        fitter = self.algorithm_base(self.x, mask=mask, strict_mask=strict_mask)
+        method = getattr(fitter, self.func_name)
+
+        if strict_mask:
+            context = pytest.raises(ValueError, match='kernel is too small for the mask')
+        else:
+            context = pytest.warns(ParameterWarning, match='kernel is too small for the mask')
+
+        with context:
+            result = method(self.y, smooth_half_window=3)
+        if not strict_mask:  # should handle without causing issues in the fit
+            assert np.isfinite(result[0]).all()
+
 
 @pytest.mark.filterwarnings('ignore:"pspline_mpls" is deprecated')
 class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin):
@@ -646,6 +674,7 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin)
 
     func_name = 'pspline_mpls'
     checked_keys = ('half_window', 'weights', 'result')
+    supports_mask = False
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):

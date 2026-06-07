@@ -186,7 +186,7 @@ def masked_arpls(y, mask=None, lam=1e5, diff_order=2, tol=1e-3, max_iter=50, wei
         # the arpls weighting; could alternatively do:
         # _arpls(np.interp(x, x[mask], y[mask]), baseline) to approximate
         # the y-values, but it leads to a slightly different result
-        calc_weights, exit_early = _arpls(y[mask], baseline[mask])
+        calc_weights, exit_early = _arpls(y[mask] - baseline[mask])
         if exit_early:
             break
         new_weights = np.zeros(len_y)

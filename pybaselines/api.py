@@ -35,8 +35,11 @@ class Baseline(
         is assumed to be sorted, although it will still be checked to be in ascending order.
         Note that some methods will raise an error if `x_data` values are not unique.
     output_dtype : type or numpy.dtype, optional
-        The dtype to cast the output array. Default is None, which uses the typing
-        of the input data.
+        The dtype to cast the output array. Default behavior keeps the dtype as float.
+
+        .. deprecated:: 1.3
+            `output_dtype` is deprecated and will be removed in version 1.5. Use
+            :func:`numpy.astype` on the output baseline instead.
 
     Attributes
     ----------

@@ -247,9 +247,9 @@ class _Misc(_Algorithm):
             If `lam_0`, `lam_1`, or `lam_2` are None, this value is used to calculate them
             using the L1 norm of the zeroth, first, or second derivative of `data`, respectively.
             See notes below for more details. Must be positive. Default is 1.
-        parabola_len : int, optional
-            Size of the window used, at each ends of the data, to prevent issues in `_parabola`
-            when the first and/or last point is an outlier. Default is 3.
+        parabola_len : int or tuple[int, int], optional
+            Size of the window used, at each end of the data, to prevent issues when
+            `fit_parabola` is True and the first and/or last point is an outlier. Default is 3.
 
             .. versionadded:: 1.3.0
 
@@ -304,6 +304,11 @@ class _Misc(_Algorithm):
         baseline, the actual effect is due to the increased penalty on the signal. This can be
         readily observed by looking at the 'signal' key within the output parameter dictionary
         with varying `lam_0`, `lam_1`, `lam_2`, or `alpha` values.
+
+        If `parabola_len` is greater than 0, compares the endpoints of `data` to the standardized
+        median absolute deviation of the edges to reject endpoints if they are outliers and
+        instead use the median of the edge values for constructing the parabola, which prevents
+        edge effects. See https://github.com/derb12/pybaselines/issues/70.
 
         References
         ----------
@@ -651,8 +656,8 @@ def _parabola(data, parabola_len=3):
     ----------
     data : array-like, shape (N,)
         The data values.
-    parabola_len : int, optional
-        Size of the window used, at each ends of the data, to prevent issues when the
+    parabola_len : int or tuple[int, int], optional
+        Size of the window used, at each end of the data, to prevent issues when the
         first and/or last points is an outlier. Default is 3.
 
     Returns
@@ -671,27 +676,23 @@ def _parabola(data, parabola_len=3):
     ``max(data - _parabola(data)) - min(data - _parabola(data))`` is approximately the
     same as ``max(data) - min(data)``.
 
+    If `parabola_len` is greater than 0, compares the endpoints to the standardized median
+    absolute deviation of the edges to reject endpoints if they are outliers and uses the
+    median of the edge values instead for constructing the parabola. See
+    https://github.com/derb12/pybaselines/issues/70.
+
     """
     y = np.asarray(data)
     x = np.linspace(-1, 1, len(y))
-    # use only the endpoints; when trying to use the mean of the last few values, the
-    # fit is usually not as good since beads expects the endpoints to be 0; may allow
-    # setting mean_width as a parameter later
-    A = y.min()
-    # mean_width = 5
-    # y1 = y[:mean_width].mean() - A
-    # y2 = y[-mean_width:].mean() - A
 
     left_y = y[0]
     right_y = y[-1]
 
-    left_len, right_len = _check_scalar(parabola_len, desired_length=2, fill_scalar=True)[0]
     # add 1 so that indexing includes the expected number of points
-    left_len = int(left_len) + 1 if left_len is not None else 0
-    right_len = int(right_len) + 1 if right_len is not None else 0
+    left_len, right_len = _check_scalar(
+        parabola_len, desired_length=2, fill_scalar=True, dtype=np.intp
+    )[0] + 1
     # TODO make the median absolute filtering into a separate function
-    # idea here is to check whether the endpoint would be classified as an outlier if
-    # added to its surrounding values
     if left_len > 1:
         left_med = np.median(y[:left_len])
         left_mad = np.median(abs(y[:left_len] - left_med))
@@ -703,15 +704,15 @@ def _parabola(data, parabola_len=3):
         if abs(right_y - right_med) > 2 * right_mad / 0.6745:
             right_y = right_med
 
-    y1 = left_y - A
-    y2 = right_y - A
-
     # if parabola == p(x) = A + B * x + C * x**2, find coefficients such that
     # p(x[0]==x1) = y[0] - min(y)==y1, p(x[-1]==x2) = y[-1] - min(y)==y2, and p(x_middle==0) = 0:
     # A = min(y)
     # C = (x1 * y2 - x2 * y1) / (x1 * x2**2 - x2 * x1**2)
     # B = (y1 - C) / x1
     # then replace x1 with -1, x2 with 1, and simplify
+    A = y.min()
+    y1 = left_y - A
+    y2 = right_y - A
     C = (y2 + y1) / 2
     B = C - y1
 
@@ -1445,9 +1446,9 @@ def beads(data, freq_cutoff=0.005, lam_0=None, lam_1=None, lam_2=None, asymmetry
         If `lam_0`, `lam_1`, or `lam_2` are None, this value is used to calculate them
         using the L1 norm of the zeroth, first, or second derivative of `data`, respectively.
         See notes below for more details. Must be positive. Default is 1.
-    parabola_len : int, optional
-        Size of the window used, at each ends of the data, to prevent issues in `_parabola`
-        when the first and/or last point is an outlier. Default is 3.
+    parabola_len : int or tuple[int, int], optional
+        Size of the window used, at each end of the data, to prevent issues when
+        `fit_parabola` is True and the first and/or last point is an outlier. Default is 3.
 
         .. versionadded:: 1.3.0
 

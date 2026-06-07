@@ -648,25 +648,29 @@ def test_check_sized_array_name():
 
 
 @pytest.mark.parametrize('list_input', (True, False))
-def test_optional_array_output(small_data, list_input):
+@pytest.mark.parametrize('dtype', (float, int, bool))
+def test_optional_array_output(small_data, list_input, dtype):
     """Ensures output y and x are always numpy arrays and that x is not scaled."""
-    if list_input == 1:
+    if list_input:
         small_data = small_data.tolist()
-    output = _validation._check_optional_array(len(small_data), small_data)
+    output = _validation._check_optional_array(len(small_data), small_data, dtype=dtype)
 
-    actual_array = np.asarray(small_data)
+    actual_array = np.asarray(small_data, dtype=dtype)
 
     assert isinstance(output, np.ndarray)
     assert_array_equal(output, actual_array)
+    assert output.dtype == dtype
 
 
-def test_optional_array_no_input():
+@pytest.mark.parametrize('dtype', (float, int, bool))
+def test_optional_array_no_input(dtype):
     """Ensures an array of ones is created if None is input."""
     length = 10
-    output = _validation._check_optional_array(length, None)
+    output = _validation._check_optional_array(length, None, dtype=dtype)
 
     assert isinstance(output, np.ndarray)
-    assert_array_equal(output, np.ones(length))
+    assert_array_equal(output, np.ones(length, dtype=dtype))
+    assert output.dtype == dtype
 
 
 def test_optional_array_copy_input():

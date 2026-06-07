@@ -16,7 +16,7 @@ import scipy
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning, gaussian, whittaker_smooth
 
-from .base_tests import BaseTester, InputWeightsMixin, ensure_deprecation
+from .base_tests import BaseTester, InputWeightsMixin, WhittakerResultMixin, ensure_deprecation
 from .data import PYWAVELETS_HAAR
 
 
@@ -297,6 +297,11 @@ class ClassificationTester(BaseTester, InputWeightsMixin):
     weight_keys = ('mask',)
     requires_unique_x = True
 
+    def test_mask_dtype(self):
+        """Ensures the output mask is Boolean."""
+        _, params = self.class_func(self.y, **self.kwargs)
+        assert params['mask'].dtype == bool
+
     @ensure_deprecation(1, 4)
     def test_kwargs_deprecation(self):
         """Ensure passing kwargs outside of the pad_kwargs keyword is deprecated."""
@@ -390,7 +395,7 @@ class TestCwtBR(ClassificationTester):
         super().test_output(scales=scales)
 
 
-class TestFabc(ClassificationTester):
+class TestFabc(ClassificationTester, WhittakerResultMixin):
     """Class for testing fabc baseline."""
 
     func_name = 'fabc'

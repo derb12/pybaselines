@@ -336,7 +336,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
 
         return baseline, params
 
-    @_Algorithm._handle_io(skip_sorting=True)
+    @_Algorithm._handle_io(skip_sorting=True, mask_support=0)
     def adaptive_minmax(self, data, poly_order=None, method='modpoly', weights=None,
                         constrained_fraction=0.01, constrained_weight=1e5,
                         estimation_poly_order=2, method_kwargs=None):
@@ -387,10 +387,6 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         params : dict
             A dictionary with the following items:
 
-            * 'weights': numpy.ndarray, shape (N,)
-                The weight array used for fitting the data.
-            * 'constrained_weights': numpy.ndarray, shape (N,)
-                The weight array used for the endpoint-constrained fits.
             * 'poly_order': numpy.ndarray, shape (2,)
                 An array of the two polynomial orders used for the fitting.
             * 'method_params': dict[str, list]
@@ -418,7 +414,8 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         weight_array = _check_optional_array(self._size, weights, check_finite=self._check_finite)
         if poly_order is None:
             poly_orders = _determine_polyorders(
-                y, estimation_poly_order, weight_array, optimizer_obj.method_call, **method_kws
+                y, estimation_poly_order, weight_array, optimizer_obj.method_call,
+                optimizer_obj.fitter, **method_kws
             )
         else:
             poly_orders, scalar_poly_order = _check_scalar(poly_order, 2, True, dtype=int)
@@ -449,7 +446,6 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             constrained_weights = _sort_array(constrained_weights, self._inverted_order)
 
         params = {
-            'weights': weight_array, 'constrained_weights': constrained_weights,
             'poly_order': poly_orders, 'method_params': defaultdict(list)
         }
         # order of inputs is (poly_orders[0], weight_array), (poly_orders[0], constrained_weights),
@@ -1238,7 +1234,7 @@ def optimize_extended_range(data, x_data=None, method='asls', side='both', width
     """
 
 
-def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
+def _determine_polyorders(y, poly_order, weights, fit_function, fitter, **fit_kwargs):
     """
     Selects the appropriate polynomial orders based on the baseline-to-signal ratio.
 
@@ -1252,6 +1248,8 @@ def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
         The weight array for fitting.
     fit_function : Callable
         The function to use for the polynomial fit.
+    fitter : _Algorithm
+        The object used for fitting.
     **fit_kwargs
         Additional keyword arguments to pass to `fit_function`.
 
@@ -1269,6 +1267,10 @@ def _determine_polyorders(y, poly_order, weights, fit_function, **fit_kwargs):
     """
     baseline = fit_function(y, poly_order=poly_order, weights=weights, **fit_kwargs)[0]
     signal = y - baseline
+    if fitter.mask is not None:
+        fit_mask = np.logical_not(fitter.mask)
+        baseline = baseline[fit_mask]
+        signal = signal[fit_mask]
     baseline_to_signal = (baseline.max() - baseline.min()) / (signal.max() - signal.min())
     # Table 2 in reference
     if baseline_to_signal < 0.2:
