@@ -96,7 +96,7 @@ class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerR
 
     module = whittaker
     checked_keys = ('weights', 'tol_history', 'result')
-    mask_support = 1
+    supports_mask = True
 
     @pytest.mark.parametrize('diff_order', (2, 3))
     def test_scipy_solvers(self, diff_order):

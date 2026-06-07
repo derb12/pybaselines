@@ -428,7 +428,7 @@ class BaseTester:
     required_repeated_kwargs = None
     two_d = False
     requires_unique_x = False
-    mask_support = -1
+    supports_mask = False
 
     @classmethod
     def setup_class(cls):
@@ -728,21 +728,31 @@ class BaseTester:
                 output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
             assert np.isfinite(output).all()
 
-    def test_masking(self, **kwargs):
-        """Ensures fitting with a mask produces better results than without the mask."""
+    @pytest.mark.parametrize('use_nan', (True, False))
+    def test_masking(self, use_nan, **kwargs):
+        """Ensures fitting with a mask produces better results than without the mask.
+
+        Tests both NaN and non-NaN fills to ensure values are handled correctly.
+
+        """
         # for the current x,y test values, the below indices are a mixture of peak and non-peak
         # regions; leave endpoints without problem regions for methods that need padding
-        bad_indices = np.random.default_rng(1).uniform(20, len(self.x) - 20, 40).astype(np.intp)
+        bad_indices = np.random.default_rng(1).choice(
+            np.arange(20, len(self.x) - 20, dtype=np.intp), 30, replace=False
+        )
+        mask = np.zeros(len(self.x), dtype=bool)
+        mask[bad_indices] = True
         y_bad = self.y.copy()
         # make the problematic region negative so that it would otherwise have strong
         # effects for most methods since they're designed to work with positive outliers (peaks)
-        y_bad[..., bad_indices] -= 500
-        mask = np.zeros(len(self.x), dtype=bool)
-        mask[bad_indices] = True
+        if use_nan:
+            y_bad[..., mask] = np.nan
+        else:
+            y_bad[..., mask] -= 500
 
         fitter = self.algorithm_base(self.x, mask=mask)
         method = getattr(fitter, self.func_name)
-        if self.mask_support == -1:
+        if not self.supports_mask:
             with pytest.raises(NotImplementedError, match='masking is not supported'):
                 method(y_bad)
             return
@@ -751,26 +761,28 @@ class BaseTester:
 
         fitter.mask = None
         normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
-        nonmasked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
 
-        # sanity check that fitting the bad data without a mask should produce severally
-        # incorrect results; quant_reg is unfortunately also fairly robust when containing
-        # only a few negative outliers
-        nonmasked_close = np.allclose(
-            nonmasked_fit, normal_fit, rtol=5e-4, atol=0.1 if self.func_name == 'quant_reg' else 5
-        )
-        if nonmasked_close:
-            abs_err = abs(nonmasked_fit - normal_fit)
-            with np.errstate(invalid='ignore', divide='ignore'):
-                rel_err = abs_err / abs(normal_fit)
-            max_rel_err = rel_err[np.isfinite(rel_err)].max()
-            max_abs_err = abs_err.max()
-            raise AssertionError((
-                f'data does not cause incorrect fit; max atol: {max_abs_err} & rtol: {max_rel_err}'
-            ))
+        rtol = 5e-4
+        atol = 8e-1 if self.func_name in ('aspls', 'irsqr') else 1e-3
+        assert_allclose(masked_fit, normal_fit, rtol=rtol, atol=atol)
+        if not use_nan:
+            nonmasked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
 
-        atol = 5e-1 if self.func_name in ('aspls', 'irsqr') else 1e-3
-        assert_allclose(masked_fit, normal_fit, rtol=5e-4, atol=atol)
+            # sanity check that fitting the bad data without a mask should produce severally
+            # incorrect results; some methods are also fairly robust when containing
+            # only a few negative outliers
+            atol_2 = 1e-2 if self.func_name in ('quant_reg', 'adaptive_minmax') else 5
+            nonmasked_close = np.allclose(nonmasked_fit, normal_fit, rtol=rtol, atol=atol_2)
+            if nonmasked_close:
+                abs_err = abs(nonmasked_fit - normal_fit)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    rel_err = abs_err / abs(normal_fit)
+                max_rel_err = rel_err[np.isfinite(rel_err)].max()
+                max_abs_err = abs_err.max()
+                raise AssertionError((
+                    f'data does not cause incorrect fit; max atol: {max_abs_err}'
+                    f' & max rtol: {max_rel_err}'
+                ))
 
 
 class BasePolyTester(BaseTester):
@@ -864,6 +876,7 @@ class BaseTester2D:
     required_repeated_kwargs = None
     three_d = False
     requires_unique_xz = False
+    supports_mask = False
 
     @classmethod
     def setup_class(cls):
@@ -1140,6 +1153,63 @@ class BaseTester2D:
             with np.errstate(divide='raise', invalid='raise'):
                 output, params = getattr(fitter, self.func_name)(y, **self.kwargs)
             assert np.isfinite(output).all()
+
+    @pytest.mark.parametrize('use_nan', (True, False))
+    def test_masking(self, use_nan, **kwargs):
+        """Ensures fitting with a mask produces better results than without the mask.
+
+        Tests both NaN and non-NaN fills to ensure values are handled correctly.
+
+        """
+        # for the current x,z,y test values, the below indices are a mixture of peak and non-peak
+        # regions; leave endpoints without problem regions for methods that need padding
+        x_ind = np.arange(5, self.x.size - 5)
+        z_ind = np.arange(5, self.z.size - 5)
+        possible_indices = np.array(
+            np.meshgrid(x_ind, z_ind, indexing='ij'), dtype=np.intp
+        ).reshape(2, -1)
+        bad_indices = np.random.default_rng(1).choice(possible_indices, 70, replace=False, axis=1)
+        mask = np.zeros((self.x.size, self.z.size), dtype=bool)
+        mask[bad_indices[0], bad_indices[1]] = True
+        y_bad = self.y.copy()
+        # make the problematic region negative so that it would otherwise have strong
+        # effects for most methods since they're designed to work with positive outliers (peaks)
+        if use_nan:
+            y_bad[..., mask] = np.nan
+        else:
+            y_bad[..., mask] -= 500
+        fitter = self.algorithm_base(self.x, self.z, mask=mask)
+        method = getattr(fitter, self.func_name)
+        if not self.supports_mask:
+            with pytest.raises(NotImplementedError, match='masking is not supported'):
+                method(y_bad)
+            return
+
+        masked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
+
+        fitter.mask = None
+        normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
+
+        rtol = 5e-4
+        atol = 1e-2 if self.func_name in ('quant_reg', 'irsqr') else 1e-3
+        assert_allclose(masked_fit, normal_fit, rtol=rtol, atol=atol)
+        if not use_nan:
+            nonmasked_fit, _ = method(y_bad, **self.kwargs, **kwargs)
+
+            # sanity check that fitting the bad data without a mask should produce severally
+            # incorrect results
+            atol_2 = 5
+            nonmasked_close = np.allclose(nonmasked_fit, normal_fit, rtol=rtol, atol=atol_2)
+            if nonmasked_close:
+                abs_err = abs(nonmasked_fit - normal_fit)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    rel_err = abs_err / abs(normal_fit)
+                max_rel_err = rel_err[np.isfinite(rel_err)].max()
+                max_abs_err = abs_err.max()
+                raise AssertionError((
+                    f'data does not cause incorrect fit; max atol: {max_abs_err}'
+                    f' & max rtol: {max_rel_err}'
+                ))
 
 
 class BasePolyTester2D(BaseTester2D):

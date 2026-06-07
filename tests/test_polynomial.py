@@ -29,7 +29,7 @@ class PolynomialTester(BasePolyTester, InputWeightsMixin):
 
     module = polynomial
     checked_keys = ('weights',)
-    mask_support = 1
+    supports_mask = True
 
 
 class IterativePolynomialTester(PolynomialTester):
@@ -345,7 +345,7 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
     func_name = 'loess'
     allows_zero_iteration = False
     requires_unique_x = True
-    mask_support = -1
+    supports_mask = False
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('delta', (0, 0.01))

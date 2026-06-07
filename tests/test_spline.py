@@ -84,7 +84,7 @@ class SplineTester(BaseTester, PSplineResultMixin):
     """Base testing class for spline functions."""
 
     module = spline
-    mask_support = 1
+    supports_mask = True
 
     def test_numba_implementation(self):
         """
@@ -680,7 +680,7 @@ class TestPsplineMPLS(SplineTester, InputWeightsMixin, WhittakerComparisonMixin)
 
     func_name = 'pspline_mpls'
     checked_keys = ('half_window', 'weights', 'result')
-    mask_support = -1
+    supports_mask = False
 
     @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
