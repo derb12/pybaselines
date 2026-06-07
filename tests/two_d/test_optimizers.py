@@ -95,6 +95,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     checked_method_keys = ('weights', 'tol_history', 'result')
     three_d = True
     weight_keys = ('average_weights', 'weights')
+    supports_mask = True
 
     @pytest.mark.parametrize(
         'method',
