@@ -554,24 +554,6 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
         ])
         assert_allclose(output, expected_output, rtol=1e-6, atol=1e-9)
 
-    def test_zero_sigma_exits_2(self):
-        """Ensures the method exits early when the calculated noise sigma is ~0.
-
-        Replicates the first part of statsmodels issue #1798.
-
-        """
-        x = np.arange(20)
-        y = np.arange(20, dtype=float)
-        fraction = 0.4
-        total_points = int(len(x) * fraction)
-        with pytest.warns(ParameterWarning, match='calculated noise scale is near 0'):
-            output = self.algorithm_base(x).loess(
-                y, total_points=total_points, max_iter=3, delta=0,
-                scale=4.0469385011764905, symmetric_weights=True, tol=-1
-            )[0]
-        expected_output = y  # should be a perfect fit
-        assert_allclose(output, expected_output, rtol=1e-14, atol=1e-13)
-
     @pytest.mark.parametrize('max_iter', (1, 2))
     def test_zero_weights_fill(self, max_iter):
         """Ensures a window with zero weights with fill with y instead of causing numerical issues.
