@@ -351,14 +351,10 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('delta', (0, 0.01))
-    @pytest.mark.parametrize('conserve_memory', (True, False))
     @pytest.mark.parametrize('use_threshold', (True, False))
-    def test_unchanged_data(self, use_class, use_threshold, conserve_memory, delta):
+    def test_unchanged_data(self, use_class, use_threshold, delta):
         """Ensures that input data is unchanged by the function."""
-        super().test_unchanged_data(
-            use_class, use_threshold=use_threshold,
-            conserve_memory=conserve_memory, delta=delta
-        )
+        super().test_unchanged_data(use_class, use_threshold=use_threshold, delta=delta)
 
     @pytest.mark.parametrize('use_threshold', (True, False))
     @pytest.mark.parametrize('use_original', (True, False))
@@ -408,8 +404,7 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
 
         assert_allclose(baseline, recreated_poly)
 
-    @pytest.mark.parametrize('conserve_memory', (True, False))
-    def test_compare_to_statsmodels(self, conserve_memory):
+    def test_compare_to_statsmodels(self):
         """
         Compares the output of loess to the output of statsmodels.lowess.
 
@@ -453,9 +448,8 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
         # test several iterations to ensure weighting is correct
         for iterations in range(4):
             output = self.algorithm_base(x, check_finite=False, assume_sorted=True).loess(
-                y, conserve_memory=conserve_memory, total_points=total_points,
-                max_iter=iterations, tol=-1, scale=4.0469385011764905, symmetric_weights=True,
-                delta=0.0
+                y, total_points=total_points, max_iter=iterations, tol=-1,
+                scale=4.0469385011764905, symmetric_weights=True, delta=0.0
             )
 
             assert_allclose(
@@ -519,11 +513,10 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
         super().test_input_weights(use_threshold=use_threshold)
 
     @pytest.mark.threaded_test
-    @pytest.mark.parametrize('conserve_memory', (True, False))
-    def test_threading(self, conserve_memory):
+    def test_threading(self):
         """Tests the different possible computation routes under threading."""
-        delta = 0.05 * (self.x.max() - self.x.min())  # use a larger delta to speed up method
-        super().test_threading(conserve_memory=conserve_memory, delta=delta)
+        # use a larger delta to speed up method
+        super().test_threading(delta=0.05 * (self.x.max() - self.x.min()))
 
     def test_custom_sigma_func(self):
         """Ensures input sigma_func modifies the reweighting."""
@@ -657,6 +650,13 @@ class TestLoess(IterativePolynomialTester, RecreationMixin, WeightMaskingMixin):
         else:
             with pytest.raises(AssertionError):
                 super().test_weight_masking(use_threshold=use_threshold)
+
+    @ensure_deprecation(1, 5)
+    @pytest.mark.parametrize('conserve_memory', (True, False))
+    def test_conserve_memory_deprecation(self, conserve_memory):
+        """Ensures a warning if emitted if conserve_memory is input."""
+        with pytest.warns(DeprecationWarning, match='conserve_memory is deprecated'):
+            self.class_func(self.y, conserve_memory=conserve_memory)
 
 
 class TestQuantReg(IterativePolynomialTester, RecreationMixin):
