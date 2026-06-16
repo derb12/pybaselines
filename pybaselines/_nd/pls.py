@@ -845,10 +845,17 @@ class _PLSNDMixin:
         tol_history = np.zeros((max_iter_2 + 2, max(max_iter, max_iter_2) + 1))
         # implementation note: weight_array must always be updated since otherwise when
         # reentering the inner loop, new_baseline and baseline would be the same; instead,
-        # use baseline_weights to track which weights produced the output baseline
+        # use baseline_weights to track which weights produced the output baseline; similar
+        # handling for spline coefficients so they match the final fit baseline
+        penalized_system.coef = None  # need to set since it's unset for Whittaker smoothing
         for i in range(max_iter_2 + 1):
             for j in range(max_iter + 1):
+                old_coef = penalized_system.coef
                 new_baseline = penalized_system.solve(y, weight_array)
+                new_coef = penalized_system.coef
+                if (i, j) != (0, 0):
+                    # skip first iteration to ensure coef is not None for early termination
+                    penalized_system.coef = old_coef
                 new_weights, exit_early = _weighting._brpls(
                     y - new_baseline, beta=beta, mask=self.mask
                 )
@@ -868,6 +875,7 @@ class _PLSNDMixin:
                 baseline_weights = weight_array
                 weight_array = new_weights
                 baseline = new_baseline
+                penalized_system.coef = new_coef
             j_max = max(j, j_max)
 
             weight_array = new_weights
@@ -1107,7 +1115,8 @@ class _PLSNDMixin:
         # TODO is this still necessary now that expectation-maximization is used? -> still
         # helps to prevent overflows when using gaussian
         y_domain = np.polynomial.polyutils.getdomain(y[weight_array > 0].ravel())
-        y = np.polynomial.polyutils.mapdomain(y, y_domain, np.array([-1., 1.]))
+        fit_domain = np.array([-1., 1.])
+        y = np.polynomial.polyutils.mapdomain(y, y_domain, fit_domain)
 
         if weights is not None:
             baseline = penalized_system.solve(y, weight_array)
@@ -1149,12 +1158,16 @@ class _PLSNDMixin:
             baseline = penalized_system.solve(y, weight_array)
             residual = y - baseline
 
+        # map the spline coefficients back to y's original domain so they're correct if used later
+        penalized_system.coef = np.polynomial.polyutils.mapdomain(
+            penalized_system.coef, fit_domain, y_domain
+        )
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': result_class(penalized_system, weight_array)
         }
 
-        baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)
+        baseline = np.polynomial.polyutils.mapdomain(baseline, fit_domain, y_domain)
 
         return baseline, params
 

@@ -13,6 +13,7 @@ import inspect
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
+from scipy import interpolate
 
 import pybaselines
 from pybaselines import Baseline, Baseline2D, _nd, results
@@ -1426,8 +1427,28 @@ class PSplineResultMixin(ResultMixin):
 
     result_obj_cls = results.PSplineResult
 
+    def test_tck_recreation(self):
+        """Ensures the output knots, coefficients, and degree can recreate the fit."""
+        baseline, params = self.class_func(self.y, **self.kwargs)
+        spline_recreation = interpolate.BSpline(*params['result'].tck, extrapolate=False)(self.x)
+
+        assert_allclose(spline_recreation, baseline, rtol=1e-10, atol=1e-10)
+
 
 class PSplineResult2DMixin(ResultMixin):
     """Mixin for checking result object for methods that perform 2D penalized spline smoothing."""
 
     result_obj_cls = results.PSplineResult2D
+
+    @pytest.mark.skipif(
+        not hasattr(interpolate, 'NdBSpline'),
+        reason='scipy.interpolate.NdBSpline is only available for SciPy version 1.12 or later'
+    )
+    def test_tck_recreation(self):
+        """Ensures the output knots, coefficients, and degree can recreate the fit."""
+        baseline, params = self.class_func(self.y, **self.kwargs)
+        spline_recreation = interpolate.NdBSpline(
+            *params['result'].tck, extrapolate=False
+        )(np.array(np.meshgrid(self.x, self.z)).T)
+
+        assert_allclose(spline_recreation, baseline, rtol=1e-10, atol=1e-10)
