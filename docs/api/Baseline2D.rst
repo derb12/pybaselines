@@ -91,3 +91,4 @@ Optimizing Algorithms
    Baseline2D.collab_pls
    Baseline2D.adaptive_minmax
    Baseline2D.individual_axes
+   Baseline2D.optimize_pls

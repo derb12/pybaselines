@@ -100,3 +100,65 @@ baseline correction instead.
         y, method='arpls', axes=0, method_kwargs=({'lam': 1e4})
     )
     create_plots(y, baseline)
+
+
+optimize_pls (Optimize Penalized Least Squares)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~.Baseline2D.optimize_pls`, much like its
+:ref:`1D counterpart  <algorithms/algorithms_1d/optimizers:optimize_pls (Optimize Penalized Least Squares)>`,
+optimizes the regularization parameters for Whittaker smoothing and penalized spline algorithms.
+For 2D, the general equation of penalized least squares given by
+
+.. math::
+
+    F + \lambda_r P_r + \lambda_c P_c
+
+where :math:`F` is the fidelity of the fit, :math:`P_r` is the penalty term along the rows
+whose contribution is controlled by the regularization parameter :math:`\lambda_r`, and
+:math:`P_c` is the penalty term along the columns whose contribution is controlled by the
+regularization parameter :math:`\lambda_c`. In general, both Whittaker
+smoothing and penalized splines have a fidelity given by:
+
+.. math::
+
+    F = \sum\limits_{i}^M \sum\limits_{j}^N W_{ij} (Y_{ij} - V_{ij})^2
+
+where :math:`Y` is the measured data, :math:`V` is the calculated baseline,
+and :math:`W` is the weight. The penalties for Whittaker smoothing are generally:
+
+.. math::
+
+    P_r = \sum\limits_{i}^{M - d_r} (V_{i\bullet} \Delta^{d_r})^2
+
+.. math::
+
+    P_c = \sum\limits_{j}^{N - d_c} (\Delta^{d_c} V_{j\bullet})^2
+
+:math:`\Delta^{d_r}` is the finite-difference operator of order
+:math:`d_r` along each row of :math:`V`, :math:`V_{i\bullet}`, and :math:`\Delta^{d_c}` is the
+finite-difference operator of order :math:`d_c` along each column of :math:`V`, :math:`V_{j\bullet}`.
+
+Likewise, for penalized splines, the penalties are generally:
+
+.. math::
+
+    P_r = \sum\limits_{i}^{g - d_r} (\alpha_{i\bullet} \Delta^{d_r})^2
+
+.. math::
+
+    P_c = \sum\limits_{j}^{h - d_c} (\Delta^{d_c} \alpha_{j\bullet})^2
+
+where :math:`a` are the calculated spline coefficients.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: False
+   :show-source-link: True
+
+    # to see contents of create_data function, look at the top-most algorithm's code
+    baseline, params = baseline_fitter.optimize_pls(
+        y, min_value=(6, 1), max_value=(9, 5), method='arpls', euclidean=True
+    )
+    create_plots(y, baseline)

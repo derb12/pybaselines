@@ -269,7 +269,8 @@ such that:
 
 Such a parametrization allows varying just :math:`\alpha`, which simplifies basic usage and
 allows for easier integration within optimization frameworks to find the best regularization
-parameter, as demonstrated by `Bosten, et al. <https://doi.org/10.1016/j.chroma.2023.464360>`_
+parameter, as demonstrated by `Bosten, et al. <https://doi.org/10.1016/j.chroma.2023.464360>`_,
+and made available through :meth:`~.Baseline.optimize_pls`.
 
 At first glance, Eq. :eq:`lam_eq` seems to have an issue in that the penalties within the BEADS
 algorithm are applied to the calculated signal, while the estimated :math:`\lambda_d` values

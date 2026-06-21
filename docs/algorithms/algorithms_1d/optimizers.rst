@@ -325,6 +325,7 @@ but extends its usage to all Whittaker-smoothing and penalized spline algorithms
 The method works by considering the general equation of penalized least squares given by
 
 .. math::
+
     F + \lambda P
 
 where :math:`F` is the fidelity of the fit and :math:`P` is the penalty term whose contribution
@@ -346,7 +347,6 @@ where :math:`\Delta^d` is the finite-difference operator of order d. For penaliz
 splines the penalty is generally:
 
 .. math::
-
 
     P = \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
@@ -425,7 +425,7 @@ values is then selected as the optimal value. An example demonstrating this proc
     plt.plot(
         x, baseline_fitter.arpls(y, lam=10**max_value)[0], label=f'lam=10$^{{{max_value}}}$'
     )
-    plt.plot(x, fit, label=f'lam=10$^{{{np.log10(params['optimal_parameter']):.1f}}}$')
+    plt.plot(x, fit, label=f'lam=10$^{{{np.log10(params["optimal_parameter"]):.1f}}}$')
     plt.legend()
 
 
