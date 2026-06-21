@@ -20,7 +20,7 @@ import numpy as np
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._nd.optimizers import _OptimizersNDMixin
 from ._validation import _check_optional_array
-from .utils import ParameterWarning, _check_scalar, _get_edges, _sort_array, gaussian
+from .utils import ParameterWarning, _check_scalar, _get_edges, _sort_array, _wrss, gaussian
 
 
 class _Optimizers(_Algorithm, _OptimizersNDMixin):
@@ -612,7 +612,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         return baseline, params
 
     @_Algorithm._handle_io(skip_sorting=True)
-    def optimize_pls(self, data, method='arpls', opt_method='U-Curve', min_value=4, max_value=7,
+    def optimize_pls(self, data, method='arpls', opt_method='U-Curve', min_value=4., max_value=7.,
                      step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
         """
         Optimizes the regularization parameter for penalized least squares methods.
@@ -632,15 +632,15 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             * 'BIC'
 
             Details on each optimization method are in the Notes section below.
-        min_value : int or float, optional
+        min_value : float, optional
             The minimum value for the `lam` value to use with the indicated method. Should
             be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
             designates a `lam` value of 10**2). Default is 4.
-        max_value : int or float, optional
+        max_value : float, optional
             The maximum value for the `lam` value to use with the indicated method. Should
             be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
             designates a `lam` value of 10**3). Default is 7.
-        step : int or float, optional
+        step : float, optional
             The step size for iterating the parameter value from `min_value` to `max_value`.
             Should be the exponent to raise to the power of 10 (eg. a `step` value of 1
             designates a `lam` value of 10**1). Default is 0.5.
@@ -715,9 +715,9 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         For `opt_method` 'U-Curve', the multipliers on `lam` used in methods `drpls` or `aspls`,
         ``(1 - eta * weights)`` and ``alpha``, respectively, are omitted from the penalty term.
         Otherwise, the penalty term shows little change with varying `lam` and gives bad results.
-        Likewise, for method='iasls', the penalty term from `lam_1` is omitted since its gradient
-        with respect to `lam` is assumed to be 0. More advanced optimization varying both `lam`
-        and `lam_1` is possible, but not supported within this method.
+        Likewise, for ``method='iasls'``, the penalty term from `lam_1` is omitted since its
+        gradient with respect to `lam` is assumed to be 0. More advanced optimization varying
+        both `lam` and `lam_1` is possible, but not supported within this method.
 
         Uses a grid search for optimization since the objective functions for all supported
         `opt_method` inputs are highly non-smooth (ie. many local minima) when performing
@@ -939,11 +939,10 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
 
             if using_drpls:
                 if spline_fit:  # still need to sort the baseline
-                    additional_fidelity = np.diff(
-                        _sort_array(fit_baseline, baseline_obj._sort_order), 1
-                    )
+                    sorted_baseline = _sort_array(fit_baseline, baseline_obj._sort_order)
                 else:
-                    additional_fidelity = np.diff(penalized_object, 1)
+                    sorted_baseline = penalized_object
+                additional_fidelity = np.diff(sorted_baseline, 1)
                 fit_fidelity += additional_fidelity @ additional_fidelity
 
         penalty[i] = fit_penalty
@@ -1028,9 +1027,7 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
         fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
 
         trace = fit_params['result'].effective_dimension(n_samples)
-        # TODO should fidelity calc be directly added to the result objects so that this
-        # can be handled directly?
-        fit_wrss = fit_params['weights'] @ (y - fit_baseline)**2
+        fit_wrss = _wrss(y - fit_baseline, fit_params['weights'])
         if use_gcv:
             # GCV = (1/N) * RSS / (1 - rho * trace / N)**2 == RSS * N / (N - rho * trace)**2
             # Note that some papers use different terms for fidelity (eg. RSS / N vs just RSS),

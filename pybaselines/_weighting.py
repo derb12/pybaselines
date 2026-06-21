@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 from scipy.special import erf, expit
 
-from .utils import _MIN_FLOAT, ParameterWarning, gaussian
+from .utils import _MIN_FLOAT, ParameterWarning, gaussian, _wrss
 from ._compat import _np_ge_2
 
 
@@ -888,7 +888,7 @@ def _em(residual, sigma, fraction_noise, fraction_positive, symmetric):
     noise_sum = posterior_prob_noise.sum()
     # TODO can noise_sum ever be 0? Should terminate early if so, since all weights
     # would be 0
-    new_sigma = np.sqrt((posterior_prob_noise * residual**2).sum() / noise_sum)
+    new_sigma = np.sqrt(_wrss(residual, posterior_prob_noise) / noise_sum)
     if not symmetric:
         new_fraction_noise = posterior_prob_noise.mean()
         new_fraction_positive = 1 - new_fraction_noise

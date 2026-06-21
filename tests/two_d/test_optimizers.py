@@ -400,3 +400,88 @@ class TestIndividualAxes(OptimizersTester, OptimizerInputWeightsMixin):
             self.class_func(data=self.y, axes=[0, 0])
         with pytest.raises(ValueError, match='Fitting the same axis twice'):
             self.class_func(data=self.y, axes=[1, 1])
+
+
+class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
+    """Class for testing optimize_pls baseline."""
+
+    func_name = "optimize_pls"
+    checked_keys = ('optimal_parameter', 'metric')
+    # will need to change checked_keys if default method is changed
+    checked_method_keys = ('weights', 'tol_history', 'result')
+    # by default only run a few optimization steps
+    required_kwargs = {'min_value': 2, 'max_value': 3}
+
+    @pytest.mark.parametrize('opt_method', ('U-curve', 'GCV', 'BIC'))
+    def test_output(self, opt_method):
+        """Ensures correct output parameters for different optimization methods."""
+        if opt_method in ('GCV', 'BIC'):
+            additional_keys = ['trace', 'wrss']
+        else:
+            additional_keys = ['penalty_rows', 'penalty_columns', 'fidelity']
+        super().test_output(additional_keys=additional_keys, opt_method=opt_method)
+
+    @pytest.mark.parametrize(
+        'method',
+        (
+            'asls', 'iasls', 'drpls', 'aspls', 'pspline_asls', 'pspline_iasls',
+        )
+    )
+    @pytest.mark.parametrize('opt_method', ('U-Curve', 'GCV'))
+    def test_all_methods(self, method, opt_method):
+        """Tests some methods that should work with optimize_pls."""
+        output = self.class_func(
+            self.y, method=method, opt_method=opt_method, **self.kwargs, method_kwargs={'tol': 1e-1}
+        )
+        if 'weights' in output[1]['method_params']:
+            assert self.y.shape == output[1]['method_params']['weights'].shape
+        elif 'alpha' in output[1]['method_params']:
+            assert self.y.shape == output[1]['method_params']['alpha'].shape
+
+        if opt_method == 'GCV':
+            keys = ('wrss', 'trace')
+        else:
+            keys = ('fidelity', 'penalty_rows', 'penalty_columns')
+        for key in keys + ('metric',):
+            assert isinstance(output[1][key], np.ndarray)
+            assert output[1][key].ndim == 2
+
+        assert isinstance(output[1]['optimal_parameter'], tuple)
+        assert len(output[1]['optimal_parameter']) == 2
+
+    def test_unknown_method_fails(self):
+        """Ensures method fails when an unknown baseline method is given."""
+        with pytest.raises(AttributeError):
+            self.class_func(self.y, method='aaaaa')
+
+    @pytest.mark.parametrize('method', ('mor', 'rolling_ball', 'modpoly'))
+    def test_disallowed_method_fails(self, method):
+        """Ensures function fails when a method that does not work is given."""
+        with pytest.raises(ValueError, match=f'{method} is not a supported method'):
+            self.class_func(self.y, method=method)
+
+    def test_unknown_opt_method_fails(self):
+        """Ensures method fails when an unknown opt_method is given."""
+        with pytest.raises(ValueError):
+            self.class_func(self.y, opt_method='aaaaa')
+
+    def test_eigen_fit(self):
+        """Ensures penalties are calculated correctly when solving using eigendecomposition."""
+        eigen_fit, eigen_params = self.class_func(
+            self.y, method='asls', opt_method='U-Curve', **self.kwargs,
+            method_kwargs={'num_eigens': 15}
+        )
+        analytic_fit, analytic_params = self.class_func(
+            self.y, method='asls', opt_method='U-Curve', **self.kwargs
+        )
+
+        assert_allclose(eigen_fit, analytic_fit, rtol=5e-6, atol=1e-6)
+        assert_allclose(
+            eigen_params['optimal_parameter'], analytic_params['optimal_parameter'],
+            rtol=1e-10, atol=1e-10
+        )
+        for key in ('metric', 'fidelity', 'penalty_rows', 'penalty_columns'):
+            assert_allclose(
+                eigen_params[key], analytic_params[key], rtol=5e-3, atol=5e-3,
+                err_msg=f'failed with key={key}'
+            )

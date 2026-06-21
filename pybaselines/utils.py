@@ -1498,3 +1498,50 @@ def _masked_convolve(y, kernel, mask, fill_nan=False):
             )
 
     return result
+
+
+def _wrss(residual, weights):
+    """
+    Calculates the weighted sum of squared residuals.
+
+    Parameters
+    ----------
+    residual : numpy.ndarray, shape (M,) or (M, N)
+        The residual array. Must only be 1D or 2D.
+    weights : numpy.ndarray, shape (M,) or (M, N)
+        The weights. Shape must match `residual`.
+
+    Returns
+    -------
+    resid_sum_sq : float
+        The weighted residual sum of squares.
+
+    Raises
+    ------
+    ValueError
+        Raised if `residual` and `weights` do not have the same shape or if the
+        input has more than two dimensions.
+
+    Notes
+    -----
+    Uses the definition of weighted sum of squared residuals corresponding to
+    ``sum(weights * residual**2)``.
+
+    """
+    resid_dims = residual.ndim
+    if residual.shape != weights.shape:
+        raise ValueError(
+            f'residual and weights have different shapes: {residual.shape} and {weights.shape}'
+        )
+    elif resid_dims > 2:
+        # artificial limitation, but shouldn't expect > 2d inputs within pybaselines
+        raise ValueError(f'only 1 and 2 dimensional arrays are supported, instead got {resid_dims}')
+
+    if resid_dims == 1:
+        resid_sum_sq = weights @ residual**2
+    else:
+        # compared to (weights * residual**2).sum(), einsum uses less memory and
+        # is faster for large inputs; also faster than raveled weights @ residual**2
+        resid_sum_sq = np.einsum('ij,ij,ij->', weights, residual, residual)
+
+    return resid_sum_sq
