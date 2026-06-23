@@ -13,8 +13,9 @@ The proposed parameter selection process works by varying the parameter of inter
 `freq_cutoff`, `lam_0`, `lam_1`, etc.) and calculating the autocorrelation coefficient,
 :math:`r^2`, from the residual, ``data - baseline``, for each fit. The autocorrelation plots
 will show plateau regions in which the calculated baseline is fairly consistent with regards
-to the varying parameter. In theory, the optimal parameter value will then lie in the center of
-the last of these plateaus before :math:`r^2` approaches 0 (or some constant, minimum value).
+to the varying parameter. In theory, the optimal parameter value will then lie near the center of
+one of these plateaus (often the final one) before :math:`r^2` approaches 0 (or some constant,
+minimum value).
 
 The example given here is fairly simple and illustrates how this parameter selection can be
 done visually; for a more in-depth analysis of automating this procedure for real chromatograms,
