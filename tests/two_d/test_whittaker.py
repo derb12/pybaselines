@@ -7,6 +7,7 @@ Created on March 20, 2021
 """
 
 import numpy as np
+from numpy.testing import assert_allclose
 import pytest
 
 from pybaselines.two_d import whittaker
@@ -57,6 +58,24 @@ class EigenvalueMixin:
         """Tests thread safety using SVD solver and analytical solution."""
         # set tol to higher values to reduce overall computation time
         super().test_threading(num_eigens=num_eigens, tol=1e-1)
+
+    def test_coef_recreation(self):
+        """Ensures the system's coefficients can reproduce the calculated baseline.
+
+        If data was scaled internally without modifying output coefficients, then could
+        cause downstream issues when later using those coefficients.
+
+        """
+        num_eigens = (5, 10)
+        baseline, params = self.class_func(
+            data=self.y, num_eigens=num_eigens, **self.kwargs, return_dof=True
+        )
+        system = params['result']._penalized_object
+
+        assert system.coef.ndim == 1
+        eigen_recreation = (system.basis @ system.coef).reshape(baseline.shape)
+
+        assert_allclose(eigen_recreation, baseline, rtol=1e-10, atol=1e-10)
 
 
 class TestAsLS(EigenvalueMixin, WhittakerTester):
