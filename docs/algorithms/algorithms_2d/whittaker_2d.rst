@@ -32,7 +32,7 @@ The resulting linear equation for solving the above minimization is:
 
 .. math::
 
-    (W_{diag} + \lambda_r I_M \otimes D_{d_r}^{\mathsf{T}} D_{d_r} + \lambda_c D_{d_c}^{\mathsf{T}} D_{d_c} \otimes I_M) v = w y
+    (W_{diag} + \lambda_r I_N \otimes D_{d_r}^{\mathsf{T}} D_{d_r} + \lambda_c D_{d_c}^{\mathsf{T}} D_{d_c} \otimes I_M) v = w y
 
 
 where :math:`W_{diag}` is the diagaonal matrix of the flattened weights, and :math:`D_d` is the matrix
