@@ -408,7 +408,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "optimize_pls"
     checked_keys = ('optimal_parameter', 'metric')
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history', 'result')
+    checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
