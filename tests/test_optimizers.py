@@ -92,7 +92,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "collab_pls"
     checked_keys = ('average_weights',)
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history', 'result')
+    checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     two_d = True
     weight_keys = ('average_weights', 'weights')
     supports_mask = True
@@ -158,7 +158,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "optimize_extended_range"
     checked_keys = ('optimal_parameter', 'min_rmse', 'rmse')
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history', 'result')
+    checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     required_kwargs = {'pad_kwargs': {'extrapolate_window': 100}}
 
     @pytest.mark.parametrize('use_class', (True, False))
@@ -510,7 +510,7 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
 
     func_name = 'adaptive_minmax'
     checked_keys = ('poly_order',)
-    checked_method_keys = ('weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history', 'success')
     weight_keys = ()
     supports_mask = True
 
@@ -604,7 +604,7 @@ class TestCustomBC(OptimizersTester):
     func_name = 'custom_bc'
     checked_keys = ('y_fit', 'x_fit', 'baseline_fit')
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history', 'result')
+    checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     required_kwargs = {'sampling': 5}
 
     @pytest.mark.parametrize(
@@ -700,7 +700,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "optimize_pls"
     checked_keys = ('optimal_parameter', 'metric')
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history', 'result')
+    checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 

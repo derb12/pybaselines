@@ -12,14 +12,17 @@ import pytest
 
 from pybaselines.two_d import whittaker
 
-from ..base_tests import BaseTester2D, InputWeightsMixin, RecreationMixin, WhittakerResult2DMixin
+from ..base_tests import (
+    BaseTester2D, ConvergenceMixin, InputWeightsMixin, RecreationMixin, WhittakerResult2DMixin
+)
 
 
-class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin, WhittakerResult2DMixin):
+class WhittakerTester(BaseTester2D, InputWeightsMixin, RecreationMixin, WhittakerResult2DMixin,
+                      ConvergenceMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    checked_keys = ('weights', 'tol_history', 'result')
+    checked_keys = ('weights', 'tol_history', 'result', 'success')
     supports_mask = True
 
     def test_tol_history(self):
@@ -214,7 +217,7 @@ class TestAsPLS(WhittakerTester):
     """Class for testing aspls baseline."""
 
     func_name = 'aspls'
-    checked_keys = ('weights', 'alpha', 'tol_history', 'result')
+    checked_keys = ('weights', 'alpha', 'tol_history', 'result', 'success')
     weight_keys = ('weights', 'alpha')
     required_repeated_kwargs = {'lam': 1e2, 'tol': 1e-1}
 

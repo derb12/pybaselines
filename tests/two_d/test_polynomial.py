@@ -15,8 +15,8 @@ import pytest
 from pybaselines.two_d import polynomial
 
 from ..base_tests import (
-    BasePolyTester2D, InputWeightsMixin, WeightMaskingMixin, RecreationMixin, ensure_deprecation,
-    _Poly2D
+    BasePolyTester2D, ConvergenceMixin, InputWeightsMixin, WeightMaskingMixin, RecreationMixin,
+    ensure_deprecation, _Poly2D
 )
 from ..data import STATSMODELS_QUANTILES_2D
 
@@ -29,10 +29,10 @@ class PolynomialTester(BasePolyTester2D, InputWeightsMixin):
     supports_mask = True
 
 
-class IterativePolynomialTester(PolynomialTester):
+class IterativePolynomialTester(PolynomialTester, ConvergenceMixin):
     """Base testing class for iterative polynomial functions."""
 
-    checked_keys = ('weights', 'tol_history')
+    checked_keys = ('weights', 'tol_history', 'success')
     allows_zero_iteration = True  # whether max_iter=0 will return an initial baseline
 
     def test_tol_history(self):

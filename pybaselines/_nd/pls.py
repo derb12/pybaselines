@@ -93,6 +93,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -118,18 +120,20 @@ class _PLSNDMixin:
             num_knots=num_knots, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
             new_weights = _weighting._asls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
@@ -206,6 +210,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -223,6 +229,7 @@ class _PLSNDMixin:
         )
         y_l1_norm = np.abs(y).sum()
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
             new_weights, residual_l1_norm, exit_early = _weighting._airpls(
@@ -234,12 +241,13 @@ class _PLSNDMixin:
             calc_difference = residual_l1_norm / y_l1_norm
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
@@ -311,6 +319,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -327,6 +337,7 @@ class _PLSNDMixin:
             num_knots=num_knots, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._arpls(y - baseline, mask=self.mask)
@@ -336,12 +347,13 @@ class _PLSNDMixin:
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
@@ -413,6 +425,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -430,6 +444,7 @@ class _PLSNDMixin:
             num_knots=num_knots, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._iarpls(
@@ -441,12 +456,13 @@ class _PLSNDMixin:
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
@@ -533,6 +549,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -570,18 +588,20 @@ class _PLSNDMixin:
             k = _check_scalar_variable(k, variable_name='k')
 
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
             new_weights = _weighting._psalsa(y - baseline, p=p, k=k, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
@@ -673,6 +693,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -732,6 +754,7 @@ class _PLSNDMixin:
         partial_weights = diff_1_weights * diff_2_weights
 
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
             new_weights = _weighting._derpsalsa(
@@ -740,12 +763,13 @@ class _PLSNDMixin:
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
 
         return baseline, params
@@ -822,6 +846,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -843,12 +869,14 @@ class _PLSNDMixin:
         baseline = y
         baseline_weights = weight_array
         tol_history = np.zeros((max_iter_2 + 2, max(max_iter, max_iter_2) + 1))
+        success_outer = False
         # implementation note: weight_array must always be updated since otherwise when
         # reentering the inner loop, new_baseline and baseline would be the same; instead,
         # use baseline_weights to track which weights produced the output baseline; similar
         # handling for spline coefficients so they match the final fit baseline
         penalized_system.coef = None  # need to set since it's unset for Whittaker smoothing
         for i in range(max_iter_2 + 1):
+            success_inner = False
             for j in range(max_iter + 1):
                 old_coef = penalized_system.coef
                 new_baseline = penalized_system.solve(y, weight_array)
@@ -869,6 +897,7 @@ class _PLSNDMixin:
                 calc_difference = relative_difference(baseline, new_baseline)
                 tol_history[i + 1, j] = calc_difference
                 if calc_difference < tol:
+                    success_inner = True
                     if i == 0 and j == 0:  # for cases where tol == inf
                         baseline = new_baseline
                     break
@@ -883,12 +912,14 @@ class _PLSNDMixin:
             calc_difference_2 = abs(beta + weight_mean - 1)
             tol_history[0, i] = calc_difference_2
             if calc_difference_2 < tol_2:
+                success_outer = True
                 break
             beta = 1 - weight_mean
 
         params = {
             'weights': baseline_weights, 'tol_history': tol_history[:i + 2, :max(i, j_max) + 1],
-            'result': result_class(penalized_system, baseline_weights)
+            'result': result_class(penalized_system, baseline_weights),
+            'success': success_inner and success_outer
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
@@ -967,6 +998,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -997,6 +1030,7 @@ class _PLSNDMixin:
             num_knots=num_knots, num_eigens=num_eigens
         )
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(1, max_iter + 2):
             baseline = penalized_system.solve(y, weight_array)
             new_weights, exit_early = _weighting._lsrpls(
@@ -1008,12 +1042,13 @@ class _PLSNDMixin:
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
             params['dof'] = params['result'].relative_dof()
@@ -1087,6 +1122,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -1144,6 +1181,7 @@ class _PLSNDMixin:
         else:
             fraction_positive = 1 - fraction_noise
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             posterior_prob_noise, sigma, fraction_noise, fraction_positive = _weighting._em(
                 y - baseline, sigma=sigma, fraction_noise=fraction_noise,
@@ -1152,6 +1190,7 @@ class _PLSNDMixin:
             calc_difference = relative_difference(weight_array, posterior_prob_noise)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
 
             weight_array = posterior_prob_noise
@@ -1164,7 +1203,7 @@ class _PLSNDMixin:
         )
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
 
         baseline = np.polynomial.polyutils.mapdomain(baseline, fit_domain, y_domain)
@@ -1231,6 +1270,8 @@ class _PLSNDMixin:
                 An object that can use the results of the fit to perform additional
                 calculations. The type depends on the dimensions of `data` and if
                 `spline_degree` was None.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -1258,11 +1299,13 @@ class _PLSNDMixin:
         )
         old_coef = np.zeros(penalized_system.tot_bases)
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = penalized_system.solve(y, weight_array)
             calc_difference = relative_difference(old_coef, penalized_system.coef)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             old_coef = penalized_system.coef
             weight_array = _weighting._quantile(
@@ -1271,7 +1314,7 @@ class _PLSNDMixin:
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': result_class(penalized_system, weight_array)
+            'result': result_class(penalized_system, weight_array), 'success': success
         }
 
         return baseline, params

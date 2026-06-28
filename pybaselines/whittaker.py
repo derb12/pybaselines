@@ -78,6 +78,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -220,6 +222,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -328,12 +332,14 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         d1_y = lambda_1 * d1_y
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = whittaker_system.solve(y, weight_array, rhs_extra=d1_y)
             new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
@@ -341,7 +347,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': WhittakerResult(
                 whittaker_system, weight_array, rhs_extra=residual_penalty
-            )
+            ), 'success': success
         }
 
         return baseline, params
@@ -408,6 +414,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Notes
         -----
@@ -517,6 +525,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -590,6 +600,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -618,14 +630,14 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         whittaker_system.add_penalty(diff_1_diagonals)
 
         tol_history = np.empty(max_iter + 1)
-        lower_upper_bands = (diff_order, diff_order)
+        success = False
         for i in range(1, max_iter + 2):
             penalty_with_weights = _shift_rows(
                 diff_n_diagonals * weight_array, diff_order, diff_order
             )
             lhs = whittaker_system.penalty + penalty_with_weights
             baseline = whittaker_system.direct_solve(
-                lhs, weight_array * y, overwrite_b=True, l_and_u=lower_upper_bands
+                lhs, weight_array * y, overwrite_b=True, l_and_u=(diff_order, diff_order)
             )
             new_weights, exit_early = _weighting._drpls(y - baseline, iteration=i, mask=self.mask)
             if exit_early:
@@ -635,12 +647,13 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': WhittakerResult(whittaker_system, weight_array, lhs=lhs)
+            'result': WhittakerResult(whittaker_system, weight_array, lhs=lhs), 'success': success
         }
 
         return baseline, params
@@ -684,6 +697,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -758,6 +773,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -798,6 +815,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         asymmetric_coef = _check_scalar_variable(asymmetric_coef, variable_name='asymmetric_coef')
 
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             lhs = whittaker_system.penalty * alpha_array
             baseline = whittaker_system.solve(
@@ -814,13 +832,15 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
             alpha_array = new_alpha
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult(whittaker_system, weight_array, lhs=lhs)
+            'result': WhittakerResult(whittaker_system, weight_array, lhs=lhs),
+            'success': success
         }
 
         return baseline, params
@@ -879,6 +899,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -970,6 +992,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -1040,6 +1064,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -1099,6 +1125,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             * 'result': WhittakerResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Notes
         -----

@@ -87,6 +87,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -159,6 +161,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -227,6 +231,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -313,6 +319,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -371,18 +379,21 @@ class _Spline(_Algorithm, _PLSNDMixin):
         pspline.add_penalty(d1_penalty)
 
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
             new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult(pspline, weight_array, rhs_extra=d1_penalty)
+            'result': PSplineResult(pspline, weight_array, rhs_extra=d1_penalty),
+            'success': success
         }
 
         return baseline, params
@@ -436,6 +447,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------
@@ -502,6 +515,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------
@@ -572,6 +587,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -616,6 +633,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
 
         interp_pts = _basis_midpoints(pspline.basis.knots, pspline.basis.spline_degree)
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(1, max_iter + 2):
             diff_n_w_diagonals = _shift_rows(
                 diff_n_diagonals * np.interp(interp_pts, self.x, weight_array),
@@ -631,12 +649,13 @@ class _Spline(_Algorithm, _PLSNDMixin):
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': PSplineResult(pspline, weight_array, penalty=penalty)
+            'result': PSplineResult(pspline, weight_array, penalty=penalty), 'success': success
         }
 
         return baseline, params
@@ -686,6 +705,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------
@@ -775,6 +796,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -823,6 +846,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
 
         interp_pts = _basis_midpoints(pspline.basis.knots, pspline.basis.spline_degree)
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             # convert alpha_array from len(y) to basis.shape[1]
             alpha_penalty = _shift_rows(
@@ -841,13 +865,15 @@ class _Spline(_Algorithm, _PLSNDMixin):
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
             alpha_array = new_alpha
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult(pspline, weight_array, penalty=alpha_penalty)
+            'result': PSplineResult(pspline, weight_array, penalty=alpha_penalty),
+            'success': success
         }
 
         return baseline, params
@@ -907,6 +933,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -1004,6 +1032,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -1229,6 +1259,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------
@@ -1302,6 +1334,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
             * 'result': PSplineResult
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------

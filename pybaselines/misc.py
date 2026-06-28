@@ -269,16 +269,13 @@ class _Misc(_Algorithm):
                 `tol` value, then the function did not converge.
             * 'fidelity': float
                 The fidelity term of the final fit, given as :math:`0.5 * ||H(y - s)||_2^2`.
-
-                .. versionadded:: 1.3.0
-
             * 'penalty' : tuple[float, float, float]
                 The penalty terms of the final fit before multiplication with the `lam_d`
                 terms. These correspond to :math:`\sum\limits_{i}^{N} \theta(s_i)`,
                 :math:`\sum\limits_{i}^{N - 1} \phi(\Delta^1 s_i)`, and
                 :math:`\sum\limits_{i}^{N - 2} \phi(\Delta^2 s_i)`, respectively.
-
-                .. versionadded:: 1.3.0
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -973,7 +970,7 @@ def _abs_diff(x, smooth_half_window=0):
 def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
                   filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
                   eps_1=1e-6, smooth_half_window=0):
-    """
+    r"""
     The beads algorithm using full, sparse matrices.
 
     Parameters
@@ -1032,6 +1029,15 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
             each iteration. The length of the array is the number of iterations
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
+        * 'fidelity': float
+            The fidelity term of the final fit, given as :math:`0.5 * ||H(y - s)||_2^2`.
+        * 'penalty' : tuple[float, float, float]
+            The penalty terms of the final fit before multiplication with the `lam_d`
+            terms. These correspond to :math:`\sum\limits_{i}^{N} \theta(s_i)`,
+            :math:`\sum\limits_{i}^{N - 1} \phi(\Delta^1 s_i)`, and
+            :math:`\sum\limits_{i}^{N - 2} \phi(\Delta^2 s_i)`, respectively.
+        * 'success' : bool
+            True if the method converged successfully, otherwise False.
 
     Notes
     -----
@@ -1066,6 +1072,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     abs_x = np.abs(x)
     big_x = abs_x > eps_0
     tol_history = np.empty(max_iter + 1)
+    success = False
     for i in range(max_iter + 1):
         # calculate line 6 of Table 3 in beads paper using banded matrices rather
         # than sparse matrices since it is much faster; Gamma + D.T @ Lambda @ D
@@ -1107,6 +1114,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         cost_difference = relative_difference(cost_old, cost)
         tol_history[i] = cost_difference
         if cost_difference < tol:
+            success = True
             break
         cost_old = cost
 
@@ -1115,7 +1123,7 @@ def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
 
     params = {
         'signal': x, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
-        'penalty': (theta, d1_loss, d2_loss)
+        'penalty': (theta, d1_loss, d2_loss), 'success': success
     }
 
     return baseline, params
@@ -1187,7 +1195,7 @@ def _process_lams(y, alpha, lam_0, lam_1, lam_2):
 def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
                   filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
                   eps_1=1e-6, smooth_half_window=0):
-    """
+    r"""
     The beads algorithm using banded matrices rather than full, sparse matrices.
 
     Parameters
@@ -1246,6 +1254,15 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
             each iteration. The length of the array is the number of iterations
             completed. If the last value in the array is greater than the input
             `tol` value, then the function did not converge.
+        * 'fidelity': float
+            The fidelity term of the final fit, given as :math:`0.5 * ||H(y - s)||_2^2`.
+        * 'penalty' : tuple[float, float, float]
+            The penalty terms of the final fit before multiplication with the `lam_d`
+            terms. These correspond to :math:`\sum\limits_{i}^{N} \theta(s_i)`,
+            :math:`\sum\limits_{i}^{N - 1} \phi(\Delta^1 s_i)`, and
+            :math:`\sum\limits_{i}^{N - 2} \phi(\Delta^2 s_i)`, respectively.
+        * 'success' : bool
+            True if the method converged successfully, otherwise False.
 
     Notes
     -----
@@ -1300,6 +1317,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     abs_x = np.abs(x)
     big_x = abs_x > eps_0
     tol_history = np.empty(max_iter + 1)
+    success = False
     for i in range(max_iter + 1):
         # calculate line 6 of Table 3 in beads paper using banded matrices rather
         # than sparse matrices since it is much faster; Gamma + D.T @ Lambda @ D
@@ -1352,6 +1370,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         cost_difference = relative_difference(cost_old, cost)
         tol_history[i] = cost_difference
         if cost_difference < tol:
+            success = True
             break
         cost_old = cost
 
@@ -1367,7 +1386,7 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
 
     params = {
         'signal': x, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
-        'penalty': (theta, d1_loss, d2_loss)
+        'penalty': (theta, d1_loss, d2_loss), 'success': success
     }
 
     return baseline, params

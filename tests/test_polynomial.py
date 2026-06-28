@@ -18,7 +18,8 @@ from pybaselines import polynomial
 from pybaselines.utils import ParameterWarning
 
 from .base_tests import (
-    BasePolyTester, InputWeightsMixin, WeightMaskingMixin, RecreationMixin, ensure_deprecation
+    BasePolyTester, ConvergenceMixin, InputWeightsMixin, WeightMaskingMixin, RecreationMixin,
+    ensure_deprecation
 )
 from .data import (
     LOESS_X, LOESS_Y, QUANTILE_Y, STATSMODELS_LOESS_DELTA, STATSMODELS_LOESS_ITER,
@@ -34,10 +35,10 @@ class PolynomialTester(BasePolyTester, InputWeightsMixin):
     supports_mask = True
 
 
-class IterativePolynomialTester(PolynomialTester):
+class IterativePolynomialTester(PolynomialTester, ConvergenceMixin):
     """Base testing class for iterative polynomial functions."""
 
-    checked_keys = ('weights', 'tol_history')
+    checked_keys = ('weights', 'tol_history', 'success')
     allows_zero_iteration = True  # whether max_iter=0 will return an initial baseline
 
     def test_tol_history(self):
@@ -712,11 +713,11 @@ class TestQuantReg(IterativePolynomialTester, RecreationMixin):
         assert_allclose(output[0], STATSMODELS_QUANTILES[quantile], rtol=1e-6)
 
 
-class TestGoldindec(PolynomialTester, WeightMaskingMixin):
+class TestGoldindec(PolynomialTester, WeightMaskingMixin, ConvergenceMixin):
     """Class for testing goldindec baseline."""
 
     func_name = 'goldindec'
-    checked_keys = ('weights', 'tol_history', 'threshold')
+    checked_keys = ('weights', 'tol_history', 'threshold', 'success')
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize(

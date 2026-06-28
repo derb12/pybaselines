@@ -16,7 +16,9 @@ import scipy
 from pybaselines import classification
 from pybaselines.utils import ParameterWarning, gaussian, whittaker_smooth
 
-from .base_tests import BaseTester, InputWeightsMixin, WhittakerResultMixin, ensure_deprecation
+from .base_tests import (
+    BaseTester, ConvergenceMixin, InputWeightsMixin, WhittakerResultMixin, ensure_deprecation
+)
 from .data import PYWAVELETS_HAAR
 
 
@@ -332,7 +334,7 @@ class TestGolotvin(ClassificationTester):
     required_repeated_kwargs = {'half_window': 15, 'num_std': 6}
 
 
-class TestDietrich(ClassificationTester):
+class TestDietrich(ClassificationTester, ConvergenceMixin):
     """Class for testing dietrich baseline."""
 
     func_name = 'dietrich'
@@ -345,7 +347,7 @@ class TestDietrich(ClassificationTester):
         if return_coef and max_iter > 0:
             additional_keys.append('coef')
         if max_iter > 1:
-            additional_keys.append('tol_history')
+            additional_keys.extend(['tol_history', 'success'])
         super().test_output(
             additional_keys=additional_keys, return_coef=return_coef, max_iter=max_iter
         )
@@ -382,11 +384,11 @@ class TestFastChrom(ClassificationTester):
         self.class_func(self.y, half_window=20, threshold=threshold)
 
 
-class TestCwtBR(ClassificationTester):
+class TestCwtBR(ClassificationTester, ConvergenceMixin):
     """Class for testing cwt_br baseline."""
 
     func_name = 'cwt_br'
-    checked_keys = ('mask', 'tol_history', 'best_scale')
+    checked_keys = ('mask', 'tol_history', 'best_scale', 'success')
     requires_unique_x = False
 
     @pytest.mark.parametrize('scales', (None, np.arange(3, 20)))

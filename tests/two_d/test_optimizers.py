@@ -92,7 +92,7 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = "collab_pls"
     checked_keys = ('average_weights',)
     # will need to change checked_keys if default method is changed
-    checked_method_keys = ('weights', 'tol_history', 'result')
+    checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     three_d = True
     weight_keys = ('average_weights', 'weights')
     supports_mask = True
@@ -183,7 +183,7 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
 
     func_name = 'adaptive_minmax'
     checked_keys = ('poly_order',)
-    checked_method_keys = ('weights', 'tol_history')
+    checked_method_keys = ('weights', 'tol_history', 'success')
     weight_keys = ()
     supports_mask = True
 

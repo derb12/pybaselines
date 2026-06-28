@@ -17,7 +17,7 @@ from pybaselines import _banded_utils, misc
 from pybaselines.utils import gaussian
 from pybaselines._compat import dia_object, diags
 
-from .base_tests import BaseTester, ensure_deprecation, get_data
+from .base_tests import BaseTester, ConvergenceMixin, ensure_deprecation, get_data
 
 
 class MiscTester(BaseTester):
@@ -78,11 +78,11 @@ class TestInterpPts(MiscTester):
             self.class_func(data=self.y, **self.kwargs)
 
 
-class TestBeads(MiscTester):
+class TestBeads(MiscTester, ConvergenceMixin):
     """Class for testing beads baseline."""
 
     func_name = 'beads'
-    checked_keys = ('signal', 'tol_history', 'fidelity', 'penalty')
+    checked_keys = ('signal', 'tol_history', 'fidelity', 'penalty', 'success')
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('cost_function', (1, 2, 'l1_v1', 'l1_v2', 'L1_V1'))

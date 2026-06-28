@@ -81,6 +81,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -160,6 +162,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -201,12 +205,14 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             p1_y = _masked_matvec(penalized_system_1.penalty, y, self.mask.ravel())
 
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = whittaker_system.solve(y, weight_array, rhs_extra=p1_y)
             new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
@@ -214,7 +220,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': WhittakerResult2D(
                 whittaker_system, weight_array, rhs_extra=penalized_system_1.penalty
-            )
+            ), 'success': success
         }
 
         return baseline, params
@@ -275,6 +281,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -351,6 +359,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -412,6 +422,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -437,6 +449,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         partial_penalty_2.setdiag(partial_penalty_2.diagonal() + 1)
         weight_matrix = diags(weight_array, format='csr')
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(1, max_iter + 2):
             lhs = partial_penalty + weight_matrix @ partial_penalty_2
             baseline = whittaker_system.direct_solve(lhs, weight_array * y)
@@ -448,13 +461,15 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i - 1] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
             weight_matrix.setdiag(weight_array)
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i],
-            'result': WhittakerResult2D(whittaker_system, weight_array, lhs=lhs)
+            'result': WhittakerResult2D(whittaker_system, weight_array, lhs=lhs),
+            'success': success
         }
 
         return baseline, params
@@ -511,6 +526,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -597,6 +614,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -640,6 +659,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         # the scipy sparse_arrays become standard -> will have to check if timing is affected
         alpha_matrix = diags(alpha_array.ravel(), format='csr')
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             penalty = alpha_matrix @ whittaker_system.penalty
             baseline = whittaker_system.solve(y, weight_array, penalty=penalty)
@@ -654,6 +674,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
             alpha_array = new_alpha
@@ -661,7 +682,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
 
         params = {
             'weights': weight_array, 'alpha': alpha_array, 'tol_history': tol_history[:i + 1],
-            'result': WhittakerResult2D(whittaker_system, weight_array, lhs=penalty)
+            'result': WhittakerResult2D(whittaker_system, weight_array, lhs=penalty),
+            'success': success
         }
 
         return baseline, params
@@ -732,6 +754,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -827,6 +851,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'dof' : numpy.ndarray, shape (`num_eigens[0]`, `num_eigens[1]`)
                 Only if `return_dof` is True. The effective degrees of freedom associated
                 with each eigenvector. Lower values signify that the eigenvector was
@@ -910,6 +936,8 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             * 'result': WhittakerResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Notes
         -----

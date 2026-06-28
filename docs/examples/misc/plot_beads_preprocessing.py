@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Preprocessing for beads
------------------------
+Preprocessing for `beads`
+-------------------------
 
 The Baseline Estimation And Denoising with Sparsity (:meth:`~pybaselines.Baseline.beads`)
 algorithm is a robust method for both performing baseline subtraction and removing noise.
 One of the main drawbacks of the original algorithm is that it requires that both ends of
 the data to be at zero. This example will explore the consequences of this as
-well as a preprocessing step proposed by `Navarro-Huerta, J.A., et al. Assisted baseline
-subtraction in complex chromatograms using the BEADS algorithm. Journal of Chromatography
-A, 2017, 1507, 1-10` implemented in pybaselines that helps to address this issue.
+well as a preprocessing step proposed by `Navarro-Huerta, J.A., et al. "Assisted baseline
+subtraction in complex chromatograms using the BEADS
+algorithm" <https://doi.org/10.1016/j.chroma.2017.05.057>`_
+implemented in pybaselines that helps to address this issue.
 
 """
 # sphinx_gallery_thumbnail_number = 4
