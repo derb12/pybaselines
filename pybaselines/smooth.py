@@ -444,6 +444,8 @@ class _Smooth(_Algorithm):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -475,6 +477,7 @@ class _Smooth(_Algorithm):
         savgol_coef = savgol_coeffs(window_size, 2)
         tol_history = np.empty(max_iter + 1)
         old_baseline = y[data_slice]
+        success = False
         for i in range(max_iter + 1):
             baseline = padded_convolve(y, savgol_coef, 'edge')
             if original_criteria:
@@ -484,11 +487,12 @@ class _Smooth(_Algorithm):
                 calc_tol = relative_difference(old_baseline, baseline[data_slice])
             tol_history[i] = calc_tol
             if calc_tol < tol:
+                success = True
                 break
             y = np.minimum(y0, baseline)
             old_baseline = baseline[data_slice]
 
-        return baseline[data_slice], {'tol_history': tol_history[:i + 1]}
+        return baseline[data_slice], {'tol_history': tol_history[:i + 1], 'success': success}
 
     @_Algorithm._handle_io
     def ria(self, data, half_window=None, max_iter=500, tol=1e-2, side='both',
@@ -549,6 +553,8 @@ class _Smooth(_Algorithm):
                 `tol` value, then the function did not converge (if the array length
                 is equal to `max_iter`) or the areas of the smoothed extended regions
                 exceeded their initial areas (if the array length is < `max_iter`).
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -616,6 +622,7 @@ class _Smooth(_Algorithm):
         window_size = 2 * half_window + 1
         smoother_array = pad_edges(fit_data, window_size, extrapolate_window=2)
         data_slice = slice(window_size, -window_size)
+        success = False
         for i in range(max_iter):
             # only smooth fit_data so that the outer section remains unchanged by
             # smoothing and edge effects are ignored
@@ -627,12 +634,13 @@ class _Smooth(_Algorithm):
             calc_difference = relative_difference(known_area, calc_area)
             tol_history[i] = calc_difference
             if calc_difference < tol or calc_area > known_area:
+                success = True
                 break
             smoother_array[data_slice] = np.minimum(fit_data, smoother_array[data_slice])
 
         baseline = smoother_array[data_slice][lower_bound:upper_max]
 
-        return baseline, {'tol_history': tol_history[:i + 1]}
+        return baseline, {'tol_history': tol_history[:i + 1], 'success': success}
 
     @_Algorithm._handle_io
     def peak_filling(self, data, half_window=None, sections=None, max_iter=5, lam_smooth=None):

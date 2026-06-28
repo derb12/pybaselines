@@ -15,7 +15,9 @@ import pytest
 from pybaselines.two_d import Baseline2D, spline, _spline_utils
 from pybaselines._spline_utils import _basis_midpoints
 
-from ..base_tests import BaseTester2D, InputWeightsMixin, PSplineResult2DMixin, RecreationMixin
+from ..base_tests import (
+    BaseTester2D, ConvergenceMixin, InputWeightsMixin, PSplineResult2DMixin, RecreationMixin
+)
 
 
 class WhittakerComparisonMixin:
@@ -122,10 +124,10 @@ class SplineTester(BaseTester2D, PSplineResult2DMixin):
             self.class_func(self.y, spline_degree=spline_degree)
 
 
-class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):
+class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin, ConvergenceMixin):
     """Base testing class for iterative spline functions."""
 
-    checked_keys = ('weights', 'tol_history', 'result')
+    checked_keys = ('weights', 'tol_history', 'result', 'success')
 
     @classmethod
     def setup_class(cls):

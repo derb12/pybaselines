@@ -6,6 +6,7 @@ Created on March 20, 2021
 
 """
 
+import inspect
 from unittest import mock
 
 import numpy as np
@@ -15,7 +16,8 @@ import pytest
 from pybaselines import _banded_utils, morphological
 
 from .base_tests import (
-    BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin, ensure_deprecation
+    BaseTester, ConvergenceMixin, InputWeightsMixin, RecreationMixin, WhittakerResultMixin,
+    ensure_deprecation
 )
 
 
@@ -36,15 +38,18 @@ class MorphologicalTester(BaseTester):
         assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
 
 
-class IterativeMorphologicalTester(MorphologicalTester):
+class IterativeMorphologicalTester(MorphologicalTester, ConvergenceMixin):
     """Base testing class for iterative morphological functions."""
 
-    checked_keys = ('half_window', 'tol_history')
+    checked_keys = ('half_window', 'tol_history', 'success')
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
         max_iter = 5
-        _, params = self.class_func(self.y, max_iter=max_iter, tol=-1)
+        kwargs = {'tol': -1, 'max_iter': max_iter}
+        if 'tol_2' in inspect.signature(self.class_func).parameters:
+            kwargs['tol_2'] = -1
+        _, params = self.class_func(self.y, **kwargs)
 
         assert params['tol_history'].size == max_iter + 1
 
@@ -226,11 +231,11 @@ class TestMpspline(MorphologicalTester, InputWeightsMixin, RecreationMixin):
         ).all()
 
 
-class TestJBCD(MorphologicalTester):
+class TestJBCD(IterativeMorphologicalTester):
     """Class for testing jbcd baseline."""
 
     func_name = 'jbcd'
-    checked_keys = ('half_window', 'tol_history', 'signal', 'opening')
+    checked_keys = ('half_window', 'tol_history', 'signal', 'opening', 'success')
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('robust_opening', (False, True))

@@ -12,7 +12,7 @@ import pytest
 from pybaselines import smooth
 from pybaselines.utils import ParameterWarning
 
-from .base_tests import BaseTester, ensure_deprecation, get_data
+from .base_tests import BaseTester, ConvergenceMixin, ensure_deprecation, get_data
 
 
 class SmoothTester(BaseTester):
@@ -113,11 +113,11 @@ class TestSwima(SmoothTester):
     checked_keys = ('half_window', 'converged')
 
 
-class TestIpsa(SmoothTester):
+class TestIpsa(SmoothTester, ConvergenceMixin):
     """Class for testing ipsa median baseline."""
 
     func_name = 'ipsa'
-    checked_keys = ('tol_history',)
+    checked_keys = ('tol_history', 'success')
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('original_criteria', (True, False))
@@ -126,11 +126,11 @@ class TestIpsa(SmoothTester):
         super().test_unchanged_data(use_class, original_criteria=original_criteria)
 
 
-class TestRIA(SmoothTester):
+class TestRIA(SmoothTester, ConvergenceMixin):
     """Class for testing ria median baseline."""
 
     func_name = 'ria'
-    checked_keys = ('tol_history',)
+    checked_keys = ('tol_history', 'success')
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))

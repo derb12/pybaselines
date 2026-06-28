@@ -102,6 +102,8 @@ class _MorphologicalNDMixin:
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -112,15 +114,17 @@ class _MorphologicalNDMixin:
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         baseline = y
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline_new = np.minimum(y, _avg_opening(baseline, half_wind))
             calc_difference = relative_difference(baseline, baseline_new)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             baseline = baseline_new
 
-        params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
+        params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1], 'success': success}
         return baseline, params
 
     @_handle_io

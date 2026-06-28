@@ -85,6 +85,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -160,6 +162,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -231,6 +235,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -320,6 +326,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -374,18 +382,21 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         pspline.add_penalty(d1_penalty)
 
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline = pspline.solve(y, weight_array, rhs_extra=partial_rhs)
             new_weights = _weighting._iasls(y - baseline, p=p, mask=self.mask)
             calc_difference = relative_difference(weight_array, new_weights)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             weight_array = new_weights
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
-            'result': PSplineResult2D(pspline, weight_array, rhs_extra=d1_penalty)
+            'result': PSplineResult2D(pspline, weight_array, rhs_extra=d1_penalty),
+            'success': success
         }
 
         return baseline, params
@@ -442,6 +453,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------
@@ -511,6 +524,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------
@@ -579,6 +594,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------
@@ -658,6 +675,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Raises
         ------
@@ -743,6 +762,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------
@@ -819,6 +840,8 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
             * 'result': PSplineResult2D
                 An object that can use the results of the fit to perform additional
                 calculations.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         See Also
         --------

@@ -16,7 +16,8 @@ from pybaselines import _spline_utils, classification, morphological, spline, Ba
 from pybaselines.utils import ParameterWarning
 
 from .base_tests import (
-    BaseTester, InputWeightsMixin, PSplineResultMixin, RecreationMixin, ensure_deprecation
+    BaseTester, ConvergenceMixin, InputWeightsMixin, PSplineResultMixin, RecreationMixin,
+    ensure_deprecation
 )
 
 
@@ -118,10 +119,10 @@ class SplineTester(BaseTester, PSplineResultMixin):
             self.class_func(self.y, spline_degree=None)
 
 
-class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin):
+class IterativeSplineTester(SplineTester, InputWeightsMixin, RecreationMixin, ConvergenceMixin):
     """Base testing class for iterative spline functions."""
 
-    checked_keys = ('weights', 'tol_history', 'result')
+    checked_keys = ('weights', 'tol_history', 'result', 'success')
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""
@@ -496,7 +497,7 @@ class TestPsplineAsPLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_aspls baseline."""
 
     func_name = 'pspline_aspls'
-    checked_keys = ('weights', 'tol_history', 'alpha', 'result')
+    checked_keys = ('weights', 'tol_history', 'alpha', 'result', 'success')
     weight_keys = ('weights', 'alpha')
 
     def test_wrong_alpha_shape(self):

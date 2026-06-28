@@ -1295,6 +1295,37 @@ class BasePolyTester2D(BaseTester2D):
         assert_allclose(numpy_poly, baseline, rtol=1e-10, atol=1e-12)
 
 
+class ConvergenceMixin:
+    """A mixin for ensuring iterative methods report their convergence."""
+
+    def test_convergence_pass(self):
+        """Ensures method reports successful convergence."""
+        class_parameters = inspect.signature(self.class_func).parameters
+        kwargs = {'tol': np.inf}
+        for additional_term in range(2, 5):
+            key = f'tol_{additional_term}'
+            if key in class_parameters:
+                kwargs[key] = np.inf
+
+        _, params = self.class_func(self.y, **kwargs)
+        assert params['success']
+
+    def test_convergence_fail(self):
+        """Ensures method reports lack of convergence."""
+        class_parameters = inspect.signature(self.class_func).parameters
+        kwargs = {'tol': -1, 'max_iter': 3}
+        for additional_term in range(2, 5):
+            tol_key = f'tol_{additional_term}'
+            iter_key = f'max_iter_{additional_term}'
+            if tol_key in class_parameters:
+                kwargs[tol_key] = -1
+            if iter_key in class_parameters:
+                kwargs[iter_key] = 3
+
+        _, params = self.class_func(self.y, **kwargs)
+        assert not params['success']
+
+
 class RecreationMixin:
     """A mixin for BaseTester and BaseTester2D for recreating output from input weights."""
 

@@ -98,6 +98,8 @@ class _PolynomialNDMixin:
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -138,6 +140,7 @@ class _PolynomialNDMixin:
             pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
+        success = False
         for i in range(max_iter):
             baseline_old = baseline
             y = np.minimum(y0 if use_original else y, baseline)
@@ -146,9 +149,10 @@ class _PolynomialNDMixin:
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'success': success}
         if return_coef:
             if hasattr(self, 'z'):
                 params['coef'] = _convert_coef2d(
@@ -213,6 +217,8 @@ class _PolynomialNDMixin:
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -262,6 +268,7 @@ class _PolynomialNDMixin:
             pseudo_inverse = np.linalg.pinv(sqrt_w[:, None] * self._polynomial.vandermonde)
 
         tol_history = np.empty(max_iter)
+        success = False
         for i in range(max_iter):
             y = np.minimum(y0 if use_original else y, baseline + num_std * deviation)
             coef = pseudo_inverse @ (sqrt_w * y)
@@ -271,10 +278,11 @@ class _PolynomialNDMixin:
             calc_difference = relative_difference(new_deviation, deviation)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             deviation = new_deviation
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'success': success}
         if return_coef:
             if hasattr(self, 'z'):
                 params['coef'] = _convert_coef2d(
@@ -359,6 +367,8 @@ class _PolynomialNDMixin:
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -406,6 +416,7 @@ class _PolynomialNDMixin:
         coef = pseudo_inverse @ y
         baseline = self._polynomial.vandermonde @ coef
         tol_history = np.empty(max_iter)
+        success = False
         for i in range(max_iter):
             baseline_old = baseline
             coef = pseudo_inverse @ (y + loss_function(y - sqrt_w * baseline, **loss_kwargs))
@@ -413,9 +424,10 @@ class _PolynomialNDMixin:
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
 
-        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': weight_array, 'tol_history': tol_history[:i + 1], 'success': success}
         if return_coef:
             if hasattr(self, 'z'):
                 params['coef'] = _convert_coef2d(
@@ -478,6 +490,8 @@ class _PolynomialNDMixin:
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order[0] + 1``, ``poly_order[1] + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -515,6 +529,7 @@ class _PolynomialNDMixin:
         sqrt_w = np.sqrt(weight_array)
         baseline_old = y
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             coef = np.linalg.lstsq(
                 self._polynomial.vandermonde * sqrt_w[:, None], y * sqrt_w, None
@@ -525,13 +540,14 @@ class _PolynomialNDMixin:
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             sqrt_w = np.sqrt(
                 _weighting._quantile(y - baseline, quantile=quantile, eps=eps, mask=self.mask)
             )
             baseline_old = baseline
 
-        params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1], 'success': success}
         if return_coef:
             if hasattr(self, 'z'):
                 params['coef'] = _convert_coef2d(

@@ -242,6 +242,9 @@ class _Classification(_Algorithm):
                 tolerance values for each iteration. The length of the array is the number
                 of iterations completed. If the last value in the array is greater than
                 the input `tol` value, then the function did not converge.
+            * 'success' : bool
+                Only if `max_iter` is greater than 1. True if the method converged
+                successfully, otherwise False.
 
         Notes
         -----
@@ -283,6 +286,7 @@ class _Classification(_Algorithm):
             baseline = self._polynomial.vandermonde @ coef
             if max_iter > 1:
                 tol_history = np.empty(max_iter - 1)
+                success = False
                 for i in range(max_iter - 1):
                     rough_baseline[mask] = baseline[mask]
                     coef = pseudo_inverse @ rough_baseline
@@ -290,9 +294,11 @@ class _Classification(_Algorithm):
                     calc_difference = relative_difference(old_coef, coef)
                     tol_history[i] = calc_difference
                     if calc_difference < tol:
+                        success = True
                         break
                     old_coef = coef
                 params['tol_history'] = tol_history[:i + 1]
+                params['success'] = success
 
             if return_coef:
                 params['coef'] = _convert_coef(coef, self.x_domain)
@@ -611,6 +617,8 @@ class _Classification(_Algorithm):
             * 'best_scale' : scalar
                 The scale at which the Shannon entropy of the continuous wavelet transform
                 of the data is at a minimum.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         Notes
         -----
@@ -699,6 +707,7 @@ class _Classification(_Algorithm):
         baseline_old = y
         mask = wavelet_mask.copy()
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             coef = np.linalg.lstsq(self._polynomial.vandermonde[mask], y[mask], None)[0]
             baseline = self._polynomial.vandermonde @ coef
@@ -716,6 +725,7 @@ class _Classification(_Algorithm):
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
             baseline_old = baseline
             if not symmetric:
@@ -723,7 +733,8 @@ class _Classification(_Algorithm):
 
         # TODO should include wavelet_mask in params; maybe called 'initial_mask'?
         params = {
-            'mask': mask, 'tol_history': tol_history[:i + 1], 'best_scale': scale
+            'mask': mask, 'tol_history': tol_history[:i + 1], 'best_scale': scale,
+            'success': success
         }
 
         baseline = np.polynomial.polyutils.mapdomain(baseline, np.array([-1., 1.]), y_domain)

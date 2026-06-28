@@ -355,6 +355,8 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -372,6 +374,7 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         y = pad_edges(y, window_size, **pad_kws)
         baseline = y
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline_old = baseline
             baseline = padded_convolve(
@@ -387,9 +390,12 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
             calc_difference = relative_difference(baseline_old[data_bounds], baseline[data_bounds])
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
 
-        params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'half_window': half_wind, 'tol_history': tol_history[:i + 1], 'success': success
+        }
         return baseline[data_bounds], params
 
     @_Algorithm._handle_io
@@ -440,6 +446,8 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -464,6 +472,7 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         y = pad_edges(y, window_size, **pad_kws)
         baseline = np.zeros(y.shape[0])
         tol_history = np.empty(max_iter + 1)
+        success = False
         for i in range(max_iter + 1):
             baseline_old = baseline
             y_smooth = padded_convolve(y - baseline, smooth_kernel)
@@ -473,9 +482,12 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
             )
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
 
-        params = {'half_window': half_wind, 'tol_history': tol_history[:i + 1]}
+        params = {
+            'half_window': half_wind, 'tol_history': tol_history[:i + 1], 'success': success
+        }
         return baseline[data_bounds], params
 
     @_Algorithm._handle_io
@@ -861,6 +873,8 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
                 correction.
             * 'opening': numpy.ndarray, shape (N,)
                 The calculated morphological opening of `data`.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
 
         References
         ----------
@@ -881,6 +895,7 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         signal_old = y
         partial_rhs_2 = (2 * alpha) * opening
         tol_history = np.empty((max_iter + 1, 2))
+        success = False
         for i in range(max_iter + 1):
             lhs_1 = gamma * whittaker_system.penalty
             lhs_1[whittaker_system.main_diagonal_index] += 1.
@@ -898,6 +913,7 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
             calc_tol_2 = relative_difference(baseline_old, baseline)
             tol_history[i] = (calc_tol_1, calc_tol_2)
             if calc_tol_1 < tol and calc_tol_2 < tol_2:
+                success = True
                 break
             signal_old = signal
             baseline_old = baseline
@@ -906,7 +922,7 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
 
         params = {
             'half_window': half_wind, 'tol_history': tol_history[:i + 1],
-            'signal': signal, 'opening': opening
+            'signal': signal, 'opening': opening, 'success': success
         }
 
         return baseline, params

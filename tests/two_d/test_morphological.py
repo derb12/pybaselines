@@ -12,7 +12,7 @@ import pytest
 
 from pybaselines.two_d import morphological
 
-from ..base_tests import BaseTester2D, ensure_deprecation
+from ..base_tests import BaseTester2D, ConvergenceMixin, ensure_deprecation
 
 
 class MorphologicalTester(BaseTester2D):
@@ -37,10 +37,10 @@ class MorphologicalTester(BaseTester2D):
         assert_allclose(output_2, output, rtol=1e-12, atol=1e-12)
 
 
-class IterativeMorphologicalTester(MorphologicalTester):
+class IterativeMorphologicalTester(MorphologicalTester, ConvergenceMixin):
     """Base testing class for iterative morphological functions."""
 
-    checked_keys = ('half_window', 'tol_history')
+    checked_keys = ('half_window', 'tol_history', 'success')
 
     def test_tol_history(self):
         """Ensures the 'tol_history' item in the parameter output is correct."""

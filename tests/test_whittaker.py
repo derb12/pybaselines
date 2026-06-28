@@ -18,7 +18,8 @@ from pybaselines.utils import relative_difference, ParameterWarning
 from pybaselines._compat import diags, identity
 
 from .base_tests import (
-    BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin, ensure_deprecation
+    BaseTester, ConvergenceMixin, InputWeightsMixin, RecreationMixin, WhittakerResultMixin,
+    ensure_deprecation
 )
 
 
@@ -91,11 +92,12 @@ def sparse_aspls(data, lam, diff_order=2, tol=1e-3, max_iter=100, asymmetric_coe
     return baseline
 
 
-class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin):
+class WhittakerTester(BaseTester, InputWeightsMixin, RecreationMixin, WhittakerResultMixin,
+                      ConvergenceMixin):
     """Base testing class for whittaker functions."""
 
     module = whittaker
-    checked_keys = ('weights', 'tol_history', 'result')
+    checked_keys = ('weights', 'tol_history', 'result', 'success')
     supports_mask = True
 
     @pytest.mark.parametrize('diff_order', (2, 3))
@@ -404,7 +406,7 @@ class TestAsPLS(WhittakerTester):
     """Class for testing aspls baseline."""
 
     func_name = 'aspls'
-    checked_keys = ('weights', 'alpha', 'tol_history', 'result')
+    checked_keys = ('weights', 'alpha', 'tol_history', 'result', 'success')
     weight_keys = ('weights', 'alpha')
 
     @pytest.mark.parametrize('diff_order', (1, 3))

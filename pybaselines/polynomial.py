@@ -162,6 +162,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -237,6 +239,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -335,6 +339,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -464,6 +470,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (N, ``poly_order + 1``)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a polynomial
@@ -577,6 +585,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         if use_threshold:
             pos_wt_mask = weight_array > 0
         # do max_iter + 1 since a max_iter of 0 would return y as baseline otherwise
+        success = False
         for i in range(max_iter + 1):
             baseline_old = baseline
             baseline, zero_wt_window = _loess_low_memory(
@@ -597,6 +606,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             calc_difference = relative_difference(baseline_old, baseline)
             tol_history[i] = calc_difference
             if calc_difference < tol:
+                success = True
                 break
 
             residual = y - baseline
@@ -618,7 +628,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                     break
                 sqrt_w = _tukey_square(residual, scale * noise_sigma, symmetric_weights)
 
-        params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1]}
+        params = {'weights': sqrt_w**2, 'tol_history': tol_history[:i + 1], 'success': success}
         if return_coef:
             # TODO maybe leave out the coefficients from the rest of the calculations
             # since they are otherwise unused, and just fit x vs baseline here; would
@@ -673,6 +683,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                 each iteration. The length of the array is the number of iterations
                 completed. If the last value in the array is greater than the input
                 `tol` value, then the function did not converge.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -779,6 +791,8 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             * 'threshold' : float
                 The optimal threshold value. Could be used in :meth:`~.Baseline.penalized_poly`
                 for fitting other similar data.
+            * 'success' : bool
+                True if the method converged successfully, otherwise False.
             * 'coef': numpy.ndarray, shape (``poly_order + 1``,)
                 Only if `return_coef` is True. The array of polynomial parameters
                 for the baseline, in increasing order. Can be used to create a
@@ -852,8 +866,10 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
         # have a different number of iterations
         tol_history = np.zeros((max_iter_2 + 2, max(max_iter, max_iter_2)))
         j_max = 0
+        success_outer = False
         for i in range(max_iter_2):
             baseline = initial_baseline
+            success_inner = False
             for j in range(max_iter):
                 baseline_old = baseline
                 coef = pseudo_inverse @ (
@@ -863,6 +879,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
                 calc_difference = relative_difference(baseline_old, baseline)
                 tol_history[i + 2, j] = calc_difference
                 if calc_difference < tol:
+                    success_inner = True
                     break
             j_max = max(j, j_max)
 
@@ -875,6 +892,7 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             elif calc_difference < -tol_2:
                 b = threshold
             else:
+                success_outer = True
                 break
             threshold = a + 0.618 * (b - a)
             # this exit criteria was not stated in the reference, but the change in threshold
@@ -883,12 +901,13 @@ class _Polynomial(_Algorithm, polynomial_nd._PolynomialNDMixin):
             calc_difference = relative_difference(loss_kwargs['threshold'], threshold)
             tol_history[1, i] = calc_difference
             if calc_difference < tol_3:
+                success_outer = True
                 break
             loss_kwargs['threshold'] = threshold
 
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 3, :max(i, j_max) + 1],
-            'threshold': loss_kwargs['threshold']
+            'threshold': loss_kwargs['threshold'], 'success': success_inner and success_outer
         }
         if return_coef:
             params['coef'] = _convert_coef(coef, self.x_domain)
