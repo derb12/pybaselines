@@ -58,7 +58,7 @@ baseline_fitter = Baseline(x)
 #   datasets will not vary as much as long as other factors remain constant (e.g. the number
 #   of points, baseline curvature, etc.).
 min_y = y.min()
-y_transf = np.log(y - min_y + 1)  # offset to ensure all values > 0 to prevent issues with log
+y_transf = np.log10(y - min_y + 1)  # offset to ensure all values > 0 to prevent issues with log
 
 # %%
 # The first parameter to vary will be the cutoff frequency, `freq_cutoff`, since it typically
@@ -77,14 +77,14 @@ plt.figure()
 plt.plot(y)
 r_squares = []
 min_mse = np.inf
-cutoff_freqs = np.geomspace(1e-3, 0.4, 30)
+cutoff_freqs = np.geomspace(1e-3, 0.4, 40)
 for i, cutoff_freq in enumerate(cutoff_freqs):
     fit_transf, params = baseline_fitter.beads(
         y_transf, freq_cutoff=cutoff_freq, lam_0=lam_0, lam_1=lam_1, lam_2=lam_2
     )
-    fit = np.exp(fit_transf) + min_y - 1
+    fit = 10**fit_transf + min_y - 1  # reverse the log transform
     r_squares.append(autocorrelation(y - fit))
-    if i % 6 == 0:
+    if i % 8 == 0:
         plt.plot(fit, '--', label=f'cutoff_freq={cutoff_freq:.2e}')
     mse = ((fit - baseline)**2).mean()
     if mse < min_mse:
@@ -121,7 +121,7 @@ print(f'Best cutoff frequency: {cutoff_freqs[best_index]:.2e}')
 plt.show()
 # %%
 # Visual inspection of the autocorrelation plot above suggests that the best cutoff frequency,
-# selected as the middle of the last plateau, occurs at ~0.01, which matches with the cutoff
+# selected as the middle of the last plateau, occurs at ~0.006, which matches with the cutoff
 # frequency that produced the lowest mean squared error with the known baseline, labeled as
 # "best fit" in the plots above.
 #
