@@ -124,6 +124,7 @@ intersphinx_mapping = {
     'numpy': ('https://numpy.org/doc/stable/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'statsmodels': ('https://www.statsmodels.org/stable/', None),
+    'astropy': ('https://docs.astropy.org/en/stable/', None),
 }
 
 # cache remote doc inventories for 14 days

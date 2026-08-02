@@ -61,3 +61,24 @@ adjusting for each family of algorithms within pybaselines:
   :ref:`lam <sphx_glr_generated_examples_interactive_plot_interactive_lam.py>`, and
   :ref:`half_window <sphx_glr_generated_examples_interactive_plot_interactive_hw.py>`
   for all relevant baseline correction methods.
+
+
+pybaselines also provides several functions and methods for helping with parameter selection
+for ``poly_order``, ``lam``, and ``half_window``. In general, the naming schemes for
+these helpers use the prefix ``estimate_`` (e.g. :func:`~utils.estimate_polyorder`) for
+functions that use some simple criteria to estimate an approximate parameter, and ``optimize_``
+(e.g. :meth:`~Baseline.optimize_extended_range`) for
+:doc:`optimizer-type methods <algorithms/algorithms_1d/optimizers>` that provide method-specific
+parameters by calling the underlying method and using some selection criteria.
+
+These helper functions are discussed in more detail in the following sections.
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+   :hidden:
+
+   poly_order
+   lam
+   half_window

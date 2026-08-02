@@ -10,6 +10,6 @@ parameter selection and improving performance.
    :caption: Contents:
 
    algorithms/index
-   parameters/index
+   parameter_selection/index
    performance
    masking/index
