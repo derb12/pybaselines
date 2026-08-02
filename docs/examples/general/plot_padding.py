@@ -3,8 +3,8 @@
 Padding data
 ------------
 
-Several baseline algorithms, notably :doc:`smoothing <../../../algorithms/algorithms_1d/smooth>`
-and :doc:`morphological <../../../algorithms/algorithms_1d/morphological>` algorithms, pad the
+Several baseline algorithms, notably :doc:`smoothing <../../../user_guide/algorithms/algorithms_1d/smooth>`
+and :doc:`morphological <../../../user_guide/algorithms/algorithms_1d/morphological>` algorithms, pad the
 input data in order to reduce edge effects from calculations. Padding is performed by
 :func:`~.pad_edges`, which is a thin wrapper around :func:`numpy.pad` that also allows linear
 extrapolation.

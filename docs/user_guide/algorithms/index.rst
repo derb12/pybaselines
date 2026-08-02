@@ -17,7 +17,7 @@ all algorithms. The two dimensional (2D) section only explains how 1D algorithms
 fit 2D data and is thus overall more sparse on details, so it is suggested to start with reading
 through the 1D section to provide a complete understanding.
 
-Refer to the :doc:`API section <../api/index>` of the documentation for the full parameter and
+Refer to the :doc:`API section <../../api/index>` of the documentation for the full parameter and
 reference listing for any algorithm.
 
 

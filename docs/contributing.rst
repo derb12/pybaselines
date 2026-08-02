@@ -192,7 +192,7 @@ If adding a new baseline algorithm to pybaselines:
     any noteworthy fine-tuning. Ensure these examples run correctly by performing doctests as
     outlined above.
 *   Add a short summary of the algorithm to the appropriate place in the
-    `algorithms section <https://pybaselines.readthedocs.io/en/latest/algorithms/index.html>`_,
+    `algorithms section <https://pybaselines.readthedocs.io/en/latest/user_guide/algorithms/index.html>`_,
     and, if possible, add a plot showing how the algorithm fits different baselines using
     matplotlib's ``plot`` directive. Look at the rst sources for any of the files in the
     ``pybaselines/docs/algorithms`` folder for examples.

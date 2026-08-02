@@ -73,4 +73,4 @@ to show how to make use of these various output parameters.
 
 Having these parameters available also allows extending the underlying baseline correction
 algorithm for new functionality or optimization, and is the basis of most
-:doc:`optimizer-type methods <algorithms/algorithms_1d/optimizers>` in pybaselines.
+:doc:`optimizer-type methods <../user_guide/algorithms/algorithms_1d/optimizers>` in pybaselines.

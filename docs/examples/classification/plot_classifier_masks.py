@@ -3,7 +3,7 @@
 Classification masks
 --------------------
 
-:doc:`Classification algorithms <../../../algorithms/algorithms_1d/classification>` estimate the
+:doc:`Classification algorithms <../../../user_guide/algorithms/algorithms_1d/classification>` estimate the
 baseline by classifying each point as belonging to either the baseline or the peaks. When
 first using a function, the correct parameters may not be known. To make the effects
 of input parameters on the classification process more easily understood, all functions

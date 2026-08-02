@@ -1,3 +1,7 @@
+=========================
+pybaselines Documentation
+=========================
+
 .. image:: images/logo.png
    :alt: Logo
    :align: center

@@ -5,7 +5,8 @@ Selecting `half_window`
 Estimation Functions
 --------------------
 
-Some words here about :func:`~utils.estimate_window`. Discuss how it only gives appropriate parameters for some algorithms.
+Some words here about :func:`~.utils.estimate_window`.
+Discuss how it only gives appropriate parameters for some algorithms.
 
 Optimization Methods
 ---------------------

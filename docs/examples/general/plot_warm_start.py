@@ -4,8 +4,8 @@ Warm-Starting Iteratively Reweighted Methods
 --------------------------------------------
 
 For methods that perform iterative reweighting, which includes
-:doc:`Whittaker smoothing methods <../../../algorithms/algorithms_1d/whittaker>`, most
-:doc:`spline methods <../../../algorithms/algorithms_1d/spline>`,
+:doc:`Whittaker smoothing methods <../../../user_guide/algorithms/algorithms_1d/whittaker>`, most
+:doc:`spline methods <../../../user_guide/algorithms/algorithms_1d/spline>`,
 :meth:`~pybaselines.Baseline.loess` and
 :meth:`~pybaselines.Baseline.quant_reg`, if the peaks within a dataset have the same
 general position, then the weights from a previous fit can be used to provide a warm-start for

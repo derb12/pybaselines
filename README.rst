@@ -107,7 +107,7 @@ and the following libraries:
 All of the required libraries should be automatically installed when
 installing pybaselines using any of the installation methods above.
 
-The `optional dependencies <https://pybaselines.readthedocs.io/en/latest/installation.html#optional-dependencies>`_
+The `optional dependencies <https://pybaselines.readthedocs.io/en/latest/getting_started/installation.html#optional-dependencies>`_
 for pybaselines are listed in the documentation . To also install the optional
 dependencies when installing pybaselines with pip, run:
 
@@ -132,7 +132,7 @@ example of using several different methods to fit a baseline to data is shown be
 For more details on each baseline algorithm, refer to the `algorithms section`_ of
 pybaselines's documentation. For examples of their usage, refer to the `examples section`_.
 
-.. _algorithms section: https://pybaselines.readthedocs.io/en/latest/algorithms/index.html
+.. _algorithms section: https://pybaselines.readthedocs.io/en/latest/user_guide/algorithms/index.html
 
 .. _examples section: https://pybaselines.readthedocs.io/en/latest/examples/index.html
 
@@ -220,7 +220,7 @@ Citing
 
 If you use pybaselines for published research, please consider citing
 by following the `guidelines in the documentation
-<https://pybaselines.readthedocs.io/en/latest/citing.html>`_.
+<https://pybaselines.readthedocs.io/en/latest/about/citing.html>`_.
 
 
 Author

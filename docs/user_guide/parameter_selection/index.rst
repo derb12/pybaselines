@@ -65,10 +65,10 @@ adjusting for each family of algorithms within pybaselines:
 
 pybaselines also provides several functions and methods for helping with parameter selection
 for ``poly_order``, ``lam``, and ``half_window``. In general, the naming schemes for
-these helpers use the prefix ``estimate_`` (e.g. :func:`~utils.estimate_polyorder`) for
+these helpers use the prefix ``estimate_`` (e.g. :func:`~.utils.estimate_polyorder`) for
 functions that use some simple criteria to estimate an approximate parameter, and ``optimize_``
-(e.g. :meth:`~Baseline.optimize_extended_range`) for
-:doc:`optimizer-type methods <algorithms/algorithms_1d/optimizers>` that provide method-specific
+(e.g. :meth:`~.Baseline.optimize_extended_range`) for
+:doc:`optimizer-type methods <../algorithms/algorithms_1d/optimizers>` that provide method-specific
 parameters by calling the underlying method and using some selection criteria.
 
 These helper functions are discussed in more detail in the following sections.

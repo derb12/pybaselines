@@ -9,14 +9,14 @@ collab_pls (Collaborative Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.collab_pls`:
-:ref:`explanation for the algorithm <algorithms/algorithms_1d/optimizers:collab_pls (Collaborative Penalized Least Squares)>`.
+:ref:`explanation for the algorithm <user_guide/algorithms/algorithms_1d/optimizers:collab_pls (Collaborative Penalized Least Squares)>`.
 There is no figure showing a fit for for this method since it requires multiple sets of data.
 
 adaptive_minmax (Adaptive MinMax)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.adaptive_minmax`:
-:ref:`explanation for the algorithm <algorithms/algorithms_1d/optimizers:adaptive_minmax (Adaptive MinMax)>`.
+:ref:`explanation for the algorithm <user_guide/algorithms/algorithms_1d/optimizers:adaptive_minmax (Adaptive MinMax)>`.
 
 .. plot::
    :align: center
@@ -106,7 +106,7 @@ optimize_pls (Optimize Penalized Least Squares)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :meth:`~.Baseline2D.optimize_pls`, much like its
-:ref:`1D counterpart  <algorithms/algorithms_1d/optimizers:optimize_pls (Optimize Penalized Least Squares)>`,
+:ref:`1D counterpart  <user_guide/algorithms/algorithms_1d/optimizers:optimize_pls (Optimize Penalized Least Squares)>`,
 optimizes the regularization parameters for Whittaker smoothing and penalized spline algorithms.
 For 2D, the general equation of penalized least squares given by
 
