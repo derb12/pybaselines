@@ -473,7 +473,6 @@ def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system._num_bases == data_size
     assert penalized_system.shape == (data_size,)
     assert penalized_system.tot_bases == data_size
-    assert_array_equal(penalized_system.original_diagonals, expected_penalty)
     assert_array_equal(penalized_system.penalty, expected_padded_penalty)
     assert penalized_system.reversed == reverse_diags
     assert penalized_system.lower == allow_lower
@@ -852,14 +851,12 @@ def test_penalized_system_reverse_penalty(allow_lower, reverse_diags):
         with pytest.raises(ValueError):
             penalized_system.reverse_penalty()
     else:
-        original_diagonals = penalized_system.original_diagonals.copy()
         original_penalty = penalized_system.penalty.copy()
         original_reverse = penalized_system.reversed
 
         penalized_system.reverse_penalty()
 
         assert penalized_system.reversed == (not original_reverse)
-        assert_array_equal(penalized_system.original_diagonals, original_diagonals[::-1])
         assert_array_equal(penalized_system.penalty, original_penalty[::-1])
 
 
@@ -950,17 +947,6 @@ def test_penalized_system_add_diagonal_after_penalty(data_size, diff_order, allo
             )
             # should also modify the penalty attribute
             assert_allclose(penalized_system.penalty, expected_output, rtol=1e-12, atol=1e-12)
-
-            # ensure original diagonals are also not affected
-            expected_diagonals = penalty_bands.copy()
-            if penalized_system.reversed:
-                expected_diagonals = expected_diagonals[::-1]
-            if penalized_system.lower:
-                expected_diagonals = expected_diagonals[expected_diagonals.shape[0] // 2:]
-            assert_allclose(
-                penalized_system.original_diagonals, expected_diagonals,
-                rtol=1e-12, atol=1e-12
-            )
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3))

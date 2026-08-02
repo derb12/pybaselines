@@ -415,7 +415,6 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
 
     num_bases = num_knots + spline_degree - 1
 
-    assert_array_equal(penalized_system.original_diagonals, expected_penalty)
     assert_array_equal(penalized_system.penalty, expected_padded_penalty)
     assert penalized_system.reversed == reverse_diags
     assert penalized_system.lower == allow_lower
