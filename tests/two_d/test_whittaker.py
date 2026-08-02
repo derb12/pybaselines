@@ -12,7 +12,8 @@ import pytest
 from pybaselines.two_d import whittaker
 
 from ..base_tests import (
-    BaseTester2D, ConvergenceMixin, InputWeightsMixin, RecreationMixin, WhittakerResult2DMixin
+    BaseTester2D, ConvergenceMixin, InputWeightsMixin, RecreationMixin, WhittakerResult2DMixin,
+    ensure_deprecation
 )
 
 
@@ -128,6 +129,13 @@ class TestAirPLS(EigenvalueMixin, WhittakerTester):
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
+
+    @ensure_deprecation(1, 5)
+    @pytest.mark.parametrize('normalize_weights', (True, False))
+    def test_normalize_weights_deprecation(self, normalize_weights):
+        """Ensures warning is emitted if normalize_weights is input."""
+        with pytest.warns(DeprecationWarning, match='normalize_weights is deprecated'):
+            self.class_func(self.y, normalize_weights=normalize_weights)
 
 
 class TestArPLS(EigenvalueMixin, WhittakerTester):

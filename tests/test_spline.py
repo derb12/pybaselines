@@ -356,6 +356,13 @@ class TestPsplineAirPLS(IterativeSplineTester, WhittakerComparisonMixin):
         """Ensures the P-spline version is the same as the Whittaker version."""
         super().test_whittaker_comparison(lam=lam, diff_order=diff_order)
 
+    @ensure_deprecation(1, 5)
+    @pytest.mark.parametrize('normalize_weights', (True, False))
+    def test_normalize_weights_deprecation(self, normalize_weights):
+        """Ensures warning is emitted if normalize_weights is input."""
+        with pytest.warns(DeprecationWarning, match='normalize_weights is deprecated'):
+            self.class_func(self.y, normalize_weights=normalize_weights)
+
 
 class TestPsplineArPLS(IterativeSplineTester, WhittakerComparisonMixin):
     """Class for testing pspline_arpls baseline."""

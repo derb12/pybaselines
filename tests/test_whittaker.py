@@ -259,6 +259,13 @@ class TestAirPLS(WhittakerTester):
         assert np.isfinite(params['tol_history'][-1])
         assert np.isfinite(params['weights']).all()
 
+    @ensure_deprecation(1, 5)
+    @pytest.mark.parametrize('normalize_weights', (True, False))
+    def test_normalize_weights_deprecation(self, normalize_weights):
+        """Ensures warning is emitted if normalize_weights is input."""
+        with pytest.warns(DeprecationWarning, match='normalize_weights is deprecated'):
+            self.class_func(self.y, normalize_weights=normalize_weights)
+
 
 class TestArPLS(WhittakerTester):
     """Class for testing arpls baseline."""

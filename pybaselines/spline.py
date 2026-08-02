@@ -397,7 +397,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
         return baseline, params
 
     def pspline_airpls(self, data, lam=1e3, num_knots=100, spline_degree=3,
-                       diff_order=2, max_iter=50, tol=1e-3, weights=None, normalize_weights=False):
+                       diff_order=2, max_iter=50, tol=1e-3, weights=None,
+                       normalize_weights='deprecated'):
         """
         A penalized spline version of the airPLS algorithm.
 
@@ -425,8 +426,12 @@ class _Spline(_Algorithm, _PLSNDMixin):
             will be an array with size equal to N and all values set to 1.
         normalize_weights : bool, optional
             If True, will normalize the computed weights between 0 and 1 to potentially
-            improve the numerical stability. Set to False (default) to use the original
-            implementation, which sets weights for all negative residuals to be greater than 1.
+            improve the numerical stability. Default behavior uses the reference implementation,
+            which sets weights for all negative residuals to be greater than 1.
+
+            .. deprecated:: 1.3
+                `normalize_weights` is deprecated and will be removed in version 1.5. The
+                future behavior will use the reference implementation.
 
         Returns
         -------
@@ -1711,7 +1716,8 @@ def pspline_iasls(data, x_data=None, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
 
 @_spline_wrapper
 def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
-                   max_iter=50, tol=1e-3, weights=None, x_data=None, normalize_weights=False):
+                   max_iter=50, tol=1e-3, weights=None, x_data=None,
+                   normalize_weights='deprecated'):
     """
     A penalized spline version of the airPLS algorithm.
 

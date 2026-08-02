@@ -16,7 +16,8 @@ from pybaselines.two_d import Baseline2D, spline, _spline_utils
 from pybaselines._spline_utils import _basis_midpoints
 
 from ..base_tests import (
-    BaseTester2D, ConvergenceMixin, InputWeightsMixin, PSplineResult2DMixin, RecreationMixin
+    BaseTester2D, ConvergenceMixin, InputWeightsMixin, PSplineResult2DMixin, RecreationMixin,
+    ensure_deprecation
 )
 
 
@@ -301,6 +302,13 @@ class TestPsplineAirPLS(IterativeSplineTester, WhittakerComparisonMixin):
     def test_whittaker_comparison(self, lam, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
         super().test_whittaker_comparison(lam=lam, diff_order=diff_order)
+
+    @ensure_deprecation(1, 5)
+    @pytest.mark.parametrize('normalize_weights', (True, False))
+    def test_normalize_weights_deprecation(self, normalize_weights):
+        """Ensures warning is emitted if normalize_weights is input."""
+        with pytest.warns(DeprecationWarning, match='normalize_weights is deprecated'):
+            self.class_func(self.y, normalize_weights=normalize_weights)
 
 
 class TestPsplineArPLS(IterativeSplineTester, WhittakerComparisonMixin):

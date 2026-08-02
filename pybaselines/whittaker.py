@@ -351,7 +351,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         return baseline, params
 
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               normalize_weights=False):
+               normalize_weights='deprecated'):
         r"""
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -392,8 +392,12 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             will be an array with size equal to N and all values set to 1.
         normalize_weights : bool, optional
             If True, will normalize the computed weights between 0 and 1 to potentially
-            improve the numerical stability. Set to False (default) to use the original
-            implementation, which sets weights for all negative residuals to be greater than 1.
+            improve the numerical stability. Default behavior uses the reference implementation,
+            which sets weights for all negative residuals to be greater than 1.
+
+            .. deprecated:: 1.3
+                `normalize_weights` is deprecated and will be removed in version 1.5. The
+                future behavior will use the reference implementation.
 
         Returns
         -------
@@ -1282,7 +1286,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
 
 @_whittaker_wrapper
 def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None,
-           normalize_weights=False):
+           normalize_weights='deprecated'):
     """
     Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
