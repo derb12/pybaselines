@@ -1,5 +1,5 @@
-Introduction
-============
+Getting Started
+===============
 
 pybaselines is a Python library that provides many different algorithms for
 performing baseline correction on data from experimental techniques such as
@@ -12,4 +12,11 @@ such as AsLS, airPLS, ModPoly, and SNIP, as well as many lesser known algorithms
 algorithms are adapted directly from literature, preserving their original names whenever
 possible, although there are a few that are unique to pybaselines, such as penalized spline
 versions of Whittaker-smoothing-based algorithms. The full list of implemented algorithms
-can be found in the :doc:`API section <api/index>`.
+can be found in the :doc:`API section <../api/index>`.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   installation
+   quickstart

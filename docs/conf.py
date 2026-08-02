@@ -50,6 +50,7 @@ extensions = [
     'sphinx.ext.autosectionlabel',
     'matplotlib.sphinxext.plot_directive',
     'sphinx_gallery.gen_gallery',
+    'sphinx_design',  # allows clickable grid items on the home page
     'viewcode_inherit_methods',  # custom extension to allow viewcode with inherited methods
     'modify_module_docstring',  # custom extension to modify module docstrings
     'xref_param_dict',  # custom extension to add cross references for parameter dictionary typings
@@ -275,6 +276,7 @@ try:
             },
         ],
     'secondary_sidebar_items': ['page-toc', 'sourcelink', 'sg_download_links'],
+    'header_links_before_dropdown': 6,
    }
 except ImportError:
     html_theme = 'nature'
