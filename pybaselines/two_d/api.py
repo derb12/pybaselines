@@ -49,6 +49,16 @@ class Baseline2D(
             `output_dtype` is deprecated and will be removed in version 1.5. Use
             :func:`numpy.astype` on the output baseline instead.
 
+    mask : array-like, shape (M, N), optional
+        A Boolean array, in which all indices that are `True` denote indices that should
+        be ignored during baseline correction. If None (default), denotes all values should
+        be included.
+    strict_mask : bool, optional
+        If True (default) and `mask` is not None, calling any method that does not support
+        masking or calculations using the mask that produce invalid results will raise an
+        exception. If `strict_mask` is False, will instead perform linear interpolation
+        following `mask` before performing baseline correction to prevent those issues.
+
     Attributes
     ----------
     x : numpy.ndarray or None
