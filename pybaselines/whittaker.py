@@ -112,18 +112,19 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         is needed for noisy data and correspondly requires a slightly higher ``lam`` value.
 
         >>> fit_1, params_1 = baseline_fitter.asls(y, lam=1e6, p=0.001)
-        >>> fit_2, params_2 = baseline_fitter.asls(y, lam=1e7, p=0.02)
+        >>> fit_2, params_2 = baseline_fitter.asls(y, lam=1e7, p=0.04)
         >>> plt.plot(x, y)
         >>> plt.plot(x, fit_1, label='lam=1e6, p=0.001')
-        >>> plt.plot(x, fit_2, '--', label='lam=1e7, p=0.02')
+        >>> plt.plot(x, fit_2, '--', label='lam=1e7, p=0.04')
         >>> plt.legend()
         >>> plt.show()
 
         The parameter ``p`` should typically be chosen such that the residuals, ``y - baseline``,
-        are centered around 0. In this example, the use of ``p=0.02`` fits the noise better.
+        are centered around 0. In this example, the use of ``p=0.04`` fits the noise better.
 
+        >>> plt.axvline(0, linestyle=':', color='k')
         >>> plt.hist(
-        ...     [y - fit_1, y - fit_2], bins=100, density=True, label=['p=0.001', 'p=0.02'],
+        ...     [y - fit_1, y - fit_2], bins=100, density=True, label=['p=0.001', 'p=0.04'],
         ...     histtype='step'
         ... )
         >>> plt.xlabel('Residuals, y - baseline')
@@ -271,6 +272,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         The parameter ``p`` should typically be chosen such that the residuals, ``y - baseline``,
         are centered around 0. In this example, the use of ``p=0.15`` fits the noise better.
 
+        >>> plt.axvline(0, linestyle=':', color='k')
         >>> plt.hist(
         ...     [y - fit_1, y - fit_2], bins=100, density=True, label=['p=0.05', 'p=0.15'],
         ...     histtype='step'

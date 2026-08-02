@@ -430,8 +430,11 @@ class _Classification(_Algorithm):
             All points in the rolling standard deviation below `threshold` will be considered
             as baseline. Higher values will assign more points as baseline. Default is None,
             which will set the threshold as the 15th percentile of the rolling standard
-            deviation. If `threshold` is Callable, it should take the rolling standard deviation
-            as the only argument and output a float.
+            deviation. If `threshold` is callable, it should take the rolling standard deviation
+            as the only argument and output a float, with the call signature::
+
+                threshold(rolling_std: numpy.ndarray) -> float
+
         min_fwhm : int, optional
             After creating the interpolated baseline, any region where the baseline
             is greater than the data for `min_fwhm` consecutive points will have an additional

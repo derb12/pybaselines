@@ -243,20 +243,6 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         >>> plt.legend()
         >>> plt.show()
 
-        For noisy data, ``mor`` underestimates the baseline, which can be mitigated by
-        smoothing the input data before calling the method.
-
-        >>> _, y_noisy = utils.make_data(noise_std=0.3)
-        >>> y_smooth = utils.whittaker_smooth(y_noisy, lam=1e2)
-        >>> fit_3, params_4 = baseline_fitter.mor(y_noisy, half_window=30)
-        >>> fit_4, params_4 = baseline_fitter.mor(y_smooth, half_window=30)
-        >>> plt.plot(x, y_noisy)
-        >>> plt.plot(x, y_smooth, '--', label='smoothed data')
-        >>> plt.plot(x, fit_3, ':', label='noisy fit')
-        >>> plt.plot(x, fit_4, label='smoothed fit')
-        >>> plt.legend()
-        >>> plt.show()
-
         """
         return super().mor(data, half_window=half_window, window_kwargs=window_kwargs, **kwargs)
 
