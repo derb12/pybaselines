@@ -74,7 +74,7 @@ class TestAsLS(EigenvalueMixin, WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
@@ -102,21 +102,10 @@ class TestIAsLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    @pytest.mark.parametrize('diff_order', (2, [3, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
-
-    def test_diff_order_one_fails(self):
-        """Ensure that a difference order of 1 raises an exception."""
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=1)
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=[1, 1])
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=[1, 2])
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=[2, 1])
 
     @pytest.mark.parametrize('p', (0.01, 0.2))
     def test_output_binary_weights(self, p):
@@ -135,7 +124,7 @@ class TestAirPLS(EigenvalueMixin, WhittakerTester):
     func_name = 'airpls'
     required_repeated_kwargs = {'lam': 1e1}
 
-    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
@@ -147,7 +136,7 @@ class TestArPLS(EigenvalueMixin, WhittakerTester):
     func_name = 'arpls'
     required_repeated_kwargs = {'lam': 1e1}
 
-    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
@@ -165,21 +154,10 @@ class TestDrPLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, eta=eta)
 
-    @pytest.mark.parametrize('diff_order', (2, [3, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
-
-    def test_diff_order_one_fails(self):
-        """Ensure that a difference order of 1 raises an exception."""
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=1)
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=[1, 1])
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=[1, 2])
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=[2, 1])
 
 
 class TestIArPLS(EigenvalueMixin, WhittakerTester):
@@ -188,7 +166,7 @@ class TestIArPLS(EigenvalueMixin, WhittakerTester):
     func_name = 'iarpls'
     required_repeated_kwargs = {'lam': 1e1}
 
-    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
@@ -202,7 +180,7 @@ class TestAsPLS(WhittakerTester):
     weight_keys = ('weights', 'alpha')
     required_repeated_kwargs = {'lam': 1e2, 'tol': 1e-1}
 
-    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
@@ -236,7 +214,7 @@ class TestPsalsa(EigenvalueMixin, WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
@@ -254,7 +232,7 @@ class TestBrPLS(EigenvalueMixin, WhittakerTester):
     func_name = 'brpls'
     required_repeated_kwargs = {'lam': 1e2, 'tol_2': 1e-1}
 
-    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)
@@ -277,7 +255,7 @@ class TestLSRPLS(EigenvalueMixin, WhittakerTester):
     func_name = 'lsrpls'
     required_repeated_kwargs = {'lam': 1e2}
 
-    @pytest.mark.parametrize('diff_order', (1, [1, 2]))
+    @pytest.mark.parametrize('diff_order', (1, [1, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order)

@@ -356,8 +356,6 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        elif np.less(diff_order, 2).any():
-            raise ValueError('diff_order must be 2 or greater')
 
         if weights is None:
             _, _, pseudo_inverse = self._setup_polynomial(

@@ -294,7 +294,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
         diff_order : int, optional
-            The order of the differential matrix. Must be greater than 1. Default is 2
+            The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 3.
 
         Returns
@@ -349,8 +349,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        elif diff_order < 2:
-            raise ValueError('diff_order must be 2 or greater')
 
         if weights is None:
             _, _, pseudo_inverse = self._setup_polynomial(
@@ -610,8 +608,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
         """
         if not 0 <= eta <= 1:
             raise ValueError('eta must be between 0 and 1')
-        elif diff_order < 2:
-            raise ValueError('diff_order must be 2 or greater')
 
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam,

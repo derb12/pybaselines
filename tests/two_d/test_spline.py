@@ -182,7 +182,7 @@ class TestMixtureModel(IterativeSplineTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    @pytest.mark.parametrize('diff_order', (1, 2, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)
@@ -200,7 +200,7 @@ class TestIRSQR(IterativeSplineTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, quantile=quantile)
 
-    @pytest.mark.parametrize('diff_order', (1, 2, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)
@@ -224,7 +224,7 @@ class TestPsplineAsLS(IterativeSplineTester, WhittakerComparisonMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)
@@ -268,19 +268,8 @@ class TestPsplineIAsLS(IterativeSplineTester, WhittakerComparisonMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    def test_diff_order_one_fails(self):
-        """Ensure that a difference order of 1 raises an exception."""
-        with pytest.raises(ValueError):
-            self.class_func(self.y, diff_order=1)
-        with pytest.raises(ValueError):
-            self.class_func(self.y, diff_order=[1, 1])
-        with pytest.raises(ValueError):
-            self.class_func(self.y, diff_order=[1, 2])
-        with pytest.raises(ValueError):
-            self.class_func(self.y, diff_order=[2, 1])
-
     @pytest.mark.parametrize('lam', (1e1, [1e1, 1e3]))
-    @pytest.mark.parametrize('diff_order', (2, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_whittaker_comparison(self, lam, diff_order):
         """Ensures the P-spline version is the same as the Whittaker version."""
         super().test_whittaker_comparison(lam=lam, diff_order=diff_order)
@@ -302,7 +291,7 @@ class TestPsplineAirPLS(IterativeSplineTester, WhittakerComparisonMixin):
     func_name = 'pspline_airpls'
     required_repeated_kwargs = {'lam': 1e1}
 
-    @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)
@@ -320,7 +309,7 @@ class TestPsplineArPLS(IterativeSplineTester, WhittakerComparisonMixin):
     func_name = 'pspline_arpls'
     required_repeated_kwargs = {'lam': 1e1}
 
-    @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)
@@ -338,7 +327,7 @@ class TestPsplineIArPLS(IterativeSplineTester, WhittakerComparisonMixin):
     func_name = 'pspline_iarpls'
     required_repeated_kwargs = {'lam': 1e1}
 
-    @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)
@@ -362,7 +351,7 @@ class TestPsplinePsalsa(IterativeSplineTester, WhittakerComparisonMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)
@@ -388,7 +377,7 @@ class TestPsplineBrPLS(IterativeSplineTester, WhittakerComparisonMixin):
     required_kwargs = {'tol_2': 1e-1}
     required_repeated_kwargs = {'lam': 1e1, 'tol_2': 1e-1}
 
-    @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)
@@ -417,7 +406,7 @@ class TestPsplineLSRPLS(IterativeSplineTester, WhittakerComparisonMixin):
     func_name = 'pspline_lsrpls'
     required_repeated_kwargs = {'lam': 1e1}
 
-    @pytest.mark.parametrize('diff_order', (1, 3, [2, 3]))
+    @pytest.mark.parametrize('diff_order', (1, [2, 3]))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
         self.class_func(self.y, diff_order=diff_order, **self.kwargs)

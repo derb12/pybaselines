@@ -137,7 +137,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             will be set by fitting the data with a second order polynomial.
         diff_order : int or Sequence[int, int], optional
             The order of the differential matrix for the rows and columns, respectively. If
-            a single value is given, both will use the same value. Must be greater than 1.
+            a single value is given, both will use the same value. Must be greater than 0.
             Default is 2 (second order differential matrix). Typical values are 2 or 3.
 
         Returns
@@ -184,8 +184,6 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        elif np.less(diff_order, 2).any():
-            raise ValueError('diff_order must be 2 or greater')
 
         if weights is None:
             _, _, pseudo_inverse = self._setup_polynomial(
@@ -402,7 +400,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             will be an array with size equal to N and all values set to 1.
         diff_order : int or Sequence[int, int], optional
             The order of the differential matrix for the rows and columns, respectively. If
-            a single value is given, both will use the same value. Must be greater than 1.
+            a single value is given, both will use the same value. Must be greater than 0.
             Default is 2 (second order differential matrix). Typical values are 2 or 3.
 
         Returns
@@ -438,8 +436,6 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         """
         if not 0 <= eta <= 1:
             raise ValueError('eta must be between 0 and 1')
-        elif np.less(diff_order, 2).any():
-            raise ValueError('diff_order must be 2 or greater')
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         penalized_system_1 = PenalizedSystem2D(self._shape, 1, diff_order=1)

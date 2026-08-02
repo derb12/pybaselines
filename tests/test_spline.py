@@ -289,10 +289,11 @@ class TestPsplineIAsLS(IterativeSplineTester, WhittakerComparisonMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    def test_diff_order_one_fails(self):
-        """Ensure that a difference order of 1 raises an exception."""
-        with pytest.raises(ValueError):
-            self.class_func(self.y, diff_order=1)
+    @pytest.mark.parametrize('diff_order', (1, 3))
+    def test_diff_orders(self, diff_order):
+        """Ensure that other difference orders work."""
+        lam = {1: 1e2, 3: 1e10}[diff_order]
+        self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     @pytest.mark.parametrize('lam', (1e1, 1e5))
     @pytest.mark.parametrize('p', (0.01, 0.1))
@@ -404,10 +405,10 @@ class TestPsplineDrPLS(IterativeSplineTester, WhittakerComparisonMixin):
 
     func_name = 'pspline_drpls'
 
-    @pytest.mark.parametrize('diff_order', (2, 3))
+    @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        lam = {2: 1e6, 3: 1e10}[diff_order]
+        lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
 
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
@@ -443,11 +444,6 @@ class TestPsplineDrPLS(IterativeSplineTester, WhittakerComparisonMixin):
         """Ensures eta values outside of [0, 1] raise an exception."""
         with pytest.raises(ValueError):
             self.class_func(self.y, eta=eta)
-
-    def test_diff_order_one_fails(self):
-        """Ensure that a difference order of 1 raises an exception."""
-        with pytest.raises(ValueError):
-            self.class_func(self.y, diff_order=1)
 
 
 class TestPsplineIArPLS(IterativeSplineTester, WhittakerComparisonMixin):
