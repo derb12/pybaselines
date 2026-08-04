@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Objects for calculating additional terms from results of analytical baseline correction methods.
 
+.. versionadded:: 1.3.0
+
 Created on November 15, 2025
 @author: Donald Erb
 
