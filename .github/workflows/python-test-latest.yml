@@ -57,4 +57,4 @@ jobs:
     - name: Test with required dependencies
       # use -Werror so that any warnings will show up as errors -> want to be as stringent
       # as possible
-      run: python -Werror -m pytest .
+      run: python -Werror -m pytest -n=4

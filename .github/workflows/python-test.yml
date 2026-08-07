@@ -56,7 +56,7 @@ jobs:
         python -m pip install . --group test
 
     - name: Test with required dependencies
-      run: pytest .
+      run: pytest -n=4
 
     - name: Install optional dependencies
       # uncomment the if statement below to allow skipping versions
@@ -64,7 +64,7 @@ jobs:
       run: python -m pip install .[full]
 
     - name: Test with optional dependencies
-      run: pytest .
+      run: pytest -n=4
 
 
   test-min-dependencies:
@@ -93,13 +93,13 @@ jobs:
         python -m pip install . "numpy==1.22.*" "scipy==1.8.*" --group test
 
     - name: Test with minimum required dependencies
-      run: pytest .
+      run: pytest -n=4
 
     - name: Install minimum optional dependencies
       run: python -m pip install "numba==0.55.*"
 
     - name: Test with minimum optional dependencies
-      run: pytest .
+      run: pytest -n=4
 
 
   lint-and-doctest:
@@ -126,11 +126,11 @@ jobs:
       # TODO will need to think of how to handle doctests when they rely on optional dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install . --group test --group doctest --group lint
+        python -m pip install . --group doctest --group lint
 
     - name: Lint
       id: lint
-      run: ruff check .
+      run: ruff check
 
     - name: Doctest
       id: doctest

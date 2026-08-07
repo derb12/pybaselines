@@ -84,10 +84,15 @@ full = [
 ]
 
 [dependency-groups]
-test = [
+test_base = [
     "pytest>=6.0",  # first version to work with pyproject.toml
 ]
+test = [
+    {include-group = "test_base"},
+    "pytest-xdist",
+]
 doctest = [
+    {include-group = "test_base"},
     "scipy-doctest",
     "matplotlib",
 ]
