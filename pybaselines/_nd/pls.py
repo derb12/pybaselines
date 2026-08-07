@@ -1186,7 +1186,7 @@ class _PLSNDMixin:
         success = False
         for i in range(max_iter + 1):
             posterior_prob_noise, sigma, fraction_noise, fraction_positive = _weighting._em(
-                y - baseline, sigma=sigma, fraction_noise=fraction_noise,
+                residual, sigma=sigma, fraction_noise=fraction_noise,
                 fraction_positive=fraction_positive, symmetric=symmetric, mask=self.mask
             )
             calc_difference = relative_difference(weight_array, posterior_prob_noise)
