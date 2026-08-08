@@ -412,7 +412,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
-    @pytest.mark.parametrize('opt_method', ('U-curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
     def test_output(self, opt_method):
         """Ensures correct output parameters for different optimization methods."""
         if opt_method in ('GCV', 'BIC'):
@@ -486,7 +486,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
                 err_msg=f'failed with key={key}'
             )
 
-    @pytest.mark.parametrize('opt_method', ('U-Curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
     def test_single_value(self, opt_method):
         """Ensures all optimization methods work if only a single value is fit."""
         min_val = 2.

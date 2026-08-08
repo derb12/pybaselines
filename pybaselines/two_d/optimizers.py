@@ -253,7 +253,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         return baseline, params
 
     @_Algorithm2D._handle_io(skip_sorting=True)
-    def optimize_pls(self, data, method='arpls', opt_method='U-Curve', min_value=4., max_value=7.,
+    def optimize_pls(self, data, method='arpls', opt_method='V-Curve', min_value=4., max_value=7.,
                      step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
         """
         Optimizes the regularization parameters for penalized least squares methods.
@@ -265,9 +265,10 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         method : str, optional
             A string indicating the Whittaker-smoothing or spline method
             to use for fitting the baseline. Default is 'arpls'.
-        opt_method : {'U-Curve', 'GCV', 'BIC'}, optional
+        opt_method : {'V-Curve', 'U-Curve', 'GCV', 'BIC'}, optional
             The optimization method used to optimize `lam`. Supported methods are:
 
+            * 'V-Curve'
             * 'U-Curve'
             * 'GCV'
             * 'BIC'
@@ -395,8 +396,8 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         lam_range_r = _param_grid(min_rows, max_rows, step_rows, polynomial_fit=False)
         lam_range_c = _param_grid(min_cols, max_cols, step_cols, polynomial_fit=False)
         selected_method = opt_method.lower().replace('-', '_').replace('_', '')
-        if selected_method in ('ucurve',):
-            baseline, params = _optimize_ucurve2d(
+        if selected_method in ('vcurve', 'ucurve'):
+            baseline, params = _optimize_lcurve2d(
                 y, selected_method, optimizer_obj, method_kws, lam_range_r, lam_range_c, euclidean
             )
         elif selected_method in ('gcv', 'bic'):
@@ -442,10 +443,10 @@ def _update_params(func, params, data, **kwargs):
     return baseline
 
 
-def _optimize_ucurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, lam_range_c,
+def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, lam_range_c,
                        euclidean):
     """
-    Performs U-curve optimization based on the fit fidelity and penalty.
+    Performs L-curve optimization based on the fit fidelity and penalty.
 
     Parameters
     ----------
@@ -546,16 +547,31 @@ def _optimize_ucurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
             penalty_cols[i, j] = fit_penalty_c
             fidelity[i, j] = fit_fidelity
 
-    # add fidelity and penalty to params before potentially normalizing
+    # add fidelity and penalty to params before further processing
     params = {'fidelity': fidelity, 'penalty_rows': penalty_rows, 'penalty_columns': penalty_cols}
-    if fidelity.size > 1:
-        penalty_rows = (penalty_rows - penalty_rows.min()) / np.ptp(penalty_rows)
-        penalty_cols = (penalty_cols - penalty_cols.min()) / np.ptp(penalty_cols)
-        fidelity = (fidelity - fidelity.min()) / np.ptp(fidelity)
-    if euclidean:
-        metric = np.sqrt(fidelity**2 + penalty_rows**2 + penalty_cols**2)
-    else:  # graph distance from the origin, ie. only travelling along x, y, and z axes
-        metric = fidelity + penalty_rows + penalty_cols
+    # TODO: for both metrics, need to check size along each axis and skip calcs accordingly
+    if opt_method == 'ucurve':
+        if fidelity.size > 1:
+            penalty_rows = (penalty_rows - penalty_rows.min()) / np.ptp(penalty_rows)
+            penalty_cols = (penalty_cols - penalty_cols.min()) / np.ptp(penalty_cols)
+            fidelity = (fidelity - fidelity.min()) / np.ptp(fidelity)
+        if euclidean:
+            metric = np.sqrt(fidelity**2 + penalty_rows**2 + penalty_cols**2)
+        else:  # graph distance from the origin, ie. only travelling along x, y, and z axes
+            metric = fidelity + penalty_rows + penalty_cols
+    elif opt_method == 'vcurve':
+        if fidelity.size > 1:
+            step_r = np.log10(lam_range_r[1] / lam_range_r[0])
+            step_c = np.log10(lam_range_c[1] / lam_range_c[0])
+
+            penalty_rows_grad = _gradient_magnitude(np.log10(penalty_rows), step_r, step_c)
+            penalty_cols_grad = _gradient_magnitude(np.log10(penalty_cols), step_r, step_c)
+            fidelity_grad = _gradient_magnitude(np.log10(fidelity), step_r, step_c)
+
+            metric = np.sqrt(penalty_rows_grad**2 + penalty_cols_grad**2 + fidelity_grad**2)
+
+        else:
+            metric = np.zeros((1, 1))
 
     best_idx = np.unravel_index(np.argmin(metric), metric.shape)
     best_lam = (lam_range_r[best_idx[0]], lam_range_c[best_idx[1]])
@@ -563,3 +579,26 @@ def _optimize_ucurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
     params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
 
     return baseline, params
+
+
+def _gradient_magnitude(array, row_step=1., col_step=1.):
+    """
+    Calculates the magnitude of the gradient in two dimensions.
+
+    Parameters
+    ----------
+    array : numpy.ndarray, shape (N, M)
+        The array to calculate the gradient of.
+    row_step : float, optional
+        The step size along the rows. Default is 1.
+    col_step : float, optional
+        The step size along the columns. Default is 1.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N, M)
+        The magnitude of the gradient of the input array.
+
+    """
+    row_gradient, col_gradient = np.gradient(array, row_step, col_step)
+    return np.sqrt(row_gradient**2 + col_gradient**2)
