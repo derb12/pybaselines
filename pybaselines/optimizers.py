@@ -612,7 +612,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         return baseline, params
 
     @_Algorithm._handle_io(skip_sorting=True)
-    def optimize_pls(self, data, method='arpls', opt_method='U-Curve', min_value=4., max_value=7.,
+    def optimize_pls(self, data, method='arpls', opt_method='V-Curve', min_value=4., max_value=7.,
                      step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
         """
         Optimizes the regularization parameter for penalized least squares methods.
@@ -624,9 +624,10 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         method : str, optional
             A string indicating the Whittaker-smoothing or spline method
             to use for fitting the baseline. Default is 'arpls'.
-        opt_method : {'U-Curve', 'GCV', 'BIC'}, optional
+        opt_method : {'V-Curve', 'U-Curve', 'GCV', 'BIC'}, optional
             The optimization method used to optimize `lam`. Supported methods are:
 
+            * 'V-Curve'
             * 'U-Curve'
             * 'GCV'
             * 'BIC'
@@ -754,8 +755,8 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
 
         lam_range = _param_grid(min_value, max_value, step, polynomial_fit=False)
         selected_method = opt_method.lower().replace('-', '_').replace('_', '')
-        if selected_method in ('ucurve',):
-            baseline, params = _optimize_ucurve(
+        if selected_method in ('vcurve', 'ucurve'):
+            baseline, params = _optimize_lcurve(
                 y, selected_method, optimizer_obj.method, method_kws, optimizer_obj.method_call,
                 optimizer_obj.fitter, lam_range, euclidean
             )
@@ -853,10 +854,10 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
     return values
 
 
-def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_obj,
+def _optimize_lcurve(y, opt_method, method, method_kws, baseline_func, baseline_obj,
                      lam_range, euclidean):
     """
-    Performs U-curve optimization based on the fit fidelity and penalty.
+    Performs L-curve optimization based on the fit fidelity and penalty.
 
     Parameters
     ----------
@@ -948,15 +949,26 @@ def _optimize_ucurve(y, opt_method, method, method_kws, baseline_func, baseline_
         penalty[i] = fit_penalty
         fidelity[i] = fit_fidelity
 
-    # add fidelity and penalty to params before potentially normalizing
+    # add fidelity and penalty to params before further processing
     params = {'fidelity': fidelity, 'penalty': penalty}
-    if lam_range.size > 1:
-        penalty = (penalty - penalty.min()) / (penalty.max() - penalty.min())
-        fidelity = (fidelity - fidelity.min()) / (fidelity.max() - fidelity.min())
-    if euclidean:
-        metric = np.sqrt(fidelity**2 + penalty**2)
-    else:  # graph distance from the origin, ie. only travelling along x and y axes
-        metric = fidelity + penalty
+    if opt_method == 'ucurve':
+        if lam_range.size > 1:
+            penalty = (penalty - penalty.min()) / (penalty.max() - penalty.min())
+            fidelity = (fidelity - fidelity.min()) / (fidelity.max() - fidelity.min())
+        if euclidean:
+            metric = np.sqrt(fidelity**2 + penalty**2)
+        else:  # graph distance from the origin, ie. only travelling along x and y axes
+            metric = fidelity + penalty
+    elif opt_method == 'vcurve':
+        if lam_range.size > 1:
+            # use gradient instead of finite difference so metric and tested values are the
+            # same size, and also matches 2D implementation
+            step = np.log10(lam_range[1] / lam_range[0])
+            penalty_diff = np.gradient(np.log10(penalty), step)
+            fidelity_diff = np.gradient(np.log10(fidelity), step)
+            metric = np.sqrt(penalty_diff**2 + fidelity_diff**2)
+        else:
+            metric = np.zeros(1)
 
     best_lam = lam_range[np.argmin(metric)]
     baseline, best_params = baseline_func(y, **{param_key: best_lam}, **method_kws)
@@ -1442,7 +1454,7 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
 
 
 @_optimizers_wrapper
-def optimize_pls(data, method='arpls', opt_method='U-Curve', min_value=4, max_value=7, step=0.5,
+def optimize_pls(data, method='arpls', opt_method='V-Curve', min_value=4, max_value=7, step=0.5,
                  method_kwargs=None, euclidean=False, rho=None, n_samples=0, x_data=None):
     """
     Optimizes the regularization parameter for penalized least squares methods.
@@ -1454,9 +1466,10 @@ def optimize_pls(data, method='arpls', opt_method='U-Curve', min_value=4, max_va
     method : str, optional
         A string indicating the Whittaker-smoothing or spline method
         to use for fitting the baseline. Default is 'arpls'.
-    opt_method : {'U-Curve', 'GCV', 'BIC'}, optional
+    opt_method : {'V-Curve', 'U-Curve', 'GCV', 'BIC'}, optional
         The optimization method used to optimize `lam`. Supported methods are:
 
+        * 'V-Curve'
         * 'U-Curve'
         * 'GCV'
         * 'BIC'

@@ -704,7 +704,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
-    @pytest.mark.parametrize('opt_method', ('U-curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
     def test_output(self, opt_method):
         """Ensures correct output parameters for different optimization methods."""
         if opt_method in ('GCV', 'BIC'):
@@ -731,7 +731,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         elif 'alpha' in output[1]['method_params']:
             assert self.y.shape == output[1]['method_params']['alpha'].shape
 
-    @pytest.mark.parametrize('opt_method', ('U-Curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-Curve', 'GCV', 'BIC'))
     def test_beads(self, opt_method):
         """Ensures beads is also supported for L-curve based optimization methods."""
         if opt_method in ('GCV', 'BIC'):
@@ -759,7 +759,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, opt_method='aaaaa')
 
-    @pytest.mark.parametrize('opt_method', ('U-Curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-Curve', 'U-Curve', 'GCV', 'BIC'))
     def test_single_value(self, opt_method):
         """Ensures all optimization methods work if only a single value is fit."""
         min_val = 2.
