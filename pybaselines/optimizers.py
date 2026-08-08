@@ -1028,6 +1028,7 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
 
         trace = fit_params['result'].effective_dimension(n_samples)
         fit_wrss = _wrss(y - fit_baseline, fit_params['weights'])
+        size = (fit_params['weights'] > 0).sum()
         if use_gcv:
             # GCV = (1/N) * RSS / (1 - rho * trace / N)**2 == RSS * N / (N - rho * trace)**2
             # Note that some papers use different terms for fidelity (eg. RSS / N vs just RSS),
@@ -1036,17 +1037,14 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
             # (https://doi.org/10.1021/ac034173t) use the same GCV score
             # formulation for penalized splines and Whittaker smoothing, respectively (using a
             # fidelity term of just RSS), so this should be correct
-            metric = fit_wrss * baseline_obj._size / (baseline_obj._size - rho * trace)**2
+            metric = fit_wrss * size / (size - rho * trace)**2
         else:
             # BIC = -2 * l + ln(N) * ED, where l == log likelihood and
             # ED == effective dimension ~ trace
             # log likelhood of Whittaker/P-Spline smoothing can be approximated from the result
             # of fitting with lam=0, ie. RSS / N (see Eilers's original 1996 P-Spline paper)
             # For Gaussian errors: BIC ~ N * ln(RSS / N) + ln(N) * trace
-            metric = (
-                baseline_obj._size * np.log(fit_wrss / baseline_obj._size)
-                + np.log(baseline_obj._size) * trace
-            )
+            metric = size * np.log(fit_wrss / size) + np.log(size) * trace
 
         if metric < min_metric:
             min_metric = metric
