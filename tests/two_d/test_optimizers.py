@@ -485,3 +485,28 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
                 eigen_params[key], analytic_params[key], rtol=5e-3, atol=5e-3,
                 err_msg=f'failed with key={key}'
             )
+
+    @pytest.mark.parametrize('opt_method', ('U-Curve', 'GCV', 'BIC'))
+    def test_single_value(self, opt_method):
+        """Ensures all optimization methods work if only a single value is fit."""
+        min_val = 2.
+        with pytest.warns(utils.ParameterWarning, match='min_value, max_value, and step'):
+            fit, params = self.class_func(
+                self.y, method='asls', opt_method=opt_method, min_value=min_val, step=0
+            )
+        if opt_method in ('GCV', 'BIC'):
+            additional_keys = ['trace', 'wrss']
+        else:
+            additional_keys = ['penalty_rows', 'penalty_columns', 'fidelity']
+        for key in ['metric'] + additional_keys:
+            assert key in params
+            value = params[key]
+            assert isinstance(value, np.ndarray)
+            assert value.shape == (1, 1)
+        assert isinstance(params['optimal_parameter'], tuple)
+        for index in range(2):
+            assert isinstance(params['optimal_parameter'][index], float)
+
+        # should be same as just fitting the minimum value
+        single_fit, _ = self.algorithm_base().asls(self.y, lam=10.**min_val)
+        assert_allclose(fit, single_fit, rtol=1e-10, atol=1e-10)

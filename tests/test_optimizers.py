@@ -758,3 +758,26 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         """Ensures method fails when an unknown opt_method is given."""
         with pytest.raises(ValueError):
             self.class_func(self.y, opt_method='aaaaa')
+
+    @pytest.mark.parametrize('opt_method', ('U-Curve', 'GCV', 'BIC'))
+    def test_single_value(self, opt_method):
+        """Ensures all optimization methods work if only a single value is fit."""
+        min_val = 2.
+        with pytest.warns(utils.ParameterWarning, match='min_value, max_value, and step'):
+            fit, params = self.class_func(
+                self.y, method='asls', opt_method=opt_method, min_value=min_val, step=0
+            )
+        if opt_method in ('GCV', 'BIC'):
+            additional_keys = ['trace', 'wrss']
+        else:
+            additional_keys = ['penalty', 'fidelity']
+        for key in ['metric'] + additional_keys:
+            assert key in params
+            value = params[key]
+            assert isinstance(value, np.ndarray)
+            assert value.shape == (1,)
+        assert isinstance(params['optimal_parameter'], float)
+
+        # should be same as just fitting the minimum value
+        single_fit, _ = self.algorithm_base().asls(self.y, lam=10.**min_val)
+        assert_allclose(fit, single_fit, rtol=1e-10, atol=1e-10)
