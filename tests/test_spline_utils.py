@@ -6,6 +6,7 @@ Created on November 8, 2021
 
 """
 
+from pathlib import Path
 from unittest import mock
 
 import numpy as np
@@ -16,7 +17,7 @@ from scipy.linalg import cholesky_banded
 from scipy.sparse import issparse
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import _banded_utils, _spline_utils
+from pybaselines import _banded_utils, _spline_utils, results
 from pybaselines._compat import diags, _HAS_NUMBA
 
 
@@ -808,3 +809,106 @@ def test_pspline_lam_extremes(data_fixture, diff_order, allow_lower, spline_degr
     expected_coeffs = spsolve(spline_basis.basis.T @ spline_basis.basis, spline_basis.basis.T @ y)
     expected = spline_basis.basis @ expected_coeffs
     assert_allclose(output2, expected, rtol=1e-9, atol=1e-10)
+
+
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('condition_enum', (0, 1, 2, 3, 4))
+def test_jops_comparison(condition_enum, allow_lower):
+    """
+    Compares P-Spline fit against the R package 'JOPS'.
+
+    The R code to generate the values are::
+
+        library(JOPS)
+
+        options(digits=14)
+        file_path = r"(unquoted file path here)"
+        y = read.csv(file_path, header=FALSE)$V1
+        x = seq(-1, 1, length.out=length(y))
+        wts = rep(1, length(y))
+        deg_diff_knots_lamEnum = matrix(
+            c(c(3, 3, 40, 0), c(2, 2, 40, 0), c(3, 2, 20, 0), c(3, 2, 40, 0), c(3, 2, 40, 1)),
+            nrow=5, byrow=TRUE
+        )
+        for (row in 1:nrow(deg_diff_knots_lamEnum)){
+            condition = deg_diff_knots_lamEnum[row,]
+            if (condition[4] == 0) {lam = 0.01}
+            else {lam = 10}
+            fit = psNormal(
+                x, y, nseg=condition[3], bdeg=condition[1], lambda=lam, wts=wts,
+                pord=condition[2]
+            )
+            print(fit$effdim)  # and save fit$muhat
+        }
+
+    using JOPS version 0.2.0 and R version 4.2.3.
+
+    """
+    deg_diff_knots_lamEnum = (
+        (3, 3, 40, 0), (2, 2, 40, 0), (3, 2, 20, 0), (3, 2, 40, 0), (3, 2, 40, 1)
+    )
+    edfs = (
+        28.948627943791, 35.798487506709, 18.727929293204, 33.139105777363, 9.2618688596062
+    )
+    spline_degree, diff_order, num_knots, lam_enum = deg_diff_knots_lamEnum[condition_enum]
+    lam = 0.01 if lam_enum == 0 else 10.
+
+    x = np.linspace(0, 10 * np.pi, 50)
+    y = np.sin(x) + np.random.default_rng(0).normal(0, 0.3, len(x))
+
+    # difference in knot number conventions between JOPS and pybaselines
+    basis = _spline_utils.SplineBasis(
+        np.linspace(-1, 1, y.size), num_knots=num_knots + 1, spline_degree=spline_degree
+    )
+    system = _spline_utils.PSpline(basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower)
+
+    fit = system.solve(y, np.ones_like(y))
+
+    expected_output = np.loadtxt(
+        Path(__file__).parent.joinpath(
+            f'data/pspline_deg{spline_degree}_diff{diff_order}_knots{num_knots}_lam{lam_enum}.csv'
+        ), delimiter=','
+    )
+    assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
+
+    edf = results.PSplineResult(system, weights=np.ones_like(y)).effective_dimension(n_samples=0)
+    assert_allclose(edf, edfs[condition_enum], rtol=1e-13, atol=1e-13)
+
+
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('weight_enum', (0, 1))
+def test_jops_weighted_comparison(weight_enum, allow_lower):
+    """
+    Compares weighted P-Spline fit against the R package 'JOPS'.
+
+    Same R code as `test_jops_comparison` except sets
+    ``wts[10:20] = if(weight_enum == 0){0} else{0.5}`` before fitting and only uses one set
+    of knots, degree, etc. Used JOPS version 0.2.0 and R version 4.2.3.
+
+    """
+    spline_degree = 3
+    diff_order = 2
+    num_knots = 40
+    x = np.linspace(0, 10 * np.pi, 50)
+    y = np.sin(np.linspace(0, 10 * np.pi, 50)) + np.random.default_rng(0).normal(0, 0.3, len(x))
+    weights = np.ones_like(y)
+    weights[9:20] = 0 if weight_enum == 0 else 0.5
+
+    # difference in knot number conventions between JOPS and pybaselines
+    basis = _spline_utils.SplineBasis(
+        np.linspace(-1, 1, y.size), num_knots=num_knots + 1, spline_degree=spline_degree
+    )
+    system = _spline_utils.PSpline(basis, lam=0.01, diff_order=diff_order, allow_lower=allow_lower)
+
+    fit = system.solve(y, weights=weights)
+
+    expected_output = np.loadtxt(
+        Path(__file__).parent.joinpath(f'data/pspline_wt{weight_enum}.csv'), delimiter=','
+    )
+
+    assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
+    edf = results.PSplineResult(system, weights=weights).effective_dimension(n_samples=0)
+    assert_allclose(
+        edf, 26.905100035093 if weight_enum == 0 else 32.485659021668,
+        rtol=1e-13, atol=1e-13
+    )
