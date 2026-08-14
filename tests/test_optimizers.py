@@ -781,3 +781,114 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         # should be same as just fitting the minimum value
         single_fit, _ = self.algorithm_base().asls(self.y, lam=10.**min_val)
         assert_allclose(fit, single_fit, rtol=1e-10, atol=1e-10)
+
+    @pytest.mark.parametrize('pspline', (True, False))
+    def test_vcurve(self, pspline):
+        """
+        Tests the V-curve metric against literature.
+
+        Data is based on Figure 3 from the reference; some of Frasso's and Eilers's
+        other V-curve/L-curve publications also have reference L-curves, but Frasso's
+        thesis had the easiest to reproduce figures.
+
+        Note that within Figure 3, the optimal lam values is stated to be ~7943.28 (10**3.9),
+        but from the metric plots, the optimum is ~1e4. Step size affects this, so just allow
+        an atol of 0.15 when comparing the optimal lam. Also `log` within the thesis refers
+        to `log10` rather than the natural log.
+
+        References
+        ----------
+        Frasso, G. Smoothing parameter selection using the L-curve. 2012, Leiden University,
+        MS Thesis. https://hdl.handle.net/1887/3597367.
+
+        """
+        x = np.linspace(0, 2 * np.pi, 200)
+        signal = 5 * np.sin(x)
+        noise = np.random.default_rng(0).normal(0, 0.5, x.size)
+        y = signal + noise
+        step = 0.1
+        kwargs = {'tol': np.inf}
+        if pspline:
+            # paper only used Whittaker smoothing, so set P-spline up so that it's equivalent to
+            # Whittaker smoothing
+            method = 'pspline_asls'
+            kwargs.update({'num_knots': len(y), 'spline_degree': 1})
+        else:
+            method = 'asls'
+
+        fit, params = self.algorithm_base().optimize_pls(
+            y, method=method, opt_method='V-curve', min_value=0, max_value=8, step=step,
+            method_kwargs=kwargs
+        )
+
+        assert_allclose(np.log10(params['optimal_parameter']), 4, rtol=0, atol=0.15)
+        assert_allclose(fit, signal, rtol=1e-3, atol=0.3)
+
+        # simple tests for bounds of the L-curve based on Fig. 3b
+        log_penalty = np.log10(params['penalty'])
+        log_fidelity = np.log10(params['fidelity'])
+        assert log_penalty.min() > -7.5
+        assert log_penalty.max() < 0.9
+        assert log_fidelity.min() > 1.3
+        assert log_fidelity.max() < 3.1
+
+    @pytest.mark.parametrize('baseline_type', (0, 1, 2))
+    @pytest.mark.parametrize('pspline', (True, False))
+    def test_ucurve(self, pspline, baseline_type):
+        """
+        Tests the U-curve metric against literature.
+
+        Data is expected to follow Figure 5 from Park, et al.
+
+        References
+        ----------
+        Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+        using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
+        of Electronics and Information Engineers, 2016, 53(3), 124-131.
+
+        """
+        x = np.linspace(1, 1000, 1000)
+        signal = (
+            utils.gaussian(x, 200, 200, 5)
+            + utils.gaussian(x, 200, 400, 20)
+            + utils.gaussian(x, 400, 800, 10)
+        )
+        if baseline_type == 0:
+            baseline = utils.gaussian(x, x + 100, 0, 1200)
+            # taken as minimum point from Fig. 5(a); Table 1 suggests that lam_opt=7, but
+            # that's based on RMSE with the fit, not based on the calculated metric
+            lam_opt = 6.5
+        elif baseline_type == 1:
+            baseline = utils.gaussian(x, 1000, 600, 400)
+            lam_opt = 7
+        else:
+            baseline = utils.gaussian(x, 800, 100, 300) + utils.gaussian(x, 1000, 900, 300)
+            lam_opt = 6
+
+        # https://en.wikipedia.org/wiki/Signal-to-noise_ratio
+        snr_db = 10
+        signal_power = np.mean(signal**2)
+        noise = np.random.default_rng(0).normal(
+            0, np.sqrt(signal_power / (10.**(snr_db / 10))), x.size
+        )
+
+        y = signal + baseline + noise
+        kwargs = {}
+        if pspline:
+            # paper only used Whittaker smoothing, so set P-spline up so that it's equivalent to
+            # Whittaker smoothing
+            method = 'pspline_arpls'
+            kwargs.update({'num_knots': len(y), 'spline_degree': 1})
+        else:
+            method = 'arpls'
+
+        fit, params = self.algorithm_base().optimize_pls(
+            y, method=method, opt_method='U-curve', min_value=3, max_value=12.4, step=0.5,
+            method_kwargs=kwargs
+        )
+
+        assert_allclose(np.log10(params['optimal_parameter']), lam_opt, rtol=0, atol=0.1)
+
+        # not universal, but for the tested baselines, the metric never exceeds 1 (see Fig. 5)
+        assert params['metric'].min() >= 0
+        assert params['metric'].max() <= 1
