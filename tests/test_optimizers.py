@@ -374,6 +374,20 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         # both methods should have the same number of tested values
         assert len(params_3['rmse']) == len(expected_tested_values)
 
+    @pytest.mark.parametrize('method', ('asls', 'modpoly'))
+    def test_default_step(self, method):
+        """Ensures default step is determined by the type of baseline method."""
+        min_value = 1
+        max_value = 5
+        expected_tested_values = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+        expected_step = 0.5 if method == 'asls' else 1
+        expected_tested_values = np.arange(min_value, max_value, expected_step)
+
+        _, params = self.class_func(
+            self.y, method=method, min_value=min_value, max_value=max_value, step=None
+        )
+        assert len(params['rmse']) == len(expected_tested_values)
+
     def test_correctness(self):
         """Compares the calculated optimal value to its literature example.
 

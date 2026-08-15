@@ -91,7 +91,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
     @_Algorithm._handle_io(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
                                 height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=9,
-                                step=1, pad_kwargs=None, method_kwargs=None):
+                                step=None, pad_kwargs=None, method_kwargs=None):
         """
         Extends data and finds the best parameter value for the given baseline method.
 
@@ -136,7 +136,12 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             If using a polynomial method, `step` must be an integer. If using a
             Whittaker-smoothing-based method, `step` should
             be the exponent to raise to the power of 10 (eg. a `step` value of 1
-            designates a `lam` value of 10**1). Default is 1.
+            designates a `lam` value of 10**1). Default is None, which uses 1 if using a
+            polynomial method and otherwise 0.5.
+
+            .. versionchanged:: 1.3.0
+                Default value changed from 1 to None.
+
         pad_kwargs : dict, optional
             A dictionary of options to pass to :func:`.pad_edges` for padding
             the edges of the data when adding the extended left and/or right sections.
@@ -226,9 +231,10 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             method_param={'beads': 'alpha', 'jbcd': 'beta', None: ('lam', 'poly_order')},
             method_kwargs=method_kwargs, copy_kwargs=True
         )
-        variables = _param_grid(
-            min_value, max_value, step, polynomial_fit=optimizer_obj.method_param == 'poly_order'
-        )
+        poly_fit = optimizer_obj.method_param == 'poly_order'
+        if step is None:
+            step = 1 if poly_fit else 0.5
+        variables = _param_grid(min_value, max_value, step, polynomial_fit=poly_fit)
 
         added_window = int(self._size * width_scale)
         for key in ('weights', 'alpha'):
