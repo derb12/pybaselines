@@ -4,22 +4,25 @@ Whittaker solver timings
 ------------------------
 
 The Whittaker-smoothing-based algorithms in pybaselines make use of
-the banded structure of the linear system to reduce the computation time.
+the `banded structure <https://wikipedia.org/wiki/Band_matrix>`_
+of the linear system to reduce the computation time.
 
 This example shows the difference in computation times of the asymmetic least squares
 (:meth:`~pybaselines.Baseline.asls`) algorithm when using the banded solver from SciPy,
 :func:`scipy.linalg.solve_banded`, and a dedicated pentadiagonal banded solver derived
-from the excellent `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ package. In
-addition, the time it takes when solving the system using sparse matrices rather than the banded
-matrices is compared, since direct adaptations from literature usually use the sparse solution.
-All three of these solvers are based on LU decomposition. Since the asls algorithm results
-in a symmetric, positive-definite left hand side of the normal equation, it can additionally
-be solved using Cholesky decomposition through the dedicated SciPy solver
+from the excellent `pentapy <https://github.com/GeoStat-Framework/pentapy>`_ package used in
+pybaselines. In addition, the time it takes when solving the system using sparse matrices rather
+than the banded matrices is compared, since direct adaptations from literature usually use the
+sparse solution. All three of these solvers are based on LU decomposition. Since the `asls`
+algorithm results in a symmetric, positive-definite left hand side of the normal equation, it
+can additionally be solved using Cholesky decomposition through the dedicated SciPy solver
 :func:`scipy.linalg.solveh_banded`.
 
 Compared to the time required to solve using sparse matrices, SciPy's banded solvers
 are ~50-80% faster and the dedicated pentadiagonal banded solver is ~70-90% faster, ultimately
-reducing the computation time by about an order of magnitude.
+reducing the computation time by about an order of magnitude. The various penalized spline
+(P-Spline) algorithms in pybaselines likewise use these banded solvers for computational
+efficiency.
 
 Note that the performance of solving this particular sparse system can be improved by using
 the sparse Cholesky decomposition solver

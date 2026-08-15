@@ -25,7 +25,7 @@ resulting general function that is minimized to determine the baseline is then
 
 where :math:`y_i` is the measured data, :math:`v_i` is the estimated baseline,
 :math:`\lambda` is the penalty scale factor, :math:`w_i` is the weighting, and
-:math:`\Delta^d` is the `finite forward-difference <https://en.wikipedia.org/wiki/Finite_difference>`_
+:math:`\Delta^d` is the `finite forward-difference <https://wikipedia.org/wiki/Finite_difference>`_
 operator of order d.
 
 The resulting linear equation for solving the above minimization is:
@@ -61,13 +61,23 @@ and :math:`D_2` (second order difference matrix) is:
     \end{bmatrix}
 
 Most Whittaker-smoothing-based techniques recommend using the second order difference matrix,
-although some techniques use both the first and second order difference matrices.
+although some techniques use both the first and second order difference matrices. Note that
+some algorithms add additional penalties to the above equation, such that
+they are not technically Whittaker smoothing but more akin to a
+`generalized additive model (GAM) <https://wikipedia.org/wiki/Generalized_additive_model>`_:
+
+.. math::
+
+    (W + \lambda D_d^{\mathsf{T}} D_d + \sum\limits_{i}^K \lambda_i P_i) v = W y
+
+where :math:`P_i` represents an additional penalty controlled by the regularization
+parameter :math:`\lambda_i`.
 
 .. _iterative-reweighting-explanation:
 
 Baseline algorithms based on Whittaker smoothing use
 `iterative reweighting <https://wikipedia.org/wiki/Iteratively_reweighted_least_squares>`_,
-in which the baseline, :math:`v`, is calculated by solving the linear equation above, updating the
+in which the baseline, :math:`v`, is calculated by solving their linear equation, updating the
 weights based on that baseline, solving for a new baseline using the new weights, and repeating
 until some exit criteria. The major difference between Whittaker-smoothing-based algorithms is the
 selection of weights and/or the function that is minimized. An example of this process is shown
