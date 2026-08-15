@@ -245,6 +245,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         known_background = np.array([])
         fit_x_data = self.x
         fit_data = y
+        fit_idx = np.array([], dtype=np.intp)
         lower_bound = upper_bound = 0
 
         if pad_kwargs is None:
@@ -263,6 +264,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             )[1:]
             fit_x_data = np.concatenate((fit_x_data, added_x))
             fit_data = np.concatenate((fit_data, added_gaussian + added_right))
+            fit_idx = np.arange(-added_window, 0, dtype=np.intp)
             known_background = added_right
             upper_bound += added_window
         if side in ('left', 'both'):
@@ -271,8 +273,9 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             )[:-1]
             fit_x_data = np.concatenate((added_x, fit_x_data))
             fit_data = np.concatenate((added_gaussian + added_left, fit_data))
-            known_background = np.concatenate((known_background, added_left))
+            known_background = np.concatenate((added_left, known_background))
             lower_bound += added_window
+            fit_idx = np.concatenate((np.arange(added_window, dtype=np.intp), fit_idx))
 
         added_len = 2 * added_window if side == 'both' else added_window
         if self._sort_order is None:
@@ -303,11 +306,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         for i, var in enumerate(variables):
             method_kws[optimizer_obj.method_param] = var
             fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
-            # TODO change the known baseline so that np.roll does not have to be
-            # calculated each time, since it requires additional time
-            residual = (
-                known_background - np.roll(fit_baseline, upper_bound)[:added_len]
-            )
+            residual = known_background - fit_baseline[fit_idx]
             # just calculate the sum of squares to reduce time from using sqrt for rmse
             sum_squares = residual.dot(residual)
             sum_squares_tot[i] = sum_squares
