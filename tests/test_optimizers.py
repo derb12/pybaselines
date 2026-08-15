@@ -14,7 +14,9 @@ import pytest
 
 from pybaselines import Baseline, optimizers, polynomial, utils
 
-from .base_tests import BaseTester, InputWeightsMixin, ensure_deprecation
+from .base_tests import (
+    BaseTester, InputWeightsMixin, ensure_deprecation, gaussian_alt, snr_to_sigma
+)
 
 
 class OptimizerInputWeightsMixin(InputWeightsMixin):
@@ -371,6 +373,39 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         )
         # both methods should have the same number of tested values
         assert len(params_3['rmse']) == len(expected_tested_values)
+
+    def test_correctness(self):
+        """Compares the calculated optimal value to its literature example.
+
+        Data is based on Figure 3 of Zhang, et al., and the lam vs RMSE plot should
+        follow Figure 4.
+
+        References
+        ----------
+        Zhang, F., et al. An Automatic Baseline Correction Method Based on
+        the Penalized Least Squares Method. Sensors, 2020, 20(7), 2015.
+
+        """
+        x = np.linspace(0, 1200, 1200)
+        peaks = (
+            gaussian_alt(x, 2, 100, 20)
+            + gaussian_alt(x, 1, 200, 20)
+            + gaussian_alt(x, 2, 400, 40)
+            + gaussian_alt(x, 1, 500, 30)
+            + gaussian_alt(x, 4, 800, 50)
+            + gaussian_alt(x, 0.5, 1000, 15)
+            + gaussian_alt(x, 1, 1100, 20)
+        )
+        baseline = np.sin(np.pi * x / 1200)
+
+        noise = np.random.default_rng(0).normal(0, snr_to_sigma(30, peaks), x.shape)
+        y = peaks + baseline + noise
+
+        fit, params = self.algorithm_base().optimize_extended_range(
+            y, method='aspls', side='right', min_value=3, max_value=12.2, step=0.3, width_scale=0.2,
+            pad_kwargs={'extrapolate_window': 50},
+        )
+        assert_allclose(np.log10(params['optimal_parameter']), 9.6, rtol=0, atol=0.05)
 
 
 def test_param_grid():
@@ -867,13 +902,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             baseline = utils.gaussian(x, 800, 100, 300) + utils.gaussian(x, 1000, 900, 300)
             lam_opt = 6
 
-        # https://en.wikipedia.org/wiki/Signal-to-noise_ratio
-        snr_db = 10
-        signal_power = np.mean(signal**2)
-        noise = np.random.default_rng(0).normal(
-            0, np.sqrt(signal_power / (10.**(snr_db / 10))), x.size
-        )
-
+        noise = np.random.default_rng(0).normal(0, snr_to_sigma(10, signal), x.size)
         y = signal + baseline + noise
         kwargs = {}
         if pspline:

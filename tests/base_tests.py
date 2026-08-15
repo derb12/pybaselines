@@ -63,7 +63,7 @@ def ensure_deprecation(deprecation_major, deprecation_minor):
 
 def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     """
-    Generates a gaussian distribution based on height, center, and sigma.
+    Generates a Gaussian distribution based on height, center, and sigma.
 
     Parameters
     ----------
@@ -79,7 +79,7 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
     Returns
     -------
     numpy.ndarray
-        The gaussian distribution evaluated with x.
+        The Gaussian distribution evaluated with x.
 
     Notes
     -----
@@ -89,6 +89,34 @@ def gaussian(x, height=1.0, center=0.0, sigma=1.0):
 
     """
     return height * np.exp(-0.5 * ((x - center)**2) / sigma**2)
+
+
+def gaussian_alt(x, height=1.0, center=0.0, sigma_alt=1.0):
+    """
+    An alternate Gaussian as used by some papers.
+
+    Some papers use a single denominator such that the alternate Gaussian is
+    ``G_alt = height * exp(-(x - center)**2 / sigma_alt)``, where compared
+    to a typical Gaussian defined with `sigma`, ``sigma = sqrt(sigma_alt / 2)``.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The x-values at which to evaluate the distribution.
+    height : float, optional
+        The maximum height of the distribution. Default is 1.0.
+    center : float, optional
+        The center of the distribution. Default is 0.0.
+    sigma_alt : float, optional
+        The alternate sigma of the distribution. Default is 1.0.
+
+    Returns
+    -------
+    numpy.ndarray
+        The Gaussian distribution evaluated with x.
+
+    """
+    return gaussian(x, height, center, np.sqrt(sigma_alt / 2))
 
 
 def gaussian2d(x, z, height=1.0, center_x=0.0, center_z=0.0, sigma_x=1.0, sigma_z=1.0):
@@ -367,6 +395,30 @@ def changing_dataset2d(data_size=(40, 33), dataset_size=20, three_d=False):
         dataset = np.array([np.array((data, data)) for data in dataset])
 
     return x, z, dataset
+
+
+def snr_to_sigma(snr, signal):
+    """
+    Gives the Gaussian sigma from a given signal-to-noise ratio.
+
+    https://en.wikipedia.org/wiki/Signal-to-noise_ratio
+
+    Parameters
+    ----------
+    snr : float
+        The signal-to-noise ratio, in decibels.
+    signal : numpy.ndarray
+        The signal.
+
+    Returns
+    -------
+    float
+        The sigma of the zero-centered Gaussian noise that matches the given
+        `snr` and `signal`.
+
+    """
+    signal_power = np.mean(signal**2)
+    return np.sqrt(signal_power / (10.**(snr / 10)))
 
 
 class DummyModule:
