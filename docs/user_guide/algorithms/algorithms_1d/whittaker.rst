@@ -25,7 +25,8 @@ resulting general function that is minimized to determine the baseline is then
 
 where :math:`y_i` is the measured data, :math:`v_i` is the estimated baseline,
 :math:`\lambda` is the penalty scale factor, :math:`w_i` is the weighting, and
-:math:`\Delta^d` is the finite-difference operator of order d.
+:math:`\Delta^d` is the `finite forward-difference <https://en.wikipedia.org/wiki/Finite_difference>`_
+operator of order d.
 
 The resulting linear equation for solving the above minimization is:
 
@@ -515,19 +516,18 @@ Minimized function:
 .. math::
 
     \sum\limits_{i}^N w_i (y_i - v_i)^2
-    + \lambda \sum\limits_{i}^{N - d}(1 - \eta w_i) (\Delta^d v_i)^2
+    + \lambda (I - \eta W) \sum\limits_{i}^{N - d}(\Delta^d v_i)^2
     + \sum\limits_{i}^{N - 1} (\Delta^1 v_i)^2
 
 where :math:`\eta` is a value between 0 and 1 that controls the
-effective value of :math:`\lambda`.
+effective value of :math:`\lambda`, and :math:`I` is the identity matrix
+of size N.
 
 Linear system:
 
 .. math::
 
     (W + D_1^{\mathsf{T}} D_1 + \lambda (I - \eta W) D_d^{\mathsf{T}} D_d) v = W y
-
-where :math:`I` is the identity matrix.
 
 Weighting:
 
@@ -619,7 +619,7 @@ Minimized function:
 .. math::
 
     \sum\limits_{i}^N w_i (y_i - v_i)^2
-    + \lambda \sum\limits_{i}^{N - d} \alpha_i (\Delta^d v_i)^2
+    + \lambda \alpha \sum\limits_{i}^{N - d}(\Delta^d v_i)^2
 
 where
 

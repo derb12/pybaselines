@@ -714,7 +714,7 @@ def _convert_coef2d(coef, poly_degree_x, poly_degree_z, original_x_domain, origi
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
-    Creates an n-th order finite-difference matrix.
+    Creates an n-th order finite forward-difference matrix.
 
     Parameters
     ----------

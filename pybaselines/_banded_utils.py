@@ -407,7 +407,7 @@ def _banded_dot_vector(ab, x, lower=True):
 
 def difference_matrix(data_size, diff_order=2, diff_format=None):
     """
-    Creates an n-th order finite-difference matrix.
+    Creates an n-th order finite forward-difference matrix.
 
     Parameters
     ----------
@@ -642,7 +642,7 @@ def _diff_3_diags(data_size, lower_only=True):
 
 def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
     """
-    Creates the diagonals of the finite difference penalty matrix.
+    Creates the diagonals of the finite forward-difference penalty matrix.
 
     If `D` is the finite difference matrix, then the finite difference penalty
     matrix is defined as ``D.T @ D``. The penalty matrix is banded and symmetric, so
@@ -714,7 +714,7 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
 
 def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
     """
-    Creates the finite difference penalty matrix.
+    Creates the finite forward-difference penalty matrix.
 
     If `D` is the finite difference matrix, then the finite difference penalty
     matrix is defined as ``D.T @ D``.

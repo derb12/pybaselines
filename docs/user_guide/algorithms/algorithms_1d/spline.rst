@@ -38,7 +38,7 @@ The minimized function for P-splines is thus:
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 where :math:`\lambda` is the penalty scale factor, and
-:math:`\Delta^d` is the finite-difference operator of order d. Note that P-splines
+:math:`\Delta^d` is the finite forward-difference operator of order d. Note that P-splines
 use uniformly spaced knots so that the finite-difference is easy to calculate.
 
 The resulting linear equation for solving the above minimization is:
@@ -469,11 +469,12 @@ Minimized function:
 .. math::
 
     \sum\limits_{i}^N w_i (y_i - v(x_i))^2
-    + \lambda \sum\limits_{i}^{M - d}(1 - \eta w_{i,intp}) (\Delta^d c_i)^2
+    + \lambda (1 - \eta W_{intp}) \sum\limits_{i}^{M - d}(\Delta^d c_i)^2
     + \sum\limits_{i}^{N - 1} (\Delta^1 v(x_i))^2
 
 where :math:`\eta` is a value between 0 and 1 that controls the
-effective value of :math:`\lambda`. :math:`w_{intp}` are the weights, :math:`w`,
+effective value of :math:`\lambda`. :math:`W_{intp}` is the
+diagaonal matrix of :math:`w_{intp}`, which are the weights, :math:`w`,
 after interpolating using :math:`x` and the basis midpoints in order to map the
 weights from length :math:`N` to length :math:`M`.
 
@@ -578,7 +579,7 @@ Minimized function:
 .. math::
 
     \sum\limits_{i}^N w_i (y_i - v(x_i))^2
-    + \lambda \sum\limits_{i}^{M - d} \alpha_{i,intp} (\Delta^d c_i)^2
+    + \lambda \alpha_{intp} \sum\limits_{i}^{M - d}(\Delta^d c_i)^2
 
 where
 
