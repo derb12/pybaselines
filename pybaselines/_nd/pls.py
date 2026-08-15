@@ -227,7 +227,7 @@ class _PLSNDMixin:
             data, lam=lam, diff_order=diff_order, weights=weights, spline_degree=spline_degree,
             num_knots=num_knots, num_eigens=num_eigens
         )
-        y_l1_norm = np.abs(y).sum()
+        y_l1_norm = np.abs(y if self.mask is None else y[np.logical_not(self.mask)]).sum()
         tol_history = np.empty(max_iter + 1)
         success = False
         for i in range(1, max_iter + 2):
