@@ -6,6 +6,8 @@ Created on March 20, 2021
 
 """
 
+from pathlib import Path
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
@@ -892,3 +894,98 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         # not universal, but for the tested baselines, the metric never exceeds 1 (see Fig. 5)
         assert params['metric'].min() >= 0
         assert params['metric'].max() <= 1
+
+    @pytest.mark.parametrize('weight_enum', (0, 1, 2))
+    def test_whittaker_gcv(self, weight_enum):
+        """
+        Compares against the 'WH' R package for ensuring GCV calculation for Whittaker smoothing.
+
+        The R code to generate the values are::
+
+            library(WH)
+
+            options(digits=14)
+            file_path = r"(unquoted file path here)"
+            y = read.csv(file_path, header=FALSE)$V1
+            wts = rep(1, length(y))
+            for(i in 0:2){
+                if (i == 0) {
+                    fill_value = 1
+                } else if (i == 1) {
+                    fill_value = 0
+                } else {
+                    fill_value = 0.5
+                }
+                wts[60:120] = fill_value
+                fit = WH(y=y, wt=wts, criterion="GCV")
+                # ref_lam, ref_metric, ref_edf, ref_wrss
+                print(c(fit$lambda, fit$diagnosis$GCV, fit$diagnosis$sum_edf, fit$diagnosis$dev))
+            }
+
+        using WH version 2.0.0 and R version 4.2.3.
+
+        Alternatively, could use the 'mgcv' R package, in which case the additional R code
+        for fitting is::
+
+            library(mgcv)
+            x = 1:length(y)
+            # note that knots must use same key naming scheme that the spline uses or
+            # else the knots seem to be ignored
+            fit2 = gam(y ~ s(x, bs="ps", k=length(y), m=c(0, 2)), family=gaussian(),
+                       knots=list(x=0:(length(y) + 1)), method="GCV.Cp", weights=wts)
+            # ref_lam, ref_metric, ref_edf, ref_wrss
+            print(c(fit2$sp / 16, fit2$gcv.ubre.dev, sum(fit2$edf), fit2$deviance))
+
+        Not sure why the need to divide mgcv's lambda by 16, but it's consistent with the
+        same divergence observed in SciPy (https://github.com/scipy/scipy/pull/22580);
+        within fit2$smooth, it does say S.scale is 16, but not sure how that's set or
+        whether that's the actual cause... The fit lambda value from WH matches that of
+        pybaselines, rather than needing the division by 16.
+
+        The comparison tolerances have to be fairly large since pybaselines uses
+        a grid-search rather than the scalar minimization used by the R packages.
+
+        """
+        x = np.linspace(0, 10 * np.pi, 50)
+        y = np.sin(np.linspace(0, 10 * np.pi, 50)) + np.random.default_rng(0).normal(0, 0.3, len(x))
+
+        wts = np.ones_like(y)
+        if weight_enum == 0:
+            fill_value = 1
+            ref_lam = 0.249364010297557
+            ref_metric = 0.082886220851521
+            ref_edf = 29.138156309150428
+            ref_wrss = 0.721469055515233
+        elif weight_enum == 1:
+            fill_value = 0
+            ref_lam = 0.161447222423454
+            ref_metric = 0.080461742310573
+            ref_edf = 25.886100950162117
+            ref_wrss = 0.354803992207319
+        else:
+            fill_value = 0.5
+            ref_lam = 0.18222712865323
+            ref_metric = 0.06887879138412
+            ref_edf = 30.31931076759921
+            ref_wrss = 0.53357579603285
+        wts[9:20] = fill_value
+
+        fit, params = self.algorithm_base().optimize_pls(
+            y, method='asls', opt_method='GCV', min_value=-2, max_value=1, step=0.01,
+            method_kwargs={'tol': np.inf, 'weights': wts}, rho=1
+        )
+
+        best_idx = params['metric'].argmin()
+        assert_allclose(params['optimal_parameter'], ref_lam, rtol=1e-4, atol=0.005)
+        assert_allclose(params['metric'][best_idx], ref_metric, rtol=1e-4, atol=1e-3)
+        assert_allclose(params['trace'][best_idx], ref_edf, rtol=1e-2, atol=1e-1)
+        assert_allclose(params['wrss'][best_idx], ref_wrss, rtol=1e-2, atol=1e-3)
+
+        if weight_enum == 0:
+            file_name = 'WH_diff2_lam1'
+        else:
+            file_name = f'WH_wt{weight_enum - 1}'
+        expected_output = np.loadtxt(
+            Path(__file__).parent.joinpath(f'data/{file_name}.csv'), delimiter=','
+        )
+        assert_allclose(fit, expected_output, rtol=5e-3, atol=1e-6)

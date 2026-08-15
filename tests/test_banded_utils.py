@@ -6,6 +6,7 @@ Created on Dec. 11, 2021
 
 """
 
+from pathlib import Path
 from unittest import mock
 
 import numpy as np
@@ -14,7 +15,7 @@ import pytest
 from scipy.linalg import cholesky_banded
 from scipy.sparse.linalg import spsolve
 
-from pybaselines import _banded_utils, _spline_utils
+from pybaselines import _banded_utils, _spline_utils, results
 from pybaselines._banded_linalg import penta_factorize
 from pybaselines._compat import dia_object, diags, identity
 
@@ -1053,6 +1054,107 @@ def test_penalized_system_factorize_solve(data_fixture, diff_order, allow_lower,
 
     output = penalized_system.factorized_solve(output_factorization, weights * y)
     assert_allclose(output, expected_solution, rtol=2e-7, atol=1e-10)
+
+
+@pytest.mark.parametrize('allow_penta', (True, False))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('condition_enum', (0, 1, 2))
+def test_WH_comparison(condition_enum, allow_lower, allow_penta):
+    """
+    Compares PenalizedSystem fit against the R package 'WH'.
+
+    The R code to generate the values are::
+
+        library(WH)
+
+        options(digits=14)
+        file_path = r"(unquoted file path here)"
+        y = read.csv(file_path, header=FALSE)$V1
+        x = seq(-1, 1, length.out=length(y))
+        wts = rep(1, length(y))
+        diff_lamEnum = matrix(
+        c(c(2, 0), c(3, 0), c(2, 1)),
+        nrow=3, byrow=TRUE
+        )
+        for (row in 1:nrow(diff_lamEnum)){
+            condition = diff_lamEnum[row,]
+            if (condition[2] == 0) {lam = 0.1}
+            else {lam = NULL}
+            fit = WH(y=y, wt=wts, criterion="GCV", lambda=lam, q=condition[1])
+
+            # and save fit$y_hat
+            print(c(fit$lambda, fit$diagnosis$GCV, fit$diagnosis$sum_edf, fit$diagnosis$dev))
+        }
+
+    using WH version 2.0.0 and R version 4.2.3.
+
+    Note that the third condition used GCV to estimate the optimal lam in R, which is also
+    used by the test "tests/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for
+    `weight_enum=0`, so if updating this test, that test will likewise need updated.
+
+    """
+    diff_lamEnum = ((2, 0), (3, 0), (2, 1))
+    edfs = (35.937502789803375, 29.849744806327031, 29.138156309150428)
+    diff_order, lam_enum = diff_lamEnum[condition_enum]
+    lam = 0.1 if lam_enum == 0 else 0.249364010297557
+
+    x = np.linspace(0, 10 * np.pi, 50)
+    y = np.sin(x) + np.random.default_rng(0).normal(0, 0.3, len(x))
+    weights = np.ones_like(y)
+
+    system = _banded_utils.PenalizedSystem(
+        y.size, lam=lam, diff_order=diff_order, allow_lower=allow_lower, allow_penta=allow_penta
+    )
+    fit = system.solve(y, weights)
+
+    expected_output = np.loadtxt(
+        Path(__file__).parent.joinpath(f'data/WH_diff{diff_order}_lam{lam_enum}.csv'),
+        delimiter=','
+    )
+    assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
+
+    edf = results.WhittakerResult(system, weights=weights).effective_dimension(n_samples=0)
+    assert_allclose(edf, edfs[condition_enum], rtol=1e-13, atol=1e-13)
+
+
+@pytest.mark.parametrize('allow_penta', (True, False))
+@pytest.mark.parametrize('allow_lower', (True, False))
+@pytest.mark.parametrize('weight_enum', (0, 1))
+def test_WH_weighted_comparison(weight_enum, allow_lower, allow_penta):
+    """
+    Compares weighted PenalizedSystem fit against the R package 'WH'.
+
+    Same R code as `test_WH_comparison` except sets
+    ``wts[10:20] = if(weight_enum == 0){0} else{0.5}`` before fitting and only uses
+    `diff_order=2` and uses GCV to calculate `lam`. Used WH version 2.0.0 and R version 4.2.3.
+
+    Note that this used GCV to estimate the optimal lam in R, which is also used
+    by the test "tests/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for
+    `weight_enum=1,2`, so if updating this test, those tests will likewise need updated.
+
+    """
+    x = np.linspace(0, 10 * np.pi, 50)
+    y = np.sin(np.linspace(0, 10 * np.pi, 50)) + np.random.default_rng(0).normal(0, 0.3, len(x))
+    weights = np.ones_like(y)
+    weights[9:20] = 0 if weight_enum == 0 else 0.5
+    lam = 0.161447222423454 if weight_enum == 0 else 0.18222712865323
+
+    system = _banded_utils.PenalizedSystem(
+        y.size, lam=lam, diff_order=2, allow_lower=allow_lower, allow_penta=allow_penta
+    )
+
+    fit = system.solve(y, weights=weights)
+
+    expected_output = np.loadtxt(
+        Path(__file__).parent.joinpath(f'data/WH_wt{weight_enum}.csv'), delimiter=','
+    )
+
+    assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
+    edf = results.WhittakerResult(system, weights=weights).effective_dimension(n_samples=0)
+    assert_allclose(
+        edf, 25.886100950162117 if weight_enum == 0 else 30.31931076759921,
+        rtol=1e-13, atol=1e-13
+    )
 
 
 @pytest.mark.parametrize('dtype', (float, np.float32))
