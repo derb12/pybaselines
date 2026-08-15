@@ -291,28 +291,6 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         assert params2['optimal_parameter'] <= max_value
 
     @pytest.mark.parametrize('method', ('asls', 'modpoly'))
-    def test_min_max_ordering(self, method):
-        """Ensures variable ordering handles min and max values correctly."""
-        min_value = 2
-        max_value = 6
-        fit_1, params_1 = self.class_func(
-            self.y, method=method, min_value=min_value, max_value=max_value
-        )
-        # should simply do the fittings in the reversed order; subtract 1 from
-        # min and max values since np.arange(min, max) == np.arange(min - 1, max - 1, -1)[::-1]
-        fit_2, params_2 = self.class_func(
-            self.y, method=method, min_value=max_value - 1, max_value=min_value - 1, step=-1
-        )
-
-        # fits and optimal parameter should be the same
-        assert_allclose(fit_2, fit_1, rtol=1e-12, atol=1e-12)
-        assert_allclose(
-            params_1['optimal_parameter'], params_2['optimal_parameter'], rtol=1e-12, atol=1e-12
-        )
-        # rmse should be reversed
-        assert_allclose(params_1['rmse'], params_2['rmse'][::-1], rtol=1e-8, atol=1e-12)
-
-    @pytest.mark.parametrize('method', ('asls', 'modpoly'))
     def test_no_step(self, method):
         """Ensures a fit is still done if step is zero or min and max values are equal."""
         min_value = 2
@@ -505,6 +483,19 @@ def test_param_grid_nonpoly_fails(key):
     kwargs[key] = 16
     with pytest.raises(ValueError):
         optimizers._param_grid(**kwargs, polynomial_fit=False)
+
+
+@pytest.mark.parametrize('polynomial_fit', (True, False))
+def test_param_grid_bounds_errors(polynomial_fit):
+    """Ensures a step < 0 or min_value > max_value both raise exceptions."""
+    with pytest.raises(ValueError):
+        optimizers._param_grid(min_value=1, max_value=5, step=-1, polynomial_fit=polynomial_fit)
+
+    with pytest.raises(ValueError):
+        optimizers._param_grid(min_value=10, max_value=5, step=1, polynomial_fit=polynomial_fit)
+
+    with pytest.raises(ValueError):
+        optimizers._param_grid(min_value=10, max_value=5, step=-1, polynomial_fit=polynomial_fit)
 
 
 @pytest.mark.parametrize(

@@ -833,6 +833,10 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
                 '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
                 'thus should not be greater than 15'
             ))
+    if step < 0:
+        raise ValueError('step must be >= 0')
+    elif max_value < min_value:
+        raise ValueError('max_value must be >= min_value')
 
     if step == 0 or min_value == max_value:
         do_optimization = False
@@ -1142,7 +1146,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
 @_optimizers_wrapper
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
                             height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=9,
-                            step=1, pad_kwargs=None, method_kwargs=None):
+                            step=None, pad_kwargs=None, method_kwargs=None):
     """
     Extends data and finds the best parameter value for the given baseline method.
 
