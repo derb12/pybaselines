@@ -1125,8 +1125,8 @@ def test_WH_weighted_comparison(weight_enum, allow_lower, allow_penta):
     Compares weighted PenalizedSystem fit against the R package 'WH'.
 
     Same R code as `test_WH_comparison` except sets
-    ``wts[10:20] = if(weight_enum == 0){0} else{0.5}`` before fitting and only uses
-    `diff_order=2` and uses GCV to calculate `lam`. Used WH version 2.0.0 and R version 4.2.3.
+    ``wts[10:20] = if(weight_enum == 0){0} else{0.5}`` before fitting, only uses
+    `diff_order=2`, and uses GCV to calculate `lam`. Used WH version 2.0.0 and R version 4.2.3.
 
     Note that this used GCV to estimate the optimal lam in R, which is also used
     by the test "tests/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for

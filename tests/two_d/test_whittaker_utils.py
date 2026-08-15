@@ -6,6 +6,8 @@ Created on Dec. 11, 2021
 
 """
 
+from pathlib import Path
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
@@ -17,6 +19,7 @@ from pybaselines._banded_utils import diff_penalty_diagonals
 from pybaselines._compat import csr_object, dia_object, identity
 from pybaselines.two_d import _spline_utils, _whittaker_utils
 from pybaselines.utils import difference_matrix
+from pybaselines.results import WhittakerResult2D
 
 from ..base_tests import get_2dspline_inputs
 
@@ -884,3 +887,117 @@ def test_whittaker_system_update_penalty(data_fixture2d, num_eigens, diff_order,
         whittaker_system.penalty, (new_penalty_rows + new_penalty_cols).diagonal(),
         rtol=1e-12, atol=1e-12
     )
+
+
+@pytest.mark.parametrize('condition_enum', (0, 1, 2))
+def test_WH_comparison(condition_enum):
+    """
+    Compares WhittakerSystem2D fit against the R package 'WH'.
+
+    The R code to generate the values are::
+
+        library(WH)
+
+        options(digits=14)
+        file_path = r"(unquoted file path here)"
+        y = as.matrix(read.csv(file_path, header=FALSE))
+        wts = matrix(1, nrow=nrow(y), ncol=ncol(y))
+        # have to set dimnames for 2D WH
+        x = 1:nrow(y)
+        z = 1:ncol(y)
+        dimnames(y) = list(x=x, y=z)
+        dimnames(wts) = list(x=x, y=z)
+        diff_lamEnum = matrix(
+            c(c(0, 0), c(1, 0), c(0, 1)),
+            nrow=3, byrow=TRUE
+        )
+        for (row in 1:nrow(diff_lamEnum)){
+            condition = diff_lamEnum[row,]
+            if (condition[2] == 0) {lam = c(0.2, 5)} else {lam = NULL}
+            if (condition[1] == 0) {q = c(2, 2)} else {q = c(2, 3)}
+            fit = WH(y=y, wt=wts, criterion="GCV", lambda=lam, q=q)
+
+            # and save fit$y_hat
+            print(c(fit$lambda, fit$diagnosis$GCV, fit$diagnosis$sum_edf, fit$diagnosis$dev))
+        }
+
+    using WH version 2.0.0 and R version 4.2.3.
+
+    Note that the third condition used GCV to estimate the optimal lam in R, which is also
+    used by the test "tests/two_d/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for
+    `weight_enum=0`, so if updating this test, that test will likewise need updated.
+
+    """
+    conditions = (
+        (0, 0),
+        (1, 0),
+        (0, 1)
+    )
+    diff_enum, lam_enum = conditions[condition_enum]
+    edfs = (116.3338950573207, 125.6764917606480, 62.1372613567285)
+    lam = (0.2, 5) if lam_enum == 0 else (1.2332564864854, 13.3316622498553)
+    diff_order = 2 if diff_enum == 0 else (2, 3)
+
+    x = np.linspace(-np.pi, np.pi, 20)
+    z = np.linspace(-np.pi, np.pi, 30)
+    X, Z = np.meshgrid(x, z, indexing='ij')
+    y = (
+        np.sin(X * 2) + 2 * np.sin(Z * 1.5) + Z
+        + np.random.default_rng(0).normal(0, 1.8, X.shape)
+    )
+    weights = np.ones_like(y).ravel()
+
+    system = _whittaker_utils.WhittakerSystem2D(
+        y.shape, lam=lam, diff_order=diff_order, num_eigens=None
+    )
+    fit = system.solve(y.ravel(), weights).reshape(y.shape)
+
+    expected_output = np.loadtxt(
+        Path(__file__).parent.parent.joinpath(f'data/WH_2d_diff{diff_enum}_lam{lam_enum}.csv'),
+        delimiter=','
+    )
+    assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
+
+    edf = WhittakerResult2D(system, weights=weights).effective_dimension(n_samples=0)
+    assert_allclose(edf, edfs[condition_enum], rtol=1e-13, atol=1e-13)
+
+
+def test_WH_weighted_comparison():
+    """
+    Compares weighted WhittakerSystem2D fit against the R package 'WH'.
+
+    Same R code as `test_WH_comparison` except sets
+    ``wts[5:15, 5:20] = 0`` before fitting, only uses `diff_order=2`, and uses
+    GCV to calculate `lam`. Used WH version 2.0.0 and R version 4.2.3.
+
+    Note that this used GCV to estimate the optimal lam in R, which is also used
+    by the test "tests/two_d/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for
+    `weight_enum=1`, so if updating this test, that test will likewise need updated.
+
+    """
+    lam = (0.80786890014324, 7.50207598382595)
+    diff_order = 2
+
+    x = np.linspace(-np.pi, np.pi, 20)
+    z = np.linspace(-np.pi, np.pi, 30)
+    X, Z = np.meshgrid(x, z, indexing='ij')
+    y = (
+        np.sin(X * 2) + 2 * np.sin(Z * 1.5) + Z
+        + np.random.default_rng(0).normal(0, 1.8, X.shape)
+    )
+    weights = np.ones_like(y)
+    weights[4:15, 4:20] = 0
+    weights = weights.ravel()
+
+    system = _whittaker_utils.WhittakerSystem2D(
+        y.shape, lam=lam, diff_order=diff_order, num_eigens=None
+    )
+    fit = system.solve(y.ravel(), weights).reshape(y.shape)
+
+    expected_output = np.loadtxt(
+        Path(__file__).parent.parent.joinpath('data/WH_2d_wt0.csv'), delimiter=','
+    )
+    assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
+
+    edf = WhittakerResult2D(system, weights=weights).effective_dimension(n_samples=0)
+    assert_allclose(edf, 61.69595832034477, rtol=1e-13, atol=1e-13)

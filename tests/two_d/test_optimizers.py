@@ -6,6 +6,8 @@ Created on January 14, 2024
 
 """
 
+from pathlib import Path
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
@@ -510,3 +512,60 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         # should be same as just fitting the minimum value
         single_fit, _ = self.algorithm_base().asls(self.y, lam=10.**min_val)
         assert_allclose(fit, single_fit, rtol=1e-10, atol=1e-10)
+
+    @pytest.mark.parametrize('weight_enum', (0, 1))
+    def test_whittaker_gcv(self, weight_enum):
+        """
+        Compares against the 'WH' R package for ensuring GCV calculation for Whittaker smoothing.
+
+        Uses the same R code as "tests/two_d/test_whittaker_utils.py::test_WH_comparison"
+        except always sets ``lambda=NULL`` and
+        ``wts[5:15, 5:20] = if(weight_enum == 0){0} else{1}`` using WH version 2.0.0 and
+        R version 4.2.3.
+
+        The comparison tolerances have to be fairly large since pybaselines uses
+        a grid-search rather than the scalar minimization used by 'WH'.
+
+        """
+        x = np.linspace(-np.pi, np.pi, 20)
+        z = np.linspace(-np.pi, np.pi, 30)
+        X, Z = np.meshgrid(x, z, indexing='ij')
+        # NOTE: y was made such that it's gradient is fairly steep in all directions
+        # so that scalar minimization doesn't get caught in a shallow region
+        y = (
+            np.sin(X * 2) + 2 * np.sin(Z * 1.5) + Z
+            + np.random.default_rng(0).normal(0, 1.8, X.shape)
+        )
+        wts = np.ones_like(y)
+        if weight_enum == 0:
+            fill_value = 1
+            ref_lam = (1.2332564864854, 13.3316622498553)
+            ref_metric = 3.4877265473215
+            ref_edf = 62.1372613567285
+            ref_wrss = 1681.6441248506219
+        else:
+            fill_value = 0
+            ref_lam = (0.80786890014324, 7.50207598382595)
+            ref_metric = 3.44287054178588
+            ref_edf = 61.69595832034477
+            ref_wrss = 1065.86252704819435
+        wts[4:15, 4:20] = fill_value
+
+        # use a small grid so that step can be relatively small; otherwise it's quite slow...
+        fit, params = self.algorithm_base().optimize_pls(
+            y, method='asls', opt_method='GCV', min_value=(-0.5, 0.5), max_value=(0.5, 1.5),
+            step=0.2, method_kwargs={'tol': np.inf, 'weights': wts, 'num_eigens': None}, rho=1,
+        )
+
+        best_idx = np.unravel_index(np.argmin(params['metric']), params['metric'].shape)
+        assert_allclose(params['optimal_parameter'][0], ref_lam[0], rtol=1e-4, atol=0.1)
+        assert_allclose(params['optimal_parameter'][1], ref_lam[1], rtol=1e-4, atol=0.8)
+        assert_allclose(params['metric'][best_idx], ref_metric, rtol=1e-4, atol=1e-3)
+        assert_allclose(params['trace'][best_idx], ref_edf, rtol=1e-2, atol=1e-1)
+        assert_allclose(params['wrss'][best_idx], ref_wrss, rtol=5e-3, atol=1e-3)
+
+        file_name = 'WH_2d_diff0_lam1' if weight_enum == 0 else 'WH_2d_wt0'
+        expected_output = np.loadtxt(
+            Path(__file__).parent.parent.joinpath(f'data/{file_name}.csv'), delimiter=','
+        )
+        assert_allclose(fit, expected_output, rtol=5e-3, atol=0.08)
