@@ -2,11 +2,24 @@
 Using Masking with pybaselines
 ==============================
 
-pybaselines version 1.3.0 added direct support for masking to many algorithms by adding
-the :attr:`.Baseline.mask` property. Much like :class:`numpy.ma.MaskedArray` and
-:func:`astropy.convolution.convolve`, the mask should be a boolean array with
-``True`` values indicating the indices within the data to omit from fitting. A simple
-example is shown below.
+There are cases where data needs to be removed/masked before baseline correction. For example, a faulty
+detector can result in problematic regions in measurements, or spurious values/peaks below the
+expected baseline can cause issues with many algorithms which only expect positive peaks. In these
+cases, baseline correction on the raw data could lead to severely incorrect fits. One such use of
+masking in literature is presented by `Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_
+for removing downward spikes in mid-infrared data collected from the James Webb Space Telescope before
+performing baseline correction.
+
+Beginning in version 1.3.0, pybaselines has added direct support for masking to many algorithms, which
+can be used by setting the :attr:`.Baseline.mask` property. Using the same conventions as
+:class:`numpy.ma.MaskedArray` and :func:`astropy.convolution.convolve`, the mask should be a Boolean
+array with ``True`` values indicating the indices within the data to omit from fitting.
+
+A simple example is shown below. In the example, the mask is set manually, but it could
+alternatively be set following some metric. For example,
+`Temmink, et al. <https://doi.org/10.1051/0004-6361/202348911>`_, used
+Savitzky-Golay filtering combined with iterative thresholding to define a mask that excluded
+negative peaks.
 
 .. plot::
    :align: center
@@ -15,17 +28,33 @@ example is shown below.
 
     import matplotlib.pyplot as plt
     import numpy as np
-    from pybaselines import Baseline, utils
+    from pybaselines import Baseline
+    from pybaselines.utils import gaussian
 
-    x, y = utils.make_data()
+    x = np.linspace(500, 4000, 1000)
+    signal = (
+        + gaussian(x, 8, 650, 16)
+        + gaussian(x, 9, 1100, 50)
+        + gaussian(x, 8, 1350, 20)
+        + gaussian(x, 11, 2800, 20)
+        + gaussian(x, 8, 2900, 20)
+        + gaussian(x, 5, 3400, 40)
+    )
+    baseline = 0.08 + 0.00004 * (x - 1000) + gaussian(x, 10, 1900, 800)
+    rng = np.random.default_rng(123)
+    noise = rng.normal(0, 0.1, len(x))
+    y = signal + baseline + noise
     # simulate an issue with the detector in the indicated region
-    bad_region = (x > 600) & (x < 650)
-    y[bad_region] = np.random.default_rng().normal(0.5, 0.25, len(x[bad_region]))
+    bad_region = (x > 2000) & (x < 2500)
+    y[bad_region] = rng.normal(0, 0.25, len(x[bad_region]))
+
+    # defining the mask manually by eye, should be True in regions to ignore
+    mask = (x > 1900) & (x < 2550)
 
     baseline_fitter = Baseline(x)
-    non_masked_fit, non_masked_params = baseline_fitter.arpls(y)
-    baseline_fitter.mask = bad_region  # can also set mask upon initializing a new Baseline object
-    masked_fit, masked_params = baseline_fitter.arpls(y)
+    non_masked_fit, non_masked_params = baseline_fitter.arpls(y, lam=1e5)
+    baseline_fitter.mask = mask  # can also set mask upon initializing a new Baseline object
+    masked_fit, masked_params = baseline_fitter.arpls(y, lam=1e5)
 
     plt.plot(x, y)
     plt.plot(x, non_masked_fit, label='not masked')
@@ -34,19 +63,20 @@ example is shown below.
 
 
 When possible, the supplied mask is used to completely omit the indicated values
-from the baseline fitting while also allowing estimation of the baseline in the masked regions,
-for example by setting weights to 0. Some methods, however, do not support masking
-in such a numerically correct way, so by default these methods will raise an error when trying
-to call them if the ``mask`` property is not None. If the :class:`~.Baseline` object is
-initialized with ``strict_mask=False``, then these methods will use linear interpolation
-to fill masked regions to indirectly use masking.
+from the baseline fitting while also allowing estimation of the baseline in the masked regions.
+Some methods, however, do not (currently) support masking in such a numerically correct way,
+so by default these methods will raise an error when trying to call them if the ``mask`` property
+is not ``None``. If the :class:`~.Baseline` object is initialized with ``strict_mask=False``,
+then these methods will use linear interpolation to fill masked regions before performing
+baseline correction, similar to the
+:ref:`No Masking Support <user_guide/masking/index:No Masking Support>` section below.
 
 The table below indicates all baseline correction methods that currently support masking
 (i.e. ``strict_mask`` does not need to be set to ``False``).
 
 .. plot::
    :align: center
-   :context: reset
+   :context: close-figs
    :include-source: False
    :show-source-link: False
    :nofigs:
@@ -65,7 +95,6 @@ The table below indicates all baseline correction methods that currently support
                 methods.append(method_name)
     methods.sort()
 
-    x, y = utils.make_data()
     masked_methods = set()
     fitter = Baseline(x, mask=np.zeros(y.shape, dtype=bool))
     for method in methods:
@@ -111,17 +140,124 @@ baseline correction methods in pybaselines fall in one of three categories:
 2) Indirectly support masking
 3) No mask support
 
+Further details on how to handle each category will be covered in detail below.
+
 Direct Masking Support
 ----------------------
 
-discuss setting weights as ~mask for polynomials.
+The only methods that directly supported masking were non-iteratively-reweighted polynomial
+methods, which includes all :doc:`polynomial <../algorithms/algorithms_1d/polynomial>` methods
+except for :meth:`~.Baseline.loess` and :meth:`~.Baseline.quant_reg`. For these methods,
+the inverse of the mask needs to be input as weights (i.e. 0/False in regions to ignore), as shown
+in the example below. These methods are not NaN-aware, however, so if working with missing data,
+that has to be accounted for.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: True
+
+    # using same x, y data as created above
+    baseline_fitter = Baseline(x)
+
+    weights = np.logical_not(mask)
+
+    non_masked_fit, non_masked_params = baseline_fitter.imodpoly(y, poly_order=7)
+    masked_fit, masked_params = baseline_fitter.imodpoly(y, poly_order=7, weights=weights)
+
+    plt.plot(x, y)
+    plt.plot(x, non_masked_fit, label='not masked')
+    plt.plot(x, masked_fit, label='masked')
+    plt.legend()
+
 
 Indirect Masking Support
 ------------------------
 
-discuss reweighting here
+Next are algorithms that use iterative reweighting, which allow for indirect mask support.
+This includes :doc:`Whittaker smoothing methods <../algorithms/algorithms_1d/whittaker>`, most
+:doc:`spline methods <../algorithms/algorithms_1d/spline>`, :meth:`~.Baseline.loess` and
+:meth:`~.Baseline.quant_reg`.
+
+These methods allow inputting weights, but the input weights are just used for the first
+iteration to jump-start the calculation and are ignored in subsequent iterations.
+To emulate "mask-aware" behavior with these algorithms, interpolate the data in the mask
+regions and fit an initial baseline, take the output weights and set the weights in mask regions
+to 0, and then call the method again while setting ``tol=np.inf`` to only perform one iteration.
+The end result will be a weighted interpolation in mask regions that typically closely approximates
+an actual "mask-aware" implementation. Note that the interpolation of the input for the
+first step will not affect the final result much, so simple linear interpolation will suffice.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: True
+
+    # using same x, y data as created above
+    baseline_fitter = Baseline(x)
+
+    fit_mask = np.logical_not(mask)
+    y_interp = np.interp(x, x[fit_mask], y[fit_mask])
+
+    non_masked_fit = baseline_fitter.arpls(y, lam=1e5)[0]
+    initial_fit, params = baseline_fitter.arpls(y_interp, lam=1e5)
+    weights = params['weights']
+    weights[mask] = 0
+    weighted_fit = baseline_fitter.arpls(y_interp, lam=1e5, weights=weights, tol=np.inf)[0]
+
+    plt.figure()
+    plt.plot(x, y)
+    plt.plot(x, non_masked_fit, label='non-masked')
+    plt.plot(x, initial_fit, label='initial interpolated fit')
+    plt.plot(x, weighted_fit, '--', label='final weighted interpolation')
+
+    plt.legend()
+
 
 No Masking Support
 ------------------
 
-discuss interpolation here
+All other algorithms that are not covered above do not have a direct way of incorporating
+masking for external code. For these algorithms, the input data must be interpolated following
+the mask before performing baseline correction, similar to the "indirect masking" algorithms
+covered above; however, for these methods, the quality of the interpolation can have
+a more pronounced effect on the calculated baseline. The example below shows the
+difference between linear interpolation and
+:class:`PCHIP interpolation <scipy.interpolate.PchipInterpolator>`
+using :meth:`~.Baseline.mor`.
+
+.. plot::
+   :align: center
+   :context: close-figs
+   :include-source: True
+
+    from scipy.interpolate import PchipInterpolator
+
+    # using same x, y data as created above
+    baseline_fitter = Baseline(x)
+
+    fit_mask = np.logical_not(mask)
+    y_linear = np.interp(x, x[fit_mask], y[fit_mask])
+    y_pchip = PchipInterpolator(x[fit_mask], y[fit_mask])(x)
+
+    _, (ax1, ax2) = plt.subplots(2, layout='constrained')
+    ax1.set_title('Interpolated Data')
+    ax2.set_title('Calculated Baselines using "mor"')
+
+    ax1.plot(x, y)
+    ax1.plot(x, y_linear, label='linear interpolation')
+    ax1.plot(x, y_pchip, label='PCHIP interpolation')
+    ax1.legend()
+
+    half_window = 35
+    mor_linear = baseline_fitter.mor(y_linear, half_window=half_window)[0]
+    mor_pchip = baseline_fitter.mor(y_pchip, half_window=half_window)[0]
+    non_masked = baseline_fitter.mor(y, half_window=half_window)[0]
+
+    ax2.plot(x, y)
+    ax2.plot(x, mor_linear, label='linear interpolation')
+    ax2.plot(x, mor_pchip, label='PCHIP interpolation')
+    ax2.plot(x, non_masked, label='non-masked')
+    ax2.legend()
+
+    plt.legend()

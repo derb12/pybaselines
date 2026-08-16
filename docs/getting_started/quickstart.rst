@@ -66,9 +66,9 @@ the final calculated weights for iteratively reweighted methods, the calculated 
 at each iteration for iterative methods, and internally calculated values like the denoised
 signal in the case of the :meth:`~.Baseline.beads` method.
 :ref:`Several <sphx_glr_generated_examples_general_plot_algorithm_convergence.py>`
-:ref:`examples <sphx_glr_generated_examples_general_plot_masked_data.py>`
-:ref:`are <sphx_glr_generated_examples_general_plot_warm_start.py>`
-:ref:`given <sphx_glr_generated_examples_classification_plot_classifier_masks.py>`
+:ref:`examples <sphx_glr_generated_examples_general_plot_warm_start.py>`
+:ref:`are <sphx_glr_generated_examples_classification_plot_classifier_masks.py>`
+:ref:`given <sphx_glr_generated_examples_two_d_plot_whittaker_2d_dof.py>`
 to show how to make use of these various output parameters.
 
 Having these parameters available also allows extending the underlying baseline correction
