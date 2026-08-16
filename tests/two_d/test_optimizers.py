@@ -513,15 +513,19 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         single_fit, _ = self.algorithm_base().asls(self.y, lam=10.**min_val)
         assert_allclose(fit, single_fit, rtol=1e-10, atol=1e-10)
 
+    @pytest.mark.parametrize('pspline', (True, False))
     @pytest.mark.parametrize('weight_enum', (0, 1))
-    def test_whittaker_gcv(self, weight_enum):
+    def test_gcv(self, weight_enum, pspline):
         """
-        Compares against the 'WH' R package for ensuring GCV calculation for Whittaker smoothing.
+        Compares against the 'WH' R package for ensuring GCV calculation is correct.
 
         Uses the same R code as "tests/two_d/test_whittaker_utils.py::test_WH_comparison"
         except always sets ``lambda=NULL`` and
         ``wts[5:15, 5:20] = if(weight_enum == 0){0} else{1}`` using WH version 2.0.0 and
         R version 4.2.3.
+
+        See the comments in "tests/test_optimizers.py::TestOptimizePLS::test_gcv" regarding
+        why P-Splines just use Whittaker smoothing setup rather than a separate test.
 
         The comparison tolerances have to be fairly large since pybaselines uses
         a grid-search rather than the scalar minimization used by 'WH'.
@@ -551,10 +555,18 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             ref_wrss = 1065.86252704819435
         wts[4:15, 4:20] = fill_value
 
+        kwargs = {'tol': np.inf, 'weights': wts}
+        if pspline:
+            method = 'pspline_asls'
+            kwargs.update({'num_knots': y.shape, 'spline_degree': 1})
+        else:
+            method = 'asls'
+            kwargs['num_eigens'] = None
+
         # use a small grid so that step can be relatively small; otherwise it's quite slow...
         fit, params = self.algorithm_base().optimize_pls(
-            y, method='asls', opt_method='GCV', min_value=(-0.5, 0.5), max_value=(0.5, 1.5),
-            step=0.2, method_kwargs={'tol': np.inf, 'weights': wts, 'num_eigens': None}, rho=1,
+            y, method=method, opt_method='GCV', min_value=(-0.5, 0.5), max_value=(0.5, 1.5),
+            step=0.2, method_kwargs=kwargs, rho=1,
         )
 
         best_idx = np.unravel_index(np.argmin(params['metric']), params['metric'].shape)

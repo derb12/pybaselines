@@ -924,8 +924,11 @@ def test_WH_comparison(condition_enum):
     using WH version 2.0.0 and R version 4.2.3.
 
     Note that the third condition used GCV to estimate the optimal lam in R, which is also
-    used by the test "tests/two_d/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for
+    used by the test "tests/two_d/test_optimizers.py::TestOptimizePLS::test_gcv" for
     `weight_enum=0`, so if updating this test, that test will likewise need updated.
+
+    TODO: could use a version of 'WH' earlier than 2.0 to allow specifying number of eigenvalues
+    for verifying those conditions as well.
 
     """
     conditions = (
@@ -971,7 +974,7 @@ def test_WH_weighted_comparison():
     GCV to calculate `lam`. Used WH version 2.0.0 and R version 4.2.3.
 
     Note that this used GCV to estimate the optimal lam in R, which is also used
-    by the test "tests/two_d/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for
+    by the test "tests/two_d/test_optimizers.py::TestOptimizePLS::test_gcv" for
     `weight_enum=1`, so if updating this test, that test will likewise need updated.
 
     """

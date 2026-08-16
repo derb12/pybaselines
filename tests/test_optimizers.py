@@ -929,10 +929,11 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         assert params['metric'].min() >= 0
         assert params['metric'].max() <= 1
 
+    @pytest.mark.parametrize('pspline', (True, False))
     @pytest.mark.parametrize('weight_enum', (0, 1, 2))
-    def test_whittaker_gcv(self, weight_enum):
+    def test_gcv(self, weight_enum, pspline):
         """
-        Compares against the 'WH' R package for ensuring GCV calculation for Whittaker smoothing.
+        Compares against the 'WH' R package for ensuring GCV calculation is correct.
 
         The R code to generate the values are::
 
@@ -976,6 +977,12 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         whether that's the actual cause... The fit lambda value from WH matches that of
         pybaselines, rather than needing the division by 16.
 
+        Given the above weirdness of mgcv's reported smoothing parameter, rather than
+        using `gam` to use GCV with P-Splines, just set it up so that P-Spline option
+        replicates Whittaker smoothing. Note that for 1D, it still seemed off by a factor
+        of 16 for P-Splines as well, but 2D fits were ... confusing, so just do the
+        Whittaker emulation.
+
         The comparison tolerances have to be fairly large since pybaselines uses
         a grid-search rather than the scalar minimization used by the R packages.
 
@@ -1004,9 +1011,16 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             ref_wrss = 0.53357579603285
         wts[9:20] = fill_value
 
+        kwargs = {'tol': np.inf, 'weights': wts}
+        if pspline:
+            method = 'pspline_asls'
+            kwargs.update({'num_knots': len(y), 'spline_degree': 1})
+        else:
+            method = 'asls'
+
         fit, params = self.algorithm_base().optimize_pls(
-            y, method='asls', opt_method='GCV', min_value=-2, max_value=1, step=0.01,
-            method_kwargs={'tol': np.inf, 'weights': wts}, rho=1
+            y, method=method, opt_method='GCV', min_value=-2, max_value=1, step=0.01,
+            method_kwargs=kwargs, rho=1
         )
 
         best_idx = params['metric'].argmin()

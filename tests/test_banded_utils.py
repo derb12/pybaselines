@@ -1089,7 +1089,7 @@ def test_WH_comparison(condition_enum, allow_lower, allow_penta):
     using WH version 2.0.0 and R version 4.2.3.
 
     Note that the third condition used GCV to estimate the optimal lam in R, which is also
-    used by the test "tests/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for
+    used by the test "tests/test_optimizers.py::TestOptimizePLS::test_gcv" for
     `weight_enum=0`, so if updating this test, that test will likewise need updated.
 
     """
@@ -1129,7 +1129,7 @@ def test_WH_weighted_comparison(weight_enum, allow_lower, allow_penta):
     `diff_order=2`, and uses GCV to calculate `lam`. Used WH version 2.0.0 and R version 4.2.3.
 
     Note that this used GCV to estimate the optimal lam in R, which is also used
-    by the test "tests/test_optimizers.py::TestOptimizePLS::test_whittaker_gcv" for
+    by the test "tests/test_optimizers.py::TestOptimizePLS::test_gcv" for
     `weight_enum=1,2`, so if updating this test, those tests will likewise need updated.
 
     """
