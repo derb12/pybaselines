@@ -6,6 +6,8 @@ Created on January 8, 2024
 
 """
 
+from pathlib import Path
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
@@ -16,6 +18,7 @@ from scipy.sparse.linalg import spsolve
 from pybaselines._compat import identity
 from pybaselines._banded_utils import difference_matrix
 from pybaselines.two_d import _spline_utils
+from pybaselines.results import PSplineResult2D
 
 from ..base_tests import get_2dspline_inputs
 
@@ -434,3 +437,130 @@ def test_spline_basis_tk_readonly(data_fixture2d):
 
     with pytest.raises(AttributeError):
         spline_basis.tk = (1, 2)
+
+
+@pytest.mark.parametrize('condition_enum', (0, 1))
+def test_jops_comparison(condition_enum):
+    """
+    Compares 2D P-Spline fit against the R package 'JOPS'.
+
+    The R code to generate the values are::
+
+        library(JOPS)
+
+        options(digits=14)
+        file_path = r"(unquoted file path here)"
+        y = as.matrix(read.csv(file_path, header=FALSE))
+        wts = matrix(1, nrow=nrow(y), ncol=ncol(y))
+
+        x_ = seq(-1, 1, length.out=nrow(y))
+        z_ = seq(-1, 1, length.out=ncol(y))
+        XZ = expand.grid(x=x_, z=z_)
+        x = as.vector(XZ$x)
+        z = as.vector(XZ$z)
+
+        for (condition in 1:2){
+            if (condition == 1) {
+                knots = c(15, 15)
+                degree = c(3, 3)
+                lambda = c(0.5, 1)
+                diff_order = c(2, 2)
+            }
+            else {
+                knots = c(8, 12)
+                degree = c(2, 3)
+                lambda = c(0.5, 10)
+                diff_order = c(2, 3)
+            }
+            # see https://r-packages.io/packages/JOPS/ps2DGLM for expected form
+            # of inputs for Pars; each is (min max nseg bdeg lambda pord) for rows and cols;
+            # use ps2DGLM instead of ps2DNormal since the latter doesn't allow weights
+            row_pars = c(min(x_), max(x_), knots[1], degree[1], lambda[1], diff_order[1])
+            col_pars = c(min(z_), max(z_), knots[2], degree[2], lambda[2], diff_order[2])
+            fit = ps2DGLM(
+                cbind(x, z, as.vector(y)), Pars=rbind(row_pars, col_pars), wts=as.vector(wts)
+            )
+
+            print(fit$eff_dim)  # and save matrix(fit$mu, nrow=nrow(y), ncol=ncol(y))
+        }
+
+    using JOPS version 0.2.0 and R version 4.2.3.
+
+    """
+    # note that number of pybaselines knots are JOPS knots + 1
+    if condition_enum == 0:
+        spline_degree = 3
+        diff_order = 2
+        num_knots = 16
+        lam = (0.5, 1)
+    else:
+        spline_degree = (2, 3)
+        diff_order = (2, 3)
+        num_knots = (9, 13)
+        lam = (0.5, 10)
+
+    edfs = (52.84504896716, 26.750143902452)
+
+    x = np.linspace(-np.pi, np.pi, 20)
+    z = np.linspace(-np.pi, np.pi, 30)
+    X, Z = np.meshgrid(x, z, indexing='ij')
+    y = (
+        np.sin(X * 2) + 2 * np.sin(Z * 1.5) + Z
+        + np.random.default_rng(0).normal(0, 1.8, X.shape)
+    )
+    weights = np.ones_like(y)
+
+    basis = _spline_utils.SplineBasis2D(
+        np.linspace(-1, 1, y.shape[0]), np.linspace(-1, 1, y.shape[1]), num_knots=num_knots,
+        spline_degree=spline_degree
+    )
+    system = _spline_utils.PSpline2D(basis, lam=lam, diff_order=diff_order)
+    fit = system.solve(y, weights)
+
+    expected_output = np.loadtxt(
+        Path(__file__).parent.parent.joinpath(f'data/pspline_2d_{condition_enum}.csv'),
+        delimiter=','
+    )
+    assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
+
+    edf = PSplineResult2D(system, weights=weights).effective_dimension(n_samples=0)
+    assert_allclose(edf, edfs[condition_enum], rtol=1e-13, atol=1e-13)
+
+
+def test_jops_weighted_comparison():
+    """
+    Compares weighted 2D P-Spline fit against the R package 'JOPS'.
+
+    Same R code as `test_jops_comparison` except sets ``wts[10:20] = 0`` before fitting
+    and only uses one set of knots, degree, etc. Used JOPS version 0.2.0 and R version 4.2.3.
+
+    """
+    spline_degree = 3
+    diff_order = 2
+    num_knots = 16  # note that number of pybaselines knots are JOPS knots + 1
+    lam = (0.5, 1)
+
+    x = np.linspace(-np.pi, np.pi, 20)
+    z = np.linspace(-np.pi, np.pi, 30)
+    X, Z = np.meshgrid(x, z, indexing='ij')
+    y = (
+        np.sin(X * 2) + 2 * np.sin(Z * 1.5) + Z
+        + np.random.default_rng(0).normal(0, 1.8, X.shape)
+    )
+    weights = np.ones_like(y)
+    weights[4:15, 4:20] = 0
+
+    basis = _spline_utils.SplineBasis2D(
+        np.linspace(-1, 1, y.shape[0]), np.linspace(-1, 1, y.shape[1]), num_knots=num_knots,
+        spline_degree=spline_degree
+    )
+    system = _spline_utils.PSpline2D(basis, lam=lam, diff_order=diff_order)
+    fit = system.solve(y, weights)
+
+    expected_output = np.loadtxt(
+        Path(__file__).parent.parent.joinpath('data/pspline_2d_wt0.csv'), delimiter=','
+    )
+    assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
+
+    edf = PSplineResult2D(system, weights=weights).effective_dimension(n_samples=0)
+    assert_allclose(edf, 42.799308094594, rtol=1e-13, atol=1e-13)
