@@ -8,10 +8,10 @@ baselines for two dimensional data, demonstrated with the
 :meth:`~pybaselines.Baseline2D.arpls` method.
 
 As explained in the
-:ref:`2D Algorithms section <user_guide/algorithms/algorithms_2d/whittaker_2d:eigendecomposition>`,
+:ref:`2D Algorithms section <user_guide/algorithms/algorithms_2d/whittaker_2d:Rank Reduction>`,
 solving the analytical solution for Whittaker-smoothing-based algorithms is computationally
-demanding. Through the use of eigendecomposition, the effective dimension of the system
-can be reduced and allow solving much faster. The number of eigenvalues required to represent
+demanding. Through the use of eigendecomposition, the effective dimensionality of the system
+can be reduced to allow solving much faster. The number of eigenvalues required to represent
 the baseline depends on the curvature of the baseline, so this example will examine a
 low order polynomial baseline and a sinusoidal baseline, which represent low and high
 curvature, respectively.

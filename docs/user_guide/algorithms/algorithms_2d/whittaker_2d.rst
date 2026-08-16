@@ -43,14 +43,15 @@ After solving, the array :math:`v` can then be reshaped into the matrix :math:`V
 
 Since the analytical solution for 2D requires matrices of shape :math:`(M*N, M*N)`, it is quite
 memory and computationally expensive to solve. Although the left hand side of the equation is
-still sparse and symmetric, it cannot be solved as easily compared to the 1D case since the
-bandwidth is no longer small due to the penalties along both the rows and columns (plus the
+still sparse and symmetric (for most baseline correction algorithms), it cannot be solved as easily compared
+to the 1D case since the bandwidth is no longer small due to the penalties along both the rows and columns (plus the
 sparse solver currently available in SciPy cannot make use of the symmetric nature of the matrix;
 using `Cholesky factorization <https://github.com/scikit-sparse/scikit-sparse>`_ does provide a speed
-up but still does not scale well above ~500x500 sized matrices). However...
+up but still does not scale well above ~500x500 sized matrices). However, the dimensionality of the
+system can be reduced through rank reduction.
 
-Eigendecomposition
-~~~~~~~~~~~~~~~~~~
+Rank Reduction
+~~~~~~~~~~~~~~
 
 By following the excellent insights laid out by G. Biessy in `[2] <https://doi.org/10.1017/asb.2025.10061>`_,
 the dimensionality of the system can be reduced by using eigendecomposition on each of the two

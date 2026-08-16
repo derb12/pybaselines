@@ -68,10 +68,10 @@ they are not technically Whittaker smoothing but more akin to a
 
 .. math::
 
-    (W + \lambda D_d^{\mathsf{T}} D_d + \sum\limits_{i}^K \lambda_i P_i) v = W y
+    (W + \lambda D_d^{\mathsf{T}} D_d + \sum\limits_{j}^K \lambda_j P_j) v = W y
 
-where :math:`P_i` represents an additional penalty controlled by the regularization
-parameter :math:`\lambda_i`.
+where :math:`P_j` represents an additional penalty controlled by the regularization
+parameter :math:`\lambda_j`.
 
 .. _iterative-reweighting-explanation:
 
