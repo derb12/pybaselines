@@ -44,6 +44,7 @@ negative peaks.
     rng = np.random.default_rng(123)
     noise = rng.normal(0, 0.1, len(x))
     y = signal + baseline + noise
+
     # simulate an issue with the detector in the indicated region
     bad_region = (x > 2000) & (x < 2500)
     y[bad_region] = rng.normal(0, 0.25, len(x[bad_region]))
@@ -71,7 +72,7 @@ then these methods will use linear interpolation to fill masked regions before p
 baseline correction, similar to the
 :ref:`No Masking Support <user_guide/masking/index:No Masking Support>` section below.
 
-The table below indicates all baseline correction methods that currently support masking
+The tables below indicates all baseline correction methods that currently support masking
 (i.e. ``strict_mask`` does not need to be set to ``False``).
 
 .. plot::
@@ -84,50 +85,59 @@ The table below indicates all baseline correction methods that currently support
     import inspect
     from pathlib import Path
 
-    from pybaselines import Baseline, utils
+    from pybaselines import Baseline, Baseline2D, utils
 
-    methods = []
-    for (method_name, method) in inspect.getmembers(Baseline):
-        if (
-                inspect.isfunction(method)
-                and not method_name.startswith('_')
-        ):
-                methods.append(method_name)
-    methods.sort()
+    def make_support_table(baseline_class: Baseline | Baseline2D):
+        methods = []
+        for (method_name, method) in inspect.getmembers(baseline_class):
+            if (
+                    inspect.isfunction(method)
+                    and not method_name.startswith('_')
+            ):
+                    methods.append(method_name)
+        methods.sort()
 
-    masked_methods = set()
-    fitter = Baseline(x, mask=np.zeros(y.shape, dtype=bool))
-    for method in methods:
-        try:
-            getattr(fitter, method)(y)
-            masked_methods.add(method)
-        except NotImplementedError:
-            pass
-        except ValueError:
-            if method == 'collab_pls':  # fails since it expects 2D input
+        _, y = utils.make_data(100 if baseline_class is Baseline else 30)
+        if baseline_class is Baseline2D:
+            y = y * np.ones((5, len(y)))
+        masked_methods = set()
+        fitter = baseline_class(mask=np.zeros(y.shape, dtype=bool))
+        for method in methods:
+            try:
+                getattr(fitter, method)(y)
                 masked_methods.add(method)
-            pass
+            except NotImplementedError:
+                pass
+            except ValueError:
+                if method == 'collab_pls':
+                    # fails since it expects 2D/3D input, but does support masking
+                    masked_methods.add(method)
+                    pass
 
-    txt = """
-    .. list-table::
-      :align: center
-      :header-rows: 1
+        txt = ".. list-table::\n  :align: center\n  :header-rows: 1\n\n  * - Method\n    - Supports Masking"
 
-      * - Method
-        - Supports Masking"""
+        # TODO should the version mask support was added also be included in the future? Would
+        # need to save the mask support table then.
+        for method in methods:
+            txt += f"\n  * - :meth:`~.{baseline_class.__name__}.{method}`\n    - {'✓' if method in masked_methods else ' '}"
 
-    # TODO should the version mask support was added also be included in the future? Would
-    # need to save the mask support table then.
-    for method in methods:
-        txt += f"\n  * - :meth:`~.Baseline.{method}`\n    - {'✓' if method in masked_methods else ' '}"
+        # use the generated/images folder since it's not used by other extensions
+        output_path = Path('../../generated/images')
+        output_path.mkdir(exist_ok=True, parents=True)
+        dim = '1d' if baseline_class is Baseline else '2d'
+        with output_path.joinpath(f'mask_support_table_{dim}.rst').open('w', encoding='utf-8') as f:
+            f.write(txt)
 
-    # use the generated/images folder since it's not used by other extensions
-    output_path = Path('../../generated/images')
-    output_path.mkdir(exist_ok=True, parents=True)
-    with output_path.joinpath('mask_support_table.rst').open('w', encoding='utf-8') as f:
-        f.write(txt)
+    make_support_table(Baseline)
+    make_support_table(Baseline2D)
 
-.. include:: ../../generated/images/mask_support_table.rst
+.. dropdown:: Mask Support Table for ``Baseline``
+
+  .. include:: ../../generated/images/mask_support_table_1d.rst
+
+.. dropdown:: Mask Support Table for ``Baseline2D``
+
+  .. include:: ../../generated/images/mask_support_table_2d.rst
 
 
 Masking in Earlier Versions
