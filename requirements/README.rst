@@ -12,7 +12,7 @@ recommended to instead use:
 
 .. code-block:: console
 
-    pip install pybaselines[dev]
+    pip install pybaselines --group dev
 
 or clone the repository by following the
 `installation guide <https://pybaselines.readthedocs.io/en/latest/contributing.html#setting-up-development-environment>`_
