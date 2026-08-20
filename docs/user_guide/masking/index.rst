@@ -99,7 +99,7 @@ The tables below indicates all baseline correction methods that currently suppor
 
         _, y = utils.make_data(100 if baseline_class is Baseline else 30)
         if baseline_class is Baseline2D:
-            y = y * np.ones((5, len(y)))
+            y = y * np.ones((15, len(y)))
         masked_methods = set()
         fitter = baseline_class(mask=np.zeros(y.shape, dtype=bool))
         for method in methods:
@@ -112,7 +112,8 @@ The tables below indicates all baseline correction methods that currently suppor
                 if method == 'collab_pls':
                     # fails since it expects 2D/3D input, but does support masking
                     masked_methods.add(method)
-                    pass
+                else:
+                    raise
 
         txt = ".. list-table::\n  :align: center\n  :header-rows: 1\n\n  * - Method\n    - Supports Masking"
 
@@ -217,7 +218,7 @@ first step will not affect the final result much, so simple linear interpolation
 
     plt.figure()
     plt.plot(x, y)
-    plt.plot(x, non_masked_fit, label='non-masked')
+    plt.plot(x, non_masked_fit, label='not masked')
     plt.plot(x, initial_fit, label='initial interpolated fit')
     plt.plot(x, weighted_fit, '--', label='final weighted interpolation')
 
@@ -267,7 +268,7 @@ using :meth:`~.Baseline.mor`.
     ax2.plot(x, y)
     ax2.plot(x, mor_linear, label='linear interpolation')
     ax2.plot(x, mor_pchip, label='PCHIP interpolation')
-    ax2.plot(x, non_masked, label='non-masked')
+    ax2.plot(x, non_masked, label='not masked')
     ax2.legend()
 
     plt.legend()

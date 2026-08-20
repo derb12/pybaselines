@@ -49,9 +49,8 @@ pybaselines is a library of algorithms for the baseline correction of experiment
     **User Guide**
     ^^^
 
-    In-depth explanations and example fits for all baseline correction
-    algorithms in pybaselines, as well as additional details for
-    specific use cases.
+    In-depth explanations for all baseline correction
+    algorithms in pybaselines and discussions on additional topics.
 
   .. grid-item-card::
     :link: generated/examples/index

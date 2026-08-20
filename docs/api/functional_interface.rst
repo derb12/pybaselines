@@ -28,7 +28,7 @@ interface of pybaselines, simply follow the example below.
 
    # ...with this
    from pybaselines import Baseline
-   baseline_fitter = Baseline(x_data=x_data)
+   baseline_fitter = Baseline(x_data)
    fit_1, params_1 = baseline_fitter.modpoly(data)
    fit_2, params_2 = baseline_fitter.asls(data)
 
