@@ -155,6 +155,44 @@ class TestCollabPLS(OptimizersTester, OptimizerInputWeightsMixin):
             rtol=1e-12, atol=1e-14
         )
 
+    @pytest.mark.parametrize('average_dataset', (True, False))
+    @pytest.mark.parametrize('use_mask', (True, False))
+    def test_replicate_data(self, average_dataset, use_mask):
+        """Ensures logic within collab_pls by fitting several of the same data.
+
+        Whether average_dataset is True or False, fitting repeats of the same data should
+        result in collab_pls producing the same fit as simply calling the underlying method.
+
+        Note that TestCollabPLS technically already uses repeated y-datasets for self.y, but set
+        the repeated y in this test in case the setup ever changes.
+
+        """
+        repeats = 5
+        multi_y = np.repeat(self.y[0][None, :], repeats, axis=0)
+        if use_mask:
+            mask = np.zeros_like(self.y[0], dtype=bool)
+            mask[5:30] = True
+        else:
+            mask = None
+        fitter = self.algorithm_base(mask=mask)
+
+        fit, params = fitter.collab_pls(
+            multi_y, average_dataset=average_dataset, method='asls'
+        )
+        fit_single, params_single = fitter.asls(self.y[0])
+
+        assert_allclose(
+            fit, np.repeat(fit_single[None, :], repeats, axis=0), atol=1e-15, rtol=1e-15
+        )
+        assert_allclose(
+            params['average_weights'], params_single['weights'], atol=1e-15, rtol=1e-15
+        )
+        assert_allclose(
+            params['method_params']['weights'],
+            np.repeat(params_single['weights'][None, :], repeats, axis=0),
+            atol=1e-15, rtol=1e-15
+        )
+
 
 class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing optimize_extended_range baseline."""
