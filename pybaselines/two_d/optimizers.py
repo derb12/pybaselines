@@ -10,17 +10,16 @@ Created on January 14, 2024
 """
 
 from collections import defaultdict
-from functools import partial
 import itertools
 from math import ceil
 
 import numpy as np
 
 from .._nd.optimizers import _OptimizersNDMixin
-from .._validation import _check_optional_array, _get_row_col_values
+from .._validation import _check_optional_array, _check_scalar, _get_row_col_values
 from ..api import Baseline
 from ..optimizers import _determine_polyorders, _optimize_ed, _param_grid
-from ..utils import _check_scalar, _sort_array2d, _wrss
+from ..utils import _sort_array2d, _wrss
 from ._algorithm_setup import _Algorithm2D
 
 
@@ -158,7 +157,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
 
         return np.maximum.reduce(baselines), params
 
-    @_Algorithm2D._handle_io(skip_sorting=True)
+    @_Algorithm2D._handle_io(skip_sorting=True, mask_support=0)
     def individual_axes(self, data, axes=(0, 1), method='asls', method_kwargs=None):
         """
         Applies a one dimensional baseline correction method along each row and/or column.
@@ -234,20 +233,36 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
 
         keys = ('rows', 'columns')
         baseline = np.zeros(self._shape)
+        fit_data = data
         params = {}
+        has_mask = self.mask is not None
         for i, axis in enumerate(axes):
             fitter = Baseline(
                 (self.x, self.z)[axis], check_finite=self._check_finite, assume_sorted=True,
-                output_dtype=self._dtype
+                output_dtype=self._dtype, strict_mask=self._strict_mask
             )
             fitter.banded_solver = self.banded_solver
-            baseline_func = fitter._get_method(method)
+            baseline_func = getattr(fitter, method.lower())
             params[f'params_{keys[axis]}'] = defaultdict(list)
-            func = partial(
-                _update_params, baseline_func, params[f'params_{keys[axis]}'], **method_kwargs[i]
-            )
-            partial_baseline = np.apply_along_axis(func, axis, data - baseline)
+            if axis == 0:
+                indices = ((..., idx) for idx in range(self._shape[1]))
+            else:
+                indices = range(self._shape[0])
+
+            partial_baseline = np.zeros(self._shape)
+            for index in indices:
+                if has_mask:
+                    fitter.mask = self.mask[index]
+                partial_baseline[index], method_params = baseline_func(
+                    fit_data[index], **method_kwargs[i]
+                )
+                for key, val in method_params.items():
+                    params[f'params_{keys[axis]}'][key].append(val)
+
             baseline += partial_baseline
+            fit_data = data - partial_baseline
+            # TODO should the individual baselines be deprecated from the params? If they were
+            # wanted, could just call this twice with each axis
             params[f'baseline_{keys[axis]}'] = partial_baseline
 
         return baseline, params
@@ -416,31 +431,6 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             raise ValueError(f'{opt_method} is not a supported opt_method input')
 
         return baseline, params
-
-
-def _update_params(func, params, data, **kwargs):
-    """
-    A partial function to allow updating a params dictionary using NumPy's apply_aplong_axis.
-
-    Parameters
-    ----------
-    func : Callable
-        The baseline method to use.
-    params : dict[str, list]
-        The dictionary of parameters to be updated.
-    data : numpy.ndarray
-        The data to be baseline corrected.
-
-    Returns
-    -------
-    baseline : numpy.ndarray
-        The calculated baseline.
-
-    """
-    baseline, baseline_params = func(data, **kwargs)
-    for key, val in baseline_params.items():
-        params[key].append(val)
-    return baseline
 
 
 def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, lam_range_c,

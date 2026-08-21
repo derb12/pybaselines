@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
-from pybaselines import utils
+from pybaselines import utils, Baseline
 from pybaselines.two_d import optimizers, polynomial
 
 from ..base_tests import BaseTester2D, InputWeightsMixin
@@ -320,6 +320,7 @@ class TestIndividualAxes(OptimizersTester, OptimizerInputWeightsMixin):
 
     func_name = 'individual_axes'
     checked_keys = ()
+    supports_mask = True
 
     @pytest.mark.parametrize('axes', (0, 1, [0], [1], (0, 1), [1, 0]))
     def test_output(self, axes):
@@ -440,6 +441,64 @@ class TestIndividualAxes(OptimizersTester, OptimizerInputWeightsMixin):
             self.class_func(data=self.y, axes=[0, 0])
         with pytest.raises(ValueError, match='Fitting the same axis twice'):
             self.class_func(data=self.y, axes=[1, 1])
+
+    def test_too_many_axis_fails(self):
+        """Ensures an error is raised if input axes is more than length 2."""
+        with pytest.raises(ValueError, match='desired length was 2 but instead got 3'):
+            self.class_func(data=self.y, axes=[0, 1, 2])
+
+    @pytest.mark.parametrize('axes', (0, 1, (0, 1)))
+    @pytest.mark.parametrize('use_mask', (True, False))
+    def test_logic(self, axes, use_mask):
+        """Ensures logic within individual_axes by fitting each row and column.
+
+        Also ensures masks are correctly used.
+
+        """
+        x = np.linspace(0, 100, 30)
+        z = np.linspace(0, 50, 20)
+        X, Z = np.meshgrid(x, z, indexing='ij')
+        y = (
+            0.01 * X + 0.05 * Z
+            + utils.gaussian(X, center=20) + utils.gaussian(Z, center=30)
+            + np.random.default_rng(0).normal(0, 0.05, X.shape)
+        )
+        if use_mask:
+            mask = np.zeros_like(y, dtype=bool)
+            mask[5:10, 3:8] = True
+        else:
+            mask = None
+
+        # use modpoly so that fits depend on x and z values
+        fit, params = self.algorithm_base(x, z, mask=mask).individual_axes(
+            y, axes=axes, method='modpoly'
+        )
+
+        if isinstance(axes, int):
+            fit_rows = axes == 1
+            fit_cols = axes == 0
+        else:
+            fit_cols = 0 in axes
+            fit_rows = 1 in axes
+
+        # fit order matters; test case uses (0, 1), meaning fit along rows first (i.e. each column),
+        # then columns
+        individual_fits = np.zeros_like(y)
+        if fit_cols:
+            fitter = Baseline(x)
+            for i, col in enumerate(y.T):
+                if use_mask:
+                    fitter.mask = mask[:, i]
+                individual_fits[:, i] += fitter.modpoly(col)[0]
+
+        if fit_rows:
+            fitter = Baseline(z)
+            for i, row in enumerate(y - individual_fits):
+                if use_mask:
+                    fitter.mask = mask[i]
+                individual_fits[i] += fitter.modpoly(row)[0]
+
+        assert_allclose(fit, individual_fits, atol=1e-15, rtol=1e-15)
 
 
 class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
