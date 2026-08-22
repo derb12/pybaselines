@@ -10,7 +10,6 @@ Created on March 3, 2021
 """
 
 from collections import defaultdict
-import inspect
 import itertools
 from math import ceil
 import warnings
@@ -19,8 +18,8 @@ import numpy as np
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._nd.optimizers import _OptimizersNDMixin
-from ._validation import _check_optional_array
-from .utils import ParameterWarning, _check_scalar, _get_edges, _sort_array, _wrss, gaussian
+from ._validation import _check_optional_array, _check_scalar
+from .utils import ParameterWarning, _get_edges, _sort_array, _wrss, gaussian
 
 
 class _Optimizers(_Algorithm, _OptimizersNDMixin):
@@ -762,13 +761,11 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         selected_method = opt_method.lower().replace('-', '_').replace('_', '')
         if selected_method in ('vcurve', 'ucurve'):
             baseline, params = _optimize_lcurve(
-                y, selected_method, optimizer_obj.method, method_kws, optimizer_obj.method_call,
-                optimizer_obj.fitter, lam_range, euclidean
+                y, selected_method, optimizer_obj, method_kws, lam_range, euclidean
             )
         elif selected_method in ('gcv', 'bic'):
             baseline, params = _optimize_ed(
-                y, selected_method, optimizer_obj.method, method_kws, optimizer_obj.method_call,
-                optimizer_obj.fitter, lam_range, rho, n_samples
+                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples
             )
         else:
             raise ValueError(f'{opt_method} is not a supported opt_method input')
@@ -863,8 +860,7 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
     return values
 
 
-def _optimize_lcurve(y, opt_method, method, method_kws, baseline_func, baseline_obj,
-                     lam_range, euclidean):
+def _optimize_lcurve(y, opt_method, optimizer_obj, method_kws, lam_range, euclidean):
     """
     Performs L-curve optimization based on the fit fidelity and penalty.
 
@@ -901,28 +897,23 @@ def _optimize_lcurve(y, opt_method, method, method_kws, baseline_func, baseline_
            models. TEST, 2014, 23(1), 153-194.
 
     """
-    if 'pspline' in method or method in ('mixture_model', 'irsqr'):
-        spline_fit = True
-    else:
-        spline_fit = False
+    method_signature = optimizer_obj.method_signature.parameters
+    spline_fit = 'spline_degree' in method_signature
 
-    using_drpls = 'drpls' in method
-    using_beads = method == 'beads'
+    using_drpls = 'drpls' in optimizer_obj.method
+    using_beads = optimizer_obj.method == 'beads'
     if using_beads:
         param_key = 'alpha'
     else:
         param_key = 'lam'
         # some methods have different defaults, so have to inspect them
-        method_signature = inspect.signature(baseline_func).parameters
-        diff_order = method_kws.get(
-            'diff_order', method_signature['diff_order'].default
-        )
+        diff_order = method_kws.get('diff_order', method_signature['diff_order'].default)
 
     n_lams = len(lam_range)
     penalty = np.empty(n_lams)
     fidelity = np.empty(n_lams)
     for i, lam in enumerate(lam_range):
-        fit_baseline, fit_params = baseline_func(y, **{param_key: lam}, **method_kws)
+        fit_baseline, fit_params = optimizer_obj.method_call(y, **{param_key: lam}, **method_kws)
         if using_beads:
             fit_penalty = sum(fit_params['penalty'])
             fit_fidelity = fit_params['fidelity']
@@ -933,27 +924,23 @@ def _optimize_lcurve(y, opt_method, method, method_kws, baseline_func, baseline_
                 # have to ensure sort order of the fit baseline since
                 # diff(y_ordered) != diff(y_disordered); spline coefficients are always
                 # sorted since they correspond to sorted x-values
-                penalized_object = _sort_array(fit_baseline, baseline_obj._sort_order)
+                penalized_object = _sort_array(fit_baseline, optimizer_obj.fitter._sort_order)
 
             # Park, et al. multiplied the penalty by lam (Equation 8), but I think that may have
             # been a typo since it otherwise favors low lam values and does not produce a
-            # penalty plot shown in Figure 4 in the Park, et al. reference
-            partial_penalty = np.diff(penalized_object, diff_order)
-            fit_penalty = partial_penalty @ partial_penalty
-
-            residual = y - fit_baseline
-            if 'weights' in fit_params:
-                fit_fidelity = fit_params['weights'] @ residual**2
-            else:
-                fit_fidelity = residual @ residual
-
+            # penalty plot shown in Figure 4 in the Park, et al. reference. Also all other
+            # L-curve-based papers omit lam from the penalty term
+            fit_penalty = _wrss(np.diff(penalized_object, diff_order))
+            fit_fidelity = _wrss(y - fit_baseline, fit_params.get('weights', None))
             if using_drpls:
                 if spline_fit:  # still need to sort the baseline
-                    sorted_baseline = _sort_array(fit_baseline, baseline_obj._sort_order)
+                    sorted_baseline = _sort_array(fit_baseline, optimizer_obj.fitter._sort_order)
                 else:
                     sorted_baseline = penalized_object
-                additional_fidelity = np.diff(sorted_baseline, 1)
-                fit_fidelity += additional_fidelity @ additional_fidelity
+                # TODO need to revisit this; should the additional residual penalty be
+                # fidelity or penalty? The penalty is technically independent of lam, so
+                # fidelity makes more sense
+                fit_fidelity += _wrss(np.diff(sorted_baseline, 1))
 
         penalty[i] = fit_penalty
         fidelity[i] = fit_fidelity
@@ -980,14 +967,13 @@ def _optimize_lcurve(y, opt_method, method, method_kws, baseline_func, baseline_
             metric = np.zeros(1)
 
     best_lam = lam_range[np.argmin(metric)]
-    baseline, best_params = baseline_func(y, **{param_key: best_lam}, **method_kws)
+    baseline, best_params = optimizer_obj.method_call(y, **{param_key: best_lam}, **method_kws)
     params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
 
     return baseline, params
 
 
-def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
-                  lam_range, rho, n_samples):
+def _optimize_ed(y, opt_method, optimizer_obj, method_kws, lam_range, rho, n_samples):
     """
     Optimizes the regularization coefficient using criteria based on the effective dimension.
 
@@ -1029,12 +1015,12 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
     if use_gcv:
         if rho is None:
             # selection of rho based on https://doi.org/10.1007/s00180-015-0577-7
-            rho = 1.3 if baseline_obj._size < 100 else 2.
+            rho = 1.3 if optimizer_obj.fitter._size < 100 else 2.
         else:
             if rho < 1:
                 raise ValueError('rho must be >= 1')
 
-    if method == 'beads':  # only supported for L-curve-based optimization options
+    if optimizer_obj.method == 'beads':  # only supported for L-curve-based optimization options
         raise NotImplementedError(
             'optimize_pls does not support the beads method for GCV or BIC opt_method inputs'
         )
@@ -1045,7 +1031,7 @@ def _optimize_ed(y, opt_method, method, method_kws, baseline_func, baseline_obj,
     traces = np.empty(n_lams)
     wrss = np.empty(n_lams)
     for i, lam in enumerate(lam_range):
-        fit_baseline, fit_params = baseline_func(y, lam=lam, **method_kws)
+        fit_baseline, fit_params = optimizer_obj.method_call(y, lam=lam, **method_kws)
 
         trace = fit_params['result'].effective_dimension(n_samples)
         fit_wrss = _wrss(y - fit_baseline, fit_params['weights'])

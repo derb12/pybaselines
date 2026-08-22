@@ -420,8 +420,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
                 np.meshgrid(lam_range_r, lam_range_c, indexing='ij'), axis=-1
             ).reshape(-1, 2)
             baseline, params = _optimize_ed(
-                y, selected_method, optimizer_obj.method, method_kws, optimizer_obj.method_call,
-                optimizer_obj.fitter, lam_range, rho, n_samples
+                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples
             )
             params['optimal_parameter'] = tuple(params['optimal_parameter'])
             output_shape = (lam_range_r.size, lam_range_c.size)
