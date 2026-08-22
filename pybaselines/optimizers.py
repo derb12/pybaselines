@@ -640,7 +640,8 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
 
     @_Algorithm._handle_io(skip_sorting=True)
     def optimize_pls(self, data, method='arpls', opt_method='V-Curve', min_value=4., max_value=7.,
-                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
+                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0,
+                     grid_search=True, minimize_kwargs=None):
         """
         Optimizes the regularization parameter for penalized least squares methods.
 
@@ -691,6 +692,14 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
             analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
             (N, `n_samples`) Rademacher random variables (ie. either -1 or 1).
+        grid_search : bool, optional
+            If True (default), will minimize the metric by testing all parameter values within
+            ``numpy.arange(min_value, max_value, step)``. If False, will use
+            :func:`scipy.optimize.minimize` to minimize the specified metric.
+        minimize_kwargs : dict, optional
+            Only used if `grid_search` is False. The keyword arguments to pass to
+            :func:`scipy.optimize.minimize` for minimization. Default is None, which uses the
+            defaults listed in the Notes section.
 
         Returns
         -------
@@ -755,8 +764,11 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         which requires calculating with all `lam` values before computing the objective.
 
         The range of values to test is generated using
-        ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
-        the range of tested values.
+        ``values = numpy.arange(min_value, max_value, step)``, so `max_value` is likely not
+        included in the range of tested values. If `minimize_kwargs` is not specified with
+        ``grid_search=False``, the default value is set as ``dict('method': 'nelder-mead',
+        'x0': values.mean(), 'bounds': [[values.min(), values.max()]],
+        'options': {'xatol': step})``.
 
         References
         ----------
@@ -781,6 +793,11 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             raise ValueError('lam must not be specified within method_kwargs')
 
         lam_range = _param_grid(min_value, max_value, step, polynomial_fit=False)
+        if not grid_search and minimize_kwargs is None:
+            minimize_kwargs = {
+                'method': 'nelder-mead', 'x0': lam_range.mean(),
+                'bounds': [[lam_range.min(), lam_range.max()]], 'options': {'xatol': step}
+            }
         selected_method = opt_method.lower().replace('-', '_').replace('_', '')
         if selected_method in ('vcurve', 'ucurve'):
             baseline, params = _optimize_lcurve(
@@ -788,7 +805,8 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             )
         elif selected_method in ('gcv', 'bic'):
             baseline, params = _optimize_ed(
-                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples
+                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples,
+                grid_search, minimize_kwargs
             )
         else:
             raise ValueError(f'{opt_method} is not a supported opt_method input')
@@ -1067,7 +1085,8 @@ def _optimize_lcurve(y, opt_method, optimizer_obj, method_kws, lam_range, euclid
     return baseline, params
 
 
-def _optimize_ed(y, opt_method, optimizer_obj, method_kws, lam_range, rho, n_samples):
+def _optimize_ed(y, opt_method, optimizer_obj, method_kws, lam_range, rho, n_samples, grid_search,
+                 minimize_kwargs):
     """
     Optimizes the regularization coefficient using criteria based on the effective dimension.
 
@@ -1119,50 +1138,101 @@ def _optimize_ed(y, opt_method, optimizer_obj, method_kws, lam_range, rho, n_sam
             'optimize_pls does not support the beads method for GCV or BIC opt_method inputs'
         )
 
-    n_lams = len(lam_range)
-    min_metric = np.inf
-    metrics = np.empty(n_lams)
-    traces = np.empty(n_lams)
-    wrss = np.empty(n_lams)
-    for i, lam in enumerate(lam_range):
-        fit_baseline, fit_params = optimizer_obj.method_call(y, lam=lam, **method_kws)
+    params = {}
+    minimized_func = partial(
+        _edf_metric, param_name=optimizer_obj.method_param, y=y, method_kwargs=method_kws,
+        baseline_method=optimizer_obj.method_call, use_gcv=use_gcv, n_samples=n_samples,
+        rho=rho, tracked_params=params
+    )
 
-        trace = fit_params['result'].effective_dimension(n_samples)
-        fit_wrss = _wrss(y - fit_baseline, fit_params['weights'])
-        size = (fit_params['weights'] > 0).sum()
-        if use_gcv:
-            # GCV = (1/N) * RSS / (1 - rho * trace / N)**2 == RSS * N / (N - rho * trace)**2
-            # Note that some papers use different terms for fidelity (eg. RSS / N vs just RSS),
-            # within the actual minimized equation, but both Woltring
-            # (https://doi.org/10.1016/0141-1195(86)90098-7) and Eilers
-            # (https://doi.org/10.1021/ac034173t) use the same GCV score
-            # formulation for penalized splines and Whittaker smoothing, respectively (using a
-            # fidelity term of just RSS), so this should be correct
-            metric = fit_wrss * size / (size - rho * trace)**2
-        else:
-            # BIC = -2 * l + ln(N) * ED, where l == log likelihood and
-            # ED == effective dimension ~ trace
-            # log likelhood of Whittaker/P-Spline smoothing can be approximated from the result
-            # of fitting with lam=0, ie. RSS / N (see Eilers's original 1996 P-Spline paper)
-            # For Gaussian errors: BIC ~ N * ln(RSS / N) + ln(N) * trace
-            metric = size * np.log(fit_wrss / size) + np.log(size) * trace
-
-        if metric < min_metric:
-            min_metric = metric
-            best_lam = lam
-            baseline = fit_baseline
-            best_params = fit_params
-
-        metrics[i] = metric
-        traces[i] = trace
-        wrss[i] = fit_wrss
-
-    params = {
-        'optimal_parameter': best_lam, 'metric': metrics, 'trace': traces,
-        'wrss': wrss, 'method_params': best_params
-    }
+    if grid_search:
+        for var in lam_range:
+            minimized_func(var)
+    else:
+        params['optimize_result'] = minimize(minimized_func, **minimize_kwargs)
+        if y.ndim == 1:
+            # minimize returns 1d array, so convert to scalar
+            params['optimal_parameter'] = params['optimal_parameter'][0]
+    for key in ('wrss', 'trace', 'metric', 'sampled_parameters'):
+        params[key] = np.array(params[key])
+    baseline = params.pop('baseline')
+    params.pop('min_metric')
 
     return baseline, params
+
+
+def _edf_metric(param, param_name, y, baseline_method, method_kwargs, use_gcv, n_samples, rho,
+                tracked_params):
+    """
+    _summary_
+
+    Parameters
+    ----------
+    param : _type_
+        _description_
+    param_name : _type_
+        _description_
+    y : _type_
+        _description_
+    baseline_method : _type_
+        _description_
+    method_kwargs : _type_
+        _description_
+    use_gcv : _type_
+        _description_
+    n_samples : _type_
+        _description_
+    rho : _type_
+        _description_
+    tracked_params : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    input_param = 10**param
+    fit_baseline, fit_params = baseline_method(y, **{param_name: input_param}, **method_kwargs)
+
+    trace = fit_params['result'].effective_dimension(n_samples)
+    fit_wrss = _wrss(y - fit_baseline, fit_params['weights'])
+    size = (fit_params['weights'] > 0).sum()
+    if use_gcv:
+        # GCV = (1/N) * RSS / (1 - rho * trace / N)**2 == RSS * N / (N - rho * trace)**2
+        # Note that some papers use different terms for fidelity (eg. RSS / N vs just RSS),
+        # within the actual minimized equation, but both Woltring
+        # (https://doi.org/10.1016/0141-1195(86)90098-7) and Eilers
+        # (https://doi.org/10.1021/ac034173t) use the same GCV score
+        # formulation for penalized splines and Whittaker smoothing, respectively (using a
+        # fidelity term of just RSS), so this should be correct
+        metric = fit_wrss * size / (size - rho * trace)**2
+    else:
+        # BIC = -2 * l + ln(N) * ED, where l == log likelihood and
+        # ED == effective dimension ~ trace
+        # log likelhood of Whittaker/P-Spline smoothing can be approximated from the result
+        # of fitting with lam=0, ie. RSS / N (see Eilers's original 1996 P-Spline paper)
+        # For Gaussian errors: BIC ~ N * ln(RSS / N) + ln(N) * trace
+        metric = size * np.log(fit_wrss / size) + np.log(size) * trace
+
+    if 'metric' not in tracked_params:
+        tracked_params['min_metric'] = np.inf
+        tracked_params['metric'] = []
+        tracked_params['trace'] = []
+        tracked_params['wrss'] = []
+        tracked_params['sampled_parameters'] = []
+
+    tracked_params['metric'].append(metric)
+    tracked_params['trace'].append(trace)
+    tracked_params['wrss'].append(fit_wrss)
+    tracked_params['sampled_parameters'].append(input_param)
+    if metric < tracked_params['min_metric']:
+        tracked_params['baseline'] = fit_baseline
+        tracked_params['method_params'] = fit_params
+        tracked_params['min_metric'] = metric
+        tracked_params['optimal_parameter'] = input_param
+
+    return metric
 
 
 @_optimizers_wrapper
@@ -1545,7 +1615,8 @@ def custom_bc(data, x_data=None, method='asls', regions=((None, None),), samplin
 
 @_optimizers_wrapper
 def optimize_pls(data, method='arpls', opt_method='V-Curve', min_value=4, max_value=7, step=0.5,
-                 method_kwargs=None, euclidean=False, rho=None, n_samples=0, x_data=None):
+                 method_kwargs=None, euclidean=False, rho=None, n_samples=0, x_data=None,
+                 grid_search=True, minimize_kwargs=None):
     """
     Optimizes the regularization parameter for penalized least squares methods.
 

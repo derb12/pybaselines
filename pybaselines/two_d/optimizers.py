@@ -269,7 +269,8 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
 
     @_Algorithm2D._handle_io(skip_sorting=True)
     def optimize_pls(self, data, method='arpls', opt_method='V-Curve', min_value=4., max_value=7.,
-                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
+                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0,
+                     grid_search=True, minimize_kwargs=None):
         """
         Optimizes the regularization parameters for penalized least squares methods.
 
@@ -320,6 +321,14 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
             analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
             (``M * N``, `n_samples`) Rademacher random variables (ie. either -1 or 1).
+        grid_search : bool, optional
+            If True (default), will minimize the metric by testing all parameter values within
+            the 2D grid specified by `min_value`, `max_value`, and `step`. If False, will use
+            :func:`scipy.optimize.minimize` to minimize the specified metric.
+        minimize_kwargs : dict, optional
+            Only used if `grid_search` is False. The keyword arguments to pass to
+            :func:`scipy.optimize.minimize` for minimization. Default is None, which uses the
+            defaults listed in the Notes section.
 
         Returns
         -------
@@ -419,13 +428,24 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             lam_range = np.stack(
                 np.meshgrid(lam_range_r, lam_range_c, indexing='ij'), axis=-1
             ).reshape(-1, 2)
+            if not grid_search and minimize_kwargs is None:
+                min_vals = lam_range.min(axis=0)
+                max_vals = lam_range.max(axis=0)
+                minimize_kwargs = {
+                    'method': 'nelder-mead', 'x0': 0.5 * (min_vals + max_vals),
+                    'bounds': np.atleast_2d(np.stack((min_vals, max_vals), axis=-1)),
+                    'options': {'xatol': step}
+                }
+
             baseline, params = _optimize_ed(
-                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples
+                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples,
+                grid_search, minimize_kwargs
             )
             params['optimal_parameter'] = tuple(params['optimal_parameter'])
-            output_shape = (lam_range_r.size, lam_range_c.size)
-            for key in ('wrss', 'trace', 'metric'):
-                params[key] = params[key].reshape(output_shape)
+            if grid_search:
+                output_shape = (lam_range_r.size, lam_range_c.size)
+                for key in ('wrss', 'trace', 'metric'):
+                    params[key] = params[key].reshape(output_shape)
         else:
             raise ValueError(f'{opt_method} is not a supported opt_method input')
 

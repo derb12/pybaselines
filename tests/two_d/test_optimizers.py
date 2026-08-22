@@ -505,20 +505,25 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing optimize_pls baseline."""
 
     func_name = "optimize_pls"
-    checked_keys = ('optimal_parameter', 'metric')
+    checked_keys = ('optimal_parameter', 'metric', 'sampled_parameters')
     # will need to change checked_keys if default method is changed
     checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
+    @pytest.mark.parametrize('grid_search', (True, False))
     @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
-    def test_output(self, opt_method):
+    def test_output(self, opt_method, grid_search):
         """Ensures correct output parameters for different optimization methods."""
         if opt_method in ('GCV', 'BIC'):
             additional_keys = ['trace', 'wrss']
         else:
             additional_keys = ['penalty_rows', 'penalty_columns', 'fidelity']
-        super().test_output(additional_keys=additional_keys, opt_method=opt_method)
+        if not grid_search:
+            additional_keys.append('optimize_result')
+        super().test_output(
+            additional_keys=additional_keys, opt_method=opt_method, grid_search=grid_search
+        )
 
     @pytest.mark.parametrize(
         'method',
@@ -610,9 +615,10 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         single_fit, _ = self.algorithm_base().asls(self.y, lam=10.**min_val)
         assert_allclose(fit, single_fit, rtol=1e-10, atol=1e-10)
 
+    @pytest.mark.parametrize('grid_search', (True, False))
     @pytest.mark.parametrize('pspline', (True, False))
     @pytest.mark.parametrize('weight_enum', (0, 1))
-    def test_gcv(self, weight_enum, pspline):
+    def test_gcv(self, weight_enum, pspline, grid_search):
         """
         Compares against the 'WH' R package for ensuring GCV calculation is correct.
 
@@ -660,10 +666,16 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             method = 'asls'
             kwargs['num_eigens'] = None
 
-        # use a small grid so that step can be relatively small; otherwise it's quite slow...
+        if grid_search:
+            # use a small grid so that step can be relatively small; otherwise it's quite slow...
+            min_value = (-0.5, 0.5)
+            max_value = (0.5, 1.5)
+        else:
+            min_value = -1
+            max_value = 2
         fit, params = self.algorithm_base().optimize_pls(
-            y, method=method, opt_method='GCV', min_value=(-0.5, 0.5), max_value=(0.5, 1.5),
-            step=0.2, method_kwargs=kwargs, rho=1,
+            y, method=method, opt_method='GCV', min_value=min_value, max_value=max_value,
+            step=0.2, method_kwargs=kwargs, rho=1, grid_search=grid_search
         )
 
         best_idx = np.unravel_index(np.argmin(params['metric']), params['metric'].shape)
