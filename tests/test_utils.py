@@ -1220,17 +1220,22 @@ def test_masked_convolve_fill_nan(fill_nan):
         utils._masked_convolve(y, kernel, mask, fill_nan=fill_nan)
 
 
+@pytest.mark.parametrize('use_weights', (True, False))
 @pytest.mark.parametrize('one_d', (True, False))
-def test_wrss(one_d):
+def test_wrss(one_d, use_weights):
     """Ensures weighted residual sum of squares calculation is correct."""
     if one_d:
         y = get_data()[-1]
     else:
         y = get_data2d()[-1]
 
-    weights = np.random.default_rng(0).uniform(1e-6, 1., y.shape)
+    if use_weights:
+        weights = np.random.default_rng(0).uniform(1e-6, 1., y.shape)
+        expected = (weights * y**2).sum()
+    else:
+        weights = None
+        expected = (y**2).sum()
 
-    expected = (weights * y**2).sum()
     output = utils._wrss(y, weights)
 
     assert_allclose(output, expected, rtol=1e-14, atol=1e-14)

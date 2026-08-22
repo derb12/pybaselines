@@ -14,7 +14,7 @@ import numpy as np
 
 from .. import _weighting
 from ..utils import (
-    ParameterWarning, _masked_convolve, _mollifier_kernel, pad_edges, padded_convolve,
+    ParameterWarning, _masked_convolve, _mollifier_kernel, _wrss, pad_edges, padded_convolve,
     relative_difference
 )
 from .._validation import _check_scalar_variable
@@ -745,9 +745,8 @@ class _PLSNDMixin:
 
         diff_y_1 = np.gradient(y_smooth)
         diff_y_2 = np.gradient(diff_y_1)
-        # x @ x is same as (x**2).sum() but faster
-        rms_diff_1 = np.sqrt((diff_y_1 @ diff_y_1) / self._size)
-        rms_diff_2 = np.sqrt((diff_y_2 @ diff_y_2) / self._size)
+        rms_diff_1 = np.sqrt(_wrss(diff_y_1) / self._size)
+        rms_diff_2 = np.sqrt(_wrss(diff_y_2) / self._size)
 
         diff_1_weights = np.exp(-((diff_y_1 / rms_diff_1)**2) / 2)
         diff_2_weights = np.exp(-((diff_y_2 / rms_diff_2)**2) / 2)
