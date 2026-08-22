@@ -337,9 +337,6 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             baseline_method=getattr(new_fitter, optimizer_obj.method), data_slice=data_slice,
             extended_indices=fit_idx, added_points=added_len, tracked_params=params
         )
-        # TODO remove the shim below that uses log10 once all other metrics and _param_grid are converted to use log10
-        if not poly_fit:
-            variables = np.log10(variables)
         if grid_search:
             for var in variables:
                 minimized_func(var)
@@ -905,7 +902,9 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
         `step` is not an integer.
     ValueError
         Raised if using a Whittaker-smoothing-based method and `min_value`,
-        `max_value`, or `step` is greater than 15.
+        `max_value`, or `step` is greater than 15. Also raised if `min_value`
+        if greater than 'max_value`, or if `polynomial_fit` is True and
+        `min_value` less than 0.
 
     Notes
     -----
@@ -919,6 +918,9 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
                 'min_value, max_value, and step must all be integers when'
                 ' using a polynomial method'
             ))
+        elif min_value < 0:
+            raise ValueError('min_value must be > 0')
+        dtype = int
     else:
         if any(val > 15 for val in (min_value, max_value, step)):
             raise ValueError((
@@ -926,6 +928,8 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
                 '(eg. min_value=2 denotes 10**2), not the actual "lam" value, and '
                 'thus should not be greater than 15'
             ))
+        # explicitly set float dtype so that input dtypes are uninportant for arange step size
+        dtype = float
     if step < 0:
         raise ValueError('step must be >= 0')
     elif max_value < min_value:
@@ -935,11 +939,7 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
         do_optimization = False
     else:
         do_optimization = True
-        if polynomial_fit:
-            values = np.arange(min_value, max_value, step)
-        else:
-            # explicitly set float dtype so that input dtypes are uninportant for arange step size
-            values = 10.0**np.arange(min_value, max_value, step, dtype=float)
+        values = np.arange(min_value, max_value, step, dtype=dtype)
         # double check that values has at least two items; otherwise skip the optimization
         if values.size < 2:
             do_optimization = False
@@ -949,9 +949,7 @@ def _param_grid(min_value, max_value, step, polynomial_fit=False):
             ('min_value, max_value, and step were set such that only a single value '
              'was fit'), ParameterWarning, stacklevel=2
         )
-        values = np.array([min_value])
-        if not polynomial_fit:
-            values = 10.0**values
+        values = np.array([min_value], dtype=dtype)
 
     return values
 
@@ -1009,7 +1007,7 @@ def _optimize_lcurve(y, opt_method, optimizer_obj, method_kws, lam_range, euclid
     penalty = np.empty(n_lams)
     fidelity = np.empty(n_lams)
     for i, lam in enumerate(lam_range):
-        fit_baseline, fit_params = optimizer_obj.method_call(y, **{param_key: lam}, **method_kws)
+        fit_baseline, fit_params = optimizer_obj.method_call(y, **{param_key: 10**lam}, **method_kws)
         if using_beads:
             fit_penalty = sum(fit_params['penalty'])
             fit_fidelity = fit_params['fidelity']
@@ -1055,14 +1053,14 @@ def _optimize_lcurve(y, opt_method, optimizer_obj, method_kws, lam_range, euclid
         if lam_range.size > 1:
             # use gradient instead of finite difference so metric and tested values are the
             # same size, and also matches 2D implementation
-            step = np.log10(lam_range[1] / lam_range[0])
+            step = np.log10(lam_range[1] - lam_range[0])
             penalty_diff = np.gradient(np.log10(penalty), step)
             fidelity_diff = np.gradient(np.log10(fidelity), step)
             metric = np.sqrt(penalty_diff**2 + fidelity_diff**2)
         else:
             metric = np.zeros(1)
 
-    best_lam = lam_range[np.argmin(metric)]
+    best_lam = 10**lam_range[np.argmin(metric)]
     baseline, best_params = optimizer_obj.method_call(y, **{param_key: best_lam}, **method_kws)
     params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
 

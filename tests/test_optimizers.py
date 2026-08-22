@@ -6,6 +6,7 @@ Created on March 20, 2021
 
 """
 
+from contextlib import nullcontext
 from pathlib import Path
 
 import numpy as np
@@ -470,15 +471,18 @@ def test_param_grid():
     output = optimizers._param_grid(min_value, max_value, step, polynomial_fit=True)
 
     assert_array_equal(output, expected_values)
+    assert output.dtype == int
 
     output2 = optimizers._param_grid(min_value, max_value, step, polynomial_fit=False)
-    assert_allclose(output2, 10**expected_values, rtol=1e-15, atol=1e-15)
+    assert_allclose(output2, expected_values, rtol=1e-15, atol=1e-15)
+    assert output2.dtype == float
 
     # also ensure floats are properly handled
     step = 0.5
-    expected_values = 10**np.array([1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5])
+    expected_values = np.array([1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5])
     output3 = optimizers._param_grid(min_value, max_value, step, polynomial_fit=False)
     assert_allclose(output3, expected_values, rtol=1e-15, atol=1e-15)
+    assert output3.dtype == float
 
 
 @pytest.mark.parametrize('polynomial_fit', (True, False))
@@ -487,7 +491,7 @@ def test_param_grid_no_step(polynomial_fit):
     min_value = 2
     expected_value = np.array([min_value])
     if not polynomial_fit:
-        expected_value = 10.0**expected_value
+        expected_value = expected_value
 
     # case 1: step == 0
     with pytest.warns(utils.ParameterWarning):
@@ -548,14 +552,25 @@ def test_param_grid_nonpoly_fails(key):
 @pytest.mark.parametrize('polynomial_fit', (True, False))
 def test_param_grid_bounds_errors(polynomial_fit):
     """Ensures a step < 0 or min_value > max_value both raise exceptions."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='step must be >= 0'):
         optimizers._param_grid(min_value=1, max_value=5, step=-1, polynomial_fit=polynomial_fit)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='max_value must be >= min_value'):
         optimizers._param_grid(min_value=10, max_value=5, step=1, polynomial_fit=polynomial_fit)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='step must be >= 0'):
         optimizers._param_grid(min_value=10, max_value=5, step=-1, polynomial_fit=polynomial_fit)
+
+
+@pytest.mark.parametrize('polynomial_fit', (True, False))
+def test_param_grid_min(polynomial_fit):
+    """Ensures correct behavior for minimum allowed min_value."""
+    if polynomial_fit:
+        context = pytest.raises(ValueError, match='min_value must be > 0')
+    else:
+        context = nullcontext()
+    with context:
+        optimizers._param_grid(min_value=-1, max_value=5, step=1, polynomial_fit=polynomial_fit)
 
 
 @pytest.mark.parametrize(

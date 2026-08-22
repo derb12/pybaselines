@@ -493,8 +493,9 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
     fidelity = np.empty(n_lams)
     for i, lam_r in enumerate(lam_range_r):
         for j, lam_c in enumerate(lam_range_c):
+            fit_lams = (10**lam_r, 10**lam_c)
             fit_baseline, fit_params = optimizer_obj.method_call(
-                y, lam=(lam_r, lam_c), **method_kws
+                y, lam=fit_lams, **method_kws
             )
             if eigen_fit:
                 # approximately the same as taking the finite difference in each dimension, but
@@ -550,8 +551,8 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
             metric = fidelity + penalty_rows + penalty_cols
     elif opt_method == 'vcurve':
         if fidelity.size > 1:
-            step_r = np.log10(lam_range_r[1] / lam_range_r[0])
-            step_c = np.log10(lam_range_c[1] / lam_range_c[0])
+            step_r = np.log10(lam_range_r[1] - lam_range_r[0])
+            step_c = np.log10(lam_range_c[1] - lam_range_c[0])
 
             penalty_rows_grad = _gradient_magnitude(np.log10(penalty_rows), step_r, step_c)
             penalty_cols_grad = _gradient_magnitude(np.log10(penalty_cols), step_r, step_c)
@@ -563,7 +564,7 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
             metric = np.zeros((1, 1))
 
     best_idx = np.unravel_index(np.argmin(metric), metric.shape)
-    best_lam = (lam_range_r[best_idx[0]], lam_range_c[best_idx[1]])
+    best_lam = (10**lam_range_r[best_idx[0]], 10**lam_range_c[best_idx[1]])
     baseline, best_params = optimizer_obj.method_call(y, lam=best_lam, **method_kws)
     params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
 
