@@ -198,10 +198,16 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing optimize_extended_range baseline."""
 
     func_name = "optimize_extended_range"
-    checked_keys = ('optimal_parameter', 'min_rmse', 'rmse')
+    checked_keys = ('optimal_parameter', 'min_rmse', 'rmse', 'sampled_parameters')
     # will need to change checked_keys if default method is changed
     checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     required_kwargs = {'pad_kwargs': {'extrapolate_window': 100}}
+
+    @pytest.mark.parametrize('grid_search', (True, False))
+    def test_output(self, grid_search):
+        """Ensures correct output parameters for different optimization methods."""
+        additional_keys = [] if grid_search else ['optimize_result']
+        super().test_output(additional_keys=additional_keys, grid_search=grid_search)
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
@@ -404,7 +410,13 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         )
         assert len(params['rmse']) == len(expected_tested_values)
 
-    def test_correctness(self):
+    def test_poly_non_grid_search_fails(self):
+        """Ensures raised exception if using a polynomial method with `grid_search=False."""
+        with pytest.raises(ValueError, match='must use grid_search=True'):
+            self.class_func(self.y, method='modpoly', grid_search=False)
+
+    @pytest.mark.parametrize('grid_search', (True, False))
+    def test_correctness(self, grid_search):
         """Compares the calculated optimal value to its literature example.
 
         Data is based on Figure 3 of Zhang, et al., and the lam vs RMSE plot should
@@ -432,10 +444,20 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         y = peaks + baseline + noise
 
         fit, params = self.algorithm_base().optimize_extended_range(
-            y, method='aspls', side='right', min_value=3, max_value=12.2, step=0.3, width_scale=0.2,
-            pad_kwargs={'extrapolate_window': 50},
+            y, method='aspls', side='right', min_value=3, max_value=12.2, step=0.3,
+            width_scale=0.2, grid_search=grid_search, pad_kwargs={'extrapolate_window': 50},
         )
-        assert_allclose(np.log10(params['optimal_parameter']), 9.6, rtol=0, atol=0.05)
+        assert isinstance(params['optimal_parameter'], float)
+
+        # with step used in paper, best value is 9.6; for a much smaller step size, the actual
+        # minimum is ~9.7-9.75
+        assert_allclose(
+            np.log10(params['optimal_parameter']), 9.6 if grid_search else 9.7, rtol=1e-15,
+            atol=1e-16 if grid_search else 0.1
+        )
+        # paper had min at ~0.002; difference could be due to noise differences etc, so just
+        # using this to detect changes internally
+        assert_allclose(params['rmse'].min(), 0.001, rtol=1e-15, atol=0.0005)
 
 
 def test_param_grid():

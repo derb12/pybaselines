@@ -11,10 +11,12 @@ Created on March 3, 2021
 
 from collections import defaultdict
 import itertools
+from functools import partial
 from math import ceil
 import warnings
 
 import numpy as np
+from scipy.optimize import minimize
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
 from ._nd.optimizers import _OptimizersNDMixin
@@ -90,51 +92,52 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
     @_Algorithm._handle_io(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
                                 height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=9,
-                                step=None, pad_kwargs=None, method_kwargs=None):
+                                step=None, pad_kwargs=None, method_kwargs=None, grid_search=True,
+                                minimize_kwargs=None):
         """
         Extends data and finds the best parameter value for the given baseline method.
 
         Adds additional data to the left and/or right of the input data, and then iterates
-        through parameter values to find the best fit. Useful for calculating the optimum
-        `lam` or `poly_order` value required to optimize other algorithms.
+        through parameter values to find the value which produces the lowest root mean square
+        between the fit in these extended regions and the known extension. Useful for calculating
+        the optimum `lam` or `poly_order` value required to optimize other algorithms.
 
         Parameters
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
         method : str, optional
-            A string indicating the Whittaker-smoothing-based, polynomial, or spline method
-            to use for fitting the baseline. Default is 'asls'.
+            A string indicating the Whittaker smoothing, polynomial, or spline method
+            to use for fitting the baseline; can also be 'beads' or 'jbcd'. Default is 'asls'.
         side : {'both', 'left', 'right'}, optional
             The side of the measured data to extend. Default is 'both'.
         width_scale : float, optional
-            The number of data points added to each side is `width_scale` * N. Default
+            The number of data points added to each side is ``width_scale * N``. Default
             is 0.1.
         height_scale : float, optional
             The height of the added Gaussian peak(s) is calculated as
-            `height_scale` * max(`data`). Default is 1.
+            ``height_scale * max(data)``. Default is 1.
         sigma_scale : float, optional
             The sigma value for the added Gaussian peak(s) is calculated as
-            `sigma_scale` * `width_scale` * N. Default is 1/12, which will make
+            ``sigma_scale * width_scale * N``. Default is 1/12, which will make
             the Gaussian span +- 6 sigma, making its total width about half of the
             added length.
         min_value : int or float, optional
             The minimum value for the `lam` or `poly_order` value to use with the
             indicated method. If using a polynomial method, `min_value` must be an
-            integer. If using a Whittaker-smoothing-based method, `min_value` should
+            integer. For all other methods, `min_value` should
             be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
             designates a `lam` value of 10**2). Default is 2.
         max_value : int or float, optional
             The maximum value for the `lam` or `poly_order` value to potentially use with the
             indicated method. If using a polynomial method, `max_value` must be an
-            integer. If using a Whittaker-smoothing-based method, `max_value` should
+            integer. For all other methods, `max_value` should
             be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
             designates a `lam` value of 10**3). Default is 9.
         step : int or float, optional
             The step size for iterating the parameter value from `min_value` to `max_value`.
-            If using a polynomial method, `step` must be an integer. If using a
-            Whittaker-smoothing-based method, `step` should
-            be the exponent to raise to the power of 10 (eg. a `step` value of 1
+            If using a polynomial method, `step` must be an integer. For all other methods,
+            `step` should be the exponent to raise to the power of 10 (eg. a `step` value of 1
             designates a `lam` value of 10**1). Default is None, which uses 1 if using a
             polynomial method and otherwise 0.5.
 
@@ -148,6 +151,15 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the selected `method` function.
             Default is None, which will use an empty dictionary.
+        grid_search : bool, optional
+            If True (default), will minimize the metric by testing all parameter values within
+            ``numpy.arange(min_value, max_value, step)``. If False, will use
+            :func:`scipy.optimize.minimize` to minimize the metric. If `method` is a polynomial
+            method, `grid_search` must be True.
+        minimize_kwargs : dict, optional
+            Only used if `grid_search` is False. The keyword arguments to pass to
+            :func:`scipy.optimize.minimize` for minimization. Default is None, which uses the
+            defaults listed in the Notes section.
 
         Returns
         -------
@@ -177,13 +189,20 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
                 Items will depend on the selected `method`.
+            * 'sampled_parameters' : numpy.ndarray, shape (P,)
+                The array of parameters that were tested.
+            * 'optimize_result' : scipy.optimize.OptimizeResult
+                Only present if `grid_search` is False. The ``OptimizeResult`` object
+                returned by :func:`scipy.optimize.minimize`, which contains details
+                about the scalar minimization process.
 
         Raises
         ------
         ValueError
             Raised if `side` is not 'left', 'right', or 'both'. Also raised if using a
             non-polynomial method and `min_value`, `max_value`, or `step` is
-            greater than 15.
+            greater than 15. Also raised if if `grid_search` is False and `method` is
+            a polynomial method.
         TypeError
             Raised if using a polynomial method and `min_value`, `max_value`, or
             `step` is not an integer.
@@ -209,8 +228,11 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         obtained from :meth:`~.Baseline.optimize_extended_range`.
 
         The range of values to test is generated using
-        ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
-        the range of tested values.
+        ``values = numpy.arange(min_value, max_value, step)``, so `max_value` is likely not
+        included in the range of tested values. If `minimize_kwargs` is not specified with
+        ``grid_search=False``, the default value is set as ``dict('method': 'nelder-mead',
+        'x0': values.mean(), 'bounds': [[values.min(), values.max()]],
+        'options': {'xatol': step})``.
 
         References
         ----------
@@ -231,6 +253,11 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             method_kwargs=method_kwargs, copy_kwargs=True
         )
         poly_fit = optimizer_obj.method_param == 'poly_order'
+        if poly_fit and not grid_search:
+            # can't specify to only use int values for minimize, and there's only a limited
+            # number of degrees to reasonably test anyway
+            raise ValueError('must use grid_search=True for polynomial methods')
+
         if step is None:
             step = 1 if poly_fit else 0.5
         variables = _param_grid(min_value, max_value, step, polynomial_fit=poly_fit)
@@ -247,7 +274,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         min_x = self.x_domain[0]
         max_x = self.x_domain[1]
         x_range = max_x - min_x
-        known_background = np.array([])
+        known_baseline = np.array([])
         fit_x_data = self.x
         fit_data = y
         fit_idx = np.array([], dtype=np.intp)
@@ -270,7 +297,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             fit_x_data = np.concatenate((fit_x_data, added_x))
             fit_data = np.concatenate((fit_data, added_gaussian + added_right))
             fit_idx = np.arange(-added_window, 0, dtype=np.intp)
-            known_background = added_right
+            known_baseline = added_right
             upper_bound += added_window
         if side in ('left', 'both'):
             added_x = np.linspace(
@@ -278,7 +305,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             )[:-1]
             fit_x_data = np.concatenate((added_x, fit_x_data))
             fit_data = np.concatenate((added_gaussian + added_left, fit_data))
-            known_background = np.concatenate((added_left, known_background))
+            known_baseline = np.concatenate((added_left, known_baseline))
             lower_bound += added_window
             fit_idx = np.concatenate((np.arange(added_window, dtype=np.intp), fit_idx))
 
@@ -302,41 +329,40 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
                 ), dtype=np.intp)
 
         new_fitter = optimizer_obj.fitter._override_x(fit_x_data, new_sort_order=new_sort_order)
-        baseline_func = getattr(new_fitter, optimizer_obj.method)
+        data_slice = slice(lower_bound, len(fit_data) - upper_bound)
+        params = {}
+        minimized_func = partial(
+            _erpls_metric, param_name=optimizer_obj.method_param, fit_data=fit_data,
+            known_baseline=known_baseline, method_kwargs=method_kws, poly_method=poly_fit,
+            baseline_method=getattr(new_fitter, optimizer_obj.method), data_slice=data_slice,
+            extended_indices=fit_idx, added_points=added_len, tracked_params=params
+        )
+        # TODO remove the shim below that uses log10 once all other metrics and _param_grid are converted to use log10
+        if not poly_fit:
+            variables = np.log10(variables)
+        if grid_search:
+            for var in variables:
+                minimized_func(var)
+        else:
+            if minimize_kwargs is None:
+                minimize_kwargs = {
+                    'method': 'nelder-mead', 'x0': variables.mean(),
+                    'bounds': [[variables.min(), variables.max()]], 'options': {'xatol': step}
+                }
+            params['optimize_result'] = minimize(minimized_func, **minimize_kwargs)
+            # minimize returns 1d array, so convert to scalar
+            params['optimal_parameter'] = params['optimal_parameter'][0]
+        for key in ('rmse', 'sampled_parameters'):
+            params[key] = np.array(params[key])
+        baseline = params.pop('baseline')
 
-        upper_idx = len(fit_data) - upper_bound
-        min_sum_squares = np.inf
-        best_idx = 0
-        sum_squares_tot = np.zeros_like(variables)
-        for i, var in enumerate(variables):
-            method_kws[optimizer_obj.method_param] = var
-            fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
-            residual = known_background - fit_baseline[fit_idx]
-            # just calculate the sum of squares to reduce time from using sqrt for rmse
-            sum_squares = residual.dot(residual)
-            sum_squares_tot[i] = sum_squares
-            if sum_squares < min_sum_squares:
-                baseline = fit_baseline[lower_bound:upper_idx]
-                method_params = fit_params
-                best_idx = i
-                min_sum_squares = sum_squares
-
-        sum_squares_tot = np.sqrt(sum_squares_tot / added_len)
         # trim method_params items like weights to the length of the original data
-        for key, value in method_params.items():
+        for key, value in params['method_params'].items():
             if (
                 isinstance(value, np.ndarray)
                 and key != 'tol_history' and len(value) == len(fit_x_data)
             ):
-                method_params[key] = value[
-                    0 if side == 'right' else added_window:
-                    None if side == 'left' else -added_window
-                ]
-
-        params = {
-            'optimal_parameter': variables[best_idx], 'min_rmse': sum_squares_tot[best_idx],
-            'rmse': sum_squares_tot, 'method_params': method_params
-        }
+                params['method_params'][key] = value[data_slice]
 
         return baseline, params
 
@@ -776,6 +802,76 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
 _optimizers_wrapper = _class_wrapper(_Optimizers)
 
 
+def _erpls_metric(param, param_name, fit_data, known_baseline, baseline_method, method_kwargs,
+                  poly_method, data_slice, extended_indices, added_points, tracked_params):
+    """
+    The metric used by the extended range penalized least squares method.
+
+    Parameters
+    ----------
+    param : float or np.array
+        The current parameter to sample and compute the metric for.
+    param_name : str
+        The key for `param`.
+    fit_data : numpy.ndarrray
+        The data with extended regions for fitting the baseline.
+    known_baseline : numpy.ndarray
+        The extended linear regions added to the original data.
+    baseline_method : Callable
+        The baseline correction method to use.
+    method_kwargs : dict
+        The additional keyword arguments to pass to `baseline_method`.
+    poly_method : bool
+        Designates if `baseline_method` is a polynomial method. If False, the actual
+        input parameter into `baseline_method` is ``10**param``.
+    data_slice : slice or tuple[slice, slice]
+        A slice or tuple of slices where ``fit_data[data_slice]`` is the original data
+        before extending.
+    extended_indices : numpy.ndarray
+        An array of indices that correspond to the extended regions within `fit_data`,
+        such that ``fit_data[extended_indices]`` is the extended regions.
+    added_points : int
+        The number of added points in the extended regions.
+    tracked_params : dict
+        Parameters used to track progress during optimization. Must be initialized before
+        the first call.
+
+    Returns
+    -------
+    rmse
+        The root mean squared error between the fit baseline in the extended regions and
+        the linear extensions in those regions.
+
+    References
+    ----------
+     Zhang, F., et al. An Automatic Baseline Correction Method Based on
+    the Penalized Least Squares Method. Sensors, 2020, 20(7), 2015.
+
+    """
+    if poly_method:
+        input_param = param
+    else:
+        input_param = 10**param
+    fit_baseline, fit_params = baseline_method(
+        fit_data, **{param_name: input_param}, **method_kwargs
+    )
+    rmse = np.sqrt(_wrss(known_baseline - fit_baseline[extended_indices]) / added_points)
+    if 'rmse' not in tracked_params:
+        tracked_params['min_rmse'] = np.inf
+        tracked_params['rmse'] = []
+        tracked_params['sampled_parameters'] = []
+
+    tracked_params['rmse'].append(rmse)
+    tracked_params['sampled_parameters'].append(input_param)
+    if rmse < tracked_params['min_rmse']:
+        tracked_params['baseline'] = fit_baseline[data_slice]
+        tracked_params['method_params'] = fit_params
+        tracked_params['min_rmse'] = rmse
+        tracked_params['optimal_parameter'] = input_param
+
+    return rmse
+
+
 def _param_grid(min_value, max_value, step, polynomial_fit=False):
     """
     Creates a range of parameters to use for grid optimization.
@@ -1132,7 +1228,8 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
 @_optimizers_wrapper
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
                             height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=9,
-                            step=None, pad_kwargs=None, method_kwargs=None):
+                            step=None, pad_kwargs=None, method_kwargs=None, grid_search=True,
+                            minimize_kwargs=None):
     """
     Extends data and finds the best parameter value for the given baseline method.
 
