@@ -503,7 +503,10 @@ is reduced by iterative reweighting.
 
 .. note::
    Although not its intended use, the loess function can be used for smoothing like
-   "traditional loess", simply by setting ``symmetric_weights`` to True and ``scale`` to ~4.05.
+   "traditional loess", simply by setting ``symmetric_weights`` to True and ``scale`` to ~4.05;
+   however, it is recommended to use
+   statsmodels's :func:`~statsmodels.nonparametric.smoothers_lowess.lowess` implementation for
+   just smoothing instead.
 
 
 .. plot::

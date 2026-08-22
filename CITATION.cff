@@ -4,6 +4,7 @@ abstract: pybaselines is a Python library that provides many different algorithm
 authors:
   - family-names: Erb
     given-names: Donald
+    orcid: 0000-0001-5419-8188
 cff-version: 1.2.0
 identifiers:
   - type: doi

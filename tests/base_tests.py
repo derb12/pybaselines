@@ -554,8 +554,12 @@ class BaseTester:
                 )
             else:
                 self.func(data=y, x_data=x, **self.kwargs, **kwargs)
-        except ValueError as e:  # from trying to assign value to read-only array
-            raise AssertionError('method modified the input x- or y-data.') from e
+        except ValueError as e:
+            # from trying to assign value to read-only array
+            if 'assignment destination is read-only' in str(e):
+                raise AssertionError('method modified the input x- or y-data.') from e
+            else:  # raise on other non-related exceptions
+                raise
 
         assert_array_equal(y2, y, err_msg='the y-data was changed by the algorithm')
         assert_array_equal(x2, x, err_msg='the x-data was changed by the algorithm')
@@ -1029,8 +1033,12 @@ class BaseTester2D:
                 self.class_func(data=y, **self.kwargs, **kwargs)
                 compared_x = self.x
                 compared_z = self.z
-        except ValueError as e:  # from trying to assign value to read-only array
-            raise AssertionError('method modified the input x- or y-data.') from e
+        except ValueError as e:
+            # from trying to assign value to read-only array
+            if 'assignment destination is read-only' in str(e):
+                raise AssertionError('method modified the input x-, z-, or y-data.') from e
+            else:  # raise on other non-related exceptions
+                raise
         finally:
             if not new_instance:
                 self.x.setflags(write=True)

@@ -112,18 +112,19 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         is needed for noisy data and correspondly requires a slightly higher ``lam`` value.
 
         >>> fit_1, params_1 = baseline_fitter.asls(y, lam=1e6, p=0.001)
-        >>> fit_2, params_2 = baseline_fitter.asls(y, lam=1e7, p=0.02)
+        >>> fit_2, params_2 = baseline_fitter.asls(y, lam=1e7, p=0.04)
         >>> plt.plot(x, y)
         >>> plt.plot(x, fit_1, label='lam=1e6, p=0.001')
-        >>> plt.plot(x, fit_2, '--', label='lam=1e7, p=0.02')
+        >>> plt.plot(x, fit_2, '--', label='lam=1e7, p=0.04')
         >>> plt.legend()
         >>> plt.show()
 
         The parameter ``p`` should typically be chosen such that the residuals, ``y - baseline``,
-        are centered around 0. In this example, the use of ``p=0.02`` fits the noise better.
+        are centered around 0. In this example, the use of ``p=0.04`` fits the noise better.
 
+        >>> plt.axvline(0, linestyle=':', color='k')
         >>> plt.hist(
-        ...     [y - fit_1, y - fit_2], bins=100, density=True, label=['p=0.001', 'p=0.02'],
+        ...     [y - fit_1, y - fit_2], bins=100, density=True, label=['p=0.001', 'p=0.04'],
         ...     histtype='step'
         ... )
         >>> plt.xlabel('Residuals, y - baseline')
@@ -197,7 +198,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             The weighting array. If None (default), then the initial weights
             will be set by fitting the data with a second order polynomial.
         diff_order : int, optional
-            The order of the differential matrix. Must be greater than 1. Default is 2
+            The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 3.
 
         Returns
@@ -271,6 +272,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         The parameter ``p`` should typically be chosen such that the residuals, ``y - baseline``,
         are centered around 0. In this example, the use of ``p=0.15`` fits the noise better.
 
+        >>> plt.axvline(0, linestyle=':', color='k')
         >>> plt.hist(
         ...     [y - fit_1, y - fit_2], bins=100, density=True, label=['p=0.05', 'p=0.15'],
         ...     histtype='step'
@@ -305,8 +307,6 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        elif diff_order < 2:
-            raise ValueError('diff_order must be 2 or greater')
 
         if weights is None:
             _, _, pseudo_inverse = self._setup_polynomial(
@@ -353,7 +353,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         return baseline, params
 
     def airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
-               normalize_weights=False):
+               normalize_weights='deprecated'):
         r"""
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -394,8 +394,12 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             will be an array with size equal to N and all values set to 1.
         normalize_weights : bool, optional
             If True, will normalize the computed weights between 0 and 1 to potentially
-            improve the numerical stability. Set to False (default) to use the original
-            implementation, which sets weights for all negative residuals to be greater than 1.
+            improve the numerical stability. Default behavior uses the reference implementation,
+            which sets weights for all negative residuals to be greater than 1.
+
+            .. deprecated:: 1.3
+                `normalize_weights` is deprecated and will be removed in version 1.5. The
+                future behavior will use the reference implementation.
 
         Returns
         -------
@@ -580,7 +584,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
         diff_order : int, optional
-            The order of the differential matrix. Must be greater than 1. Default is 2
+            The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 3.
 
         Returns
@@ -616,8 +620,6 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         """
         if not 0 <= eta <= 1:
             raise ValueError('eta must be between 0 and 1')
-        elif diff_order < 2:
-            raise ValueError('diff_order must be 2 or greater')
 
         y, weight_array, whittaker_system = self._setup_whittaker(
             data, lam, diff_order, weights, allow_lower=False, reverse_diags=False
@@ -1286,7 +1288,7 @@ def iasls(data, x_data=None, lam=1e6, p=1e-2, lam_1=1e-4, max_iter=50, tol=1e-3,
 
 @_whittaker_wrapper
 def airpls(data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None, x_data=None,
-           normalize_weights=False):
+           normalize_weights='deprecated'):
     """
     Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 

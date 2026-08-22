@@ -294,7 +294,7 @@ class _Spline(_Algorithm, _PLSNDMixin):
             The weighting array. If None (default), then the initial weights
             will be an array with size equal to N and all values set to 1.
         diff_order : int, optional
-            The order of the differential matrix. Must be greater than 1. Default is 2
+            The order of the differential matrix. Must be greater than 0. Default is 2
             (second order differential matrix). Typical values are 2 or 3.
 
         Returns
@@ -349,8 +349,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
         """
         if not 0 < p < 1:
             raise ValueError('p must be between 0 and 1')
-        elif diff_order < 2:
-            raise ValueError('diff_order must be 2 or greater')
 
         if weights is None:
             _, _, pseudo_inverse = self._setup_polynomial(
@@ -399,7 +397,8 @@ class _Spline(_Algorithm, _PLSNDMixin):
         return baseline, params
 
     def pspline_airpls(self, data, lam=1e3, num_knots=100, spline_degree=3,
-                       diff_order=2, max_iter=50, tol=1e-3, weights=None, normalize_weights=False):
+                       diff_order=2, max_iter=50, tol=1e-3, weights=None,
+                       normalize_weights='deprecated'):
         """
         A penalized spline version of the airPLS algorithm.
 
@@ -427,8 +426,12 @@ class _Spline(_Algorithm, _PLSNDMixin):
             will be an array with size equal to N and all values set to 1.
         normalize_weights : bool, optional
             If True, will normalize the computed weights between 0 and 1 to potentially
-            improve the numerical stability. Set to False (default) to use the original
-            implementation, which sets weights for all negative residuals to be greater than 1.
+            improve the numerical stability. Default behavior uses the reference implementation,
+            which sets weights for all negative residuals to be greater than 1.
+
+            .. deprecated:: 1.3
+                `normalize_weights` is deprecated and will be removed in version 1.5. The
+                future behavior will use the reference implementation.
 
         Returns
         -------
@@ -610,8 +613,6 @@ class _Spline(_Algorithm, _PLSNDMixin):
         """
         if not 0 <= eta <= 1:
             raise ValueError('eta must be between 0 and 1')
-        elif diff_order < 2:
-            raise ValueError('diff_order must be 2 or greater')
 
         y, weight_array, pspline = self._setup_spline(
             data, weights, spline_degree, num_knots, True, diff_order, lam,
@@ -1715,7 +1716,8 @@ def pspline_iasls(data, x_data=None, lam=1e1, p=1e-2, lam_1=1e-4, num_knots=100,
 
 @_spline_wrapper
 def pspline_airpls(data, lam=1e3, num_knots=100, spline_degree=3, diff_order=2,
-                   max_iter=50, tol=1e-3, weights=None, x_data=None, normalize_weights=False):
+                   max_iter=50, tol=1e-3, weights=None, x_data=None,
+                   normalize_weights='deprecated'):
     """
     A penalized spline version of the airPLS algorithm.
 

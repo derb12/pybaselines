@@ -126,7 +126,7 @@ below using the :meth:`~.Baseline.arpls` method.
     ax2.set(ylim=[-0.1, 1.1], ylabel='Weights', xlabel='x')
     ax3.set(
         xlim=[0, max_frames + 1], ylim=[tol / 10, params_complete['tol_history'].max() * 10],
-        ylabel='Tolerance', xlabel='Iteration'
+        ylabel='Exit criteria', xlabel='Iteration'
     )
     ax3.semilogy()
     ax3.legend()

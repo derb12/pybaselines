@@ -784,16 +784,8 @@ class PenalizedSystem:
     num_bands : int
         The number of bands in the penalty. The number of bands is assumed to be symmetric,
         so the number of upper and lower bands should both be equal to `num_bands`.
-    original_diagonals : numpy.ndarray
-        The original penalty diagonals before multiplying by `lam` or adding any padding.
-        Maintained so that repeated computations with different `lam` values can be quickly
-        set up. `original_diagonals` can be either the full or lower bands of the penalty,
-        and may be reversed, it depends on the set up. Reset by calling
-        :meth:`~PenalizedSystem.reset_diagonals`.
     penalty : numpy.ndarray
-        The current penalty. Originally is `original_diagonals` after multiplying by `lam`
-        and applying padding, but can also be changed by calling
-        :meth:`~PenalizedSystem.add_penalty`.
+        The current penalty. Can be changed by calling :meth:`~PenalizedSystem.add_penalty`.
         Reset by calling :meth:`~PenalizedSystem.reset_diagonals`.
     penta_solver : int
         The integer designating which solver to use if using the
@@ -842,7 +834,6 @@ class PenalizedSystem:
 
         """
         self._num_bases = data_size
-        self.original_diagonals = None
         self.penta_solver = penta_solver
 
         self.reset_diagonals(
@@ -905,7 +896,7 @@ class PenalizedSystem:
 
     def add_diagonal(self, value):
         """
-        Adds a diagonal array or float to the original penalty matrix.
+        Adds a diagonal array or float to the penalty matrix.
 
         Parameters
         ----------
@@ -925,8 +916,6 @@ class PenalizedSystem:
                         allow_penta=True, padding=0):
         """
         Resets the diagonals of the system and all of the attributes.
-
-        Useful for reusing the penalized system for a different `lam` value.
 
         Parameters
         ----------
@@ -966,26 +955,18 @@ class PenalizedSystem:
         else:
             lower_only = False
 
-        if self.original_diagonals is None or self.diff_order != diff_order:
-            diagonal_data = diff_penalty_diagonals(self._num_bases, diff_order, lower_only)
-            if reverse_diags:
-                diagonal_data = diagonal_data[::-1]
-            self.original_diagonals = diagonal_data
-        else:
-            if self.lower and not lower_only:
-                self.original_diagonals = _lower_to_full(self.original_diagonals)
-            if (self.reversed and not reverse_diags) or (not self.reversed and reverse_diags):
-                self.original_diagonals = self.original_diagonals[::-1]
-            if not self.lower and lower_only:
-                self.original_diagonals = self.original_diagonals[self.diff_order:]
+        self.lam = _check_lam(lam, allow_zero=False)
+        diagonal_data = diff_penalty_diagonals(self._num_bases, diff_order, lower_only)
+        if reverse_diags:
+            diagonal_data = diagonal_data[::-1]
+        diagonal_data *= self.lam
 
         self.diff_order = diff_order
         self.lower = lower_only
         self.using_penta = using_penta
         self.reversed = reverse_diags
+        self.penalty = _pad_diagonals(diagonal_data, padding, self.lower)
 
-        self.lam = _check_lam(lam, allow_zero=False)
-        self.penalty = self.lam * _pad_diagonals(self.original_diagonals, padding, self.lower)
         self._update_bands()
 
     def solve(self, y, weights, penalty=None, rhs_extra=None):
@@ -1097,7 +1078,7 @@ class PenalizedSystem:
 
     def reverse_penalty(self):
         """
-        Reverses the penalty and original diagonals for the system.
+        Reverses the penalty for the system.
 
         Raises
         ------
@@ -1109,7 +1090,6 @@ class PenalizedSystem:
         if self.lower:
             raise ValueError('cannot reverse diagonals when self.lower is True')
         self.penalty = self.penalty[::-1]
-        self.original_diagonals = self.original_diagonals[::-1]
         self.reversed = not self.reversed
 
     def update_lam(self, lam):

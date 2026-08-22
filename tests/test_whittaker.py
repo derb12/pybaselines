@@ -181,16 +181,11 @@ class TestIAsLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, p=p)
 
-    @pytest.mark.parametrize('diff_order', (2, 3))
+    @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        lam = {2: 1e6, 3: 1e10}[diff_order]
+        lam = {1: 1e2, 3: 1e10}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_diff_order_one_fails(self):
-        """Ensure that a difference order of 1 raises an exception."""
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=1)
 
     @pytest.mark.parametrize('diff_order', (2, 3))
     @pytest.mark.parametrize('lam_1', (1e-3, 1e-1))
@@ -264,6 +259,13 @@ class TestAirPLS(WhittakerTester):
         assert np.isfinite(params['tol_history'][-1])
         assert np.isfinite(params['weights']).all()
 
+    @ensure_deprecation(1, 5)
+    @pytest.mark.parametrize('normalize_weights', (True, False))
+    def test_normalize_weights_deprecation(self, normalize_weights):
+        """Ensures warning is emitted if normalize_weights is input."""
+        with pytest.warns(DeprecationWarning, match='normalize_weights is deprecated'):
+            self.class_func(self.y, normalize_weights=normalize_weights)
+
 
 class TestArPLS(WhittakerTester):
     """Class for testing arpls baseline."""
@@ -310,16 +312,11 @@ class TestDrPLS(WhittakerTester):
         with pytest.raises(ValueError):
             self.class_func(self.y, eta=eta)
 
-    @pytest.mark.parametrize('diff_order', (2, 3))
+    @pytest.mark.parametrize('diff_order', (1, 3))
     def test_diff_orders(self, diff_order):
         """Ensure that other difference orders work."""
-        lam = {2: 1e5, 3: 1e9}[diff_order]
+        lam = {1: 1e3, 3: 1e9}[diff_order]
         self.class_func(self.y, lam=lam, diff_order=diff_order)
-
-    def test_diff_order_one_fails(self):
-        """Ensure that a difference order of 1 raises an exception."""
-        with pytest.raises(ValueError):
-            self.class_func(self.y, lam=1e2, diff_order=1)
 
     def test_avoid_nonfinite_weights(self, no_noise_data_fixture):
         """

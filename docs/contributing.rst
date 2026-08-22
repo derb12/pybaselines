@@ -61,7 +61,7 @@ ensure `git <https://git-scm.com>`_ is installed and then run:
 
     git clone https://github.com/derb12/pybaselines.git
     cd pybaselines
-    pip install --editable ".[dev]"
+    pip install --editable . --group dev
 
 All sections below assume the above commands were ran such that necessary
 development dependencies are available.
@@ -115,8 +115,14 @@ tests are not concerned with two dimensional code, the 2D tests can be skipped w
     pytest . -k "not two_d"
 
 
-Alternatively, `pytest-xdist <https://pypi.org/project/pytest-xdist/>`_ can be installed to allow
-running tests in parallel to also reduce the total testing time.
+Alternatively, `pytest-xdist <https://pypi.org/project/pytest-xdist/>`_ can be used to run
+tests in parallel to reduce the overall testing time. For example, the command below
+uses 4 separate processes to run the test suite:
+
+.. code-block:: console
+
+    pytest . -n=4
+
 
 The testing steps below are just for reference and not necessary.
 

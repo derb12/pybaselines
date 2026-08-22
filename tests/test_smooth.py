@@ -16,7 +16,7 @@ from .base_tests import BaseTester, ConvergenceMixin, ensure_deprecation, get_da
 
 
 class SmoothTester(BaseTester):
-    """Base testing class for whittaker functions."""
+    """Base testing class for smoothing functions."""
 
     module = smooth
     uses_padding = True  # TODO remove after version 1.4 when kwargs are deprecated
@@ -41,7 +41,7 @@ class SmoothTester(BaseTester):
 
 
 class TestNoiseMedian(SmoothTester):
-    """Class for testing noise median baseline."""
+    """Class for testing noise_median baseline."""
 
     func_name = 'noise_median'
     required_kwargs = {'half_window': 15}
@@ -59,7 +59,7 @@ class TestNoiseMedian(SmoothTester):
 
 
 class TestSNIP(SmoothTester):
-    """Class for testing snip median baseline."""
+    """Class for testing snip baseline."""
 
     func_name = 'snip'
     required_kwargs = {'max_half_window': 15}
@@ -107,14 +107,14 @@ class TestSNIP(SmoothTester):
 
 
 class TestSwima(SmoothTester):
-    """Class for testing swima median baseline."""
+    """Class for testing swima baseline."""
 
     func_name = 'swima'
     checked_keys = ('half_window', 'converged')
 
 
 class TestIpsa(SmoothTester, ConvergenceMixin):
-    """Class for testing ipsa median baseline."""
+    """Class for testing ipsa baseline."""
 
     func_name = 'ipsa'
     checked_keys = ('tol_history', 'success')
@@ -127,7 +127,7 @@ class TestIpsa(SmoothTester, ConvergenceMixin):
 
 
 class TestRIA(SmoothTester, ConvergenceMixin):
-    """Class for testing ria median baseline."""
+    """Class for testing ria baseline."""
 
     func_name = 'ria'
     checked_keys = ('tol_history', 'success')

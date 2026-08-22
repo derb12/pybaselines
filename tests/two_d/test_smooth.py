@@ -15,7 +15,7 @@ from ..base_tests import ensure_deprecation, BaseTester2D
 
 
 class SmoothTester(BaseTester2D):
-    """Base testing class for whittaker functions."""
+    """Base testing class for smoothing functions."""
 
     module = smooth
 
@@ -31,7 +31,7 @@ class SmoothTester(BaseTester2D):
 
 
 class TestNoiseMedian(SmoothTester):
-    """Class for testing noise median baseline."""
+    """Class for testing noise_median baseline."""
 
     func_name = 'noise_median'
     required_kwargs = {'half_window': 15}

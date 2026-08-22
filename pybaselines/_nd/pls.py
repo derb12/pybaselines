@@ -143,7 +143,7 @@ class _PLSNDMixin:
     @_handle_io(sort_keys=('weights',), reshape_keys=('weights',), mask_support=1)
     def _airpls(self, data, lam=1e6, diff_order=2, max_iter=50, tol=1e-3, weights=None,
                 spline_degree=None, num_knots=25, num_eigens=(10, 10), return_dof=False,
-                normalize_weights=False):
+                normalize_weights='deprecated'):
         """
         Adaptive iteratively reweighted penalized least squares (airPLS) baseline.
 
@@ -189,8 +189,12 @@ class _PLSNDMixin:
             two dimensional.
         normalize_weights : bool, optional
             If True, will normalize the computed weights between 0 and 1 to potentially
-            improve the numerical stability. Set to False (default) to use the original
-            implementation, which sets weights for all negative residuals to be greater than 1.
+            improve the numerical stability. Default behavior uses the reference implementation,
+            which sets weights for all negative residuals to be greater than 1.
+
+            .. deprecated:: 1.3
+                `normalize_weights` is deprecated and will be removed in version 1.5. The
+                future behavior will use the reference implementation.
 
         Returns
         -------
@@ -227,6 +231,13 @@ class _PLSNDMixin:
             data, lam=lam, diff_order=diff_order, weights=weights, spline_degree=spline_degree,
             num_knots=num_knots, num_eigens=num_eigens
         )
+        if normalize_weights != 'deprecated':
+            warnings.warn(
+                'normalize_weights is deprecated and will be removed in version 1.5.',
+                DeprecationWarning, stacklevel=2
+            )
+        else:
+            normalize_weights = False
         y_l1_norm = np.abs(y if self.mask is None else y[np.logical_not(self.mask)]).sum()
         tol_history = np.empty(max_iter + 1)
         success = False
@@ -1183,7 +1194,7 @@ class _PLSNDMixin:
         success = False
         for i in range(max_iter + 1):
             posterior_prob_noise, sigma, fraction_noise, fraction_positive = _weighting._em(
-                y - baseline, sigma=sigma, fraction_noise=fraction_noise,
+                residual, sigma=sigma, fraction_noise=fraction_noise,
                 fraction_positive=fraction_positive, symmetric=symmetric, mask=self.mask
             )
             calc_difference = relative_difference(weight_array, posterior_prob_noise)

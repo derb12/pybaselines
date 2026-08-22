@@ -306,9 +306,9 @@ def pad_edges(data, pad_length, mode='extrapolate',
     mode : str or Callable, optional
         The method for padding. Default is 'extrapolate'. Any method other than
         'extrapolate' will use :func:`numpy.pad`.
-    extrapolate_window : int, optional
+    extrapolate_window : int or tuple[int, int], optional
         The number of values to use for linear fitting on the left and right
-        edges. Default is None, which will set the extrapolate window size equal
+        edges, respectively. Default is None, which will set the extrapolate window size equal
         to `pad_length`.
     **pad_kwargs
         Any keyword arguments to pass to :func:`numpy.pad`, which will be used if `mode`
@@ -350,10 +350,10 @@ def _extrapolate2d(y, total_padding, extrapolate_window=None):
     ----------
     y : numpy.ndarray
         _description_
-    total_padding : Sequence[int, int, int, int]
+    total_padding : tuple[int, int, int, int]
         The padding for the top, bottom, left, and right. The padding of top and
         bottom are assumed to be equal, as are the left and right.
-    extrapolate_window : int or Sequence[int, int] or Sequence[int, int, int, int], optional
+    extrapolate_window : int or tuple[int, int] or tuple[int, int, int, int], optional
         The number of values to use for linear fitting on the top, bottom, left, and right
         edges. Default is None, which will set the extrapolate window size equal
         to `total_padding`.
@@ -496,9 +496,9 @@ def pad_edges2d(data, pad_length, mode='edge', extrapolate_window=None, **pad_kw
     mode : str or Callable, optional
         The method for padding. Default is 'edge'. Any method other than
         'extrapolate' will use :func:`numpy.pad`.
-    extrapolate_window : int or Sequence[int, int] or Sequence[int, int, int, int], optional
+    extrapolate_window : int or tuple[int, int] or tuple[int, int, int, int], optional
         The number of values to use for linear fitting on the top, bottom, left, and right
-        edges. Default is None, which will set the extrapolate window size equal
+        edges, respectively. Default is None, which will set the extrapolate window size equal
         to `pad_length`.
     **pad_kwargs
         Any keyword arguments to pass to :func:`numpy.pad`, which will be used if `mode`
