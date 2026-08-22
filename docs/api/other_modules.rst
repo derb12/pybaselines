@@ -1,5 +1,5 @@
-General Utility Functions
-=========================
+Additional Modules
+==================
 
 .. currentmodule:: pybaselines
 
@@ -9,4 +9,5 @@ General Utility Functions
    :nosignatures:
    :recursive:
 
+   results
    utils

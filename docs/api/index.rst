@@ -6,6 +6,5 @@ API Reference
 
    Baseline
    Baseline2D
-   utils
-   results
+   other_modules
    functional_interface
