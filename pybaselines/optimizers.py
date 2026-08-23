@@ -799,7 +799,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
                 'bounds': [[lam_range.min(), lam_range.max()]], 'options': {'xatol': step}
             }
         selected_method = opt_method.lower().replace('-', '_').replace('_', '')
-        if selected_method in ('vcurve', 'ucurve'):
+        if selected_method in ('vcurve', 'ucurve', 'lcurve'):
             baseline, params = _optimize_lcurve(
                 y, selected_method, optimizer_obj, method_kws, lam_range, euclidean
             )
@@ -1067,14 +1067,31 @@ def _optimize_lcurve(y, opt_method, optimizer_obj, method_kws, lam_range, euclid
             metric = np.sqrt(fidelity**2 + penalty**2)
         else:  # graph distance from the origin, ie. only travelling along x and y axes
             metric = fidelity + penalty
-    elif opt_method == 'vcurve':
+    else:
         if lam_range.size > 1:
-            # use gradient instead of finite difference so metric and tested values are the
-            # same size, and also matches 2D implementation
+            # use gradient instead of finite difference for V-curve so metric and tested
+            # values are the same size, and also matches 2D implementation
             step = np.log10(lam_range[1] - lam_range[0])
             penalty_diff = np.gradient(np.log10(penalty), step)
             fidelity_diff = np.gradient(np.log10(fidelity), step)
-            metric = np.sqrt(penalty_diff**2 + fidelity_diff**2)
+            if opt_method == 'vcurve':
+                metric = np.sqrt(penalty_diff**2 + fidelity_diff**2)
+            else:
+                penalty_diff2 = np.gradient(penalty_diff, step)
+                fidelity_diff2 = np.gradient(fidelity_diff, step)
+                # metric is the negative curvature of the line with x,y = penalty,fidelty; negative
+                # so that all metrics are minimized; the equation is slightly different (ignoring
+                # the negative) than typical since it's often defined with x,y = fidelity,penalty
+                # (or sqrt of those, which introduces a factor of 2 within curvature eq);
+                # result is the same as long as sign is considered; written this way to match closer
+                # to 2D since 2D has x,y,z with fidelity along z
+                # NOTE less noisy to use gradients rather than interpolating cubic splines for
+                # large steps, but can have spurious values for small steps; using splines is a
+                # bit more opinionated though, so leave it to users
+                metric = -(
+                    (penalty_diff * fidelity_diff2 - fidelity_diff * penalty_diff2)
+                    / (penalty_diff**2 + fidelity_diff**2)**(3 / 2)
+                )
         else:
             metric = np.zeros(1)
 

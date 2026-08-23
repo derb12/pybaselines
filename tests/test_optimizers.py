@@ -822,7 +822,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
     @pytest.mark.parametrize('grid_search', (True, False))
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV', 'BIC'))
     def test_output(self, opt_method, grid_search):
         """Ensures correct output parameters for different optimization methods."""
         if opt_method in ('GCV', 'BIC'):
@@ -853,7 +853,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         elif 'alpha' in output[1]['method_params']:
             assert self.y.shape == output[1]['method_params']['alpha'].shape
 
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-Curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-Curve', 'GCV', 'BIC'))
     def test_beads(self, opt_method):
         """Ensures beads is also supported for L-curve based optimization methods."""
         if opt_method in ('GCV', 'BIC'):
@@ -881,7 +881,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, opt_method='aaaaa')
 
-    @pytest.mark.parametrize('opt_method', ('V-Curve', 'U-Curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-Curve', 'L-Curve', 'U-Curve', 'GCV', 'BIC'))
     def test_single_value(self, opt_method):
         """Ensures all optimization methods work if only a single value is fit."""
         min_val = 2.
@@ -905,9 +905,10 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         assert_allclose(fit, single_fit, rtol=1e-10, atol=1e-10)
 
     @pytest.mark.parametrize('pspline', (True, False))
-    def test_vcurve(self, pspline):
+    @pytest.mark.parametrize('opt_method', ('V-Curve', 'L-Curve'))
+    def test_lcurve_vcurve(self, pspline, opt_method):
         """
-        Tests the V-curve metric against literature.
+        Tests the L-curve and V-curve metrics against literature.
 
         Data is based on Figure 3 from the reference; some of Frasso's and Eilers's
         other V-curve/L-curve publications also have reference L-curves, but Frasso's
@@ -928,7 +929,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         signal = 5 * np.sin(x)
         noise = np.random.default_rng(0).normal(0, 0.5, x.size)
         y = signal + noise
-        step = 0.1
+        step = 0.25
         kwargs = {'tol': np.inf}
         if pspline:
             # paper only used Whittaker smoothing, so set P-spline up so that it's equivalent to
@@ -939,11 +940,11 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             method = 'asls'
 
         fit, params = self.algorithm_base().optimize_pls(
-            y, method=method, opt_method='V-curve', min_value=0, max_value=8, step=step,
+            y, method=method, opt_method=opt_method, min_value=0, max_value=8, step=step,
             method_kwargs=kwargs
         )
 
-        assert_allclose(np.log10(params['optimal_parameter']), 4, rtol=0, atol=0.15)
+        assert_allclose(np.log10(params['optimal_parameter']), 4, rtol=1e-15, atol=0)
         assert_allclose(fit, signal, rtol=1e-3, atol=0.3)
 
         # simple tests for bounds of the L-curve based on Fig. 3b
@@ -953,6 +954,16 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         assert log_penalty.max() < 0.9
         assert log_fidelity.min() > 1.3
         assert log_fidelity.max() < 3.1
+
+        # metric values will not match literature since V-curve in pybaselines uses gradient
+        # vs finite difference in lit; for L-curve, from Fig. 3, it also looks like Frasso is
+        # using finite difference for first and second derivatives since L-curve metric mas fewer
+        # points. So just use as an internal integration test
+        assert_allclose(
+            params['metric'][np.argmin(params['metric'])],
+            -12.39785958567786 if opt_method == 'L-Curve' else 0.03876124279642051,
+            rtol=1e-10, atol=1e-10
+        )
 
     @pytest.mark.parametrize('baseline_type', (0, 1, 2))
     @pytest.mark.parametrize('pspline', (True, False))
