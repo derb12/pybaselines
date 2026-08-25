@@ -9,8 +9,8 @@ Created on November 15, 2025
 import numpy as np
 from scipy.sparse import issparse
 
-from ._banded_linalg import _cholesky_inv_diag
-from ._banded_utils import _banded_to_sparse, _add_diagonals
+from ._banded_linalg import _cholesky_inv_bands
+from ._banded_utils import _banded_to_sparse, _add_diagonals, _shift_rows
 from ._compat import diags, _sparse_col_index
 from .utils import _get_rng
 
@@ -208,7 +208,7 @@ class WhittakerResult:
             if self._rhs_extra is None:
                 if len(self._penalized_object.shape) == 1 and self._penalized_object.lower:
                     trace = (
-                        _cholesky_inv_diag(factorization, lower=True, overwrite_f=True)
+                        _cholesky_inv_bands(factorization, lower=True, overwrite_f=True)[-1]
                         @ self._weights
                     )
                 else:
@@ -441,14 +441,24 @@ class PSplineResult(WhittakerResult):
 
         rhs = self._rhs.asformat(rhs_format)
         if use_analytic:
-            # compute each diagonal of the hat matrix separately so that the full
-            # hat matrix does not need to be stored in memory
-            trace = 0
             factorization = self._penalized_object.factorize(self._lhs)
-            for i in range(self._penalized_object.tot_bases):
-                trace += self._penalized_object.factorized_solve(
-                    factorization, _sparse_col_index(rhs, i)
-                )[i]
+            if (
+                len(self._penalized_object.shape) == 1
+                and self._penalized_object.lower
+                and self._rhs_extra is None
+            ):
+                lhs_inv_bands = _cholesky_inv_bands(factorization, lower=True, overwrite_f=True)
+                # convert from upper banded to lower
+                lhs_inv_bands = _shift_rows(lhs_inv_bands[::-1], 0, lhs_inv_bands.shape[0] - 1)
+                trace = (_banded_to_sparse(lhs_inv_bands, lower=True) @ self._rhs).trace()
+            else:
+                # compute each diagonal of the hat matrix separately so that the full
+                # hat matrix does not need to be stored in memory
+                trace = 0
+                for i in range(self._penalized_object.tot_bases):
+                    trace += self._penalized_object.factorized_solve(
+                        factorization, _sparse_col_index(rhs, i)
+                    )[i]
             # prevent needing to calculate analytical solution again
             self._trace = trace
         else:

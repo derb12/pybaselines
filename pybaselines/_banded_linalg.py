@@ -1076,11 +1076,11 @@ def _lower_to_upper(matrix):
 # adapted from scipy (scipy.interpolate._bsplines._compute_optimal_gcv_parameter
 # inner function compute_b_inv); see license above
 @jit(nopython=True, cache=True)
-def _cho_inv_diag(factorization, d_inv):
+def _cho_inv_bands(factorization, d_inv):
     """
-    Calculates the diagonal of the inverse of a matrix from its Cholesky factorization.
+    Calculates the inner bands of the inverse of a matrix from its Cholesky factorization.
 
-    Calculates the diagonal of ``A^-1`` given the factorization of `A` in
+    Calculates the inner `M` bands of ``A^-1`` given the factorization of `A` in
     ``U.T @ D^-1 @ U`` format.
 
     Parameters
@@ -1092,14 +1092,14 @@ def _cho_inv_diag(factorization, d_inv):
 
     Returns
     -------
-    numpy.ndarray, shape (N,)
-        The diagonal of the inverse of `A`.
+    numpy.ndarray, shape (M, N)
+        The inner upper `M` bands of the inverse of `A`, stored in upper banded format.
 
     Notes
     -----
-    This only calculates the inner bands of the inverse that are needed for
-    calculating the diagonal, so `partial_inv` does not contain the complete
-    inverse, which is typically fully dense.
+    This only calculates the inner bands of the inverse that match the bandwidth of
+    the input factorization, so `partial_inv` does not contain the complete inverse,
+    which is typically fully dense.
 
     References
     ----------
@@ -1130,17 +1130,17 @@ def _cho_inv_diag(factorization, d_inv):
             diag_sum -= factorization[row, col] * partial_inv[row, col]
         partial_inv[-1, i] = d_inv[i] + diag_sum
 
-    return partial_inv[-1]  # only the diagonal is of interest
+    return partial_inv
 
 
 # adapted from scipy (scipy.interpolate._bsplines._compute_optimal_gcv_parameter
 # inner function compute_b_inv); see license above
-def _cholesky_inv_diag(factorization, lower=False, overwrite_f=False):
+def _cholesky_inv_bands(factorization, lower=False, overwrite_f=False):
     """
-    Computes the diagonal of the inverse of a matrix from its banded Cholesky factorization.
+    Computes the inner bands of the inverse of a matrix from its banded Cholesky factorization.
 
-    For the banded matrix `A`, this computes the diagonal of ``A^-1`` given the
-    banded factorization of `A`,
+    For the banded matrix `A`, this computes the inner upper bands of ``A^-1`` given the
+    banded factorization of `A`, with the same number of bands as the factorization.
 
     Parameters
     ----------
@@ -1155,8 +1155,8 @@ def _cholesky_inv_diag(factorization, lower=False, overwrite_f=False):
 
     Returns
     -------
-    numpy.ndarray, shape (N,)
-        The diagonal of the inverse of `A`.
+    numpy.ndarray, shape (M, N)
+        The inner upper `M` bands of the inverse of `A`, stored in upper banded format.
 
     References
     ----------
@@ -1178,4 +1178,4 @@ def _cholesky_inv_diag(factorization, lower=False, overwrite_f=False):
     d_inv = 1. / (factorization[-1])**2
     factorization[-1] = 1.
 
-    return _cho_inv_diag(factorization, d_inv)
+    return _cho_inv_bands(factorization, d_inv)

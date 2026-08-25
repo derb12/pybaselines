@@ -38,7 +38,7 @@ def test_rademacher(shape, use_generator):
     )
 
 
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
 @pytest.mark.parametrize('allow_penta', (True, False))
 @pytest.mark.parametrize('size', (100, 401))
@@ -78,7 +78,7 @@ def test_whittaker_effective_dimension(diff_order, allow_lower, allow_penta, siz
     assert_allclose(output, expected_ed, rtol=1e-7, atol=1e-10)
 
 
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
 @pytest.mark.parametrize('allow_penta', (True, False))
 @pytest.mark.parametrize('size', (100, 401))
@@ -110,6 +110,36 @@ def test_whittaker_effective_dimension_stochastic(diff_order, allow_lower, allow
     output = result_obj.effective_dimension(n_samples=n_samples)
 
     assert_allclose(output, expected_ed, rtol=5e-1, atol=1e-5)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_penta', (True, False))
+@pytest.mark.parametrize('size', (100, 401))
+def test_whittaker_effective_dimension_fast_path(diff_order, allow_penta, size):
+    """
+    Tests the correctness of the fast path for trace calculation of WhittakerResult.
+
+    If rhs_extra is None and the system is symmetric, WhittakerResult calculates ``inv(lhs)``
+    using a faster, specialized routine with the trace being ``inv(lhs) @ weights``.
+
+    """
+    weights = np.random.default_rng(0).normal(0.8, 0.05, size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
+    penalized_system = _banded_utils.PenalizedSystem(
+        size, lam=lam, diff_order=diff_order, allow_lower=True,
+        reverse_diags=False, allow_penta=allow_penta
+    )
+    # goes through slower path since rhs_extra is not None
+    expected = results.WhittakerResult(
+        penalized_system, weights=weights, rhs_extra=np.zeros(penalized_system.tot_bases)
+    ).effective_dimension(0)
+
+    output = results.WhittakerResult(penalized_system, weights=weights).effective_dimension(0)
+
+    rtol = 1e-13 if diff_order < 3 else 1e-10
+    assert_allclose(output, expected, rtol=rtol, atol=1e-14)
 
 
 @pytest.mark.parametrize('size', (100, 401))
@@ -242,8 +272,8 @@ def test_whittaker_result_no_weights(data_fixture):
 
 
 @pytest.mark.parametrize('num_knots', (20, 51))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3))
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lower_only', (True, False))
 def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, diff_order,
                                      lower_only):
@@ -283,8 +313,8 @@ def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, dif
 
 
 @pytest.mark.parametrize('num_knots', (20, 51))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3))
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lower_only', (True, False))
 @pytest.mark.parametrize('n_samples', (100, 201))
 def test_pspline_stochastic_effective_dimension(data_fixture, num_knots, spline_degree, diff_order,
@@ -317,6 +347,38 @@ def test_pspline_stochastic_effective_dimension(data_fixture, num_knots, spline_
     assert_allclose(output, expected_ed, rtol=5e-2, atol=1e-5)
 
 
+@pytest.mark.parametrize('num_knots', (20, 51))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+def test_pspline_effective_dimension_fast_path(data_fixture, num_knots, spline_degree,
+                                               diff_order):
+    """
+    Tests the correctness of the fast path for trace calculation of PSplineResult.
+
+    If rhs_extra is None and the system is symmetric, PSplineResult calculates ``inv(lhs)`` using
+    a faster, specialized routine with the trace being ``(inv(lhs) @ (B.T @ W @ B)).trace()``.
+
+    """
+    x, y = data_fixture
+    x = x.astype(float)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, y.shape)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree
+    )
+    pspline = _spline_utils.PSpline(
+        spline_basis, lam=1, diff_order=diff_order, allow_lower=True
+    )
+    # goes through slower path since rhs_extra is not None
+    expected = results.PSplineResult(
+        pspline, weights, rhs_extra=np.zeros(pspline.tot_bases)
+    ).effective_dimension(0)
+    output = results.PSplineResult(pspline, weights).effective_dimension(0)
+
+    assert_allclose(output, expected, rtol=1e-13, atol=1e-14)
+
+
 @pytest.mark.parametrize('n_samples', (-1, 50.5))
 def test_pspline_stochastic_effective_dimension_invalid_samples(data_fixture, n_samples):
     """Ensures a non-zero, non-positive `n_samples` input raises an exception."""
@@ -344,7 +406,7 @@ def test_pspline_result_no_weights(data_fixture):
 
 
 @pytest.mark.parametrize('num_knots', (10, (11, 20)))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (1, 2, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
 def test_pspline_two_d_effective_dimension(data_fixture2d, num_knots, spline_degree, diff_order,
@@ -404,7 +466,7 @@ def test_pspline_two_d_effective_dimension(data_fixture2d, num_knots, spline_deg
 
 
 @pytest.mark.parametrize('num_knots', (10, (11, 20)))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (1, 2, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
 @pytest.mark.parametrize('n_samples', (100, 201))
@@ -476,7 +538,7 @@ def test_pspline_result_two_d_no_weights(data_fixture2d):
 
 
 @pytest.mark.parametrize('num_knots', (10, (11, 20)))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (1, 2, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
 @pytest.mark.parametrize('large_lam', (True, False))
 def test_pspline_two_d_effective_dimension_lam_extremes(data_fixture2d, diff_order, spline_degree,
