@@ -10,7 +10,7 @@ import numpy as np
 from scipy.sparse import issparse
 
 from ._banded_linalg import _cholesky_inv_bands
-from ._banded_utils import _banded_to_sparse, _add_diagonals, _shift_rows
+from ._banded_utils import _banded_to_sparse, _add_diagonals
 from ._compat import diags, _sparse_col_index
 from .utils import _get_rng
 
@@ -208,8 +208,7 @@ class WhittakerResult:
             if self._rhs_extra is None:
                 if len(self._penalized_object.shape) == 1 and self._penalized_object.lower:
                     trace = (
-                        _cholesky_inv_bands(factorization, lower=True, overwrite_f=True)[-1]
-                        @ self._weights
+                        _cholesky_inv_bands(factorization, overwrite_f=True)[0] @ self._weights
                     )
                 else:
                     # note: about an order of magnitude faster to omit the sparse rhs for the simple
@@ -447,9 +446,7 @@ class PSplineResult(WhittakerResult):
                 and self._penalized_object.lower
                 and self._rhs_extra is None
             ):
-                lhs_inv_bands = _cholesky_inv_bands(factorization, lower=True, overwrite_f=True)
-                # convert from upper banded to lower
-                lhs_inv_bands = _shift_rows(lhs_inv_bands[::-1], 0, lhs_inv_bands.shape[0] - 1)
+                lhs_inv_bands = _cholesky_inv_bands(factorization, overwrite_f=True)
                 trace = (_banded_to_sparse(lhs_inv_bands, lower=True) @ self._rhs).trace()
             else:
                 # compute each diagonal of the hat matrix separately so that the full
