@@ -1,6 +1,6 @@
-==============================
-Using Masking with pybaselines
-==============================
+=======
+Masking
+=======
 
 There are cases where data needs to be removed/masked before baseline correction. For example, a faulty
 detector can result in problematic regions in measurements, or spurious values/peaks below the
@@ -11,8 +11,9 @@ for removing downward spikes in mid-infrared data collected from the James Webb 
 performing baseline correction.
 
 Beginning in version 1.3.0, pybaselines has added direct support for masking to many algorithms, which
-can be used by setting the :attr:`.Baseline.mask` property. Using the same conventions as
-:class:`numpy.ma.MaskedArray` and :func:`astropy.convolution.convolve`, the mask should be a Boolean
+can be used by initializing a :class:`~.Baseline` with a mask or setting the :attr:`~.Baseline.mask`
+property of an existing instance. Using the same conventions as :class:`numpy.ma.MaskedArray` and
+:func:`astropy.convolution.convolve`, the mask should be a Boolean
 array with ``True`` values indicating the indices within the data to omit from fitting.
 
 A simple example is shown below. In the example, the mask is set manually, but it could
@@ -64,16 +65,24 @@ negative peaks.
 
 
 When possible, the supplied mask is used to completely omit the indicated values
-from the baseline fitting while also allowing estimation of the baseline in the masked regions.
+during the baseline fitting while also allowing estimation of the baseline in the masked regions,
+for example through weighted interpolation.
 Some methods, however, do not (currently) support masking in such a numerically correct way,
 so by default these methods will raise an error when trying to call them if the ``mask`` property
 is not ``None``. If the :class:`~.Baseline` object is initialized with ``strict_mask=False``,
 then these methods will use linear interpolation to fill masked regions before performing
 baseline correction, similar to the
 :ref:`No Masking Support <user_guide/masking/index:No Masking Support>` section below.
+The code snippet below demonstrates this.
 
-The tables below indicates all baseline correction methods that currently support masking
-(i.e. ``strict_mask`` does not need to be set to ``False``).
+.. code-block:: python
+
+    Baseline(mask=mask).beads(y)  # raises NotImplementedError
+    Baseline(mask=mask, strict_mask=False).beads(y)  # interpolates, then calculates
+
+
+The tables below indicate all baseline correction methods that currently support masking,
+meaning ``strict_mask`` does not need to be set to ``False`` to use masking with them.
 
 .. plot::
    :align: center
@@ -141,6 +150,39 @@ The tables below indicates all baseline correction methods that currently suppor
   .. include:: ../../generated/images/mask_support_table_2d.rst
 
 
+NaN Values
+----------
+
+Outside of masking, there is no additional special-case handling of NaN values within
+pybaselines. A rough comparison with the ``nan_policy`` usage in :mod:`scipy.stats` is:
+
+* ``nan_policy='raise'`` corresponds to initializing a ``Baseline`` object with
+  ``check_finite=True`` and ``mask=None``. Any non-finite value will raise an exception.
+* ``nan_policy='omit'`` roughly corresponds to the ``mask`` usage described above,
+  although masked regions are filled in the output using e.g. weighted interpolation.
+  To have NaN values in the output, simply do:
+
+  .. code-block:: python
+
+      fit, params = Baseline(mask=mask).modpoly(y)
+      fit[mask] = np.nan
+
+  In regards to the interaction between ``check_finite`` and ``mask``:
+  values within y are ignored following the input mask. This means
+  that if ``mask[i]`` is ``True``, it does not matter if ``y[i]`` is NaN, infinite,
+  or a finite value, it will be ignored. However, if ``mask[i]`` is ``False``, the
+  handling of non-finite values follows the same ``check_finite`` behavior as without
+  masking, i.e. raising if ``y[i]`` is non-finite.
+* ``nan_policy='propagate'`` roughly corresponds to initializing a ``Baseline`` object
+  with ``check_finite=False`` and ``mask=None``, except there is no guarantee on how any
+  single method handles NaN values and as such is undefined (and unsupported) behavior
+  in pybaselines. To illustrate, some methods that use convolution may indeed propagate
+  NaN values in an expected way, others that use sliding windows will fully carry
+  NaN values in the result once one is encountered (as demonstrated in
+  `this SciPy issue <https://github.com/scipy/scipy/issues/7818>`_ ), and some may raise
+  exceptions.
+
+
 Masking in Earlier Versions
 ---------------------------
 
@@ -154,21 +196,22 @@ baseline correction methods in pybaselines fall in one of three categories:
 Further details on how to handle each category will be covered in detail below.
 
 Direct Masking Support
-----------------------
+^^^^^^^^^^^^^^^^^^^^^^
 
 The only methods that directly supported masking were non-iteratively-reweighted polynomial
 methods, which includes all :doc:`polynomial <../algorithms/algorithms_1d/polynomial>` methods
 except for :meth:`~.Baseline.loess` and :meth:`~.Baseline.quant_reg`. For these methods,
-the inverse of the mask needs to be input as weights (i.e. 0/False in regions to ignore), as shown
-in the example below. These methods are not NaN-aware, however, so if working with missing data,
-that has to be accounted for.
+the inverse of the mask needs to be input as weights (0 or ``False`` in regions to ignore),
+as shown in the example below. As discussed above, these methods are not NaN-aware, however, so
+if working with missing data, that has to be accounted for before baseline correction, such
+as by using :func:`numpy.nan_to_num`.
 
 .. plot::
    :align: center
    :context: close-figs
    :include-source: True
 
-    # using same x, y data as created above
+    # using same x, y, and mask as created above
     baseline_fitter = Baseline(x)
 
     weights = np.logical_not(mask)
@@ -183,7 +226,7 @@ that has to be accounted for.
 
 
 Indirect Masking Support
-------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 Next are algorithms that use iterative reweighting, which allow for indirect mask support.
 This includes :doc:`Whittaker smoothing methods <../algorithms/algorithms_1d/whittaker>`, most
@@ -204,7 +247,7 @@ first step will not affect the final result much, so simple linear interpolation
    :context: close-figs
    :include-source: True
 
-    # using same x, y data as created above
+    # using same x, y, and mask as created above
     baseline_fitter = Baseline(x)
 
     fit_mask = np.logical_not(mask)
@@ -226,7 +269,7 @@ first step will not affect the final result much, so simple linear interpolation
 
 
 No Masking Support
-------------------
+^^^^^^^^^^^^^^^^^^
 
 All other algorithms that are not covered above do not have a direct way of incorporating
 masking for external code. For these algorithms, the input data must be interpolated following
@@ -244,7 +287,7 @@ using :meth:`~.Baseline.mor`.
 
     from scipy.interpolate import PchipInterpolator
 
-    # using same x, y data as created above
+    # using same x, y, and mask as created above
     baseline_fitter = Baseline(x)
 
     fit_mask = np.logical_not(mask)

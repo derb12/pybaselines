@@ -49,7 +49,7 @@ third-party libraries works well with pybaselines. A simple usage is shown below
 
         x = ...  # the x-values for the data
         dataset = ...  # the total data, with shape (number of datasets, number of data points)
-        kwargs = {...}  # any keyword arguments to pass to the method
+        kwargs = {...}  # any keyword arguments to pass to the method, e.g. lam=1e5
 
         baseline_fitter = Baseline(x)
         # bind any needed keyword arguments to the method (arpls in this example)
@@ -81,8 +81,7 @@ Threading
 
 Starting with pybaselines version 1.2.0, pybaselines has experimental support for the free-threaded
 builds of CPython (see https://py-free-threading.github.io/ for more information) to allow the use of
-multithreading through the standard library `threading <https://docs.python.org/3/library/threading.html>`_
-module to decrease computation time.
+multithreading to decrease computation time when fitting multiple datasets.
 
 .. warning::
     If not using a free-threaded Python build (first made available in CPython version 3.13),
@@ -102,7 +101,8 @@ module to decrease computation time.
 
 
 If using pybaselines version 1.2.0 or later, :class:`~.Baseline` and :class:`~.Baseline2D` objects are
-thread-safe, so the same object can be used for all threads. An example use case is shown below.
+thread-safe as long as non-data arguments are the same for all fits, so the same instance can be used
+for all threads. An example use case is shown below.
 
 .. code-block:: python
 
@@ -114,7 +114,7 @@ thread-safe, so the same object can be used for all threads. An example use case
 
         x = ...  # the x-values for the data
         dataset = ...  # the total data, with shape (number of datasets, number of data points)
-        kwargs = {...}  # any keyword arguments to pass to the method
+        kwargs = {...}  # any keyword arguments to pass to the method, e.g. lam=1e5
 
         baseline_fitter = Baseline(x)
         # bind any needed keyword arguments to the method (arpls in this example)
@@ -125,16 +125,43 @@ thread-safe, so the same object can be used for all threads. An example use case
                 baselines[i] = baseline
 
 
-Note that thread-safety is only guaranteed if non-data inputs (eg. ``poly_order``, ``spline_degree``,
-``num_knots``, etc.) are the same for all method calls. Otherwise, race conditions are likely
-(and threading is likely not a good choice for the user in the first place...).
+As noted above, thread-safety for a single ``Baseline`` or ``Baseline2D`` instance is only
+guaranteed if non-data arguments (e.g. ``poly_order``, ``spline_degree``, ``num_knots``, etc.) and
+the :attr:`~.Baseline.mask` property are the same for all method calls; otherwise, race conditions
+are likely. The example shown below, in which the same data is used for fitting while varying
+arguments, may cause errors or numerically incorrect results and is **NOT** supported:
+
+.. code-block:: python
+
+        x = ...  # the x-values for the data
+        y = ...  # the data to be fit
+        degrees = (1, 2, 3, 4)
+        baseline_fitter = Baseline(x)
+        baselines = np.empty((len(degrees), len(y)))
+        with ThreadPoolExecutor() as pool:
+            # **Do not do this**
+            jobs = [pool.submit(baseline_fitter.modpoly, y, poly_order=degree) for degree in degrees]
+            for i, job in enumerate(jobs):
+                baselines[i] = job.result()[0]
+
+
+If wanting to do such a parameter sweep, it is recommended to simply do so without threading; if
+threading is truly necessary, then a separate ``Baseline`` instance should be used for each
+thread as demonstrated below.
+
+.. code-block:: python
+
+        with ThreadPoolExecutor() as pool:
+            jobs = [pool.submit(Baseline(x).modpoly, y, poly_order=degree) for degree in degrees]
+            for i, job in enumerate(jobs):
+                baselines[i] = job.result()[0]
+
 
 In pybaselines versions earlier than 1.2.0, several methods of :class:`~.Baseline` and :class:`~.Baseline2D`
 were not thread-safe, so the proper way to use multithreading would be to spawn a new :class:`~.Baseline`
 or :class:`~.Baseline2D` object for each method call, as shown below.
 
 .. code-block:: python
-
 
         def func(x, baseline_method, data, **kwargs):
             """Helper to make a new Baseline each function call."""
