@@ -137,8 +137,12 @@ def test_whittaker_effective_dimension_fast_path(diff_order, allow_penta, size):
     ).edf(0)
 
     output = results.WhittakerResult(penalized_system, weights=weights).edf(0)
-
-    rtol = 1e-13 if diff_order < 3 else 1e-10
+    if diff_order > 2:
+        rtol = 1e-10
+    elif penalized_system.using_penta:  # goes through a different solver, so increase rtol
+        rtol = 1e-11
+    else:
+        rtol = 1e-13
     assert_allclose(output, expected, rtol=rtol, atol=1e-14)
 
 

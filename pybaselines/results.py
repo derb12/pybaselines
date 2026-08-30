@@ -7,6 +7,7 @@ Created on November 15, 2025
 """
 
 import numpy as np
+from scipy.linalg import cholesky_banded
 from scipy.sparse import issparse
 
 from ._banded_linalg import _cholesky_inv_bands
@@ -198,15 +199,22 @@ class WhittakerResult:
             use_analytic = False
 
         if use_analytic:
-            # compute each diagonal of the hat matrix separately so that the full
-            # hat matrix does not need to be stored in memory
-            # note to self: sparse factorization is the worst case scenario (non-symmetric lhs and
-            # diff_order != 2), but it is still much faster than individual solves through
-            # solve_banded
-            factorization = self._penalized_object.factorize(self._lhs)
+            if (
+                self._rhs_extra is None
+                and len(self._penalized_object.shape) == 1
+                and self._penalized_object.symmetric
+                and self._penalized_object.using_penta
+            ):
+                # use Cholesky factorization even if setup for pentadiagonal
+                # solver since trace calc is significantly faster
+                factorization = cholesky_banded(
+                    self._lhs[self._lhs.shape[0] // 2:], lower=True, check_finite=False
+                )
+            else:
+                factorization = self._penalized_object.factorize(self._lhs)
             trace = 0
             if self._rhs_extra is None:
-                if len(self._penalized_object.shape) == 1 and self._penalized_object.lower:
+                if len(self._penalized_object.shape) == 1 and self._penalized_object.symmetric:
                     trace = (
                         _cholesky_inv_bands(factorization, overwrite_f=True)[0] @ self._weights
                     )
