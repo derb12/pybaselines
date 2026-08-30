@@ -826,7 +826,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     def test_output(self, opt_method, grid_search):
         """Ensures correct output parameters for different optimization methods."""
         if opt_method in ('GCV', 'BIC'):
-            additional_keys = ['trace', 'wrss']
+            additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty', 'fidelity']
         if not grid_search:
@@ -890,7 +890,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
                 self.y, method='asls', opt_method=opt_method, min_value=min_val, step=0
             )
         if opt_method in ('GCV', 'BIC'):
-            additional_keys = ['trace', 'wrss']
+            additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty', 'fidelity']
         for key in ['metric'] + additional_keys:
@@ -1118,7 +1118,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         best_idx = params['metric'].argmin()
         assert_allclose(params['optimal_parameter'], ref_lam, rtol=1e-4, atol=0.005)
         assert_allclose(params['metric'][best_idx], ref_metric, rtol=1e-4, atol=1e-3)
-        assert_allclose(params['trace'][best_idx], ref_edf, rtol=1e-2, atol=1e-1)
+        assert_allclose(params['edf'][best_idx], ref_edf, rtol=1e-2, atol=1e-1)
         assert_allclose(params['wrss'][best_idx], ref_wrss, rtol=1e-2, atol=1e-3)
 
         if weight_enum == 0:

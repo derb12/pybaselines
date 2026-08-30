@@ -1090,9 +1090,9 @@ def _cho_inv_bands(factorization, d_inv):
     partial_inv = np.zeros(shape=(num_rows, num_cols))
     for i in range(num_cols - 1, -1, -1):
         matmul_range = min(num_rows, num_cols - i)  # defined as `l` in the reference
-        for j in range(matmul_range - 1, 0, -1):  # equation 3.4
+        for j in range(matmul_range - 1, 0, -1):
             non_diag_sum = 0.
-            for k in range(1, matmul_range):
+            for k in range(1, matmul_range):  # equation 3.4
                 non_diag_sum -= (
                     factorization[k, i] * partial_inv[abs(k - j), i + min(k, j)]
                 )
@@ -1101,8 +1101,8 @@ def _cho_inv_bands(factorization, d_inv):
         # note that using arrays to represent all rows and cols and doing the dot
         # product is slower than doing a loop, even without numba
         diag_sum = 0.
-        for j in range(1, matmul_range):  # equation 3.5
-            diag_sum -= factorization[j, i] * partial_inv[j, i]
+        for k in range(1, matmul_range):  # equation 3.5
+            diag_sum -= factorization[k, i] * partial_inv[k, i]
         partial_inv[0, i] = d_inv[i] + diag_sum
 
     return partial_inv

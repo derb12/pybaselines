@@ -73,7 +73,7 @@ def test_whittaker_effective_dimension(diff_order, allow_lower, allow_penta, siz
         reverse_diags=False, allow_penta=allow_penta
     )
     result_obj = results.WhittakerResult(penalized_system, weights=weights)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=1e-7, atol=1e-10)
 
@@ -105,9 +105,9 @@ def test_whittaker_effective_dimension_stochastic(diff_order, allow_lower, allow
     # true solution is already verified by other tests, so use that as "known" in
     # this test to only examine the relative difference from using stochastic estimation
     result_obj = results.WhittakerResult(penalized_system, weights=weights)
-    expected_ed = result_obj.effective_dimension(n_samples=0)
+    expected_ed = result_obj.edf(n_samples=0)
 
-    output = result_obj.effective_dimension(n_samples=n_samples)
+    output = result_obj.edf(n_samples=n_samples)
 
     assert_allclose(output, expected_ed, rtol=5e-1, atol=1e-5)
 
@@ -134,9 +134,9 @@ def test_whittaker_effective_dimension_fast_path(diff_order, allow_penta, size):
     # goes through slower path since rhs_extra is not None
     expected = results.WhittakerResult(
         penalized_system, weights=weights, rhs_extra=np.zeros(penalized_system.tot_bases)
-    ).effective_dimension(0)
+    ).edf(0)
 
-    output = results.WhittakerResult(penalized_system, weights=weights).effective_dimension(0)
+    output = results.WhittakerResult(penalized_system, weights=weights).edf(0)
 
     rtol = 1e-13 if diff_order < 3 else 1e-10
     assert_allclose(output, expected, rtol=rtol, atol=1e-14)
@@ -192,7 +192,7 @@ def test_whittaker_effective_dimension_lam_extremes(size, diff_order, large_lam,
         reverse_diags=False, allow_penta=allow_penta
     )
     result_obj = results.WhittakerResult(penalized_system)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
 
 
@@ -244,7 +244,7 @@ def test_pspline_effective_dimension_lam_extremes(data_fixture, diff_order, spli
         spline_basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower
     )
     result_obj = results.PSplineResult(pspline)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
 
 
@@ -258,7 +258,7 @@ def test_whittaker_effective_dimension_stochastic_invalid_samples(data_fixture, 
     penalized_system = _banded_utils.PenalizedSystem(x.size)
     result_obj = results.WhittakerResult(penalized_system, weights=weights)
     with pytest.raises(TypeError):
-        result_obj.effective_dimension(n_samples=n_samples)
+        result_obj.edf(n_samples=n_samples)
 
 
 def test_whittaker_result_no_weights(data_fixture):
@@ -308,7 +308,7 @@ def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, dif
         spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
     )
     result_obj = results.PSplineResult(pspline, weights)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
     assert_allclose(output, expected_ed, rtol=1e-10, atol=1e-12)
 
 
@@ -341,9 +341,9 @@ def test_pspline_stochastic_effective_dimension(data_fixture, num_knots, spline_
     # true solution is already verified by other tests, so use that as "known" in
     # this test to only examine the relative difference from using stochastic estimation
     result_obj = results.PSplineResult(pspline, weights)
-    expected_ed = result_obj.effective_dimension(n_samples=0)
+    expected_ed = result_obj.edf(n_samples=0)
 
-    output = result_obj.effective_dimension(n_samples=n_samples)
+    output = result_obj.edf(n_samples=n_samples)
     assert_allclose(output, expected_ed, rtol=5e-2, atol=1e-5)
 
 
@@ -373,8 +373,8 @@ def test_pspline_effective_dimension_fast_path(data_fixture, num_knots, spline_d
     # goes through slower path since rhs_extra is not None
     expected = results.PSplineResult(
         pspline, weights, rhs_extra=np.zeros(pspline.tot_bases)
-    ).effective_dimension(0)
-    output = results.PSplineResult(pspline, weights).effective_dimension(0)
+    ).edf(0)
+    output = results.PSplineResult(pspline, weights).edf(0)
 
     assert_allclose(output, expected, rtol=1e-13, atol=1e-14)
 
@@ -391,7 +391,7 @@ def test_pspline_stochastic_effective_dimension_invalid_samples(data_fixture, n_
     pspline = _spline_utils.PSpline(spline_basis)
     result_obj = results.PSplineResult(pspline, weights)
     with pytest.raises(TypeError):
-        result_obj.effective_dimension(n_samples=n_samples)
+        result_obj.edf(n_samples=n_samples)
 
 
 def test_pspline_result_no_weights(data_fixture):
@@ -460,7 +460,7 @@ def test_pspline_two_d_effective_dimension(data_fixture2d, num_knots, spline_deg
     pspline = PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
 
     result_obj = results.PSplineResult2D(pspline, weights)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=1e-14, atol=1e-10)
 
@@ -491,9 +491,9 @@ def test_pspline_two_d_effective_dimension_stochastic(data_fixture2d, num_knots,
     # true solution is already verified by other tests, so use that as "known" in
     # this test to only examine the relative difference from using stochastic estimation
     result_obj = results.PSplineResult2D(pspline, weights)
-    expected_ed = result_obj.effective_dimension(n_samples=0)
+    expected_ed = result_obj.edf(n_samples=0)
 
-    output = result_obj.effective_dimension(n_samples=n_samples)
+    output = result_obj.edf(n_samples=n_samples)
     assert_allclose(output, expected_ed, rtol=1e-1, atol=1e-5)
 
 
@@ -508,7 +508,7 @@ def test_pspline_two_d_stochastic_effective_dimension_invalid_samples(data_fixtu
     pspline = PSpline2D(spline_basis)
     result_obj = results.PSplineResult2D(pspline, weights)
     with pytest.raises(TypeError):
-        result_obj.effective_dimension(n_samples=n_samples)
+        result_obj.edf(n_samples=n_samples)
 
 
 def test_pspline_result_two_d_weights(data_fixture2d):
@@ -573,7 +573,7 @@ def test_pspline_two_d_effective_dimension_lam_extremes(data_fixture2d, diff_ord
     pspline = PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
     result_obj = results.PSplineResult2D(pspline)
 
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
 
@@ -630,7 +630,7 @@ def test_whittaker_two_d_effective_dimension(shape, diff_order, lam, use_svd):
         shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
     )
     result_obj = results.WhittakerResult2D(whittaker_system, weights=weights)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=rtol, atol=atol)
 
@@ -669,9 +669,9 @@ def test_whittaker_two_d_effective_dimension_stochastic(shape, diff_order, lam, 
     # true solution is already verified by other tests, so use that as "known" in
     # this test to only examine the relative difference from using stochastic estimation
     result_obj = results.WhittakerResult2D(whittaker_system, weights=weights)
-    expected_ed = result_obj.effective_dimension(n_samples=0)
+    expected_ed = result_obj.edf(n_samples=0)
 
-    output = result_obj.effective_dimension(n_samples=n_samples)
+    output = result_obj.edf(n_samples=n_samples)
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-4)
 
 
@@ -686,7 +686,7 @@ def test_whittaker_two_d_effective_dimension_stochastic_invalid_samples(small_da
     penalized_system = WhittakerSystem2D(small_data2d.shape, num_eigens=num_eigens)
     result_obj = results.WhittakerResult2D(penalized_system, weights)
     with pytest.raises(TypeError):
-        result_obj.effective_dimension(n_samples=n_samples)
+        result_obj.edf(n_samples=n_samples)
 
 
 @pytest.mark.parametrize('num_eigens', (None, 5))
@@ -758,6 +758,6 @@ def test_whittaker_two_d_effective_dimension_lam_extremes(shape, diff_order, lar
     )
     result_obj = results.WhittakerResult2D(whittaker_system)
 
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)

@@ -136,7 +136,7 @@ class _PLSNDMixin:
             'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
-            params['dof'] = params['result'].relative_dof()
+            params['dof'] = params['result'].individual_edf()
 
         return baseline, params
 
@@ -261,7 +261,7 @@ class _PLSNDMixin:
             'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
-            params['dof'] = params['result'].relative_dof()
+            params['dof'] = params['result'].individual_edf()
 
         return baseline, params
 
@@ -367,7 +367,7 @@ class _PLSNDMixin:
             'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
-            params['dof'] = params['result'].relative_dof()
+            params['dof'] = params['result'].individual_edf()
 
         return baseline, params
 
@@ -476,7 +476,7 @@ class _PLSNDMixin:
             'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
-            params['dof'] = params['result'].relative_dof()
+            params['dof'] = params['result'].individual_edf()
 
         return baseline, params
 
@@ -615,7 +615,7 @@ class _PLSNDMixin:
             'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
-            params['dof'] = params['result'].relative_dof()
+            params['dof'] = params['result'].individual_edf()
 
         return baseline, params
 
@@ -932,7 +932,7 @@ class _PLSNDMixin:
             'success': success_inner and success_outer
         }
         if return_dof:
-            params['dof'] = params['result'].relative_dof()
+            params['dof'] = params['result'].individual_edf()
 
         return baseline, params
 
@@ -1061,7 +1061,7 @@ class _PLSNDMixin:
             'result': result_class(penalized_system, weight_array), 'success': success
         }
         if return_dof:
-            params['dof'] = params['result'].relative_dof()
+            params['dof'] = params['result'].individual_edf()
 
         return baseline, params
 

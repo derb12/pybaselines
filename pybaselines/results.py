@@ -133,14 +133,14 @@ class WhittakerResult:
                 self._hat_rhs = self._rhs_extra
         return self._hat_rhs
 
-    def effective_dimension(self, n_samples=0, rng=1234):
+    def edf(self, n_samples=0, rng=1234):
         """
-        Calculates the effective dimension from the trace of the hat matrix.
+        Calculates the effective degrees of freedom for the linear system.
 
-        For typical Whittaker smoothing, the linear equation would be
-        ``(W + P) v = W @ y``. Then the hat matrix would be ``(W + P)^-1 @ W``.
-        The effective dimension for the system can be estimated as the trace
-        of the hat matrix.
+        For typical Whittaker smoothing, the linear equation is ``(W + P) v = W @ y``, where P
+        represents the total penalty. The corresponding hat matrix, H, defined as
+        ``v = H @ y`` is ``(W + P)^-1 @ W``. The effective degrees of freedom
+        for the system is estimated as the trace of the hat matrix.
 
         Parameters
         ----------
@@ -155,7 +155,7 @@ class WhittakerResult:
         Returns
         -------
         trace : float
-            The trace of the hat matrix, denoting the effective dimension for
+            The trace of the hat matrix, denoting the effective degrees of freedom for
             the system.
 
         Raises
@@ -382,16 +382,17 @@ class PSplineResult(WhittakerResult):
         """
         return self._penalized_object.tck
 
-    def effective_dimension(self, n_samples=0, rng=1234):
+    def edf(self, n_samples=0, rng=1234):
         """
-        Calculates the effective dimension from the trace of the hat matrix.
+        Calculates the effective degrees of freedom for the linear system.
 
-        For typical P-spline smoothing, the linear equation would be
-        ``(B.T @ W @ B + lam * P) c = B.T @ W @ y`` and ``v = B @ c``. Then the hat matrix
-        would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)`` or, equivalently
-        ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression is preferred
-        since it reduces the dimensionality. The effective dimension for the system
-        can be estimated as the trace of the hat matrix.
+        For typical P-spline smoothing, the linear equation is
+        ``(B.T @ W @ B + P) c = B.T @ W @ y`` and ``v = B @ c``, where P represents the total
+        penalty. The corresponding hat matrix, H, defined as ``v = H @ y`` is
+        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W)``. The effective degrees of freedom is
+        estimated as the trace of the hat matrix, and is equivalent to the trace of the
+        rearrangement ``(B.T @ W @ B + P)^-1 @ (B.T @ W @ B)``. The latter expression is
+        preferred since it reduces the dimensionality of intermediate calculations.
 
         Parameters
         ----------
@@ -406,7 +407,7 @@ class PSplineResult(WhittakerResult):
         Returns
         -------
         trace : float
-            The trace of the hat matrix, denoting the effective dimension for
+            The trace of the hat matrix, denoting the effective degrees of freedom for
             the system.
 
         Raises
@@ -447,6 +448,8 @@ class PSplineResult(WhittakerResult):
                 and self._rhs_extra is None
             ):
                 lhs_inv_bands = _cholesky_inv_bands(factorization, overwrite_f=True)
+                # lhs_inv_bands @ rhs represents all relevant non-zeros since bands of lhs,
+                # and thus lhs_inv, is guaranteed to be >= bands of B.T @ W @ B
                 trace = (_banded_to_sparse(lhs_inv_bands, lower=True) @ self._rhs).trace()
             else:
                 # compute each diagonal of the hat matrix separately so that the full
@@ -712,14 +715,14 @@ class WhittakerResult2D(WhittakerResult):
 
         return self._hat_rhs
 
-    def relative_dof(self):
+    def individual_edf(self):
         """
-        Calculates the relative effective degrees of freedom for each eigenvector.
+        Calculates the individual effective degrees of freedom for each eigenvector.
 
         Returns
         -------
         dof : numpy.ndarray, shape (P, Q)
-            The relative effective degrees of freedom associated with each eigenvector
+            The effective degrees of freedom associated with each eigenvector
             used for the fit. Each individual effective degree of freedom value is between
             0 and 1, with lower values signifying that the eigenvector contributed less
             to the fit.
@@ -740,17 +743,21 @@ class WhittakerResult2D(WhittakerResult):
         )
         return dof.diagonal().reshape(self._penalized_object._num_bases)
 
-    def effective_dimension(self, n_samples=0, rng=1234):
+    def edf(self, n_samples=0, rng=1234):
         """
-        Calculates the effective dimension from the trace of the hat matrix.
+        Calculates the effective degrees of freedom for the linear system.
 
-        For typical Whittaker smoothing, the linear equation would be
-        ``(W + lam * P) v = W @ y``. Then the hat matrix would be ``(W + lam * P)^-1 @ W``.
-        If using SVD, the linear equation is ``(B.T @ W @ B + lam * P) c = B.T @ W @ y``  and
-        ``v = B @ c``. Then the hat matrix would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)``
-        or, equivalently ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression
-        is preferred since it reduces the dimensionality. The effective dimension for the system
-        can be estimated as the trace of the hat matrix.
+        For typical Whittaker smoothing, the linear equation is ``(W + P) v = W @ y`` where
+        P represents the total penalty.
+        The corresponding hat matrix, H, defined as ``v = H @ y`` is ``(W + P)^-1 @ W``.
+        The effective degrees of freedom for the system is estimated as the trace
+        of the hat matrix.
+
+        If using eigendecomposition, the linear equation is ``(B.T @ W @ B + P2) c = B.T @ W @ y``
+        and ``v = B @ c``, where P2 represents the total reduced rank penalty. Then the hat matrix
+        is ``B @ (B.T @ W @ B + P2)^-1 @ (B.T @ W)``, and its trace is equivalent to the trace
+        of its rearrangement ``(B.T @ W @ B + P2)^-1 @ (B.T @ W @ B)``. The latter expression
+        is preferred since it reduces the dimensionality.
 
         Parameters
         ----------
@@ -775,9 +782,9 @@ class WhittakerResult2D(WhittakerResult):
 
         Notes
         -----
-        If using SVD, the trace will be lower than the actual analytical trace. The relative
-        difference is reduced as the number of eigenvalues selected approaches the data
-        size.
+        If using eigendecomposition, the trace will be lower than the actual analytical trace.
+        The relative difference is reduced as the number of eigenvalues selected approaches
+        the data size.
 
         References
         ----------
@@ -802,7 +809,7 @@ class WhittakerResult2D(WhittakerResult):
             use_analytic = False
 
         if not self._penalized_object._using_svd:
-            trace = super().effective_dimension(n_samples=n_samples, rng=rng)
+            trace = super().edf(n_samples=n_samples, rng=rng)
         else:
             # NOTE the only Whittaker-based algorithms that allow performing SVD for solving
             # all use the simple (W + P) v = w * y formulation, so no need to implement for
@@ -812,7 +819,7 @@ class WhittakerResult2D(WhittakerResult):
                     'rhs_extra is not supported when using eigendecomposition'
                 )
             if use_analytic:
-                trace = self.relative_dof().sum()
+                trace = self.individual_edf().sum()
                 self._trace = trace
             else:
                 rng_samples = _rademacher((self._penalized_object.tot_bases, n_samples), rng)

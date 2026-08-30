@@ -726,10 +726,9 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             * 'wrss': numpy.ndarray, shape (P,)
                 Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
                 squares (eg. ``sum(weights * (data - baseline)**2)``) for each `lam` value tested.
-            * 'trace': numpy.ndarray, shape (P,)
-                Only returned if `opt_method` is 'GCV' or 'BIC. The computed trace of the smoother
-                matrix for each `lam` value tested, which signifies the effective dimension
-                for the system.
+            * 'edf': numpy.ndarray, shape (P,)
+                Only returned if `opt_method` is 'GCV' or 'BIC. The effective degrees of freedom
+                for the linear system for each `lam` value tested
 
         Raises
         ------
@@ -1170,7 +1169,7 @@ def _optimize_ed(y, opt_method, optimizer_obj, method_kws, lam_range, rho, n_sam
         if y.ndim == 1:
             # minimize returns 1d array, so convert to scalar
             params['optimal_parameter'] = params['optimal_parameter'][0]
-    for key in ('wrss', 'trace', 'metric', 'sampled_parameters'):
+    for key in ('wrss', 'edf', 'metric', 'sampled_parameters'):
         params[key] = np.array(params[key])
     baseline = params.pop('baseline')
     params.pop('min_metric')
@@ -1212,7 +1211,7 @@ def _edf_metric(param, param_name, y, baseline_method, method_kwargs, use_gcv, n
     input_param = 10**param
     fit_baseline, fit_params = baseline_method(y, **{param_name: input_param}, **method_kwargs)
 
-    trace = fit_params['result'].effective_dimension(n_samples)
+    trace = fit_params['result'].edf(n_samples)
     fit_wrss = _wrss(y - fit_baseline, fit_params['weights'])
     size = (fit_params['weights'] > 0).sum()
     if use_gcv:
@@ -1235,12 +1234,12 @@ def _edf_metric(param, param_name, y, baseline_method, method_kwargs, use_gcv, n
     if 'metric' not in tracked_params:
         tracked_params['min_metric'] = np.inf
         tracked_params['metric'] = []
-        tracked_params['trace'] = []
+        tracked_params['edf'] = []
         tracked_params['wrss'] = []
         tracked_params['sampled_parameters'] = []
 
     tracked_params['metric'].append(metric)
-    tracked_params['trace'].append(trace)
+    tracked_params['edf'].append(trace)
     tracked_params['wrss'].append(fit_wrss)
     tracked_params['sampled_parameters'].append(input_param)
     if metric < tracked_params['min_metric']:

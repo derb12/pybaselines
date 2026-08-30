@@ -356,10 +356,9 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
                 Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
                 squares (eg. ``sum(weights * (data - baseline)**2)``) for each pair of `lam`
                 values tested.
-            * 'trace': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'GCV' or 'BIC. The computed trace of the smoother
-                matrix for each pair of `lam` values tested, which signifies the effective dimension
-                for the system.
+            * 'edf': numpy.ndarray, shape (P, Q)
+                Only returned if `opt_method` is 'GCV' or 'BIC. The effective degrees of freedom
+                for the linear system for each pair of `lam` values tested
 
         Raises
         ------
@@ -444,7 +443,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             params['optimal_parameter'] = tuple(params['optimal_parameter'])
             if grid_search:
                 output_shape = (lam_range_r.size, lam_range_c.size)
-                for key in ('wrss', 'trace', 'metric'):
+                for key in ('wrss', 'edf', 'metric'):
                     params[key] = params[key].reshape(output_shape)
         else:
             raise ValueError(f'{opt_method} is not a supported opt_method input')

@@ -1099,7 +1099,7 @@ def test_WH_comparison(condition_enum, allow_lower, allow_penta):
     )
     assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
 
-    edf = results.WhittakerResult(system, weights=weights).effective_dimension(n_samples=0)
+    edf = results.WhittakerResult(system, weights=weights).edf(n_samples=0)
     assert_allclose(edf, edfs[condition_enum], rtol=1e-13, atol=1e-13)
 
 
@@ -1136,7 +1136,7 @@ def test_WH_weighted_comparison(weight_enum, allow_lower, allow_penta):
     )
 
     assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
-    edf = results.WhittakerResult(system, weights=weights).effective_dimension(n_samples=0)
+    edf = results.WhittakerResult(system, weights=weights).edf(n_samples=0)
     assert_allclose(
         edf, 25.886100950162117 if weight_enum == 0 else 30.31931076759921,
         rtol=1e-13, atol=1e-13

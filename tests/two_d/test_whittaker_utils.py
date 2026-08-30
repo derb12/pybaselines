@@ -961,7 +961,7 @@ def test_WH_comparison(condition_enum):
     )
     assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
 
-    edf = WhittakerResult2D(system, weights=weights).effective_dimension(n_samples=0)
+    edf = WhittakerResult2D(system, weights=weights).edf(n_samples=0)
     assert_allclose(edf, edfs[condition_enum], rtol=1e-13, atol=1e-13)
 
 
@@ -1002,5 +1002,5 @@ def test_WH_weighted_comparison():
     )
     assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
 
-    edf = WhittakerResult2D(system, weights=weights).effective_dimension(n_samples=0)
+    edf = WhittakerResult2D(system, weights=weights).edf(n_samples=0)
     assert_allclose(edf, 61.69595832034477, rtol=1e-13, atol=1e-13)
