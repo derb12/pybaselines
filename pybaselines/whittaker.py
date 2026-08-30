@@ -160,7 +160,7 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         .. math::
 
-            (W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
+            (W + \lambda D_d^{\mathsf{T}} D_d + \lambda_1 D_1^{\mathsf{T}} D_1) v
             = (W + \lambda_1 D_1^{\mathsf{T}} D_1) y
 
         where y is the input data, :math:`D_d` is the finite difference matrix of order d,

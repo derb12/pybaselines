@@ -362,7 +362,7 @@ Linear system:
 
 .. math::
 
-    (W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
+    (W + \lambda D_d^{\mathsf{T}} D_d + \lambda_1 D_1^{\mathsf{T}} D_1) v
     = (W + \lambda_1 D_1^{\mathsf{T}} D_1) y
 
 Weighting:
@@ -380,7 +380,7 @@ Weighting:
 
     .. math::
 
-        (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1 + \lambda D_d^{\mathsf{T}} D_d) v
+        (W^{\mathsf{T}} W + \lambda D_d^{\mathsf{T}} D_d + \lambda_1 D_1^{\mathsf{T}} D_1) v
         = (W^{\mathsf{T}} W + \lambda_1 D_1^{\mathsf{T}} D_1) y
 
     with the weighting scheme
@@ -537,7 +537,7 @@ Linear system:
 
 .. math::
 
-    (W + D_1^{\mathsf{T}} D_1 + \lambda (I - \eta W) D_d^{\mathsf{T}} D_d) v = W y
+    (W + \lambda (I - \eta W) D_d^{\mathsf{T}} D_d + D_1^{\mathsf{T}} D_1) v = W y
 
 Weighting:
 

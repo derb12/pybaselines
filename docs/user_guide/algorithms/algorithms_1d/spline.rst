@@ -34,7 +34,7 @@ The minimized function for P-splines is thus:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 where :math:`\lambda` is the penalty scale factor, and
@@ -241,7 +241,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i -  v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i -  v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
@@ -291,15 +291,15 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i -  v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i -  v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
-    + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - v(x_i)))^2
+    + \lambda_1 \sum\limits_{i}^{N - 1} (\Delta^1 (y_i - v_i))^2
 
 Linear system:
 
 .. math::
 
-    (B^{\mathsf{T}} W B + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B + \lambda D_d^{\mathsf{T}} D_d) c
+    (B^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B) c
     = (B^{\mathsf{T}} W + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1) y
 
 Weighting:
@@ -319,7 +319,7 @@ Weighting:
 
     .. math::
 
-        (B^{\mathsf{T}} W^{\mathsf{T}} W B + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B + \lambda D_d^{\mathsf{T}} D_d) c
+        (B^{\mathsf{T}} W^{\mathsf{T}} W B + \lambda D_d^{\mathsf{T}} D_d + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B) c
         = (B^{\mathsf{T}} W^{\mathsf{T}} W + \lambda_1 B^{\mathsf{T}} D_1^{\mathsf{T}} D_1) y
 
     with the weighting scheme
@@ -371,7 +371,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
@@ -422,7 +422,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
@@ -468,9 +468,9 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda (1 - \eta W_{intp}) \sum\limits_{i}^{M - d}(\Delta^d c_i)^2
-    + \sum\limits_{i}^{N - 1} (\Delta^1 v(x_i))^2
+    + \sum\limits_{i}^{N - 1} (\Delta^1 v_i)^2
 
 where :math:`\eta` is a value between 0 and 1 that controls the
 effective value of :math:`\lambda`. :math:`W_{intp}` is the
@@ -482,7 +482,7 @@ Linear system:
 
 .. math::
 
-    (B^{\mathsf{T}}W B + B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B + \lambda (I - \eta W_{intp}) D_d^{\mathsf{T}} D_d) c
+    (B^{\mathsf{T}}W B + \lambda (I - \eta W_{intp}) D_d^{\mathsf{T}} D_d + B^{\mathsf{T}} D_1^{\mathsf{T}} D_1 B) c
     = B^{\mathsf{T}} W y
 
 where :math:`I` is the identity matrix.
@@ -528,7 +528,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
@@ -578,7 +578,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \alpha_{intp} \sum\limits_{i}^{M - d}(\Delta^d c_i)^2
 
 where
@@ -644,7 +644,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
@@ -693,7 +693,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
@@ -757,7 +757,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
@@ -804,7 +804,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
@@ -861,7 +861,7 @@ Minimized function:
 
 .. math::
 
-    \sum\limits_{i}^N w_i (y_i - v(x_i))^2
+    \sum\limits_{i}^N w_i (y_i - v_i)^2
     + \lambda \sum\limits_{i}^{M - d} (\Delta^d c_i)^2
 
 Linear system:
