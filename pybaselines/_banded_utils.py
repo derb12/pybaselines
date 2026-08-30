@@ -793,6 +793,8 @@ class PenalizedSystem:
     reversed : bool
         If True, the penalty is reversed of the typical LAPACK banded format. Useful if
         multiplying the penalty with an array since the rows get shifted.
+    symmetric : bool
+        Whether the linear system is symmetric. Is independent of the `lower` attribute.
     using_penta : bool
         If True, will use the pentadiagonal solvers through :func:`.solve_banded_penta`
         when solving.
@@ -963,6 +965,7 @@ class PenalizedSystem:
 
         self.diff_order = diff_order
         self.lower = lower_only
+        self.symmetric = allow_lower
         self.using_penta = using_penta
         self.reversed = reverse_diags
         self.penalty = _pad_diagonals(diagonal_data, padding, self.lower)

@@ -402,7 +402,7 @@ def test_pspline_make_btwb(data_fixture, num_knots, spline_degree, diff_order, l
 
 def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
                            allow_lower, reverse_diags, spline_degree, num_knots,
-                           data_size):
+                           data_size, symmetric=None):
     """
     Tests a PSpline object with the expected values.
 
@@ -413,6 +413,8 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
     expected_padded_penalty = lam * _banded_utils._pad_diagonals(
         expected_penalty, padding, lower_only=allow_lower
     )
+    if symmetric is None:
+        symmetric = allow_lower
 
     num_bases = num_knots + spline_degree - 1
 
@@ -432,6 +434,7 @@ def check_penalized_spline(penalized_system, expected_penalty, lam, diff_order,
     assert isinstance(penalized_system.basis.x, np.ndarray)
     assert penalized_system.basis._x_len == len(penalized_system.basis.x)
     assert not penalized_system.using_penta
+    assert penalized_system.symmetric == symmetric
     if allow_lower:
         assert penalized_system.main_diagonal_index == 0
     else:

@@ -39,13 +39,16 @@ def algorithm(small_data2d):
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, (2, 3)))
 @pytest.mark.parametrize('lam', (1, 20, (2, 5)))
-def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order, symmetric):
     """Ensures output difference matrix diagonal data is in desired format."""
     x, z, y = data_fixture2d
 
     algorithm = _algorithm_setup._Algorithm2D(x, z)
 
-    _, _, whittaker_system = algorithm._setup_whittaker(y, lam=lam, diff_order=diff_order)
+    _, _, whittaker_system = algorithm._setup_whittaker(
+        y, lam=lam, diff_order=diff_order, allow_lower=symmetric
+    )
 
     *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
         lam=lam, diff_order=diff_order
@@ -63,6 +66,7 @@ def test_setup_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
         expected_penalty.toarray(),
         rtol=1e-12, atol=1e-12
     )
+    assert whittaker_system.symmetric == symmetric
 
 
 @pytest.mark.parametrize('num_eigens', (None, 3))
@@ -457,14 +461,16 @@ def test_setup_spline_spline_basis(data_fixture2d, num_knots, spline_degree):
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('num_knots', (20, (21, 30)))
-def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree, num_knots):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree, num_knots,
+                                  symmetric):
     """Ensures output difference matrix diagonal data is in desired format."""
     x, z, y = data_fixture2d
 
     algorithm = _algorithm_setup._Algorithm2D(x, z)
     _, _, pspline = algorithm._setup_spline(
         y, weights=None, spline_degree=spline_degree, num_knots=num_knots,
-        diff_order=diff_order, lam=lam
+        diff_order=diff_order, lam=lam, allow_lower=symmetric
     )
 
     (
@@ -489,6 +495,7 @@ def test_setup_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree
         expected_penalty.toarray(),
         rtol=1e-12, atol=1e-12
     )
+    assert pspline.symmetric == symmetric
 
 
 @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -1703,7 +1710,8 @@ def test_wrong_banded_solver_fails(algorithm, banded_solver):
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, (2, 3)))
 @pytest.mark.parametrize('lam', (1, 20, (2, 5)))
-def test_setup_pls_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_setup_pls_whittaker_diff_matrix(data_fixture2d, lam, diff_order, symmetric):
     """Ensures output difference matrix diagonal data is in desired format for _setup_pls."""
     x, z, y = data_fixture2d
 
@@ -1711,8 +1719,12 @@ def test_setup_pls_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
 
     # intentionally do not input spline_degree here to ensure default behavior is
     # spline_degree=None -> Whittaker smoothing
-    _, _, whittaker_system, result_class = algorithm._setup_pls(y, lam=lam, diff_order=diff_order)
-    _, _, expected_system = algorithm._setup_whittaker(y, lam=lam, diff_order=diff_order)
+    _, _, whittaker_system, result_class = algorithm._setup_pls(
+        y, lam=lam, diff_order=diff_order, allow_lower=symmetric
+    )
+    _, _, expected_system = algorithm._setup_whittaker(
+        y, lam=lam, diff_order=diff_order, allow_lower=symmetric
+    )
 
     *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
         lam=lam, diff_order=diff_order
@@ -1737,6 +1749,8 @@ def test_setup_pls_whittaker_diff_matrix(data_fixture2d, lam, diff_order):
     )
     assert isinstance(whittaker_system, _whittaker_utils.WhittakerSystem2D)
     assert result_class is WhittakerResult2D
+    assert whittaker_system.symmetric == symmetric
+    assert expected_system.symmetric == symmetric
 
 
 @pytest.mark.parametrize('has_mask', (True, False))
@@ -1832,14 +1846,16 @@ def test_setup_pls_spline_basis(data_fixture2d, num_knots, spline_degree):
 @pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('spline_degree', (1, 2, 3, 4, (2, 3)))
 @pytest.mark.parametrize('num_knots', (20, (21, 30)))
-def test_setup_pls_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree, num_knots):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_setup_pls_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_degree, num_knots,
+                                      symmetric):
     """Ensures output difference matrix diagonal data is in desired format for setup_pls."""
     x, z, y = data_fixture2d
 
     algorithm = _algorithm_setup._Algorithm2D(x, z)
     _, _, pspline, result_class = algorithm._setup_pls(
         y, weights=None, spline_degree=spline_degree, num_knots=num_knots,
-        diff_order=diff_order, lam=lam
+        diff_order=diff_order, lam=lam, allow_lower=symmetric
     )
 
     (
@@ -1866,6 +1882,7 @@ def test_setup_pls_spline_diff_matrix(data_fixture2d, lam, diff_order, spline_de
     )
     assert isinstance(pspline, _spline_utils.PSpline2D)
     assert result_class is PSplineResult2D
+    assert pspline.symmetric == symmetric
 
     _, _, expected_system = algorithm._setup_spline(
         y, weights=None, spline_degree=spline_degree, num_knots=num_knots,

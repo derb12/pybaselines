@@ -739,7 +739,7 @@ class WhittakerResult2D(WhittakerResult):
                 'Cannot calculate degrees of freedom when not using eigendecomposition'
             )
         dof = self._penalized_object.direct_solve(
-            self._lhs, self._btwb, check_finite=False, assume_a='pos'
+            self._lhs, self._btwb, check_finite=False
         )
         return dof.diagonal().reshape(self._penalized_object._num_bases)
 
@@ -826,7 +826,7 @@ class WhittakerResult2D(WhittakerResult):
                 # H @ u == (B.T @ W @ B + P)^-1 @ (B.T @ W @ B) @ u
                 hat_u = self._penalized_object.direct_solve(
                     self._lhs, self._rhs @ rng_samples, overwrite_b=True,
-                    check_finite=False, assume_a='pos'
+                    check_finite=False
                 )
                 # stochastic trace is the average of the trace of u.T @ H @ u;
                 # trace(u.T @ H @ u) == sum(u * (H @ u))

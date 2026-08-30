@@ -465,11 +465,14 @@ def test_difference_matrix_formats(form):
 
 
 def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
-                           allow_lower, reverse_diags, padding, using_penta, data_size):
+                           allow_lower, reverse_diags, padding, using_penta, data_size,
+                           symmetric=None):
     """Tests a PenalizedSystem object with the expected values."""
     expected_padded_penalty = lam * _banded_utils._pad_diagonals(
         expected_penalty, padding, lower_only=allow_lower
     )
+    if symmetric is None:
+        symmetric = allow_lower
 
     assert penalized_system._num_bases == data_size
     assert penalized_system.shape == (data_size,)
@@ -480,6 +483,7 @@ def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.diff_order == diff_order
     assert penalized_system.num_bands == diff_order + max(0, padding)
     assert penalized_system.using_penta == using_penta
+    assert penalized_system.symmetric == symmetric
     assert_allclose(
         penalized_system.main_diagonal,
         penalized_system.penalty[penalized_system.main_diagonal_index], rtol=1e-12, atol=1e-12
@@ -620,7 +624,8 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
             )
         check_penalized_system(
             penalized_system, expected_penalty, lam, diff_order, actual_lower,
-            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size
+            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size,
+            symmetric=allow_lower
         )
         # also check that the reset_diagonal method performs similarly
         with mock.patch.object(_banded_utils, '_HAS_NUMBA', True):
@@ -630,7 +635,8 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
             )
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, actual_lower,
-            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size
+            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size,
+            symmetric=allow_lower
         )
 
     # mock not having numba to check that the solver is not used even if the input

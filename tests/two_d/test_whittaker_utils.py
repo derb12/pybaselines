@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
-from scipy.linalg import cholesky, eig_banded, solve
+from scipy.linalg import cholesky, eig_banded, lu_factor, solve
 from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import spsolve
 
@@ -130,7 +130,8 @@ def test_penalized_system_direct_solve(small_data2d, diff_order, lam):
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
-def test_penalized_system_setup(small_data2d, diff_order, lam):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_penalized_system_setup(small_data2d, diff_order, lam, symmetric):
     """Ensure the PenalizedSystem2D setup is correct."""
     *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
         lam=lam, diff_order=diff_order
@@ -146,12 +147,13 @@ def test_penalized_system_setup(small_data2d, diff_order, lam):
     penalty = P1 + P2
 
     penalized_system = _whittaker_utils.PenalizedSystem2D(
-        small_data2d.shape, lam=lam, diff_order=diff_order
+        small_data2d.shape, lam=lam, diff_order=diff_order, symmetric=symmetric
     )
 
     assert_array_equal(penalized_system._num_bases, num_bases)
     assert penalized_system.tot_bases == np.prod(num_bases)
     assert_array_equal(penalized_system.shape, num_bases)
+    assert penalized_system.symmetric == symmetric
 
     assert issparse(penalized_system.penalty)
     assert_allclose(
@@ -372,7 +374,8 @@ def test_whittaker_system_direct_solve_no_eigenvalues(small_data2d, diff_order, 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
-def test_whittaker_system_setup_no_eigenvalues(small_data2d, diff_order, lam):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_whittaker_system_setup_no_eigenvalues(small_data2d, diff_order, lam, symmetric):
     """Ensure the WhittakerSystem2D setup is correct when not using eigendecomposition."""
     *_, lam_x, lam_z, diff_order_x, diff_order_z = get_2dspline_inputs(
         lam=lam, diff_order=diff_order
@@ -388,13 +391,13 @@ def test_whittaker_system_setup_no_eigenvalues(small_data2d, diff_order, lam):
     penalty = P1 + P2
 
     penalized_system = _whittaker_utils.WhittakerSystem2D(
-        small_data2d.shape, lam=lam, diff_order=diff_order, num_eigens=None
+        small_data2d.shape, lam=lam, diff_order=diff_order, num_eigens=None, symmetric=symmetric
     )
 
     assert_array_equal(penalized_system._num_bases, num_bases)
     assert penalized_system.tot_bases == np.prod(num_bases)
     assert_array_equal(penalized_system.shape, num_bases)
-
+    assert penalized_system.symmetric == symmetric
     assert issparse(penalized_system.penalty)
     assert_allclose(
         penalized_system.penalty.toarray(), penalty.toarray(), rtol=1e-12, atol=1e-12
@@ -421,7 +424,9 @@ def check_orthogonality(eigenvectors):
 @pytest.mark.parametrize('num_eigens', (5, 8, (5, 8)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
 @pytest.mark.parametrize('lam', (5, (3, 5)))
-def test_whittaker_system_setup_eigenvalues(data_fixture2d, num_eigens, diff_order, lam):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_whittaker_system_setup_eigenvalues(data_fixture2d, num_eigens, diff_order, lam,
+                                            symmetric):
     """Ensure the WhittakerSystem2D setup is correct when using eigendecomposition."""
     x, z, y = data_fixture2d
     (
@@ -430,12 +435,13 @@ def test_whittaker_system_setup_eigenvalues(data_fixture2d, num_eigens, diff_ord
     ) = get_2dspline_inputs(num_knots=num_eigens, lam=lam, diff_order=diff_order)
 
     whittaker_system = _whittaker_utils.WhittakerSystem2D(
-        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
+        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens, symmetric=symmetric
     )
 
     assert_array_equal(whittaker_system._num_bases, (num_eigens_r, num_eigens_c))
     assert_array_equal(whittaker_system.tot_bases, np.prod((num_eigens_r, num_eigens_c)))
     assert_array_equal(whittaker_system.shape, y.shape)
+    assert whittaker_system.symmetric == symmetric
 
     eigenvalues_rows, expected_basis_rows = eig_banded(
         diff_penalty_diagonals(y.shape[0], diff_order_r, lower_only=True),
@@ -592,7 +598,9 @@ def test_whittaker_system_same_basis():
 @pytest.mark.parametrize('num_eigens', (5, 8, (5, 8)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
-def test_whittaker_system_solve_eigenvalues(data_fixture2d, num_eigens, diff_order, lam):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_whittaker_system_solve_eigenvalues(data_fixture2d, num_eigens, diff_order, lam,
+                                            symmetric):
     """
     Tests the accuracy of the Whittaker system solver when using eigendecomposition.
 
@@ -642,12 +650,13 @@ def test_whittaker_system_solve_eigenvalues(data_fixture2d, num_eigens, diff_ord
 
     expected_coeffs = solve(
         (CWT @ basis + penalty).toarray(), CWT @ y.ravel(),
-        lower=True, overwrite_a=True, overwrite_b=True, check_finite=False, assume_a='pos'
+        lower=True, overwrite_a=True, overwrite_b=True, check_finite=False,
+        assume_a='pos' if symmetric else 'gen'
     )
     expected_result = basis @ expected_coeffs
 
     whittaker_system = _whittaker_utils.WhittakerSystem2D(
-        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
+        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens, symmetric=symmetric
     )
 
     assert whittaker_system.coef is None
@@ -685,7 +694,9 @@ def test_whittaker_system_solve_eigenvalues(data_fixture2d, num_eigens, diff_ord
 @pytest.mark.parametrize('num_eigens', (5, 8, (5, 8)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
-def test_whittaker_system_factorized_solve_eigenvalues(data_fixture2d, num_eigens, diff_order, lam):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_whittaker_system_factorized_solve_eigenvalues(data_fixture2d, num_eigens, diff_order, lam,
+                                                       symmetric):
     """
     Tests the accuracy of the Whittaker system solver when using eigendecomposition.
 
@@ -735,22 +746,26 @@ def test_whittaker_system_factorized_solve_eigenvalues(data_fixture2d, num_eigen
 
     expected_coeffs = solve(
         (CWT @ basis + penalty).toarray(), CWT @ y.ravel(),
-        lower=True, overwrite_a=True, overwrite_b=True, check_finite=False, assume_a='pos'
+        lower=True, overwrite_a=True, overwrite_b=True, check_finite=False,
+        assume_a='pos' if symmetric else 'gen'
     )
 
     whittaker_system = _whittaker_utils.WhittakerSystem2D(
-        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
+        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens, symmetric=symmetric
     )
     assert whittaker_system.coef is None
 
     lhs = whittaker_system._make_btwb(weights.reshape(y.shape))
     np.fill_diagonal(lhs, lhs.diagonal() + whittaker_system.penalty)
-
-    expected_factorization = cholesky(lhs, lower=True)
     factorization = whittaker_system.factorize(lhs)
-
-    assert_allclose(factorization[0], expected_factorization, rtol=1e-12, atol=1e-12)
-    assert factorization[1]  # should denote lower=True
+    if symmetric:
+        expected_factorization = cholesky(lhs, lower=True)
+        assert_allclose(factorization[0], expected_factorization, rtol=1e-12, atol=1e-12)
+        assert factorization[1]  # should denote lower=True
+    else:
+        expected_factorization = lu_factor(lhs)
+        assert_allclose(factorization[0], expected_factorization[0], rtol=1e-12, atol=1e-12)
+        assert_allclose(factorization[1], expected_factorization[1], rtol=1e-12, atol=1e-12)
 
     rhs = (
         whittaker_system.basis_r.T @ (weights.reshape(y.shape) * y) @ whittaker_system.basis_c
@@ -771,7 +786,9 @@ def test_whittaker_system_factorized_solve_eigenvalues(data_fixture2d, num_eigen
 @pytest.mark.parametrize('num_eigens', (5, 8, (5, 8)))
 @pytest.mark.parametrize('diff_order', (1, 2, 3, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, 1e2, (1e1, 1e2)))
-def test_whittaker_system_direct_solve_eigenvalues(data_fixture2d, num_eigens, diff_order, lam):
+@pytest.mark.parametrize('symmetric', (True, False))
+def test_whittaker_system_direct_solve_eigenvalues(data_fixture2d, num_eigens, diff_order, lam,
+                                                   symmetric):
     """Tests direct_solve method of WhittakerSystem2D when using eigendecomposition."""
     x, z, y = data_fixture2d
     (
@@ -813,7 +830,7 @@ def test_whittaker_system_direct_solve_eigenvalues(data_fixture2d, num_eigens, d
     )
 
     whittaker_system = _whittaker_utils.WhittakerSystem2D(
-        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
+        y.shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens, symmetric=symmetric
     )
     assert whittaker_system.coef is None
 

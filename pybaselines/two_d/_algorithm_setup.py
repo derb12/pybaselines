@@ -586,7 +586,7 @@ class _Algorithm2D:
         raise NotImplementedError
 
     def _setup_whittaker(self, y, lam=1, diff_order=2, weights=None, copy_weights=False,
-                         num_eigens=None):
+                         num_eigens=None, allow_lower=True):
         """
         Sets the starting parameters for doing penalized least squares.
 
@@ -613,6 +613,8 @@ class _Algorithm2D:
             needed for baselines with more curvature. If None, will solve the linear system
             using the full analytical solution, which is typically much slower.
             Default is None.
+        allow_lower : boolean, optional
+            Denotes whether the linear system is symmetric. Default is True.
 
         Returns
         -------
@@ -657,7 +659,7 @@ class _Algorithm2D:
         # retain the unmodified penalties for the rows and columns if possible to skip that
         # calculation as well
         whittaker_system = WhittakerSystem2D(
-            self._shape, lam, diff_order, num_eigens
+            self._shape, lam, diff_order, num_eigens, symmetric=allow_lower
         )
         if not whittaker_system._using_svd:
             y = y.ravel()
@@ -759,7 +761,8 @@ class _Algorithm2D:
         return y, weight_array, pseudo_inverse
 
     def _setup_spline(self, y, weights=None, spline_degree=3, num_knots=10,
-                      penalized=True, diff_order=3, lam=1, make_basis=True, copy_weights=False):
+                      penalized=True, diff_order=3, lam=1, make_basis=True, copy_weights=False,
+                      allow_lower=True):
         """
         Sets the starting parameters for doing spline fitting.
 
@@ -790,6 +793,8 @@ class _Algorithm2D:
         copy_weights : boolean, optional
             If True, will copy the array of input weights. Only needed if the
             algorithm changes the weights in-place. Default is False.
+        allow_lower : boolean, optional
+            Denotes whether the linear system is symmetric. Default is True.
 
         Returns
         -------
@@ -842,7 +847,7 @@ class _Algorithm2D:
 
         # TODO should probably also retain the unmodified penalties for the rows and
         # columns if possible to skip that calculation as well
-        pspline = PSpline2D(self._spline_basis, lam, diff_order)
+        pspline = PSpline2D(self._spline_basis, lam, diff_order, symmetric=allow_lower)
 
         return y, weight_array, pspline
 
@@ -877,8 +882,7 @@ class _Algorithm2D:
             1e8, but it strongly depends on `diff_order` and the data size.
             Default is 1.
         allow_lower : boolean, optional
-            Not used within this method, simply added to have the same call signature
-            as `_Algorithm._setup_pls`.
+            Denotes whether the linear system is symmetric. Default is True.
         reverse_diags : boolean, optional
             Not used within this method, simply added to have the same call signature
             as `_Algorithm._setup_pls`.
@@ -908,13 +912,14 @@ class _Algorithm2D:
         if spline_degree is None:
             y, weight_array, penalized_system = self._setup_whittaker(
                 y, lam=lam, diff_order=diff_order, weights=weights, copy_weights=copy_weights,
-                num_eigens=num_eigens
+                num_eigens=num_eigens, allow_lower=allow_lower
             )
             result_class = WhittakerResult2D
         else:
             y, weight_array, penalized_system = self._setup_spline(
                 y, lam=lam, diff_order=diff_order, weights=weights, copy_weights=copy_weights,
-                spline_degree=spline_degree, num_knots=num_knots, penalized=True, make_basis=True
+                spline_degree=spline_degree, num_knots=num_knots, penalized=True, make_basis=True,
+                allow_lower=allow_lower
             )
             result_class = PSplineResult2D
 

@@ -441,7 +441,9 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         if not 0 <= eta <= 1:
             raise ValueError('eta must be between 0 and 1')
 
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array, whittaker_system = self._setup_whittaker(
+            data, lam, diff_order, weights, allow_lower=False
+        )
         penalized_system_1 = PenalizedSystem2D(self._shape, 1, diff_order=1)
         # W + P_1 + (I - eta * W) @ P_n -> P_1 + P_n + W @ (I - eta * P_n)
         partial_penalty = whittaker_system.penalty + penalized_system_1.penalty
@@ -643,7 +645,9 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             2025, 138, 103806.
 
         """
-        y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
+        y, weight_array, whittaker_system = self._setup_whittaker(
+            data, lam, diff_order, weights, allow_lower=False
+        )
         alpha_array = _check_optional_array(
             self._shape, alpha, check_finite=self._check_finite, name='alpha',
             ensure_1d=False, axis=slice(None)

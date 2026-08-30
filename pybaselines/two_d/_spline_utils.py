@@ -234,7 +234,7 @@ class PSpline2D(PenalizedSystem2D):
 
     """
 
-    def __init__(self, spline_basis, lam=1, diff_order=2):
+    def __init__(self, spline_basis, lam=1, diff_order=2, symmetric=True):
         """
         Initializes the penalized spline by calculating the basis and penalty.
 
@@ -247,6 +247,8 @@ class PSpline2D(PenalizedSystem2D):
             smoother results. Must be greater than 0. Default is 1.
         diff_order : int or Sequence[int, int], optional
             The difference order of the penalty. Default is 2 (second order difference).
+        symmetric : bool, optional
+            Whether the linear system is symmetric. Default is True.
 
         Raises
         ------
@@ -259,7 +261,7 @@ class PSpline2D(PenalizedSystem2D):
         self.coef = None
         self.basis = spline_basis
 
-        super().__init__(self.basis._num_bases, lam, diff_order)
+        super().__init__(self.basis._num_bases, lam, diff_order, symmetric)
 
         if (self.diff_order >= self.basis._num_bases).any():
             raise ValueError((
