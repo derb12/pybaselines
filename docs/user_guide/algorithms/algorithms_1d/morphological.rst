@@ -423,7 +423,7 @@ Minimized function:
     \frac{1}{2} \sum\limits_{i = 1}^N (s_i + v_i - y_i)^2
     + \alpha \sum\limits_{i = 1}^N (v_i - Op_i)^2
     + \beta \sum\limits_{i = 1}^{N - d} (\Delta^d v_i)^2
-    + \gamma \sum\limits_{i = 1}^{N - d} (\Delta^d s_i)^2
+    + \frac{\gamma}{2} \sum\limits_{i = 1}^{N - d} (\Delta^d s_i)^2
 
 where :math:`y_i` is the measured data, :math:`v_i` is the estimated baseline,
 :math:`s_i` is the estimated signal, :math:`\Delta^d` is the forward-difference
@@ -432,23 +432,33 @@ and :math:`\alpha`, :math:`\beta`, and :math:`\gamma` are regularization paramet
 
 Linear systems:
 
-The initial signal, :math:`s^0`, and baseline, :math:`v^0`, are set equal to :math:`y`,
-and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`t`, :math:`s^t`
-and :math:`v^t`, are solved for sequentially using the following two
+The initial signal, :math:`s_0`, and baseline, :math:`v_0`, are set equal to :math:`y`,
+and :math:`Op`, respectively. Then the signal and baseline at iteration :math:`t`, :math:`s_t`
+and :math:`v_t`, are solved for sequentially using the following two
 linear equations:
 
 .. math::
 
-    (I + 2 \gamma D_d^{\mathsf{T}} D_d) s^t = y - v^{t-1}
+    (I + \gamma D_d^{\mathsf{T}} D_d) s_t = y - v_{t-1}
 
 .. math::
 
-    (I + 2 \alpha I + 2 \beta D_d^{\mathsf{T}} D_d) v^t = y - s^t + 2 \alpha Op
+    (I + 2 \alpha I + 2 \beta D_d^{\mathsf{T}} D_d) v_t = y - s_t + 2 \alpha Op
 
 where :math:`I` is the identity matrix and :math:`D_d` is the matrix version
 of :math:`\Delta^d`, which is also the d-th derivative of the identity matrix.
 After each iteration, :math:`\beta`, and :math:`\gamma` are updated by user-specified
 multipliers.
+
+.. note::
+
+    The :math:`\gamma` term in pybaselines is (unintentionally) slightly different than
+    the literature implementation of `JBCD <https://doi.org/10.1366/14-07760>`_. The
+    literature implementation uses :math:`\gamma` rather than :math:`\frac{\gamma}{2}`
+    in the minimized function, resulting in :math:`2 \gamma` rather than :math:`\gamma`
+    in the linear equation. Thus, if using an implementation of JBCD outside of
+    pybaselines for comparison, the multiplier on :math:`\gamma` should be considered.
+
 
 .. plot::
    :align: center
