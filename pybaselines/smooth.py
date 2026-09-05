@@ -226,62 +226,63 @@ class _Smooth(_Algorithm):
         for i in range(*range_args):
             i_left = min(i, half_windows[0])
             i_right = min(i, half_windows[1])
+            if smooth:
+                previous_baseline = uniform_filter1d(baseline, smooth_window)
+            else:
+                previous_baseline = baseline
 
             filters = (
-                baseline[i - i_left:num_y - i - i_left] + baseline[i + i_right:num_y - i + i_right]
+                previous_baseline[i - i_left:num_y - i - i_left]
+                + previous_baseline[i + i_right:num_y - i + i_right]
             ) / 2
             if filter_order > 2:
                 filters_new = (
                     - (
-                        baseline[i - i_left:num_y - i - i_left]
-                        + baseline[i + i_right:num_y - i + i_right]
+                        previous_baseline[i - i_left:num_y - i - i_left]
+                        + previous_baseline[i + i_right:num_y - i + i_right]
                     )
                     + 4 * (
-                        baseline[i - i_left // 2:-i - i_left // 2]
-                        + baseline[i + i_right // 2:-i + i_right // 2]
+                        previous_baseline[i - i_left // 2:-i - i_left // 2]
+                        + previous_baseline[i + i_right // 2:-i + i_right // 2]
                     )
                 ) / 6
                 filters = np.maximum(filters, filters_new)
             if filter_order > 4:
                 filters_new = (
-                    baseline[i - i_left:num_y - i - i_left]
-                    + baseline[i + i_right:num_y - i + i_right]
+                    previous_baseline[i - i_left:num_y - i - i_left]
+                    + previous_baseline[i + i_right:num_y - i + i_right]
                     - 6 * (
-                        baseline[i - 2 * i_left // 3:-i - 2 * i_left // 3]
-                        + baseline[i + 2 * i_right // 3:-i + 2 * i_right // 3]
+                        previous_baseline[i - 2 * i_left // 3:-i - 2 * i_left // 3]
+                        + previous_baseline[i + 2 * i_right // 3:-i + 2 * i_right // 3]
                     )
                     + 15 * (
-                        baseline[i - i_left // 3:-i - i_left // 3]
-                        + baseline[i + i_right // 3:-i + i_right // 3]
+                        previous_baseline[i - i_left // 3:-i - i_left // 3]
+                        + previous_baseline[i + i_right // 3:-i + i_right // 3]
                     )
                 ) / 20
                 filters = np.maximum(filters, filters_new)
             if filter_order > 6:
                 filters_new = (
                     - (
-                        baseline[i - i_left:num_y - i - i_left]
-                        + baseline[i + i_right:num_y - i + i_right]
+                        previous_baseline[i - i_left:num_y - i - i_left]
+                        + previous_baseline[i + i_right:num_y - i + i_right]
                     )
                     + 8 * (
-                        baseline[i - 3 * i_left // 4:-i - 3 * i_left // 4]
-                        + baseline[i + 3 * i_right // 4:-i + 3 * i_right // 4]
+                        previous_baseline[i - 3 * i_left // 4:-i - 3 * i_left // 4]
+                        + previous_baseline[i + 3 * i_right // 4:-i + 3 * i_right // 4]
                     )
                     - 28 * (
-                        baseline[i - i_left // 2:-i - i_left // 2]
-                        + baseline[i + i_right // 2:-i + i_right // 2]
+                        previous_baseline[i - i_left // 2:-i - i_left // 2]
+                        + previous_baseline[i + i_right // 2:-i + i_right // 2]
                     )
                     + 56 * (
-                        baseline[i - i_left // 4:-i - i_left // 4]
-                        + baseline[i + i_right // 4:-i + i_right // 4]
+                        previous_baseline[i - i_left // 4:-i - i_left // 4]
+                        + previous_baseline[i + i_right // 4:-i + i_right // 4]
                     )
                 ) / 70
                 filters = np.maximum(filters, filters_new)
 
-            if smooth:
-                previous_baseline = uniform_filter1d(baseline, smooth_window)[i:-i]
-            else:
-                previous_baseline = baseline[i:-i]
-            baseline[i:-i] = np.where(baseline[i:-i] > filters, filters, previous_baseline)
+            baseline[i:-i] = np.where(baseline[i:-i] > filters, filters, previous_baseline[i:-i])
 
         return baseline[max_of_half_windows:-max_of_half_windows], {}
 
