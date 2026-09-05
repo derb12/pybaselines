@@ -6,6 +6,9 @@ Created on March 20, 2021
 
 """
 
+from pathlib import Path
+
+import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
@@ -104,6 +107,88 @@ class TestSNIP(SmoothTester):
     def test_max_half_windows(self, max_half_window):
         """Tests possible inputs for `max_half_window`."""
         self.class_func(self.y, max_half_window=max_half_window)
+
+    @pytest.mark.parametrize('smooth_hw', (0, 1))
+    @pytest.mark.parametrize('decreasing', (True, False))
+    @pytest.mark.parametrize('half_window', (1, 2, 3, 4, 5))
+    def test_root_comparison(self, half_window, decreasing, smooth_hw):
+        """Compares against the implementation of SNIP in ROOT.
+
+        In the conclusion of [1], it's said that the implementation was added to ROOT
+        (https://root.cern), and M. Morháč is indeed listed as the author of the ROOT
+        implementation, so can consider it the canonical version of SNIP. The code below was
+        used to generate the test files::
+
+            import ROOT
+            def snip_root(y, half_window, decreasing=False, filter_order=2, smooth_half_window=0):
+                # options listed in
+                # https://root.cern/doc/v640/classTSpectrum.html#a7830480612d1ee301964e6c79319f444
+                # the various enum values are listed on the same page, but just get them through
+                # ROOT.TSpectrum since it's easier
+                if decreasing:
+                    direction = ROOT.TSpectrum.kBackDecreasingWindow
+                else:
+                    direction = ROOT.TSpectrum.kBackIncreasingWindow
+
+                filt_order = {
+                    2: ROOT.TSpectrum.kBackOrder2,
+                    4: ROOT.TSpectrum.kBackOrder4,
+                    6: ROOT.TSpectrum.kBackOrder6,
+                    8: ROOT.TSpectrum.kBackOrder8,
+                }[filter_order]
+
+                if smooth_half_window > 5:
+                    raise ValueError("ROOT doesn't support smooth_half_window > 4")
+                # default doesn't matter since it's only used if smooth is true
+                smooth_window = {
+                    1: ROOT.TSpectrum.kBackSmoothing3,
+                    2: ROOT.TSpectrum.kBackSmoothing5,
+                    3: ROOT.TSpectrum.kBackSmoothing7,
+                    4: ROOT.TSpectrum.kBackSmoothing9,
+                }.get(smooth_half_window, ROOT.TSpectrum.kBackSmoothing3)
+                smooth = smooth_half_window > 0
+
+                # Background overwrites the input and outputs a string; empty string if no errors
+                output = y.copy()
+                error = ROOT.TSpectrum().Background(
+                    output,
+                    output.size,
+                    int(half_window),  # ROOT fails with numpy 0d ints, so convert
+                    direction,
+                    filt_order,
+                    smooth,
+                    smooth_window,
+                    False  # estimate Compton edge
+                )
+                if error:
+                    raise RuntimeError(f'error with ROOT: {error}')
+
+                return output
+
+        using ROOT version 60.40.02 installed from conda-forge and Python 3.12.14.
+
+        References
+        ----------
+        .. [1] Morháč, M., et al. Peak Clipping Algorithms for Background Estimation in
+               Spectroscopic Data. Applied Spectroscopy, 2008, 62(1), 91-106.
+
+        """
+        # a symmetric square wave, which makes comparison much easier
+        half = 20
+        y = np.zeros(2 * half + 1)
+        half_width = 4
+        y[half - half_width:half + half_width + 1] = 1
+
+        output = self.algorithm_base().snip(
+            y, max_half_window=half_window, decreasing=decreasing,
+            smooth_half_window=smooth_hw, filter_order=2, pad_kwargs={'mode': 'edge'}
+        )[0]
+        expected_output = np.loadtxt(
+            Path(__file__).parent.joinpath(
+                f'data/ROOTsnip_order2_dec{decreasing}_sw{smooth_hw}.csv'
+            ), delimiter=',', skiprows=1
+        )
+        assert_allclose(output, expected_output[:, half_window - 1], rtol=1e-15, atol=1e-15)
 
 
 class TestSwima(SmoothTester):
