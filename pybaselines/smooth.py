@@ -115,10 +115,10 @@ class _Smooth(_Algorithm):
         ----------
         data : array-like, shape (N,)
             The y-values of the measured data, with N data points.
-        max_half_window : int or Sequence[int, int], optional
+        max_half_window : int or tuple[int, int], optional
             The maximum number of iterations. Should be set such that
-            `max_half_window` is approximately ``(w-1)/2``, where ``w`` is the index-based
-            width of a feature or peak. `max_half_window` can also be a sequence of
+            `max_half_window` is approximately ``(w - 1) / 2``, where ``w`` is the index-based
+            width of a feature or peak. `max_half_window` can also be a tuple of
             two integers for asymmetric peaks, with the first item corresponding to
             the `max_half_window` of the peak's left edge, and the second item
             for the peak's right edge [3]_. Default is None, which will use the output
@@ -126,8 +126,7 @@ class _Smooth(_Algorithm):
         decreasing : bool, optional
             If False (default), will iterate through window sizes from 1 to
             `max_half_window`. If True, will reverse the order and iterate from
-            `max_half_window` to 1, which gives a smoother baseline according to [3]_
-            and [4]_.
+            `max_half_window` to 1, which reduces ripples in the baseline.
         smooth_half_window : int, optional
             The half window to use for smoothing the data. If `smooth_half_window`
             is greater than 0, will perform a moving average smooth on the data for
@@ -162,7 +161,7 @@ class _Smooth(_Algorithm):
         Warns
         -----
         UserWarning
-            Raised if max_half_window is greater than (len(data) - 1) // 2.
+            Raised if max_half_window is greater than ``(len(data) - 1) // 2``.
 
         Notes
         -----
@@ -170,14 +169,16 @@ class _Smooth(_Algorithm):
         algorithm is adapted from [2]_, [3]_, and [4]_.
 
         If data covers several orders of magnitude, better results can be obtained
-        by first transforming the data using log-log-square transform before
-        using SNIP [2]_::
+        by first transforming the data using the log-log-square transformation before
+        calling `snip`::
 
             transformed_data =  np.log(np.log(np.sqrt(data + 1) + 1) + 1)
+            transformed_fit = Baseline().snip(transformed_data)
 
-        and then baseline can then be reverted back to the original scale using inverse::
+        The baseline can then be reverted back to the original scale using the
+        inverse transformation::
 
-            baseline = -1 + (np.exp(np.exp(snip(transformed_data)) - 1) - 1)**2
+            fit = -1 + (np.exp(np.exp(transformed_fit) - 1) - 1)**2
 
         References
         ----------
@@ -193,10 +194,46 @@ class _Smooth(_Algorithm):
             elimination in spectroscopic data. Nuclear Instruments and Methods in
             Physics Research A, 2009, 60, 478-487.
 
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
+        >>> from pybaselines import Baseline, utils
+        >>> x, y = utils.make_data(noise_std=0.2)
+        >>> baseline_fitter = Baseline(x)
+
+        `max_half_window` controls the width of peaks that are removed by snip.
+
+        >>> fit_1, params_1 = baseline_fitter.snip(y, max_half_window=10)
+        >>> fit_2, params_2 = baseline_fitter.snip(y, max_half_window=25)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_1, label='max_half_window=10')
+        >>> plt.plot(x, fit_2, label='max_half_window=25')
+        >>> plt.legend()
+        >>> plt.show()
+
+        Using ``decreasing=True`` will reduce the small ripples to produce a smoother
+        overall baseline.
+
+        >>> fit_3, params_3 = baseline_fitter.snip(y, max_half_window=25, decreasing=True)
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_2, label='decreasing=False')
+        >>> plt.plot(x, fit_3, label='decreasing=True')
+        >>> plt.ylim(15, 21)
+        >>> plt.legend()
+        >>> plt.show()
+
+        For noisy data, setting `smooth_half_window` to a value between 1 and 4 is typically
+        enough for the calculated baseline to fit through noise rather than under it.
+
+        >>> fit_4, params_4 = baseline_fitter.snip(
+        ...     y, max_half_window=25, decreasing=True, smooth_half_window=2
+        ... )
+        >>> plt.plot(x, y)
+        >>> plt.plot(x, fit_4)
+        >>> plt.show()
+
         """
-        # TODO potentially add adaptive window sizes from [4]_, or at least allow inputting
-        # an array of max_half_windows; would need to have a separate function for array
-        # windows since it would no longer be able to be vectorized
         if filter_order not in {2, 4, 6, 8}:
             raise ValueError('filter_order must be 2, 4, 6, or 8')
 
@@ -226,62 +263,69 @@ class _Smooth(_Algorithm):
         for i in range(*range_args):
             i_left = min(i, half_windows[0])
             i_right = min(i, half_windows[1])
+            if smooth:
+                previous_baseline = uniform_filter1d(baseline, smooth_window)
+            else:
+                previous_baseline = baseline
 
             filters = (
-                baseline[i - i_left:num_y - i - i_left] + baseline[i + i_right:num_y - i + i_right]
+                previous_baseline[i - i_left:num_y - i - i_left]
+                + previous_baseline[i + i_right:num_y - i + i_right]
             ) / 2
             if filter_order > 2:
+                step_l = i_left // 2
+                step_r = i_right // 2
                 filters_new = (
                     - (
-                        baseline[i - i_left:num_y - i - i_left]
-                        + baseline[i + i_right:num_y - i + i_right]
+                        previous_baseline[i - 2 * step_l:num_y - i - 2 * step_l]
+                        + previous_baseline[i + 2 * step_r:num_y - i + 2 * step_r]
                     )
                     + 4 * (
-                        baseline[i - i_left // 2:-i - i_left // 2]
-                        + baseline[i + i_right // 2:-i + i_right // 2]
+                        previous_baseline[i - step_l:num_y - i - step_l]
+                        + previous_baseline[i + step_r:num_y - i + step_r]
                     )
                 ) / 6
                 filters = np.maximum(filters, filters_new)
             if filter_order > 4:
+                step_l = i_left // 3
+                step_r = i_right // 3
                 filters_new = (
-                    baseline[i - i_left:num_y - i - i_left]
-                    + baseline[i + i_right:num_y - i + i_right]
+                    previous_baseline[i - 3 * step_l:num_y - i - 3 * step_l]
+                    + previous_baseline[i + 3 * step_r:num_y - i + 3 * step_r]
                     - 6 * (
-                        baseline[i - 2 * i_left // 3:-i - 2 * i_left // 3]
-                        + baseline[i + 2 * i_right // 3:-i + 2 * i_right // 3]
+                        previous_baseline[i - 2 * step_l:num_y - i - 2 * step_l]
+                        + previous_baseline[i + 2 * step_r:num_y - i + 2 * step_r]
                     )
                     + 15 * (
-                        baseline[i - i_left // 3:-i - i_left // 3]
-                        + baseline[i + i_right // 3:-i + i_right // 3]
+                        previous_baseline[i - step_l:num_y - i - step_l]
+                        + previous_baseline[i + step_r:num_y - i + step_r]
                     )
                 ) / 20
                 filters = np.maximum(filters, filters_new)
             if filter_order > 6:
+                step_l = i_left // 4
+                step_r = i_right // 4
                 filters_new = (
                     - (
-                        baseline[i - i_left:num_y - i - i_left]
-                        + baseline[i + i_right:num_y - i + i_right]
+                        previous_baseline[i - 4 * step_l:num_y - i - 4 * step_l]
+                        + previous_baseline[i + 4 * step_r:num_y - i + 4 * step_r]
                     )
                     + 8 * (
-                        baseline[i - 3 * i_left // 4:-i - 3 * i_left // 4]
-                        + baseline[i + 3 * i_right // 4:-i + 3 * i_right // 4]
+                        previous_baseline[i - 3 * step_l:num_y - i - 3 * step_l]
+                        + previous_baseline[i + 3 * step_r:num_y - i + 3 * step_r]
                     )
                     - 28 * (
-                        baseline[i - i_left // 2:-i - i_left // 2]
-                        + baseline[i + i_right // 2:-i + i_right // 2]
+                        previous_baseline[i - 2 * step_l:num_y - i - 2 * step_l]
+                        + previous_baseline[i + 2 * step_r:num_y - i + 2 * step_r]
                     )
                     + 56 * (
-                        baseline[i - i_left // 4:-i - i_left // 4]
-                        + baseline[i + i_right // 4:-i + i_right // 4]
+                        previous_baseline[i - step_l:num_y - i - step_l]
+                        + previous_baseline[i + step_r:num_y - i + step_r]
                     )
                 ) / 70
                 filters = np.maximum(filters, filters_new)
 
-            if smooth:
-                previous_baseline = uniform_filter1d(baseline, smooth_window)[i:-i]
-            else:
-                previous_baseline = baseline[i:-i]
-            baseline[i:-i] = np.where(baseline[i:-i] > filters, filters, previous_baseline)
+            baseline[i:-i] = np.where(baseline[i:-i] > filters, filters, previous_baseline[i:-i])
 
         return baseline[max_of_half_windows:-max_of_half_windows], {}
 
