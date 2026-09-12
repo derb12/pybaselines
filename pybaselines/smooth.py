@@ -273,48 +273,54 @@ class _Smooth(_Algorithm):
                 + previous_baseline[i + i_right:num_y - i + i_right]
             ) / 2
             if filter_order > 2:
+                step_l = i_left // 2
+                step_r = i_right // 2
                 filters_new = (
                     - (
-                        previous_baseline[i - i_left:num_y - i - i_left]
-                        + previous_baseline[i + i_right:num_y - i + i_right]
+                        previous_baseline[i - 2 * step_l:num_y - i - 2 * step_l]
+                        + previous_baseline[i + 2 * step_r:num_y - i + 2 * step_r]
                     )
                     + 4 * (
-                        previous_baseline[i - i_left // 2:-i - i_left // 2]
-                        + previous_baseline[i + i_right // 2:-i + i_right // 2]
+                        previous_baseline[i - step_l:num_y - i - step_l]
+                        + previous_baseline[i + step_r:num_y - i + step_r]
                     )
                 ) / 6
                 filters = np.maximum(filters, filters_new)
             if filter_order > 4:
+                step_l = i_left // 3
+                step_r = i_right // 3
                 filters_new = (
-                    previous_baseline[i - i_left:num_y - i - i_left]
-                    + previous_baseline[i + i_right:num_y - i + i_right]
+                    previous_baseline[i - 3 * step_l:num_y - i - 3 * step_l]
+                    + previous_baseline[i + 3 * step_r:num_y - i + 3 * step_r]
                     - 6 * (
-                        previous_baseline[i - 2 * i_left // 3:-i - 2 * i_left // 3]
-                        + previous_baseline[i + 2 * i_right // 3:-i + 2 * i_right // 3]
+                        previous_baseline[i - 2 * step_l:num_y - i - 2 * step_l]
+                        + previous_baseline[i + 2 * step_r:num_y - i + 2 * step_r]
                     )
                     + 15 * (
-                        previous_baseline[i - i_left // 3:-i - i_left // 3]
-                        + previous_baseline[i + i_right // 3:-i + i_right // 3]
+                        previous_baseline[i - step_l:num_y - i - step_l]
+                        + previous_baseline[i + step_r:num_y - i + step_r]
                     )
                 ) / 20
                 filters = np.maximum(filters, filters_new)
             if filter_order > 6:
+                step_l = i_left // 4
+                step_r = i_right // 4
                 filters_new = (
                     - (
-                        previous_baseline[i - i_left:num_y - i - i_left]
-                        + previous_baseline[i + i_right:num_y - i + i_right]
+                        previous_baseline[i - 4 * step_l:num_y - i - 4 * step_l]
+                        + previous_baseline[i + 4 * step_r:num_y - i + 4 * step_r]
                     )
                     + 8 * (
-                        previous_baseline[i - 3 * i_left // 4:-i - 3 * i_left // 4]
-                        + previous_baseline[i + 3 * i_right // 4:-i + 3 * i_right // 4]
+                        previous_baseline[i - 3 * step_l:num_y - i - 3 * step_l]
+                        + previous_baseline[i + 3 * step_r:num_y - i + 3 * step_r]
                     )
                     - 28 * (
-                        previous_baseline[i - i_left // 2:-i - i_left // 2]
-                        + previous_baseline[i + i_right // 2:-i + i_right // 2]
+                        previous_baseline[i - 2 * step_l:num_y - i - 2 * step_l]
+                        + previous_baseline[i + 2 * step_r:num_y - i + 2 * step_r]
                     )
                     + 56 * (
-                        previous_baseline[i - i_left // 4:-i - i_left // 4]
-                        + previous_baseline[i + i_right // 4:-i + i_right // 4]
+                        previous_baseline[i - step_l:num_y - i - step_l]
+                        + previous_baseline[i + step_r:num_y - i + step_r]
                     )
                 ) / 70
                 filters = np.maximum(filters, filters_new)
