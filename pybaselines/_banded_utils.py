@@ -405,7 +405,7 @@ def _banded_dot_vector(ab, x, lower=True):
     return output
 
 
-def difference_matrix(data_size, diff_order=2, diff_format=None):
+def difference_matrix(data_size, diff_order=2, diff_format=None, making_penalty=False):
     """
     Creates an n-th order finite-difference matrix.
 
@@ -418,6 +418,11 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     diff_format : str or None, optional
         The sparse format to use for the difference matrix. Default is None,
         which will use the default specified in :func:`scipy.sparse.diags`.
+    making_penalty : bool, optional
+        If False (default), will ignore the case where ``diff_order > data_size``
+        creates an empty matrix, to match the behavior of ``numpy.diff``. If True, will
+        raise since it results in a penalty matrix of 0, which is equivalent to using
+        a regularization parameter of 0 and is not allowed.
 
     Returns
     -------
@@ -427,7 +432,8 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     Raises
     ------
     ValueError
-        Raised if `diff_order` or `data_size` is negative.
+        Raised if `diff_order` or `data_size` is negative. Also raised if
+        ``diff_order > data_size`` and `making_penalty` is True.
 
     Notes
     -----
@@ -462,8 +468,13 @@ def difference_matrix(data_size, diff_order=2, diff_format=None):
     elif data_size < 0:
         raise ValueError('data size must be >= 0')
     elif diff_order > data_size:
-        # do not issue warning or exception to maintain parity with np.diff
-        diff_order = data_size
+        if making_penalty:
+            # if using for making penalty matrix, diff order > data size results
+            # in a penalty of zero, which is equivalent to lam=0 and not allowed
+            raise ValueError('data size must be greater than the difference order')
+        else:
+            # do not issue warning or exception to maintain parity with np.diff
+            diff_order = data_size
 
     if diff_order == 0:
         # faster to directly create identity matrix
@@ -699,7 +710,7 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
     if diff_order == 0:
         diagonals = np.ones((1, data_size))
     elif data_size < 2 * diff_order + 1 or diff_order > 3:
-        diff_matrix = difference_matrix(data_size, diff_order, 'csc')
+        diff_matrix = difference_matrix(data_size, diff_order, 'csc', making_penalty=True)
         diagonals = _sparse_to_banded(diff_matrix.T @ diff_matrix)[0]
         if lower_only:
             diagonals = diagonals[diff_order:]
@@ -712,12 +723,17 @@ def diff_penalty_diagonals(data_size, diff_order=2, lower_only=True, padding=0):
     return diagonals
 
 
-def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
+def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr', mask=None):
     """
     Creates the finite difference penalty matrix.
 
     If `D` is the finite difference matrix, then the finite difference penalty
     matrix is defined as ``D.T @ D``.
+
+    If a finite difference is applied to a vector y with a corresponding mask, such as for iasls,
+    then that penalty changes from ``||D @ y||^2`` to ``||M @ D @ y||^2``, where M ignores all
+    affected rows in ``D @ y``. The resulting term in the linear system changes to
+    ``D.T @ M.T @ M @ D @ y`` or simply ``D.T @ M @ D @ y`` since M is diagonal and binary.
 
     Parameters
     ----------
@@ -726,17 +742,15 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
     diff_order : int, optional
         The integer differential order; must be >= 0. Default is 2.
     diff_format : str or None, optional
-        The sparse format to use for the difference matrix. Default is 'csr'.
+        The sparse format to use for the penalty matrix. Default is 'csr'.
+    mask : array-like, shape (`data_size`,), optional
+        A Boolean array, in which all indices that are ``True`` denote indices that should
+        be ignored for `y`. If None (default), denotes all values should be included.
 
     Returns
     -------
     penalty_matrix : scipy.sparse.spmatrix or scipy.sparse.sparray
         The sparse difference penalty matrix.
-
-    Raises
-    ------
-    ValueError
-        Raised if `diff_order` is not greater than `data_size`.
 
     Notes
     -----
@@ -750,14 +764,26 @@ def diff_penalty_matrix(data_size, diff_order=2, diff_format='csr'):
     without the matrix multiplication.
 
     """
-    if data_size <= diff_order:
-        raise ValueError('data size must be greater than the difference order.')
-    penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
-    penalty_matrix = dia_object(
-        (penalty_bands, np.arange(diff_order, -diff_order - 1, -1)), shape=(data_size, data_size),
-    ).asformat(diff_format)
+    if mask is None:
+        penalty_bands = diff_penalty_diagonals(data_size, diff_order, lower_only=False)
+        penalty_matrix = dia_object(
+            (penalty_bands, np.arange(diff_order, -diff_order - 1, -1)),
+            shape=(data_size, data_size)
+        )
+    else:
+        fit_mask = np.logical_not(mask)
+        for _ in range(diff_order):
+            fit_mask = fit_mask[1:] & fit_mask[:-1]
 
-    return penalty_matrix
+        # TODO might be nice to generalize this part once array-like lam values are allowed,
+        # since it uses the same calc
+
+        # same as D.T @ diags(fit_mask) @ D but faster; works for both sparse matrices and
+        # sparse arrays
+        diff_matrix = difference_matrix(data_size, diff_order, 'csc', making_penalty=True)
+        penalty_matrix = diff_matrix.T @ diff_matrix.multiply(fit_mask[:, None])
+
+    return penalty_matrix.asformat(diff_format, copy=False)
 
 
 class PenalizedSystem:

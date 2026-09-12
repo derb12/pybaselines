@@ -13,14 +13,16 @@ from scipy.ndimage import grey_opening
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._banded_utils import _add_diagonals, _shift_rows, _sparse_to_banded, diff_penalty_matrix
+from ._banded_utils import (
+    _add_diagonals, _shift_rows, _sparse_to_banded, diff_penalty_matrix
+)
 from ._nd.pls import _PLSNDMixin
 from ._spline_utils import _basis_midpoints
 from ._validation import (
     _check_lam, _check_optional_array, _check_scalar_variable, _check_spline_degree
 )
 from .results import PSplineResult
-from .utils import _masked_matvec, _sort_array, relative_difference
+from .utils import _sort_array, relative_difference
 
 
 class _Spline(_Algorithm, _PLSNDMixin):
@@ -364,12 +366,9 @@ class _Spline(_Algorithm, _PLSNDMixin):
         # B.T @ D_1.T @ D_1 @ B and B.T @ D_1.T @ D_1 @ y
         d1_penalty = (
             pspline.basis.basis.T
-            @ (_check_lam(lam_1) * diff_penalty_matrix(self._size, 1))
+            @ (_check_lam(lam_1) * diff_penalty_matrix(self._size, 1, mask=self.mask))
         )
-        if self.mask is None:
-            partial_rhs = d1_penalty @ y
-        else:
-            partial_rhs = _masked_matvec(d1_penalty, y, self.mask)
+        partial_rhs = d1_penalty @ y
         # now change d1_penalty back to banded array
         d1_penalty = _sparse_to_banded(d1_penalty @ pspline.basis.basis)[0]
         if pspline.lower:

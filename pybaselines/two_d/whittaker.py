@@ -13,9 +13,9 @@ from .._compat import diags
 from .._nd.pls import _PLSNDMixin
 from .._validation import _check_optional_array, _check_scalar_variable
 from ..results import WhittakerResult2D
-from ..utils import _masked_matvec, _sort_array2d, relative_difference
+from ..utils import _sort_array2d, relative_difference
 from ._algorithm_setup import _Algorithm2D
-from ._whittaker_utils import PenalizedSystem2D
+from ._whittaker_utils import PenalizedSystem2D, diff_penalty_matrix_2d
 
 
 class _Whittaker(_Algorithm2D, _PLSNDMixin):
@@ -193,14 +193,13 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
             weights = _weighting._iasls(data - baseline.reshape(self._shape), p=p, mask=self.mask)
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
-        penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
+        residual_penalty = diff_penalty_matrix_2d(
+            self._shape, lam_1, diff_order=1, mask=self.mask
+        )
 
-        # (W.T @ W + P_1) @ y -> P_1 @ y + W.T @ W @ y
-        whittaker_system.add_penalty(penalized_system_1.penalty)
-        if self.mask is None:
-            p1_y = penalized_system_1.penalty @ y
-        else:
-            p1_y = _masked_matvec(penalized_system_1.penalty, y, self.mask.ravel())
+        # (W + P_1) @ y -> P_1 @ y + W @ y
+        whittaker_system.add_penalty(residual_penalty)
+        p1_y = residual_penalty @ y
 
         tol_history = np.empty(max_iter + 1)
         success = False
@@ -217,7 +216,7 @@ class _Whittaker(_Algorithm2D, _PLSNDMixin):
         params = {
             'weights': weight_array, 'tol_history': tol_history[:i + 1],
             'result': WhittakerResult2D(
-                whittaker_system, weight_array, rhs_extra=penalized_system_1.penalty
+                whittaker_system, weight_array, rhs_extra=residual_penalty
             ), 'success': success
         }
 

@@ -10,11 +10,13 @@ import numpy as np
 
 from . import _weighting
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._banded_utils import _shift_rows, diff_penalty_diagonals, diff_penalty_matrix
+from ._banded_utils import (
+    _shift_rows, _sparse_to_banded, diff_penalty_diagonals, diff_penalty_matrix
+)
 from ._nd.pls import _PLSNDMixin
 from ._validation import _check_lam, _check_optional_array, _check_scalar_variable
 from .results import WhittakerResult
-from .utils import relative_difference, _masked_matvec, _sort_array
+from .utils import relative_difference, _sort_array
 
 
 class _Whittaker(_Algorithm, _PLSNDMixin):
@@ -317,20 +319,25 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
 
         y, weight_array, whittaker_system = self._setup_whittaker(data, lam, diff_order, weights)
         lambda_1 = _check_lam(lam_1)
-        residual_penalty = lambda_1 * diff_penalty_diagonals(
-            self._size, 1, whittaker_system.lower, padding=diff_order - 1
-        )
-        whittaker_system.add_penalty(residual_penalty)
         if self.mask is None:
             # fast calculation of (D_1.T @ D_1) @ y
             d1_y = y.copy()
             d1_y[0] = y[0] - y[1]
             d1_y[-1] = y[-1] - y[-2]
             d1_y[1:-1] = 2 * y[1:-1] - y[:-2] - y[2:]
+            residual_penalty = diff_penalty_diagonals(
+                self._size, 1, whittaker_system.lower, padding=diff_order - 1
+            )
         else:
-            d1_y = _masked_matvec(diff_penalty_matrix(self._size, 1, 'csr'), y, self.mask)
+            residual_penalty = diff_penalty_matrix(self._size, 1, mask=self.mask)
+            d1_y = residual_penalty @ y
+            residual_penalty = _sparse_to_banded(residual_penalty)[0]
+            if whittaker_system.lower:
+                residual_penalty = residual_penalty[residual_penalty.shape[0] // 2:]
 
-        d1_y = lambda_1 * d1_y
+        d1_y *= lambda_1
+        residual_penalty *= lambda_1
+        whittaker_system.add_penalty(residual_penalty)
         tol_history = np.empty(max_iter + 1)
         success = False
         for i in range(max_iter + 1):

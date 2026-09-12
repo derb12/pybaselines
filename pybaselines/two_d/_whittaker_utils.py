@@ -15,7 +15,7 @@ from scipy.linalg import (
 from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import factorized, spsolve
 
-from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
+from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix, difference_matrix
 from .._compat import identity
 from .._validation import _check_lam, _check_scalar, _check_scalar_variable
 from ..utils import ParameterWarning
@@ -52,6 +52,65 @@ def _face_splitting(basis):
     else:
         output = np.kron(basis, ones) * (np.kron(ones, basis))
     return output
+
+
+def diff_penalty_matrix_2d(data_size, lam=1., diff_order=2, diff_format='csr', mask=None):
+    """
+    Creates the 2D finite difference penalty matrix.
+
+    Parameters
+    ----------
+    data_size : tuple[int, int]
+        The number of data points for the system along the rows and columns, respectively.
+    lam : float or tuple[float, float], optional
+        The penalty factor applied to the difference matrix for the rows and columns,
+        respectively. If a single value is given, both will use the same value. Larger
+        values produce smoother results. Must be greater than 0. Default is 1.
+    diff_order : int or tuple[int, int], optional
+        The difference order of the penalty for the rows and columns, respectively. If
+        a single value is given, both will use the same value.
+        Default is 2 (second order difference).
+    diff_format : str or None, optional
+        The sparse format to use for the penalty matrix. Default is 'csr'.
+    mask : array-like, shape (M, N), optional
+        A Boolean array, in which all indices that are `True` denote indices that should
+        be ignored. If None (default), denotes all values should be included.
+
+    Returns
+    -------
+    scipy.sparse.spmatrix or scipy.sparse.sparray
+        The penalty matrix. The final shape is
+        (``numpy.prod(data_size)``, ``numpy.prod(data_size)``).
+
+    """
+    diff_order = _check_scalar_variable(
+        diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
+    )
+    rows, cols = data_size
+    lams = _check_lam(lam, two_d=True)
+    if mask is None:
+        penalty_rows = kron(diff_penalty_matrix(rows, diff_order[0]), identity(cols))
+        penalty_cols = kron(identity(rows), diff_penalty_matrix(cols, diff_order[1]))
+    else:
+        fit_mask_r = np.logical_not(mask)
+        fit_mask_c = fit_mask_r.copy()
+        for _ in range(diff_order[0]):
+            fit_mask_r = fit_mask_r[1:, :] & fit_mask_r[:-1, :]
+        for _ in range(diff_order[1]):
+            fit_mask_c = fit_mask_c[:, 1:] & fit_mask_c[:, :-1]
+
+        # TODO might be nice to generalize this part once array-like lam values are allowed,
+        # since it uses the same calc
+        D_rows = kron(
+            difference_matrix(rows, diff_order[0], 'csc', making_penalty=True), identity(cols)
+        )
+        D_cols = kron(
+            identity(rows), difference_matrix(cols, diff_order[1], 'csc', making_penalty=True)
+        )
+        penalty_rows = D_rows.T @ D_rows.multiply(fit_mask_r.ravel()[:, None])
+        penalty_cols = D_cols.T @ D_cols.multiply(fit_mask_c.ravel()[:, None])
+
+    return (lams[0] * penalty_rows + lams[1] * penalty_cols).asformat(diff_format, copy=False)
 
 
 class PenalizedSystem2D:
@@ -190,13 +249,9 @@ class PenalizedSystem2D:
         self.lam = _check_lam(lam, two_d=True)
         self.symmetric = symmetric
 
-        penalty_rows = diff_penalty_matrix(self._num_bases[0], self.diff_order[0])
-        penalty_columns = diff_penalty_matrix(self._num_bases[1], self.diff_order[1])
-
-        # multiplying lam by the Kronecker product is the same as multiplying just D.T @ D with lam
-        P_rows = kron(self.lam[0] * penalty_rows, identity(self._num_bases[1]))
-        P_columns = kron(identity(self._num_bases[0]), self.lam[1] * penalty_columns)
-        self.penalty = P_rows + P_columns
+        self.penalty = diff_penalty_matrix_2d(
+            self._num_bases, self.lam, self.diff_order, diff_format='csc'
+        )
 
         self._update_bands()
 

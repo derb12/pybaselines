@@ -16,7 +16,7 @@ from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import spsolve
 
 from pybaselines._banded_utils import diff_penalty_diagonals
-from pybaselines._compat import csr_object, dia_object, identity
+from pybaselines._compat import csr_object, dia_object, diags, identity
 from pybaselines.two_d import _spline_utils, _whittaker_utils
 from pybaselines.utils import difference_matrix
 from pybaselines.results import WhittakerResult2D
@@ -176,6 +176,66 @@ def test_penalized_system_negative_lam_fails(small_data2d, lam):
     """Ensures a lam value less than or equal to 0 fails."""
     with pytest.raises(ValueError):
         _whittaker_utils.PenalizedSystem2D(small_data2d.shape, lam=lam)
+
+
+@pytest.mark.parametrize('data_size', ((10, 10), (12, 51), (31, 14)))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
+def test_diff_penalty_matrix_2d_mask(data_size, diff_order):
+    """Ensures mask is correctly propagated for diff_penalty_matrix_2d."""
+    rows, cols = data_size
+    rng = np.random.default_rng(1234)
+    y = rng.normal(0., 0.5, data_size)
+    mask = rng.choice([True, False], data_size, p=[0.3, 0.7])
+    if isinstance(diff_order, int):
+        diff_r = diff_order
+        diff_c = diff_order
+    else:
+        diff_r, diff_c = diff_order
+
+    # any point in the masked regions should propagate nan and be removed
+    y_nan = np.where(mask, np.nan, y)
+    diff_y_r = np.diff(y_nan, diff_r, axis=0)
+    diff_y_c = np.diff(y_nan, diff_c, axis=1)
+    nan_mask_r = np.isnan(diff_y_r)
+    diff_y_r[nan_mask_r] = 0
+    nan_mask_c = np.isnan(diff_y_c)
+    diff_y_c[nan_mask_c] = 0
+
+    D_rows = kron(difference_matrix(rows, diff_r, 'csc'), identity(cols))
+    D_cols = kron(identity(rows), difference_matrix(cols, diff_c, 'csc'))
+    expected_mat = (
+        D_rows.T @ diags(~nan_mask_r.ravel()) @ D_rows
+        + D_cols.T @ diags(~nan_mask_c.ravel()) @ D_cols
+    )
+    expected_matvec = D_rows.T @ diff_y_r.ravel() + D_cols.T @ diff_y_c.ravel()
+
+    output = _whittaker_utils.diff_penalty_matrix_2d(data_size, diff_order=diff_order, mask=mask)
+    matvec = output @ y.ravel()
+
+    assert issparse(output)
+    assert_allclose(output.toarray(), expected_mat.toarray(), rtol=0, atol=1e-16)
+    assert_allclose(matvec, expected_matvec, rtol=5e-14, atol=1e-16)
+
+
+@pytest.mark.parametrize('data_size', ((10, 10), (12, 51), (31, 14)))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4, (2, 3)))
+def test_diff_penalty_matrix_2d_mask_fit_all(data_size, diff_order):
+    """Ensures a mask that fits all points should exactly reproduce the penalty matrix."""
+    rng = np.random.default_rng(1234)
+    y = rng.normal(0., 0.5, data_size)
+    mask = np.zeros_like(y, dtype=bool)
+
+    expected_mat = _whittaker_utils.diff_penalty_matrix_2d(data_size, diff_order=diff_order)
+    expected_matvec = expected_mat @ y.ravel()
+
+    output = _whittaker_utils.diff_penalty_matrix_2d(data_size, diff_order=diff_order, mask=mask)
+    matvec = output @ y.ravel()
+
+    assert issparse(output)
+    assert_allclose(output.toarray(), expected_mat.toarray(), rtol=0, atol=1e-16)
+    # NOTE no clue why the two matvecs have such a large rtol difference when the two
+    # matrices are the exact same...
+    assert_allclose(matvec, expected_matvec, rtol=5e-13, atol=1e-16)
 
 
 @pytest.mark.parametrize('diff_order', (1, 2, 3, [1, 3]))
