@@ -108,10 +108,11 @@ class TestSNIP(SmoothTester):
         """Tests possible inputs for `max_half_window`."""
         self.class_func(self.y, max_half_window=max_half_window)
 
+    @pytest.mark.parametrize('filter_order', (2, 4, 6, 8))
     @pytest.mark.parametrize('smooth_hw', (0, 1))
     @pytest.mark.parametrize('decreasing', (True, False))
-    @pytest.mark.parametrize('half_window', (1, 2, 3, 4, 5))
-    def test_root_comparison(self, half_window, decreasing, smooth_hw):
+    @pytest.mark.parametrize('half_window', (1, 2, 3))
+    def test_root_comparison(self, half_window, decreasing, smooth_hw, filter_order):
         """Compares against the implementation of SNIP in ROOT.
 
         In the conclusion of [1], it's said that the implementation was added to ROOT
@@ -173,19 +174,25 @@ class TestSNIP(SmoothTester):
                Spectroscopic Data. Applied Spectroscopy, 2008, 62(1), 91-106.
 
         """
+        if smooth_hw > 0 and filter_order == 8:
+            # ROOT has a bug for smoothing with filter order 8 (see
+            # https://github.com/derb12/pybaselines/issues/93), so don't test this condition
+            return
         # a symmetric square wave, which makes comparison much easier
         half = 20
         y = np.zeros(2 * half + 1)
-        half_width = 4
+        half_width = 3
         y[half - half_width:half + half_width + 1] = 1
 
+        # small windows don't affect higher filter orders, so increase accordingly
+        actual_hw = half_window + filter_order - 2
         output = self.algorithm_base().snip(
-            y, max_half_window=half_window, decreasing=decreasing,
-            smooth_half_window=smooth_hw, filter_order=2, pad_kwargs={'mode': 'edge'}
+            y, max_half_window=actual_hw, decreasing=decreasing,
+            smooth_half_window=smooth_hw, filter_order=filter_order, pad_kwargs={'mode': 'edge'}
         )[0]
         expected_output = np.loadtxt(
             Path(__file__).parent.joinpath(
-                f'data/ROOTsnip_order2_dec{decreasing}_sw{smooth_hw}.csv'
+                f'data/ROOTsnip_order{filter_order}_dec{decreasing}_sw{smooth_hw}.csv'
             ), delimiter=',', skiprows=1
         )
         assert_allclose(output, expected_output[:, half_window - 1], rtol=1e-15, atol=1e-15)
