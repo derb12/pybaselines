@@ -1127,7 +1127,8 @@ def _beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
     d1_x, d2_x = _abs_diff(x, smooth_half_window)
     d1_loss = _beads_loss(d1_x, use_v2_loss, eps_1).sum()
     d2_loss = _beads_loss(d2_x, use_v2_loss, eps_1).sum()
-    cost_old = 0
+    # fidelity term is 0 since noise is zeros due to signal == y
+    cost_old = lam_0 * theta + lam_1 * d1_loss + lam_2 * d2_loss
     tol_history = np.empty(max_iter + 1)
     success = False
     for i in range(max_iter + 1):
