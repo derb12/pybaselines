@@ -376,7 +376,7 @@ Weighting:
 
 .. note::
 
-    Within literature, IAsLs uses the linear equation
+    Within literature, `IAsLs <https://doi.org/10.1039/c4ay00068d>`_ uses the linear equation
 
     .. math::
 

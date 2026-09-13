@@ -314,8 +314,8 @@ Weighting:
 
 .. note::
 
-    Using the literature implementation of IAsLs, its equivalent P-Spline linear equation would
-    be
+    Using the literature implementation of `IAsLs <https://doi.org/10.1039/c4ay00068d>`_, its
+    equivalent P-Spline linear equation would be
 
     .. math::
 
