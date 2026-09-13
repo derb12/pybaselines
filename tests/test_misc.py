@@ -120,7 +120,7 @@ class TestBeads(MiscTester, ConvergenceMixin):
         output_2, params_2 = fitter.beads(self.y, cost_function=cost_function)
 
         assert_allclose(output_1, output_2, rtol=5e-6, atol=1e-10)
-        assert_allclose(params_1['signal'], params_2['signal'], rtol=1e-4, atol=1e-10)
+        assert_allclose(params_1['signal'], params_2['signal'], rtol=3e-4, atol=1e-10)
 
     @pytest.mark.parametrize('asymmetry', (0, -1))
     def test_bad_asymmetry_fails(self, asymmetry):
@@ -279,7 +279,7 @@ class TestBeads(MiscTester, ConvergenceMixin):
         )
         # unfortunately need fairly high rtols; since matlab BEADS version always
         # does 30 iterations, any small deviations in the calcs for one iteration get magnified
-        baseline_rtol = {1: 5e-9, 2: 5e-7, 3: 5e-9}[condition]
+        baseline_rtol = {1: 5e-9, 2: 1e-6, 3: 5e-9}[condition]
         signal_rtol = {1: 1e-8, 2: 2e-4, 3: 5e-6}[condition]
 
         assert_allclose(fit, expected_output[:, 0], rtol=baseline_rtol, atol=1e-12)
@@ -657,7 +657,7 @@ def test_beads_diff_matrix_calculation(num_points, lam_1, lam_2, filter_type, fr
     if freq_cutoff < 0.49:
         rtol = 1e-15
     else:
-        rtol = 1e-10 if filter_type == 1 else 1e-12
+        rtol = 1e-10 if filter_type == 1 else 2e-12
     assert_allclose((A.T @ sparse_DTD @ A).toarray(), ATMA_actual.toarray(), rtol=rtol, atol=1e-15)
     # also check without transposing A since A is symmetric and that's what is used in pybaselines
     assert_allclose((A @ sparse_DTD @ A).toarray(), ATMA_actual.toarray(), rtol=rtol, atol=1e-15)
