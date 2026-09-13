@@ -1010,7 +1010,7 @@ def _beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
            filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
            eps_1=1e-6, smooth_half_window=0, banded_factorization=True):
     r"""
-    The beads algorithm using banded matrices rather than full, sparse matrices.
+    Baseline estimation and denoising with sparsity (BEADS).
 
     Parameters
     ----------
@@ -1104,7 +1104,7 @@ def _beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
     d2_diags = np.zeros((5, num_y))
     use_banded = _HAS_NUMBA
     offsets = np.arange(2, -3, -1)
-    # variable names throughout mirror Table 3 in BEADS paper
+    # variable names throughout mirror Table 3 in BEADS paper, except signal is used instead of 'x'
     A_banded, A_sparse, A_factorization, B_banded, BTB = _high_pass_filter(
         num_y, freq_cutoff, filter_type, use_banded, banded_factorization
     )
@@ -1122,11 +1122,11 @@ def _beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
 
     gamma = np.empty(num_y)
     gamma_factor = lam_0 * 0.5 * (1 + asymmetry)  # 2 * lam_0 * (1 + asymmetry) / 4
-    x = y
-    abs_x, big_x, theta = _beads_theta(x, asymmetry, eps_0)
-    d1_x, d2_x = _abs_diff(x, smooth_half_window)
-    d1_loss = _beads_loss(d1_x, use_v2_loss, eps_1).sum()
-    d2_loss = _beads_loss(d2_x, use_v2_loss, eps_1).sum()
+    signal = y
+    abs_x, big_x, theta = _beads_theta(signal, asymmetry, eps_0)
+    d1_signal, d2_signal = _abs_diff(signal, smooth_half_window)
+    d1_loss = _beads_loss(d1_signal, use_v2_loss, eps_1).sum()
+    d2_loss = _beads_loss(d2_signal, use_v2_loss, eps_1).sum()
     # fidelity term is 0 since noise is zeros due to signal == y
     cost_old = lam_0 * theta + lam_1 * d1_loss + lam_2 * d2_loss
     tol_history = np.empty(max_iter + 1)
@@ -1136,10 +1136,10 @@ def _beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
         # than sparse matrices since it is much faster; Gamma + D.T @ Lambda @ D
 
         # row 1 and 3 instead of 0 and 2 to account for zeros on top and bottom
-        d1_diags[1][1:] = d1_diags[3][:-1] = -_beads_weighting(d1_x, use_v2_loss, eps_1)
+        d1_diags[1][1:] = d1_diags[3][:-1] = -_beads_weighting(d1_signal, use_v2_loss, eps_1)
         d1_diags[2] = -(d1_diags[1] + d1_diags[3])
 
-        d2_diags[0][2:] = d2_diags[-1][:-2] = _beads_weighting(d2_x, use_v2_loss, eps_1)
+        d2_diags[0][2:] = d2_diags[-1][:-2] = _beads_weighting(d2_signal, use_v2_loss, eps_1)
         d2_diags[1] = 2 * (d2_diags[0] - np.roll(d2_diags[0], -1, 0)) - 4 * d2_diags[0]
         d2_diags[-2][:-1] = d2_diags[1][1:]
         d2_diags[2] = -(d2_diags[0] + d2_diags[1] + d2_diags[-1] + d2_diags[-2])
@@ -1168,17 +1168,17 @@ def _beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
             # TODO check that 'NATURAL' is the appropriate permutation scheme for this
             Q_d = spsolve(Q, d, 'NATURAL')
 
-        x = A_sparse @ Q_d  # pure signal
-        residual = y - x  # contains baseline + noise
+        signal = A_sparse @ Q_d  # pure signal
+        residual = y - signal  # contains baseline + noise
         noise = _banded_dot_vector(
             B_banded, _factorized_solve(A_factorization, residual), lower=False
         )
 
-        abs_x, big_x, theta = _beads_theta(x, asymmetry, eps_0)
-        d1_x, d2_x = _abs_diff(x, smooth_half_window)
+        abs_x, big_x, theta = _beads_theta(signal, asymmetry, eps_0)
+        d1_signal, d2_signal = _abs_diff(signal, smooth_half_window)
         fidelity = 0.5 * (noise @ noise)
-        d1_loss = _beads_loss(d1_x, use_v2_loss, eps_1).sum()
-        d2_loss = _beads_loss(d2_x, use_v2_loss, eps_1).sum()
+        d1_loss = _beads_loss(d1_signal, use_v2_loss, eps_1).sum()
+        d2_loss = _beads_loss(d2_signal, use_v2_loss, eps_1).sum()
         cost = (
             fidelity
             + lam_0 * theta
@@ -1194,7 +1194,7 @@ def _beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
 
     baseline = residual - noise
     params = {
-        'signal': x, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
+        'signal': signal, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
         'penalty': (theta, d1_loss, d2_loss), 'success': success
     }
 
