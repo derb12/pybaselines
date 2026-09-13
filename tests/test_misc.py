@@ -6,6 +6,7 @@ Created on March 20, 2021
 
 """
 
+from pathlib import Path
 from unittest import mock
 
 import numpy as np
@@ -215,7 +216,74 @@ class TestBeads(MiscTester, ConvergenceMixin):
             with pytest.raises(AssertionError):
                 assert_allclose(fit, good_fit, rtol=1, atol=10)
 
+    @pytest.mark.parametrize('use_banded', (True, False))
+    @pytest.mark.parametrize('sparse_factorization', (True, False))
+    @pytest.mark.parametrize('condition', (1, 2, 3))
+    def test_reference_comparison(self, condition, use_banded, sparse_factorization):
+        """
+        Compares against the MATLAB version written by the BEADS authors.
 
+        The reference BEADS code given by the authors is available at
+        https://www.mathworks.com/matlabcentral/fileexchange/49974-beads-baseline-estimation-and-denoising-with-sparsity.
+        With the above file in the working path, data for the fits was generated using Octave
+        version 11.3.0 and BEADS version 1.7.0.1 with the following code::
+
+            y = csvread(file path here);
+            f_order = 1;
+            asymmetry = 6;  % or 10
+            freq_cutoff = 0.08;  % or 0.02 or 0.04
+            alpha = 1.;  % or 15.
+            lam0 = alpha / norm(y, 1);
+            lam1 = alpha / norm(diff(y, 1), 1);
+            lam2 = alpha / norm(diff(y, 2), 1);
+            [signal, baseline, cost] = beads(y, f_order, freq_cutoff, asymmetry, lam0, lam1, lam2);
+            % then save baseline and signal
+
+        """
+        x = np.linspace(0, 1000, 100)
+        baseline = -2e-5 * (x - 500)**2 + 5
+        signal = (
+            gaussian(x, 9, 100, 12)
+            + gaussian(x, 6, 180, 5)
+            + gaussian(x, 8, 350, 11)
+            + gaussian(x, 15, 400, 18)
+            + gaussian(x, 6, 550, 6)
+            + gaussian(x, 13, 700, 8)
+            + gaussian(x, 9, 800, 9)
+            + gaussian(x, 9, 880, 7)
+        )
+        noise = np.random.default_rng(0).normal(0, 0.2, len(x))
+        y = signal + baseline + noise
+        freq_cutoff, alpha, asymmetry = {
+            1: (0.08, 1., 6),
+            2: (0.02, 15., 6),
+            3: (0.04, 1., 10),
+        }[condition]
+
+        fitter = self.algorithm_base()
+        if sparse_factorization:
+            fitter.banded_solver = 4
+        with mock.patch.object(misc, '_HAS_NUMBA', use_banded):
+            # NOTE: the MATLAB beads version always does 30 iterations, fixes eps_0 and eps_1
+            # to 1e-6, and uses L1_v2 cost function
+            fit, params = fitter.beads(
+                y, freq_cutoff=freq_cutoff, alpha=alpha, asymmetry=asymmetry,
+                tol=-1, max_iter=29, lam_0=None, lam_1=None, lam_2=None, fit_parabola=False,
+                cost_function=2, eps_0=1e-6, eps_1=1e-6
+            )
+
+        # baseline and signal
+        expected_output = np.loadtxt(
+            Path(__file__).parent.joinpath(f'data/beads_{condition}.csv'), delimiter=',',
+            skiprows=1
+        )
+        # unfortunately need fairly high rtols; since matlab BEADS version always
+        # does 30 iterations, any small deviations in the calcs for one iteration get magnified
+        baseline_rtol = {1: 5e-9, 2: 5e-7, 3: 5e-9}[condition]
+        signal_rtol = {1: 1e-8, 2: 2e-4, 3: 5e-6}[condition]
+
+        assert_allclose(fit, expected_output[:, 0], rtol=baseline_rtol, atol=1e-12)
+        assert_allclose(params['signal'], expected_output[:, 1], rtol=signal_rtol, atol=1e-10)
 
 
 def test_banded_dot_banded():
