@@ -269,8 +269,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
 
     @_Algorithm2D._handle_io(skip_sorting=True)
     def optimize_pls(self, data, method='arpls', opt_method='V-Curve', min_value=4., max_value=7.,
-                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0,
-                     grid_search=True, minimize_kwargs=None):
+                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
         """
         Optimizes the regularization parameters for penalized least squares methods.
 
@@ -285,6 +284,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             The optimization method used to optimize `lam`. Supported methods are:
 
             * 'V-Curve'
+            * 'L-Curve'
             * 'U-Curve'
             * 'GCV'
             * 'BIC'
@@ -321,14 +321,6 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
             analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
             (``M * N``, `n_samples`) Rademacher random variables (ie. either -1 or 1).
-        grid_search : bool, optional
-            If True (default), will minimize the metric by testing all parameter values within
-            the 2D grid specified by `min_value`, `max_value`, and `step`. If False, will use
-            :func:`scipy.optimize.minimize` to minimize the specified metric.
-        minimize_kwargs : dict, optional
-            Only used if `grid_search` is False. The keyword arguments to pass to
-            :func:`scipy.optimize.minimize` for minimization. Default is None, which uses the
-            defaults listed in the Notes section.
 
         Returns
         -------
@@ -345,13 +337,13 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
                 A dictionary containing the output parameters for the optimal fit.
                 Items will depend on the selected `method`.
             * 'fidelity': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'U-curve'. The computed non-normalized
-                fidelity term for each pair of `lam` values tested. For
+                Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
+                non-normalized fidelity term for each `lam` value tested. For
                 most algorithms within pybaselines, this is equivalent to the weighted residual
                 sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
             * 'penalty': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'U-curve'. The computed non-normalized penalty
-                values for each pair of `lam` values tested.
+                Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
+                non-normalized penalty values for each `lam` value tested.
             * 'wrss': numpy.ndarray, shape (P, Q)
                 Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
                 squares (eg. ``sum(weights * (data - baseline)**2)``) for each pair of `lam`
@@ -374,8 +366,9 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         `min_value` and `max_value` such that penalty continually decreases and fidelity
         continually increases as `lam` increases.
 
-        For `opt_method` 'U-Curve', the multipliers on `lam` used in methods `drpls` or `aspls`,
-        ``(1 - eta * weights)`` and ``alpha``, respectively, are omitted from the penalty term.
+        For `opt_method` 'V-curve', 'L-curve', or 'U-curve', the multipliers on `lam` used in
+        methods `drpls` or `aspls`, ``(1 - eta * weights)`` and ``alpha``, respectively, are
+        omitted from the penalty term.
         Otherwise, the penalty term shows little change with varying `lam` and gives bad results.
         Likewise, for method='iasls', the penalty term from `lam_1` is omitted since its gradient
         with respect to `lam` is assumed to be 0. More advanced optimization varying both `lam`
@@ -427,24 +420,12 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             lam_range = np.stack(
                 np.meshgrid(lam_range_r, lam_range_c, indexing='ij'), axis=-1
             ).reshape(-1, 2)
-            if not grid_search and minimize_kwargs is None:
-                min_vals = lam_range.min(axis=0)
-                max_vals = lam_range.max(axis=0)
-                minimize_kwargs = {
-                    'method': 'nelder-mead', 'x0': 0.5 * (min_vals + max_vals),
-                    'bounds': np.atleast_2d(np.stack((min_vals, max_vals), axis=-1)),
-                    'options': {'xatol': step}
-                }
-
             baseline, params = _optimize_ed(
-                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples,
-                grid_search, minimize_kwargs
+                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples
             )
             params['optimal_parameter'] = tuple(params['optimal_parameter'])
-            if grid_search:
-                output_shape = (lam_range_r.size, lam_range_c.size)
-                for key in ('wrss', 'edf', 'metric'):
-                    params[key] = params[key].reshape(output_shape)
+            for key in ('wrss', 'edf', 'metric'):
+                params[key] = params[key].reshape((lam_range_r.size, lam_range_c.size))
         else:
             raise ValueError(f'{opt_method} is not a supported opt_method input')
 
@@ -512,7 +493,7 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
     fidelity = np.empty(n_lams)
     for i, lam_r in enumerate(lam_range_r):
         for j, lam_c in enumerate(lam_range_c):
-            fit_lams = (10**lam_r, 10**lam_c)
+            fit_lams = (lam_r, lam_c)
             fit_baseline, fit_params = optimizer_obj.method_call(
                 y, lam=fit_lams, **method_kws
             )
@@ -570,8 +551,8 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
             metric = fidelity + penalty_rows + penalty_cols
     elif opt_method == 'vcurve':
         if fidelity.size > 1:
-            step_r = np.log10(lam_range_r[1] - lam_range_r[0])
-            step_c = np.log10(lam_range_c[1] - lam_range_c[0])
+            step_r = np.log10(lam_range_r[1] / lam_range_r[0])
+            step_c = np.log10(lam_range_c[1] / lam_range_c[0])
 
             penalty_rows_grad = _gradient_magnitude(np.log10(penalty_rows), step_r, step_c)
             penalty_cols_grad = _gradient_magnitude(np.log10(penalty_cols), step_r, step_c)
@@ -583,8 +564,10 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
             metric = np.zeros((1, 1))
 
     best_idx = np.unravel_index(np.argmin(metric), metric.shape)
-    best_lam = (10**lam_range_r[best_idx[0]], 10**lam_range_c[best_idx[1]])
-    baseline, best_params = optimizer_obj.method_call(y, lam=best_lam, **method_kws)
+    best_lam = (lam_range_r[best_idx[0]], lam_range_c[best_idx[1]])
+    baseline, best_params = optimizer_obj.method_call(
+        y, **{optimizer_obj.method_param: best_lam}, **method_kws
+    )
     params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
 
     return baseline, params
