@@ -412,7 +412,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         lam_range_r = _param_grid(min_rows, max_rows, step_rows, polynomial_fit=False)
         lam_range_c = _param_grid(min_cols, max_cols, step_cols, polynomial_fit=False)
         selected_method = opt_method.lower().replace('-', '_').replace('_', '')
-        if selected_method in ('vcurve', 'ucurve'):
+        if selected_method in ('vcurve', 'lcurve', 'ucurve'):
             baseline, params = _optimize_lcurve2d(
                 y, selected_method, optimizer_obj, method_kws, lam_range_r, lam_range_c, euclidean
             )
@@ -493,9 +493,8 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
     fidelity = np.empty(n_lams)
     for i, lam_r in enumerate(lam_range_r):
         for j, lam_c in enumerate(lam_range_c):
-            fit_lams = (lam_r, lam_c)
             fit_baseline, fit_params = optimizer_obj.method_call(
-                y, lam=fit_lams, **method_kws
+                y, **{optimizer_obj.method_param: (lam_r, lam_c)}, **method_kws
             )
             if eigen_fit:
                 # approximately the same as taking the finite difference in each dimension, but
@@ -515,10 +514,8 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
                     # sorted since they correspond to sorted x-values
                     penalized_object = _sort_array2d(fit_baseline, optimizer_obj.fitter._sort_order)
 
-                diff_r = np.diff(penalized_object, diff_order[0], axis=0)
-                diff_c = np.diff(penalized_object, diff_order[1], axis=1)
-                fit_penalty_r = np.einsum('ij,ij->', diff_r, diff_r)
-                fit_penalty_c = np.einsum('ij,ij->', diff_c, diff_c)
+                fit_penalty_r = _wrss(np.diff(penalized_object, diff_order[0], axis=0))
+                fit_penalty_c = _wrss(np.diff(penalized_object, diff_order[1], axis=1))
 
             fit_fidelity = _wrss(y - fit_baseline, fit_params['weights'])
             if using_drpls:
@@ -526,11 +523,9 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
                     sorted_baseline = _sort_array2d(fit_baseline, optimizer_obj.fitter._sort_order)
                 else:
                     sorted_baseline = penalized_object
-                additional_fidelity_r = np.diff(sorted_baseline, 1, axis=0)
-                additional_fidelity_c = np.diff(sorted_baseline, 1, axis=1)
                 fit_fidelity += (
-                    np.einsum('ij,ij->', additional_fidelity_r, additional_fidelity_r)
-                    + np.einsum('ij,ij->', additional_fidelity_c, additional_fidelity_c)
+                    _wrss(np.diff(sorted_baseline, 1, axis=0))
+                    + _wrss(np.diff(sorted_baseline, 1, axis=1))
                 )
 
             penalty_rows[i, j] = fit_penalty_r
@@ -540,6 +535,7 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
     # add fidelity and penalty to params before further processing
     params = {'fidelity': fidelity, 'penalty_rows': penalty_rows, 'penalty_columns': penalty_cols}
     # TODO: for both metrics, need to check size along each axis and skip calcs accordingly
+    #TODO should probably just raise if there's not enough points
     if opt_method == 'ucurve':
         if fidelity.size > 1:
             penalty_rows = (penalty_rows - penalty_rows.min()) / np.ptp(penalty_rows)
@@ -549,17 +545,22 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
             metric = np.sqrt(fidelity**2 + penalty_rows**2 + penalty_cols**2)
         else:  # graph distance from the origin, ie. only travelling along x, y, and z axes
             metric = fidelity + penalty_rows + penalty_cols
-    elif opt_method == 'vcurve':
+    else:
         if fidelity.size > 1:
             step_r = np.log10(lam_range_r[1] / lam_range_r[0])
             step_c = np.log10(lam_range_c[1] / lam_range_c[0])
+            #TODO might want to set edge_order to 2 in gradients for less noise on edges? or give option to ignore edges?
+            if opt_method == 'vcurve':
+                penalty_rows_grad = _gradient_magnitude(np.log10(penalty_rows), step_r, step_c)
+                penalty_cols_grad = _gradient_magnitude(np.log10(penalty_cols), step_r, step_c)
+                fidelity_grad = _gradient_magnitude(np.log10(fidelity), step_r, step_c)
 
-            penalty_rows_grad = _gradient_magnitude(np.log10(penalty_rows), step_r, step_c)
-            penalty_cols_grad = _gradient_magnitude(np.log10(penalty_cols), step_r, step_c)
-            fidelity_grad = _gradient_magnitude(np.log10(fidelity), step_r, step_c)
-
-            metric = np.sqrt(penalty_rows_grad**2 + penalty_cols_grad**2 + fidelity_grad**2)
-
+                metric = np.sqrt(penalty_rows_grad**2 + penalty_cols_grad**2 + fidelity_grad**2)
+            else:
+                metric = -_gaussian_curvature(
+                    np.log10(penalty_rows), np.log10(penalty_cols), np.log10(fidelity), step_r,
+                    step_c
+                )
         else:
             metric = np.zeros((1, 1))
 
@@ -592,5 +593,89 @@ def _gradient_magnitude(array, row_step=1., col_step=1.):
         The magnitude of the gradient of the input array.
 
     """
+    #TODO might want to set edge_order to 2 for less noise on edges?
     row_gradient, col_gradient = np.gradient(array, row_step, col_step)
     return np.sqrt(row_gradient**2 + col_gradient**2)
+
+
+def _gaussian_curvature(X, Y, Z, row_step, col_step):
+    """
+    Calculates the Gaussian curvature of the surface defined by `X`, `Y` and `Z`.
+
+    Parameters
+    ----------
+    X : numpy.ndarray, shape (N, M)
+        The matrix of points for one dimension.
+    Y : numpy.ndarray, shape (N, M)
+        The matrix of points for the second dimension.
+    Z : numpy.ndarray, shape (N, M)
+        The matrix of points for the third dimension.
+    row_step : float, optional
+        The step size along the rows for `X`, `Y`, and `Z`.
+    col_step : float, optional
+        The step size along the columns for `X`, `Y`, and `Z`.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N, M)
+        The Gaussian curvature at each point of the surface.
+
+    Notes
+    -----
+    Equation 9 in [1]_ is a simplification assuming that the surface Z can be expressed as a
+    function of X, Y (ie. a Monge patch [2]_), and in the 3D case produces Equation 15 in [2]_.
+    Since the reweighting in baseline correction might make the various penalty terms not
+    continuously increasing with varying lam values, safer to not use that simplification
+    and instead calculate the full term from [2]_ and [3]_.
+
+    Unlike for 2D, the sign of the Gaussian curvature does not change if the X, Y, Z axes are
+    swapped among themselves.
+
+    References
+    ----------
+    .. [1] Belge, M., et al. Efficient determination of multiple regularization parameters
+        in a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+    .. [2] Weisstein, Eric W. "Gaussian Curvature." From MathWorld--A Wolfram Resource.
+        https://mathworld.wolfram.com/GaussianCurvature.html
+    .. [3] Weisstein, Eric W. "Fundamental Forms." From MathWorld--A Wolfram Resource.
+        https://mathworld.wolfram.com/FundamentalForms.html
+
+    """
+    #TODO might want to set edge_order to 2 for less noise on edges for all gradients?
+    dX_r, dX_c = np.gradient(X, row_step, col_step)
+    dY_r, dY_c = np.gradient(Y, row_step, col_step)
+    dZ_r, dZ_c = np.gradient(Z, row_step, col_step)
+
+    d2X_rr, d2X_rc = np.gradient(dX_r, row_step, col_step)
+    d2X_cc = np.gradient(dX_c, col_step, axis=1)
+    d2Y_rr, d2Y_rc = np.gradient(dY_r, row_step, col_step)
+    d2Y_cc = np.gradient(dY_c, col_step, axis=1)
+    d2Z_rr, d2Z_rc = np.gradient(dZ_r, row_step, col_step)
+    d2Z_cc = np.gradient(dZ_c, col_step, axis=1)
+
+    # stacking along a new axis makes following the math from [2] and [3] much simpler
+    d_r = np.stack((dX_r, dY_r, dZ_r), axis=-1)
+    d_c = np.stack((dX_c, dY_c, dZ_c), axis=-1)
+
+    d2_rr = np.stack((d2X_rr, d2Y_rr, d2Z_rr), axis=-1)
+    d2_cc = np.stack((d2X_cc, d2Y_cc, d2Z_cc), axis=-1)
+    d2_rc = np.stack((d2X_rc, d2Y_rc, d2Z_rc), axis=-1)
+
+    # first fundamental forms from [3]
+    #TODO can probably replace below with einsums, is it faster? could also do np.vecdot
+    # once lowest numpy is v2.0 if it's better than einsum or the multiply + sum
+    E = (d_r * d_r).sum(axis=-1)
+    F = (d_r * d_c).sum(axis=-1)
+    G = (d_c * d_c).sum(axis=-1)
+
+    eps = np.finfo(float).eps
+    normal_vec = np.cross(d_r, d_c, axis=-1)
+    normal_vec /= np.maximum(np.linalg.norm(normal_vec, axis=-1, keepdims=True), eps)
+
+    # second fundamental forms from [3]
+    #TODO same einsum comment as above
+    e = (normal_vec * d2_rr).sum(axis=-1)
+    f = (normal_vec * d2_rc).sum(axis=-1)
+    g = (normal_vec * d2_cc).sum(axis=-1)
+
+    return (e * g - f**2) / np.maximum(E * G - F**2, eps)

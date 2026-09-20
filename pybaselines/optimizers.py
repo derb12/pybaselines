@@ -961,6 +961,7 @@ def _optimize_lcurve(y, opt_method, optimizer_obj, method_kws, lam_range, euclid
             # use gradient instead of finite difference for V-curve so metric and tested
             # values are the same size, and also matches 2D implementation
             step = np.log10(lam_range[1] / lam_range[0])
+            #TODO might want to set edge_order to 2 for less noise on edges? or give option to ignore edges?
             penalty_diff = np.gradient(np.log10(penalty), step)
             fidelity_diff = np.gradient(np.log10(fidelity), step)
             if opt_method == 'vcurve':

@@ -511,7 +511,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV', 'BIC'))
     def test_output(self, opt_method):
         """Ensures correct output parameters for different optimization methods."""
         if opt_method in ('GCV', 'BIC'):
@@ -680,3 +680,42 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             Path(__file__).parent.parent.joinpath(f'data/{file_name}.csv'), delimiter=','
         )
         assert_allclose(fit, expected_output, rtol=5e-3, atol=0.08)
+
+
+@pytest.mark.parametrize('case', (0, 1))
+def test_gaussian_curvature(case):
+    """Tests _gaussian_curvature against shapes with known curvature.
+
+    From [1]_, the Gaussian curvature of a plane is 0 and that of a sphere is ``1 / r**2``.
+
+    References
+    ----------
+    .. [1] Weisstein, Eric W. "Gaussian Curvature." From MathWorld--A Wolfram Resource.
+        https://mathworld.wolfram.com/GaussianCurvature.html
+
+    """
+    theta = np.linspace(0, 2 * np.pi, 40)
+    # avoid the north and south poles since the denominator of the Gaussian curvature calc
+    # is 0 there for a sphere
+    phi = np.linspace(0.1, np.pi - 0.1, 30)
+    row_step = theta[1] - theta[0]
+    col_step = phi[1] - phi[0]
+    THETA, PHI = np.meshgrid(theta, phi, indexing='ij')
+
+    if case == 0:  # plane
+        X = 2 * PHI
+        Y = 5 * THETA
+        Z = 0.5 * PHI + 0.5 * THETA
+        expected_curvature = 0
+    else:  # sphere
+        radius = 2.
+        X = radius * np.sin(PHI) * np.cos(THETA)
+        Y = radius * np.sin(PHI) * np.sin(THETA)
+        Z = radius * np.cos(PHI)
+        expected_curvature = 1 / radius**2
+
+    output = optimizers._gaussian_curvature(X, Y, Z, row_step, col_step)
+
+    assert output.shape == THETA.shape
+    # ignore the edges since the gradients are junk there
+    assert_allclose(output[2:-2, 2:-2], expected_curvature, rtol=1e-13, atol=1e-13)
