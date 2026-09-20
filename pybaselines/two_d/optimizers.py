@@ -662,20 +662,20 @@ def _gaussian_curvature(X, Y, Z, row_step, col_step):
     d2_rc = np.stack((d2X_rc, d2Y_rc, d2Z_rc), axis=-1)
 
     # first fundamental forms from [3]
-    #TODO can probably replace below with einsums, is it faster? could also do np.vecdot
-    # once lowest numpy is v2.0 if it's better than einsum or the multiply + sum
-    E = (d_r * d_r).sum(axis=-1)
-    F = (d_r * d_c).sum(axis=-1)
-    G = (d_c * d_c).sum(axis=-1)
+    # dot products, so same as (d_r * d_r).sum(axis=-1), but faster
+    # TODO slightly faster and more readable to use np.vecdot once min supported numpy is v2.0
+    E = np.einsum('ijk,ijk->ij', d_r, d_r)
+    F = np.einsum('ijk,ijk->ij', d_r, d_c)
+    G = np.einsum('ijk,ijk->ij', d_c, d_c)
 
     eps = np.finfo(float).eps
     normal_vec = np.cross(d_r, d_c, axis=-1)
     normal_vec /= np.maximum(np.linalg.norm(normal_vec, axis=-1, keepdims=True), eps)
 
     # second fundamental forms from [3]
-    #TODO same einsum comment as above
-    e = (normal_vec * d2_rr).sum(axis=-1)
-    f = (normal_vec * d2_rc).sum(axis=-1)
-    g = (normal_vec * d2_cc).sum(axis=-1)
+    # TODO same comment about replacing with np.vecdot as above
+    e = np.einsum('ijk,ijk->ij', normal_vec, d2_rr)
+    f = np.einsum('ijk,ijk->ij', normal_vec, d2_rc)
+    g = np.einsum('ijk,ijk->ij', normal_vec, d2_cc)
 
     return (e * g - f**2) / np.maximum(E * G - F**2, eps)
