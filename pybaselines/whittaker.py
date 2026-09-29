@@ -826,10 +826,8 @@ class _Whittaker(_Algorithm, _PLSNDMixin):
         tol_history = np.empty(max_iter + 1)
         success = False
         for i in range(max_iter + 1):
-            lhs = whittaker_system.penalty * alpha_array
-            baseline = whittaker_system.solve(
-                y, weight_array, penalty=_shift_rows(lhs, diff_order, diff_order)
-            )
+            lhs = _shift_rows(whittaker_system.penalty * alpha_array, diff_order, diff_order)
+            baseline = whittaker_system.solve(y, weight_array, penalty=lhs)
             residual = y - baseline
             new_weights, exit_early, new_alpha = _weighting._aspls(
                 residual, asymmetric_coef=asymmetric_coef, alternate_weighting=alternate_weighting,

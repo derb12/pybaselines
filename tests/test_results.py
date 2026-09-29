@@ -765,3 +765,64 @@ def test_whittaker_two_d_effective_dimension_lam_extremes(shape, diff_order, lar
     output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('diff_order_rhs', (None, 1, 2, 3))
+@pytest.mark.parametrize('allow_penta', (True, False))
+def test_pad_lhs_rhs(diff_order, diff_order_rhs, allow_penta):
+    """Ensures pad_lhs_rhs correctly pads and only returns lower bands."""
+    size = 100
+    weights = np.ones(size)
+    penalized_system = _banded_utils.PenalizedSystem(
+        size, lam=1, diff_order=diff_order, allow_lower=True,
+        reverse_diags=False, allow_penta=allow_penta
+    )
+    if diff_order_rhs is None:
+        rhs_extra = None
+    else:
+        rhs_extra = _banded_utils.diff_penalty_diagonals(
+            size, diff_order=diff_order_rhs, lower_only=penalized_system.lower
+        )
+
+    expected_lhs = _banded_utils._add_diagonals(
+        penalized_system.penalty, weights, lower_only=penalized_system.lower
+    )
+    if not penalized_system.lower:
+        expected_lhs = expected_lhs[expected_lhs.shape[0] // 2:]
+    if rhs_extra is None:
+        expected_rhs = weights
+    else:
+        expected_rhs = (
+            rhs_extra if penalized_system.lower else rhs_extra[rhs_extra.shape[0] // 2:]
+        )
+        expected_rhs = _banded_utils._add_diagonals(expected_rhs, weights, lower_only=True)
+        if diff_order > diff_order_rhs:
+            expected_rhs = _banded_utils._pad_diagonals(
+                expected_rhs, diff_order - diff_order_rhs, lower_only=True
+            )
+        elif diff_order_rhs > diff_order:
+            expected_lhs = _banded_utils._pad_diagonals(
+                expected_lhs, diff_order_rhs - diff_order, lower_only=True
+            )
+
+    result = results.WhittakerResult(penalized_system, rhs_extra=rhs_extra)
+    lhs_out, rhs_out = results._pad_lhs_rhs(
+        result._lhs, result._rhs_banded, penalized_system.lower, pad_rhs=rhs_extra is not None
+    )
+
+    if diff_order_rhs is None:
+        assert rhs_out.shape == (size,)
+    else:
+        assert lhs_out.shape == rhs_out.shape
+    assert_allclose(lhs_out, expected_lhs, rtol=1e-16, atol=1e-16)
+    assert_allclose(rhs_out, expected_rhs, rtol=1e-16, atol=1e-16)
+
+
+@pytest.mark.parametrize('rhs_extra', (True, False))
+def test_pad_lhs_rhs_col_mismatch(rhs_extra):
+    """Ensures an exception is raised if lhs and rhs have differing columns."""
+    lhs = np.ones((3, 10))
+    rhs = np.ones((2, 9) if rhs_extra else 9)
+    with pytest.raises(ValueError, match='shape mismatch'):
+        results._pad_lhs_rhs(lhs, rhs, lower=True, pad_rhs=True)
