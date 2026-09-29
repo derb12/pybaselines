@@ -313,8 +313,8 @@ class WhittakerResult:
                     # full banded multiplication
                     # NOTE: if rhs_extra is not guaranteed to be symmetric, will need to account
                     # for that; good for now since only iasls uses it
-                    mult = lhs_inv_bands * rhs
-                    trace = mult[0].sum() + 2 * mult[1:].sum()
+                    row_sums = np.einsum('ij,ij->i', lhs_inv_bands, rhs)  # (A * B).sum(axis=1)
+                    trace = row_sums[0] + 2 * row_sums[1:].sum()
             elif self._rhs_extra is None:
                 # note: about an order of magnitude faster to omit the sparse rhs for the simple
                 # case of lhs @ v = w * y
@@ -580,8 +580,8 @@ class PSplineResult(WhittakerResult):
                 # full banded multiplication
                 # NOTE: if rhs_extra is not guaranteed to be symmetric, will need to account
                 # for that; good for now since only pspline_iasls uses it
-                mult = lhs_inv_bands * rhs
-                trace = mult[0].sum() + 2 * mult[1:].sum()
+                row_sums = np.einsum('ij,ij->i', lhs_inv_bands, rhs)  # (A * B).sum(axis=1)
+                trace = row_sums[0] + 2 * row_sums[1:].sum()
             else:
                 # compute each diagonal of the hat matrix separately so that the full
                 # hat matrix does not need to be stored in memory
