@@ -90,7 +90,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
     @_Algorithm._handle_io(skip_sorting=True)
     def optimize_extended_range(self, data, method='asls', side='both', width_scale=0.1,
                                 height_scale=1., sigma_scale=1 / 12, min_value=2, max_value=9,
-                                step=None, pad_kwargs=None, method_kwargs=None):
+                                step=1, pad_kwargs=None, method_kwargs=None):
         """
         Extends data and finds the best parameter value for the given baseline method.
 
@@ -135,12 +135,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             The step size for iterating the parameter value from `min_value` to `max_value`.
             If using a polynomial method, `step` must be an integer. For all other methods,
             `step` should be the exponent to raise to the power of 10 (eg. a `step` value of 1
-            designates a `lam` value of 10**1). Default is None, which uses 1 if using a
-            polynomial method and otherwise 0.5.
-
-            .. versionchanged:: 1.3.0
-                Default value changed from 1 to None.
-
+            designates a `lam` value of 10**1). Default is 1.
         pad_kwargs : dict, optional
             A dictionary of options to pass to :func:`.pad_edges` for padding
             the edges of the data when adding the extended left and/or right sections.
@@ -232,9 +227,9 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             method_kwargs=method_kwargs, copy_kwargs=True
         )
         poly_fit = optimizer_obj.method_param == 'poly_order'
-
-        if step is None:
-            step = 1 if poly_fit else 0.5
+        # TODO this will be the default behavior starting in v1.5
+        # if step is None:
+        #    step = 1 if poly_fit else 0.5
         variables = _param_grid(min_value, max_value, step, polynomial_fit=poly_fit)
 
         added_window = int(self._size * width_scale)
@@ -1154,7 +1149,7 @@ def collab_pls(data, average_dataset=True, method='asls', method_kwargs=None, x_
 @_optimizers_wrapper
 def optimize_extended_range(data, x_data=None, method='asls', side='both', width_scale=0.1,
                             height_scale=1., sigma_scale=1. / 12., min_value=2, max_value=9,
-                            step=None, pad_kwargs=None, method_kwargs=None):
+                            step=1, pad_kwargs=None, method_kwargs=None):
     """
     Extends data and finds the best parameter value for the given baseline method.
 

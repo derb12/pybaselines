@@ -391,6 +391,10 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         # both methods should have the same number of tested values
         assert len(params_3['rmse']) == len(expected_tested_values)
 
+    @ensure_deprecation(1, 5)  # reenable this test in v1.5 when the default behavior changes
+    @pytest.mark.xfail(
+        run=False, reason="won't come into effect until later, don't feel like deleting it..."
+    )
     @pytest.mark.parametrize('method', ('asls', 'modpoly'))
     def test_default_step(self, method):
         """Ensures default step is determined by the type of baseline method."""
