@@ -535,16 +535,19 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
                   'constrained_weight': (1e4, 1e5)}
         expected, expected_params = self.class_func(self.y, method=method, **kwargs)
         actual, params = fitter.adaptive_minmax(self.y[index], method=method, **kwargs)
-        explicit, _ = fitter.adaptive_minmax(
+        explicit, explicit_params = fitter.adaptive_minmax(
             self.y[index], method=method, weights=np.ones_like(self.y), **kwargs
         )
 
         assert_allclose(actual, expected[index], rtol=1e-10, atol=1e-12)
         assert_allclose(actual, explicit, rtol=1e-10, atol=1e-12)
-        for weights, expected_weights in zip(
-            params['method_params']['weights'], expected_params['method_params']['weights']
+        for weights, expected_weights, explicit_weights in zip(
+            params['method_params']['weights'],
+            expected_params['method_params']['weights'],
+            explicit_params['method_params']['weights']
         ):
             assert_array_equal(weights, expected_weights[index])
+            assert_array_equal(weights, explicit_weights)
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
