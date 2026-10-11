@@ -200,6 +200,30 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
             if isinstance(value, np.ndarray) and key != 'tol_history':
                 assert self.y.shape == value.shape
 
+    @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
+    @pytest.mark.parametrize('side', ('left', 'right', 'both'))
+    def test_polynomial_rmse_scaling(self, method, side):
+        """
+        Polynomial errors scale with the signal without integer truncation.
+
+        `optimize_extended_range` previously based the RMSE dtype on the tested
+        variable's dtype (e.g. int for polynomials) rather than always using
+        floats; see PR#97 for further context.
+
+        """
+        kwargs = {'method': method, 'side': side, 'min_value': 1, 'max_value': 5}
+        scale = 1e-5
+        expected, expected_params = self.class_func(self.y, **kwargs)
+        actual, params = self.class_func(scale * self.y, **kwargs)
+
+        assert_allclose(actual, scale * expected, rtol=1e-8, atol=1e-12)
+        assert params['optimal_parameter'] == expected_params['optimal_parameter']
+        assert params['rmse'].dtype == float
+        assert expected_params['rmse'].dtype == float
+        assert np.all(params['rmse'] > 0)
+        assert_allclose(params['rmse'], scale * expected_params['rmse'], rtol=1e-8)
+        assert_allclose(params['min_rmse'], scale * expected_params['min_rmse'], rtol=1e-8)
+
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):

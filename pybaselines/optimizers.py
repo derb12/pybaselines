@@ -299,7 +299,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         upper_idx = len(fit_data) - upper_bound
         min_sum_squares = np.inf
         best_idx = 0
-        sum_squares_tot = np.zeros_like(variables)
+        sum_squares_tot = np.zeros_like(variables, dtype=float)
         for i, var in enumerate(variables):
             method_kws[optimizer_obj.method_param] = var
             fit_baseline, fit_params = baseline_func(fit_data, **method_kws)
