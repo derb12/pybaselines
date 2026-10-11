@@ -812,10 +812,10 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV'))
     def test_output(self, opt_method):
         """Ensures correct output parameters for different optimization methods."""
-        if opt_method in ('GCV', 'BIC'):
+        if opt_method in ('GCV',):
             additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty', 'fidelity']
@@ -841,10 +841,10 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         elif 'alpha' in output[1]['method_params']:
             assert self.y.shape == output[1]['method_params']['alpha'].shape
 
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-Curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-Curve', 'GCV'))
     def test_beads(self, opt_method):
         """Ensures beads is also supported for L-curve based optimization methods."""
-        if opt_method in ('GCV', 'BIC'):
+        if opt_method in ('GCV',):
             with pytest.raises(
                 NotImplementedError, match='optimize_pls does not support the beads method'
             ):
@@ -869,7 +869,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, opt_method='aaaaa')
 
-    @pytest.mark.parametrize('opt_method', ('V-Curve', 'L-Curve', 'U-Curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-Curve', 'L-Curve', 'U-Curve', 'GCV'))
     def test_single_value(self, opt_method):
         """Ensures all optimization methods work if only a single value is fit."""
         min_val = 2.
@@ -877,7 +877,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             fit, params = self.class_func(
                 self.y, method='asls', opt_method=opt_method, min_value=min_val, step=0
             )
-        if opt_method in ('GCV', 'BIC'):
+        if opt_method in ('GCV',):
             additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty', 'fidelity']
@@ -1099,7 +1099,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
 
         fit, params = self.algorithm_base().optimize_pls(
             y, method=method, opt_method='GCV', min_value=-2, max_value=1, step=0.01,
-            method_kwargs=kwargs, rho=1
+            method_kwargs=kwargs, gcv_scale=1
         )
 
         best_idx = params['metric'].argmin()

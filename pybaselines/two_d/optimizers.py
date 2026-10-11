@@ -18,7 +18,7 @@ import numpy as np
 from .._nd.optimizers import _OptimizersNDMixin
 from .._validation import _check_optional_array, _check_scalar, _get_row_col_values
 from ..api import Baseline
-from ..optimizers import _determine_polyorders, _optimize_ed, _param_grid
+from ..optimizers import _determine_polyorders, _optimize_gcv, _param_grid
 from ..utils import _sort_array2d, _wrss
 from ._algorithm_setup import _Algorithm2D
 
@@ -269,25 +269,24 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
 
     @_Algorithm2D._handle_io(skip_sorting=True)
     def optimize_pls(self, data, method='arpls', opt_method='V-Curve', min_value=4., max_value=7.,
-                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0):
+                     step=0.5, method_kwargs=None, euclidean=False, gcv_scale=1., n_samples=0):
         """
         Optimizes the regularization parameters for penalized least squares methods.
 
         Parameters
         ----------
-        data : array-like, shape (N,)
+        data : array-like, shape (M, N)
             The y-values of the measured data, with N data points.
         method : str, optional
             A string indicating the Whittaker-smoothing or spline method
             to use for fitting the baseline. Default is 'arpls'.
-        opt_method : {'V-Curve', 'U-Curve', 'GCV', 'BIC'}, optional
+        opt_method : {'V-Curve', 'U-Curve', 'GCV'}, optional
             The optimization method used to optimize `lam`. Supported methods are:
 
-            * 'V-Curve'
-            * 'L-Curve'
-            * 'U-Curve'
-            * 'GCV'
-            * 'BIC'
+            * 'V-Curve' [1]_, [2]_
+            * 'L-Curve' [1]_, [2]_, [3]_, [4]_
+            * 'U-Curve' [5]_, [6]_
+            * 'GCV' [7]_, [8]_
 
             Details on each optimization method are in the Notes section below.
         min_value : float or tuple[float, float], optional
@@ -307,20 +306,22 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             Default is None, which will use an empty dictionary.
         euclidean : bool, optional
             Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
-            is the minimum of the sum of the normalized fidelity and penalty values [1]_, which is
+            is the minimum of the sum of the normalized fidelity and penalty values [5]_, which is
             equivalent to the minimum graph distance from the origin. If True, the metric is the
-            euclidean distance from the origin, similar to [2]_ and [3]_.
-        rho : float, optional
-            Only used if `opt_method` is 'GCV'. The stabilization parameter for the modified
-            generalized cross validation (mGCV) criteria. A value of 1 defines normal GCV, while
-            higher values of `rho` stabilize the scores to make a single, global minima value
-            more likely (when applied to smoothing). If None (default), the value of `rho` will
-            be selected following [4]_, with the value being 1.3 if ``len(data)`` is less than
-            100, otherwise 2.
+            euclidean distance from the origin, similar to [4]_ and [6]_.
+        gcv_scale : float, optional
+            Only used if `opt_method` is 'GCV'. The multiplier on the effective degrees of freedom
+            (edf) for the modified generalized cross validation (mGCV) criteria. A value of
+            1 (default) defines normal GCV, while higher values of `gcv_scale` stabilize the
+            scores to make a single, global minimum value more likely. For smoothing, [9]_
+            suggests using a value of 1.3 if ``len(data)`` is less than 100, otherwise 2; for
+            baseline correction, larger values up to 5 or 10 empirically provide suitable results.
         n_samples : int, optional
-            Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
-            analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
-            (``M * N``, `n_samples`) Rademacher random variables (ie. either -1 or 1).
+            Only used if `opt_method` is 'GCV'. If 0 (default), will calculate the edf using
+            the analytical trace. Otherwise, will use stochastic trace estimation with a matrix
+            of (`N`, `n_samples`) Rademacher random variables. Using stochastic trace estimation
+            will significantly decrease calculation time for most methods. Typical values should
+            be between 100-200.
 
         Returns
         -------
@@ -345,19 +346,19 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
                 Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
                 non-normalized penalty values for each `lam` value tested.
             * 'wrss': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
+                Only returned if `opt_method` is 'GCV'. The weighted residual sum of
                 squares (eg. ``sum(weights * (data - baseline)**2)``) for each pair of `lam`
                 values tested.
             * 'edf': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'GCV' or 'BIC. The effective degrees of freedom
+                Only returned if `opt_method` is 'GCV'. The effective degrees of freedom
                 for the linear system for each pair of `lam` values tested
 
         Raises
         ------
         ValueError
-            Raised if `opt_method` is 'GCV' and the input `rho` is less than 1.
+            Raised if `opt_method` is 'GCV' and the input `gcv_scale` is less than 1.
         NotImplementedError
-            Raised if `method` is 'beads' and `opt_method` is 'GCV' or 'BIC'.
+            Raised if `method` is 'beads' and `opt_method` is 'GCV'.
 
         Notes
         -----
@@ -387,15 +388,25 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
 
         References
         ----------
-        .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
-                using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
-                of Electronics and Information Engineers, 2016, 53(3), 124-131.
-        .. [2] Belge, M., et al. Efficient determination of multiple regularization parameters in
-                a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
-        .. [3] Andriyana, Y., et al. P-splines quantile regression estimation in varying
-                coefficient models. TEST, 2014, 23, 153-194.
-        .. [4] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
-                smoothing. Computational Statistics, 2016, 31, 269-289.
+        .. [1] Frasso, G., et al. L- and V-curves for optimal smoothing. Statistical Modelling,
+            2015, 15(1), 91-111.
+        .. [2] Frasso, G., et al. L-surface and V-valley for multi-dimensional smoothing parameter
+            selection. Proceedings of the 28th International Workshop on Statistical Modelling,
+            2013, 151-156.
+        .. [3] Hansen, P.C., et al. An adaptive pruning algorithm for the discrete L-curve
+            criterion. Journal of Computational and Applied Mathematics, 2007, 198, 483-492.
+        .. [4] Belge, M., et al. Efficient determination of multiple regularization parameters in
+            a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+        .. [5] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+            using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
+            Electronics and Information Engineers, 2016, 53(3), 124-131.
+        .. [6] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+            coefficient models. TEST, 2014, 23(1), 153-194.
+        .. [7] Wei, J., et al. Two-stage iteratively reweighted smoothing splines for baseline
+            correction. Chemometrics and Intelligent Laboratory Systems, 2022, 227, 104606.
+        .. [8] Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+        .. [9] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
+            smoothing. Computational Statistics, 2016, 31, 269-289.
 
         """
         y, optimizer_obj, method_kws = self._setup_optimizer(
@@ -416,12 +427,12 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             baseline, params = _optimize_lcurve2d(
                 y, selected_method, optimizer_obj, method_kws, lam_range_r, lam_range_c, euclidean
             )
-        elif selected_method in ('gcv', 'bic'):
+        elif selected_method == 'gcv':
             lam_range = np.stack(
                 np.meshgrid(lam_range_r, lam_range_c, indexing='ij'), axis=-1
             ).reshape(-1, 2)
-            baseline, params = _optimize_ed(
-                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples
+            baseline, params = _optimize_gcv(
+                y, optimizer_obj, method_kws, lam_range, gcv_scale, n_samples
             )
             params['optimal_parameter'] = tuple(params['optimal_parameter'])
             for key in ('wrss', 'edf', 'metric'):
@@ -439,35 +450,70 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
 
     Parameters
     ----------
-    y : _type_
-        _description_
-    opt_method : _type_
-        _description_
-    method : _type_
-        _description_
-    method_kws : _type_
-        _description_
-    baseline_func : _type_
-        _description_
-    baseline_obj : _Algorithm
-        _description_
-    lam_range : _type_
-        _description_
+    y : numpy.ndarray, shape (M, N)
+        The data to fit.
+    opt_method : str
+        A string denoting the L-curve-based method to use. Should already be normalized.
+        Supported values, and their associated references, are:
+
+            * 'vcurve' [1]_, [2]_
+            * 'lcurve' [1]_, [2]_, [3]_, [4]_
+            * 'ucurve' [5]_, [6]_
+
+    optimizer_obj : _OptimizerHelper
+        The object containing the fitting object to use and all relevant fields
+        for calling the baseline method.
+    method_kws : dict
+        A dictionary of keyword arguments to pass to the baseline method.
+    lam_range_r : numpy.ndarray, shape (P,)
+        The array of `lam` values to sample along the rows.
+    lam_range_c : numpy.ndarray, shape (Q,)
+        The array of `lam` values to sample along the columns.
     euclidean : bool, optional
-        _description_. Default is False.
+        Only used if `opt_method` is 'ucurve'. If False (default), the optimization metric
+        is the minimum of the sum of the normalized fidelity and penalty values [5]_, which is
+        equivalent to the minimum graph distance from the origin. If True, the metric is the
+        Euclidean distance from the origin, similar to [4]_ and [5]_.
 
     Returns
     -------
-    _type_
-        _description_
+    baseline : numpy.ndarray, shape (M, N)
+        The baseline calculated with the optimum parameter.
+    params : dict
+        A dictionary with the following items:
+
+        * 'optimal_parameter': tuple[float, float]
+            The `lam` values that minimized the computed metric.
+        * 'metric': numpy.ndarray, shape (P, Q)
+            The computed metric for each pair of `lam` values tested.
+        * 'method_params': dict
+            A dictionary containing the output parameters for the optimal fit.
+            Items will depend on the selected `method`.
+        * 'fidelity': numpy.ndarray, shape (P, Q)
+            Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
+            non-normalized fidelity term for each `lam` value tested. For
+            most algorithms within pybaselines, this is equivalent to the weighted residual
+            sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
+        * 'penalty': numpy.ndarray, shape (P, Q)
+            Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
+            non-normalized penalty values for each `lam` value tested.
 
     References
     ----------
-    .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction using
-           Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
-           Electronics and Information Engineers, 2016, 53(3), 124-131.
-    .. [2] Andriyana, Y., et al. P-splines quantile regression estimation in varying coefficient
-           models. TEST, 2014, 23(1), 153-194.
+    .. [1] Frasso, G., et al. L- and V-curves for optimal smoothing. Statistical Modelling,
+        2015, 15(1), 91-111.
+    .. [2] Frasso, G., et al. L-surface and V-valley for multi-dimensional smoothing parameter
+        selection. Proceedings of the 28th International Workshop on Statistical Modelling,
+        2013, 151-156.
+    .. [3] Hansen, P.C., et al. An adaptive pruning algorithm for the discrete L-curve
+        criterion. Journal of Computational and Applied Mathematics, 2007, 198, 483-492.
+    .. [4] Belge, M., et al. Efficient determination of multiple regularization parameters in
+        a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+    .. [5] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+        using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
+        Electronics and Information Engineers, 2016, 53(3), 124-131.
+    .. [6] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+        coefficient models. TEST, 2014, 23(1), 153-194.
 
     """
     method_signature = optimizer_obj.method_signature.parameters

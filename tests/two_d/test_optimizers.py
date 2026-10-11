@@ -511,10 +511,10 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV'))
     def test_output(self, opt_method):
         """Ensures correct output parameters for different optimization methods."""
-        if opt_method in ('GCV', 'BIC'):
+        if opt_method in ('GCV',):
             additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty_rows', 'penalty_columns', 'fidelity']
@@ -587,7 +587,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
                 err_msg=f'failed with key={key}'
             )
 
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV'))
     def test_single_value(self, opt_method):
         """Ensures all optimization methods work if only a single value is fit."""
         min_val = 2.
@@ -595,7 +595,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             fit, params = self.class_func(
                 self.y, method='asls', opt_method=opt_method, min_value=min_val, step=0
             )
-        if opt_method in ('GCV', 'BIC'):
+        if opt_method in ('GCV',):
             additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty_rows', 'penalty_columns', 'fidelity']
@@ -665,7 +665,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         # use a small grid so that step can be relatively small; otherwise it's quite slow...
         fit, params = self.algorithm_base().optimize_pls(
             y, method=method, opt_method='GCV', min_value=(-0.5, 0.5), max_value=(0.5, 1.5),
-            step=0.2, method_kwargs=kwargs, rho=1
+            step=0.2, method_kwargs=kwargs, gcv_scale=1
         )
 
         best_idx = np.unravel_index(np.argmin(params['metric']), params['metric'].shape)
