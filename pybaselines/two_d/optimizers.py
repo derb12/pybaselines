@@ -18,7 +18,7 @@ import numpy as np
 from .._nd.optimizers import _OptimizersNDMixin
 from .._validation import _check_optional_array, _check_scalar, _get_row_col_values
 from ..api import Baseline
-from ..optimizers import _determine_polyorders, _optimize_ed, _param_grid
+from ..optimizers import _determine_polyorders, _optimize_gcv, _param_grid
 from ..utils import _sort_array2d, _wrss
 from ._algorithm_setup import _Algorithm2D
 
@@ -34,7 +34,8 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         Fits polynomials of different orders and uses the maximum values as the baseline.
 
         Each polynomial order fit is done both unconstrained and constrained at the
-        endpoints.
+        endpoints. Endpoint constraints follow the sorted coordinates, regardless of
+        the input ordering.
 
         Parameters
         ----------
@@ -138,7 +139,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         # and now change back to original ordering
         if sort_weights:
             weight_array = _sort_array2d(weight_array, self._inverted_order)
-            constrained_weights = _sort_array2d(constrained_weights, self._inverted_order)
+        constrained_weights = _sort_array2d(constrained_weights, self._inverted_order)
 
         params = {
             'poly_order': poly_orders, 'method_params': defaultdict(list)
@@ -269,66 +270,64 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
 
     @_Algorithm2D._handle_io(skip_sorting=True)
     def optimize_pls(self, data, method='arpls', opt_method='V-Curve', min_value=4., max_value=7.,
-                     step=0.5, method_kwargs=None, euclidean=False, rho=None, n_samples=0,
-                     grid_search=True, minimize_kwargs=None):
+                     step=0.5, method_kwargs=None, euclidean=False, gcv_scale=1., n_samples=0):
         """
         Optimizes the regularization parameters for penalized least squares methods.
 
+        Uses various optimization metrics to select the optimal `lam` values
+        for all Whittaker-smoothing or penalized spline methods in pybaselines.
+
         Parameters
         ----------
-        data : array-like, shape (N,)
+        data : array-like, shape (M, N)
             The y-values of the measured data, with N data points.
         method : str, optional
             A string indicating the Whittaker-smoothing or spline method
             to use for fitting the baseline. Default is 'arpls'.
-        opt_method : {'V-Curve', 'U-Curve', 'GCV', 'BIC'}, optional
-            The optimization method used to optimize `lam`. Supported methods are:
+        opt_method : {'V-Curve', 'U-Curve', 'GCV'}, optional
+            The optimization method used to optimize the regularization parameter. Supported
+            values, and their associated references, are:
 
-            * 'V-Curve'
-            * 'U-Curve'
-            * 'GCV'
-            * 'BIC'
+            * 'V-Curve' [1]_, [2]_
+            * 'L-Curve' [1]_, [2]_, [3]_, [4]_
+            * 'U-Curve' [5]_, [6]_
+            * 'GCV' [7]_, [8]_
 
             Details on each optimization method are in the Notes section below.
         min_value : float or tuple[float, float], optional
-            The minimum value for `lam` to use with the indicated method. Should
-            be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
-            designates a `lam` value of 10**2). Default is 4.
+            The minimum value(s) for the regularization parameters to use with the indicated
+            method. Should be the exponent to raise to the power of 10 (eg. a `min_value`
+            of 2 designates a value of 10**2). Default is 4.
         max_value : float or tuple[float, float], optional
-            The maximum values for `lam` to use with the indicated method. Should
-            be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
-            designates a `lam` value of 10**3). Default is 7.
+            The maximum value(s) for the regularization parameters to use with the indicated
+            method. Should be the exponent to raise to the power of 10 (eg. a `max_value`
+            of 3 designates a value of 10**3). Default is 7.
         step : float or tuple[float, float], optional
-            The step size for iterating the parameter value from `min_value` to `max_value`.
-            Should be the exponent to raise to the power of 10 (eg. a `step` value of 1
-            designates a `lam` value of 10**1). Default is 0.5.
+            The step size(s) for iterating the parameter values from `min_value` to `max_value`.
+            Should be the exponent to raise to the power of 10 (eg. a `step` of 1
+            designates a value of 10**1). Default is 0.5.
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the selected `method` function.
             Default is None, which will use an empty dictionary.
         euclidean : bool, optional
             Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
-            is the minimum of the sum of the normalized fidelity and penalty values [1]_, which is
-            equivalent to the minimum graph distance from the origin. If True, the metric is the
-            euclidean distance from the origin, similar to [2]_ and [3]_.
-        rho : float, optional
-            Only used if `opt_method` is 'GCV'. The stabilization parameter for the modified
-            generalized cross validation (mGCV) criteria. A value of 1 defines normal GCV, while
-            higher values of `rho` stabilize the scores to make a single, global minima value
-            more likely (when applied to smoothing). If None (default), the value of `rho` will
-            be selected following [4]_, with the value being 1.3 if ``len(data)`` is less than
-            100, otherwise 2.
+            is the minimum of the sum of the normalized fidelity and penalty values [5]_, which is
+            equivalent to the minimum city block (Manhattan) distance [9]_ from the origin of a
+            normalized L-Curve [10]_. If True, the metric is the Euclidean distance from the
+            origin of the normalized L-Curve, similar to [4]_ and [6]_.
+        gcv_scale : float, optional
+            Only used if `opt_method` is 'GCV'. The multiplier on the effective degrees of freedom
+            (edf) for the modified generalized cross validation (mGCV) criteria. A value of
+            1 (default) defines normal GCV, while higher values of `gcv_scale` stabilize the
+            scores to make a single, global minimum value more likely. For smoothing, [11]_
+            suggests using a value of 1.3 if ``len(data)`` is less than 100, otherwise 2; for
+            baseline correction, larger values up to 5 or 10 empirically provide suitable results.
         n_samples : int, optional
-            Only used if `opt_method` is 'GCV' or 'BIC'. If 0 (default), will calculate the
-            analytical trace. Otherwise, will use stochastic trace estimation with a matrix of
-            (``M * N``, `n_samples`) Rademacher random variables (ie. either -1 or 1).
-        grid_search : bool, optional
-            If True (default), will minimize the metric by testing all parameter values within
-            the 2D grid specified by `min_value`, `max_value`, and `step`. If False, will use
-            :func:`scipy.optimize.minimize` to minimize the specified metric.
-        minimize_kwargs : dict, optional
-            Only used if `grid_search` is False. The keyword arguments to pass to
-            :func:`scipy.optimize.minimize` for minimization. Default is None, which uses the
-            defaults listed in the Notes section.
+            Only used if `opt_method` is 'GCV'. If 0 (default), will calculate the edf using
+            the analytical trace. Otherwise, will use stochastic trace estimation with a matrix
+            of (`N`, `n_samples`) Rademacher random variables. Using stochastic trace estimation
+            will significantly decrease calculation time for most methods. Typical values should
+            be between 100-200.
 
         Returns
         -------
@@ -338,45 +337,80 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
             A dictionary with the following items:
 
             * 'optimal_parameter': tuple[float, float]
-                The `lam` values that minimized the computed metric.
+                The regularization parameter values that minimized the computed metric.
             * 'metric': numpy.ndarray, shape (P, Q)
-                The computed metric for each pair of `lam` values tested.
+                The computed metric for each pair of regularization values tested.
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
                 Items will depend on the selected `method`.
             * 'fidelity': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'U-curve'. The computed non-normalized
-                fidelity term for each pair of `lam` values tested. For
+                Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
+                non-normalized fidelity term for each pair of regularization values tested. For
                 most algorithms within pybaselines, this is equivalent to the weighted residual
                 sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
             * 'penalty': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'U-curve'. The computed non-normalized penalty
-                values for each pair of `lam` values tested.
+                Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
+                non-normalized penalty values for each pair of regularization values tested.
             * 'wrss': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'GCV' or 'BIC'. The weighted residual sum of
-                squares (eg. ``sum(weights * (data - baseline)**2)``) for each pair of `lam`
-                values tested.
-            * 'trace': numpy.ndarray, shape (P, Q)
-                Only returned if `opt_method` is 'GCV' or 'BIC. The computed trace of the smoother
-                matrix for each pair of `lam` values tested, which signifies the effective dimension
-                for the system.
+                Only returned if `opt_method` is 'GCV'. The weighted residual sum of
+                squares (eg. ``sum(weights * (data - baseline)**2)``) for each pair of
+                regularization values tested.
+            * 'edf': numpy.ndarray, shape (P, Q)
+                Only returned if `opt_method` is 'GCV'. The effective degrees of freedom
+                for the linear system for pair of regularization values tested.
 
         Raises
         ------
         ValueError
-            Raised if `opt_method` is 'GCV' and the input `rho` is less than 1.
-        NotImplementedError
-            Raised if `method` is 'beads' and `opt_method` is 'GCV' or 'BIC'.
+            Raised if `opt_method` is 'GCV' and the input `gcv_scale` is less than 1, if
+            the keyword for the regularization parameter being varied is included in
+            `method_kwargs`, or if the specified `opt_method` is not one of the supported methods.
 
         Notes
         -----
-        `opt_method` 'U-Curve' requires that the sum of the normalized penalty and fidelity values
-        is roughly 'U' shaped (see Figure 5 in [1]_), which depends on appropriate selection of
-        `min_value` and `max_value` such that penalty continually decreases and fidelity
-        continually increases as `lam` increases.
+        `opt_method` values of 'V-Curve', 'L-Curve', and 'U-Curve' are all related to L-Curve
+        optimization [10]_, which constructs a plot of fidelity versus the penalty at each value
+        tested and selects the corner of the L-Curve as the optimal point. Note that, due to the
+        iterative reweighting used in baseline correction, most
+        methods do not result in an actual L-Curve. 'L-Curve' is the traditional method, which
+        selects the point corresponding to the maximum curvature of the L-Curve, although the
+        returned 'metric' parameter values represent the negative curvature so that all methods
+        minimize their metric; further, this method defines the L-Curve directly using the
+        fidelity and penalty terms following [1]_ and [2]_, rather than their square roots as often
+        done [3]_, which simply omits a factor of 2 from the calculated curvature.
 
-        For `opt_method` 'U-Curve', the multipliers on `lam` used in methods `drpls` or `aspls`,
-        ``(1 - eta * weights)`` and ``alpha``, respectively, are omitted from the penalty term.
+        `opt_method` 'V-Curve' minimizes the spacing between points on the L-Curve, which was
+        found to typically correspond to the corner of the L-Curve [1]_. As noted above, most
+        baseline correction methods do not actually create a ideal L-Curve, so 'V-Curve' is
+        typically the most well-performing optimization method because it is an indirect measure
+        of the stability of the reweighted solution. The exception to this is `method='beads'`,
+        which often performs better with `opt_method='L-Curve'` since the V-Curve metric will
+        sometimes select the point on the L-Curve with minimum curvature rather than maximum
+        curvature.
+
+        `opt_method` 'U-Curve' minimizes the sum of the normalized penalty and fidelity values
+        (not to be confused with other uses of "U-Curve" in literature which minimize the sum
+        of the reciprocal penalty and fidelity values), which can be seen as minimizing the
+        distance from the origin on the normalized L-Curve. It is most sensitive to the selected
+        `min_value` and `max_value` since it requires that the sum of the normalized penalty and
+        fidelity values is roughly "U" shaped (see Figure 5 in [5]_), such that penalty
+        continually decreases and fidelity continually increases as the regularization parameter
+        increases (i.e. the L-Curve only contains the "L" portion). While not
+        implemented, the points on the L-Curve could be pruned following the methods of [3]_ or
+        [4]_ so that only the "L" portion of the L-Curve is used for better performance, although,
+        as noted above, often the selected `method` will not produce an actual "L".
+
+        'opt_method' 'GCV' minimizes the generalized cross validation score as suggested by [7]_.
+        It should be noted that the method implemented here should be considered "GCV-like" since
+        the effective degrees of freedom (edf) used in the GCV score is only the linear portion
+        calculated from the trace of the hat matrix [11]_ used for the final baseline calculation;
+        since most baseline correction methods uses iterative reweighting such that the weighting
+        depends on the regularization parameter, there is a (typically minor) non-linear
+        contribution of the edf that is not accounted for.
+
+        For `opt_method` 'V-curve', 'L-curve', or 'U-curve', the multipliers on `lam` used in
+        methods `drpls` or `aspls`, ``(1 - eta * weights)`` and ``alpha``, respectively, are
+        omitted from the penalty term.
         Otherwise, the penalty term shows little change with varying `lam` and gives bad results.
         Likewise, for method='iasls', the penalty term from `lam_1` is omitted since its gradient
         with respect to `lam` is assumed to be 0. More advanced optimization varying both `lam`
@@ -387,7 +421,8 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         baseline correction, due to the reliance of calculated weights on the input `lam`.
         Scalar minimization using :func:`scipy.optimize.minimize_scalar` was found to
         perform okay in most cases, but it would also not allow some methods like 'U-Curve'
-        which requires calculating with all `lam` values before computing the objective.
+        which requires calculating with all regularization parameter values before computing
+        the objective.
 
         The range of values to test is generated using
         ``numpy.arange(min_value, max_value, step)``, so `max_value` is likely not included in
@@ -395,57 +430,60 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
 
         References
         ----------
-        .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
-                using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute
-                of Electronics and Information Engineers, 2016, 53(3), 124-131.
-        .. [2] Belge, M., et al. Efficient determination of multiple regularization parameters in
-                a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
-        .. [3] Andriyana, Y., et al. P-splines quantile regression estimation in varying
-                coefficient models. TEST, 2014, 23, 153-194.
-        .. [4] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
-                smoothing. Computational Statistics, 2016, 31, 269-289.
+        .. [1] Frasso, G., et al. L- and V-curves for optimal smoothing. Statistical Modelling,
+            2015, 15(1), 91-111.
+        .. [2] Frasso, G., et al. L-surface and V-valley for multi-dimensional smoothing parameter
+            selection. Proceedings of the 28th International Workshop on Statistical Modelling,
+            2013, 151-156.
+        .. [3] Hansen, P.C., et al. An adaptive pruning algorithm for the discrete L-curve
+            criterion. Journal of Computational and Applied Mathematics, 2007, 198, 483-492.
+        .. [4] Belge, M., et al. Efficient determination of multiple regularization parameters in
+            a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+        .. [5] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+            using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
+            Electronics and Information Engineers, 2016, 53(3), 124-131.
+        .. [6] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+            coefficient models. TEST, 2014, 23(1), 153-194.
+        .. [7] Wei, J., et al. Two-stage iteratively reweighted smoothing splines for baseline
+            correction. Chemometrics and Intelligent Laboratory Systems, 2022, 227, 104606.
+        .. [8] Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+        .. [9] https://en.wikipedia.org/wiki/Taxicab_geometry.
+        .. [10] https://en.wikipedia.org/wiki/L-curve.
+        .. [11] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
+            smoothing. Computational Statistics, 2016, 31, 269-289.
+        .. [12] https://en.wikipedia.org/wiki/Projection_matrix.
 
         """
         y, optimizer_obj, method_kws = self._setup_optimizer(
             data, method, method_param={'beads': 'alpha', None: 'lam'},
             method_kwargs=method_kwargs, copy_kwargs=False
         )
-        if 'lam' in method_kws:
+        if optimizer_obj.method_param in method_kws:
             # TODO maybe just warn and pop out instead? Would need to copy input kwargs in that
             # case so that the original input is not modified
-            raise ValueError('lam must not be specified within method_kwargs')
+            raise ValueError(
+                f'{optimizer_obj.method_param} must not be specified within method_kwargs'
+            )
         min_rows, min_cols = _check_scalar(min_value, desired_length=2, fill_scalar=True)[0]
         max_rows, max_cols = _check_scalar(max_value, desired_length=2, fill_scalar=True)[0]
         step_rows, step_cols = _check_scalar(step, desired_length=2, fill_scalar=True)[0]
         lam_range_r = _param_grid(min_rows, max_rows, step_rows, polynomial_fit=False)
         lam_range_c = _param_grid(min_cols, max_cols, step_cols, polynomial_fit=False)
         selected_method = opt_method.lower().replace('-', '_').replace('_', '')
-        if selected_method in ('vcurve', 'ucurve'):
+        if selected_method in ('vcurve', 'lcurve', 'ucurve'):
             baseline, params = _optimize_lcurve2d(
                 y, selected_method, optimizer_obj, method_kws, lam_range_r, lam_range_c, euclidean
             )
-        elif selected_method in ('gcv', 'bic'):
+        elif selected_method == 'gcv':
             lam_range = np.stack(
                 np.meshgrid(lam_range_r, lam_range_c, indexing='ij'), axis=-1
             ).reshape(-1, 2)
-            if not grid_search and minimize_kwargs is None:
-                min_vals = lam_range.min(axis=0)
-                max_vals = lam_range.max(axis=0)
-                minimize_kwargs = {
-                    'method': 'nelder-mead', 'x0': 0.5 * (min_vals + max_vals),
-                    'bounds': np.atleast_2d(np.stack((min_vals, max_vals), axis=-1)),
-                    'options': {'xatol': step}
-                }
-
-            baseline, params = _optimize_ed(
-                y, selected_method, optimizer_obj, method_kws, lam_range, rho, n_samples,
-                grid_search, minimize_kwargs
+            baseline, params = _optimize_gcv(
+                y, optimizer_obj, method_kws, lam_range, gcv_scale, n_samples
             )
             params['optimal_parameter'] = tuple(params['optimal_parameter'])
-            if grid_search:
-                output_shape = (lam_range_r.size, lam_range_c.size)
-                for key in ('wrss', 'trace', 'metric'):
-                    params[key] = params[key].reshape(output_shape)
+            for key in ('wrss', 'edf', 'metric'):
+                params[key] = params[key].reshape((lam_range_r.size, lam_range_c.size))
         else:
             raise ValueError(f'{opt_method} is not a supported opt_method input')
 
@@ -459,35 +497,70 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
 
     Parameters
     ----------
-    y : _type_
-        _description_
-    opt_method : _type_
-        _description_
-    method : _type_
-        _description_
-    method_kws : _type_
-        _description_
-    baseline_func : _type_
-        _description_
-    baseline_obj : _Algorithm
-        _description_
-    lam_range : _type_
-        _description_
+    y : numpy.ndarray, shape (M, N)
+        The data to fit.
+    opt_method : str
+        A string denoting the L-curve-based method to use. Should already be normalized.
+        Supported values, and their associated references, are:
+
+            * 'vcurve' [1]_, [2]_
+            * 'lcurve' [1]_, [2]_, [3]_, [4]_
+            * 'ucurve' [5]_, [6]_
+
+    optimizer_obj : _OptimizerHelper
+        The object containing the fitting object to use and all relevant fields
+        for calling the baseline method.
+    method_kws : dict
+        A dictionary of keyword arguments to pass to the baseline method.
+    lam_range_r : numpy.ndarray, shape (P,)
+        The array of `lam` values to sample along the rows.
+    lam_range_c : numpy.ndarray, shape (Q,)
+        The array of `lam` values to sample along the columns.
     euclidean : bool, optional
-        _description_. Default is False.
+        Only used if `opt_method` is 'ucurve'. If False (default), the optimization metric
+        is the minimum of the sum of the normalized fidelity and penalty values [5]_, which is
+        equivalent to the minimum graph distance from the origin. If True, the metric is the
+        Euclidean distance from the origin, similar to [4]_ and [5]_.
 
     Returns
     -------
-    _type_
-        _description_
+    baseline : numpy.ndarray, shape (M, N)
+        The baseline calculated with the optimum parameter.
+    params : dict
+        A dictionary with the following items:
+
+        * 'optimal_parameter': tuple[float, float]
+            The `lam` values that minimized the computed metric.
+        * 'metric': numpy.ndarray, shape (P, Q)
+            The computed metric for each pair of `lam` values tested.
+        * 'method_params': dict
+            A dictionary containing the output parameters for the optimal fit.
+            Items will depend on the selected `method`.
+        * 'fidelity': numpy.ndarray, shape (P, Q)
+            Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
+            non-normalized fidelity term for each `lam` value tested. For
+            most algorithms within pybaselines, this is equivalent to the weighted residual
+            sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
+        * 'penalty': numpy.ndarray, shape (P, Q)
+            Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
+            non-normalized penalty values for each `lam` value tested.
 
     References
     ----------
-    .. [1] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction using
-           Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
-           Electronics and Information Engineers, 2016, 53(3), 124-131.
-    .. [2] Andriyana, Y., et al. P-splines quantile regression estimation in varying coefficient
-           models. TEST, 2014, 23(1), 153-194.
+    .. [1] Frasso, G., et al. L- and V-curves for optimal smoothing. Statistical Modelling,
+        2015, 15(1), 91-111.
+    .. [2] Frasso, G., et al. L-surface and V-valley for multi-dimensional smoothing parameter
+        selection. Proceedings of the 28th International Workshop on Statistical Modelling,
+        2013, 151-156.
+    .. [3] Hansen, P.C., et al. An adaptive pruning algorithm for the discrete L-curve
+        criterion. Journal of Computational and Applied Mathematics, 2007, 198, 483-492.
+    .. [4] Belge, M., et al. Efficient determination of multiple regularization parameters in
+        a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+    .. [5] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+        using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
+        Electronics and Information Engineers, 2016, 53(3), 124-131.
+    .. [6] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+        coefficient models. TEST, 2014, 23(1), 153-194.
 
     """
     method_signature = optimizer_obj.method_signature.parameters
@@ -513,9 +586,8 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
     fidelity = np.empty(n_lams)
     for i, lam_r in enumerate(lam_range_r):
         for j, lam_c in enumerate(lam_range_c):
-            fit_lams = (10**lam_r, 10**lam_c)
             fit_baseline, fit_params = optimizer_obj.method_call(
-                y, lam=fit_lams, **method_kws
+                y, **{optimizer_obj.method_param: (lam_r, lam_c)}, **method_kws
             )
             if eigen_fit:
                 # approximately the same as taking the finite difference in each dimension, but
@@ -535,10 +607,8 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
                     # sorted since they correspond to sorted x-values
                     penalized_object = _sort_array2d(fit_baseline, optimizer_obj.fitter._sort_order)
 
-                diff_r = np.diff(penalized_object, diff_order[0], axis=0)
-                diff_c = np.diff(penalized_object, diff_order[1], axis=1)
-                fit_penalty_r = np.einsum('ij,ij->', diff_r, diff_r)
-                fit_penalty_c = np.einsum('ij,ij->', diff_c, diff_c)
+                fit_penalty_r = _wrss(np.diff(penalized_object, diff_order[0], axis=0))
+                fit_penalty_c = _wrss(np.diff(penalized_object, diff_order[1], axis=1))
 
             fit_fidelity = _wrss(y - fit_baseline, fit_params['weights'])
             if using_drpls:
@@ -546,11 +616,9 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
                     sorted_baseline = _sort_array2d(fit_baseline, optimizer_obj.fitter._sort_order)
                 else:
                     sorted_baseline = penalized_object
-                additional_fidelity_r = np.diff(sorted_baseline, 1, axis=0)
-                additional_fidelity_c = np.diff(sorted_baseline, 1, axis=1)
                 fit_fidelity += (
-                    np.einsum('ij,ij->', additional_fidelity_r, additional_fidelity_r)
-                    + np.einsum('ij,ij->', additional_fidelity_c, additional_fidelity_c)
+                    _wrss(np.diff(sorted_baseline, 1, axis=0))
+                    + _wrss(np.diff(sorted_baseline, 1, axis=1))
                 )
 
             penalty_rows[i, j] = fit_penalty_r
@@ -560,6 +628,7 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
     # add fidelity and penalty to params before further processing
     params = {'fidelity': fidelity, 'penalty_rows': penalty_rows, 'penalty_columns': penalty_cols}
     # TODO: for both metrics, need to check size along each axis and skip calcs accordingly
+    #TODO should probably just raise if there's not enough points
     if opt_method == 'ucurve':
         if fidelity.size > 1:
             penalty_rows = (penalty_rows - penalty_rows.min()) / np.ptp(penalty_rows)
@@ -569,23 +638,30 @@ def _optimize_lcurve2d(y, opt_method, optimizer_obj, method_kws, lam_range_r, la
             metric = np.sqrt(fidelity**2 + penalty_rows**2 + penalty_cols**2)
         else:  # graph distance from the origin, ie. only travelling along x, y, and z axes
             metric = fidelity + penalty_rows + penalty_cols
-    elif opt_method == 'vcurve':
+    else:
         if fidelity.size > 1:
-            step_r = np.log10(lam_range_r[1] - lam_range_r[0])
-            step_c = np.log10(lam_range_c[1] - lam_range_c[0])
+            step_r = np.log10(lam_range_r[1] / lam_range_r[0])
+            step_c = np.log10(lam_range_c[1] / lam_range_c[0])
+            #TODO might want to set edge_order to 2 in gradients for less noise on edges? or give option to ignore edges?
+            if opt_method == 'vcurve':
+                penalty_rows_grad = _gradient_magnitude(np.log10(penalty_rows), step_r, step_c)
+                penalty_cols_grad = _gradient_magnitude(np.log10(penalty_cols), step_r, step_c)
+                fidelity_grad = _gradient_magnitude(np.log10(fidelity), step_r, step_c)
 
-            penalty_rows_grad = _gradient_magnitude(np.log10(penalty_rows), step_r, step_c)
-            penalty_cols_grad = _gradient_magnitude(np.log10(penalty_cols), step_r, step_c)
-            fidelity_grad = _gradient_magnitude(np.log10(fidelity), step_r, step_c)
-
-            metric = np.sqrt(penalty_rows_grad**2 + penalty_cols_grad**2 + fidelity_grad**2)
-
+                metric = np.sqrt(penalty_rows_grad**2 + penalty_cols_grad**2 + fidelity_grad**2)
+            else:
+                metric = -_gaussian_curvature(
+                    np.log10(penalty_rows), np.log10(penalty_cols), np.log10(fidelity), step_r,
+                    step_c
+                )
         else:
             metric = np.zeros((1, 1))
 
     best_idx = np.unravel_index(np.argmin(metric), metric.shape)
-    best_lam = (10**lam_range_r[best_idx[0]], 10**lam_range_c[best_idx[1]])
-    baseline, best_params = optimizer_obj.method_call(y, lam=best_lam, **method_kws)
+    best_lam = (lam_range_r[best_idx[0]], lam_range_c[best_idx[1]])
+    baseline, best_params = optimizer_obj.method_call(
+        y, **{optimizer_obj.method_param: best_lam}, **method_kws
+    )
     params.update({'optimal_parameter': best_lam, 'metric': metric, 'method_params': best_params})
 
     return baseline, params
@@ -610,5 +686,89 @@ def _gradient_magnitude(array, row_step=1., col_step=1.):
         The magnitude of the gradient of the input array.
 
     """
+    #TODO might want to set edge_order to 2 for less noise on edges?
     row_gradient, col_gradient = np.gradient(array, row_step, col_step)
     return np.sqrt(row_gradient**2 + col_gradient**2)
+
+
+def _gaussian_curvature(X, Y, Z, row_step, col_step):
+    """
+    Calculates the Gaussian curvature of the surface defined by `X`, `Y` and `Z`.
+
+    Parameters
+    ----------
+    X : numpy.ndarray, shape (N, M)
+        The matrix of points for one dimension.
+    Y : numpy.ndarray, shape (N, M)
+        The matrix of points for the second dimension.
+    Z : numpy.ndarray, shape (N, M)
+        The matrix of points for the third dimension.
+    row_step : float, optional
+        The step size along the rows for `X`, `Y`, and `Z`.
+    col_step : float, optional
+        The step size along the columns for `X`, `Y`, and `Z`.
+
+    Returns
+    -------
+    numpy.ndarray, shape (N, M)
+        The Gaussian curvature at each point of the surface.
+
+    Notes
+    -----
+    Equation 9 in [1]_ is a simplification assuming that the surface Z can be expressed as a
+    function of X, Y (ie. a Monge patch [2]_), and in the 3D case produces Equation 15 in [2]_.
+    Since the reweighting in baseline correction might make the various penalty terms not
+    continuously increasing with varying lam values, safer to not use that simplification
+    and instead calculate the full term from [2]_ and [3]_.
+
+    Unlike for 2D, the sign of the Gaussian curvature does not change if the X, Y, Z axes are
+    swapped among themselves.
+
+    References
+    ----------
+    .. [1] Belge, M., et al. Efficient determination of multiple regularization parameters
+        in a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
+    .. [2] Weisstein, Eric W. "Gaussian Curvature." From MathWorld--A Wolfram Resource.
+        https://mathworld.wolfram.com/GaussianCurvature.html
+    .. [3] Weisstein, Eric W. "Fundamental Forms." From MathWorld--A Wolfram Resource.
+        https://mathworld.wolfram.com/FundamentalForms.html
+
+    """
+    #TODO might want to set edge_order to 2 for less noise on edges for all gradients?
+    dX_r, dX_c = np.gradient(X, row_step, col_step)
+    dY_r, dY_c = np.gradient(Y, row_step, col_step)
+    dZ_r, dZ_c = np.gradient(Z, row_step, col_step)
+
+    d2X_rr, d2X_rc = np.gradient(dX_r, row_step, col_step)
+    d2X_cc = np.gradient(dX_c, col_step, axis=1)
+    d2Y_rr, d2Y_rc = np.gradient(dY_r, row_step, col_step)
+    d2Y_cc = np.gradient(dY_c, col_step, axis=1)
+    d2Z_rr, d2Z_rc = np.gradient(dZ_r, row_step, col_step)
+    d2Z_cc = np.gradient(dZ_c, col_step, axis=1)
+
+    # stacking along a new axis makes following the math from [2] and [3] much simpler
+    d_r = np.stack((dX_r, dY_r, dZ_r), axis=-1)
+    d_c = np.stack((dX_c, dY_c, dZ_c), axis=-1)
+
+    d2_rr = np.stack((d2X_rr, d2Y_rr, d2Z_rr), axis=-1)
+    d2_cc = np.stack((d2X_cc, d2Y_cc, d2Z_cc), axis=-1)
+    d2_rc = np.stack((d2X_rc, d2Y_rc, d2Z_rc), axis=-1)
+
+    # first fundamental forms from [3]
+    # dot products, so same as (d_r * d_r).sum(axis=-1), but faster
+    # TODO slightly faster and more readable to use np.vecdot once min supported numpy is v2.0
+    E = np.einsum('ijk,ijk->ij', d_r, d_r)
+    F = np.einsum('ijk,ijk->ij', d_r, d_c)
+    G = np.einsum('ijk,ijk->ij', d_c, d_c)
+
+    eps = np.finfo(float).eps
+    normal_vec = np.cross(d_r, d_c, axis=-1)
+    normal_vec /= np.maximum(np.linalg.norm(normal_vec, axis=-1, keepdims=True), eps)
+
+    # second fundamental forms from [3]
+    # TODO same comment about replacing with np.vecdot as above
+    e = np.einsum('ijk,ijk->ij', normal_vec, d2_rr)
+    f = np.einsum('ijk,ijk->ij', normal_vec, d2_rc)
+    g = np.einsum('ijk,ijk->ij', normal_vec, d2_cc)
+
+    return (e * g - f**2) / np.maximum(E * G - F**2, eps)

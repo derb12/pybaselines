@@ -51,7 +51,7 @@ from scipy.interpolate import BSpline
 from ._banded_utils import (
     PenalizedSystem, _add_diagonals, _lower_to_full, _sparse_to_banded
 )
-from ._compat import _HAS_NUMBA, csr_object, dia_object, jit
+from ._compat import _HAS_NUMBA, dia_object, jit
 from ._validation import _check_array
 
 
@@ -94,187 +94,6 @@ def _find_interval(knots, spline_degree, x_val, last_left, num_bases):
         left += 1
 
     return left - 1
-
-
-# adapted from scipy (scipy/interpolate/src/__fitpack.h/_deBoor_D); see license above
-@jit(nopython=True, cache=True)
-def _de_boor(knots, x_val, spline_degree, left_knot_idx, work):
-    """
-    Computes the non-zero values of the spline bases for the given x-value.
-
-    Parameters
-    ----------
-    knots : numpy.ndarray, shape (K,)
-        The array of knots for the spline. Should be padded on each end with
-        `spline_degree` extra knots.
-    x_val : float
-        The x-value at which the spline basis is being computed.
-    spline_degree : int
-        The degree of the spline.
-    left_knot_idx : int
-        The index in `knots` that defines the interval such that
-        ``knots[left_knot_idx] <= x_val < knots[left_knot_idx + 1]``.
-    work : numpy.ndarray, shape (``2 * (spline_degree + 1)``,)
-        The working array. Modified inplace to store the non-zero values of the spline
-        bases for `x_val`.
-
-    Notes
-    -----
-    Computes the non-zero values for knots from ``knots[left_knot_idx]`` to
-    ``knots[left_knot_idx - spline_degree]`` for the x-value using de Boor's recursive
-    algorithm.
-
-    """
-    temp = work + spline_degree + 1
-    work[0] = 1.0
-    for i in range(1, spline_degree + 1):
-        temp[:i] = work[:i]
-        work[0] = 0.0
-        for j in range(1, i + 1):
-            idx = left_knot_idx + j
-            right_knot = knots[idx]
-            left_knot = knots[idx - i]
-            if left_knot == right_knot:
-                work[j] = 0.0
-                continue
-
-            factor = temp[j - 1] / (right_knot - left_knot)
-            work[j - 1] += factor * (right_knot - x_val)
-            work[j] = factor * (x_val - left_knot)
-
-
-# adapted from scipy (scipy/interpolate/_bspl.pyx/_make_design_matrix); see license above
-@jit(nopython=True, cache=True)
-def __make_design_matrix(x, knots, spline_degree):
-    """
-    Calculates the data needed to create the sparse matrix of basis functions for the spline.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The x-values for the spline.
-    knots : numpy.ndarray, shape (K,)
-        The array of knots for the spline. Should be padded on each end with
-        `spline_degree` extra knots.
-    spline_degree : int
-        The degree of the spline.
-
-    Returns
-    -------
-    basis_data : numpy.ndarray, shape (``N * (spline_degree + 1)``,)
-        The data for all of the basis functions. The basis for each `x[i]` value is represented
-        by ``basis_data[i * (spline_degree + 1):(i + 1) * (spline_degree + 1)]``.
-    row_ind : numpy.ndarray, shape (``N * (spline_degree + 1)``,)
-        The row indices of the data; used for converting `data` into a CSR matrix.
-    col_ind : numpy.ndarray, shape (``N * (spline_degree + 1)``,)
-        The column indices of the data; used for converting `data` into a CSR matrix.
-
-    """
-    len_x = len(x)
-    spline_order = spline_degree + 1
-    data_length = len_x * spline_order
-    num_bases = len(knots) - spline_order
-    work = np.zeros(2 * spline_order)
-    basis_data = np.zeros(data_length)
-    row_ind = np.zeros(data_length, dtype=np.intp)
-    col_ind = np.zeros(data_length, dtype=np.intp)
-
-    idx = 0
-    left_knot_idx = spline_degree
-    for i in range(len_x):
-        x_val = x[i]
-        left_knot_idx = _find_interval(knots, spline_degree, x_val, left_knot_idx, num_bases)
-        _de_boor(knots, x_val, spline_degree, left_knot_idx, work)
-
-        next_idx = idx + spline_order
-        col_idx = left_knot_idx - spline_degree
-        for j, k in enumerate(range(idx, next_idx)):
-            basis_data[k] = work[j]
-            row_ind[k] = i
-            col_ind[k] = col_idx + j
-
-        idx = next_idx
-
-    return basis_data, row_ind, col_ind
-
-
-# adapted from scipy (scipy/interpolate/_bspl.pyx/_make_design_matrix); see license above
-def _make_design_matrix(x, knots, spline_degree):
-    """
-    Creates the sparse matrix of basis functions for a B-spline.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The x-values for the spline.
-    knots : numpy.ndarray, shape (K,)
-        The array of knots for the spline. Should be padded on each end with
-        `spline_degree` extra knots.
-    spline_degree : int
-        The degree of the spline.
-
-    Returns
-    -------
-    scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
-        The sparse matrix containing all the spline basis functions.
-
-    """
-    data, row_ind, col_ind = __make_design_matrix(x, knots, spline_degree)
-    return csr_object((data, (row_ind, col_ind)), (len(x), len(knots) - spline_degree - 1))
-
-
-def _slow_design_matrix(x, knots, spline_degree):
-    """
-    A naive way of constructing the B-spline basis matrix by evaluating each basis individually.
-
-    Parameters
-    ----------
-    x : numpy.ndarray, shape (N,)
-        The x-values for the spline.
-    knots : numpy.ndarray, shape (K,)
-        The array of knots for the spline. Should be padded on each end with
-        `spline_degree` extra knots.
-    spline_degree : int
-        The degree of the spline.
-
-    Returns
-    -------
-    scipy.sparse.csr_matrix, shape (N, K - `spline_degree` - 1)
-        The sparse matrix containing all the spline basis functions.
-
-    """
-    num_bases = len(knots) - spline_degree - 1
-    basis = np.empty((num_bases, len(x)))
-    coeffs = np.zeros(num_bases)
-    # TODO this is still quite slow and memory intensive; could make something similar
-    # to __make_design_matrix that is still fast enough without numba; could make a cached
-    # version, but would need to be able to use knots and x without caching them since numpy
-    # arrays are not hashable -> use an inner function probably; also has the benefit that
-    # cache gets automatically deleted once basis is created; a cached version would probably
-    # also be faster than the current numba version of _deBoor (assuming numba allows inner
-    # functions and dictionaries/caches?)
-
-    # evaluate each single basis
-    for i in range(num_bases):
-        coeffs[i] = 1  # evaluate the i-th basis
-        # using scipy.interpolate.splev is slightly faster than BSpline.__call__, but splev is
-        # legacy, so better to just use BSpline
-        basis[i] = BSpline(knots, coeffs, spline_degree)(x)
-        coeffs[i] = 0  # reset back to zero
-
-    # NOTE: The first and last coefficients for some of the bases can get values == 0
-    # when doing the above calculation, which causes issues when using the resulting
-    # csr_matrix's data attribute; it doesn't actually matter since this function is only
-    # called when numba is not installed such that the data attribute isn't used, so
-    # there's no need to address; however, just for posterity, to address this, would need
-    # to explicitly set those values to a very small, non-zero value as shown below; if
-    # spline_degree==0, that issue does not occur
-    #  if spline_degree > 0:
-    #    small_float = np.finfo(float).tiny
-    #    basis[spline_degree, 0] = small_float
-    #    basis[-(spline_degree + 1), -1] = small_float
-
-    return csr_object(basis.T)
 
 
 def _spline_knots(x, num_knots=10, spline_degree=3, penalized=True):
@@ -398,31 +217,23 @@ def _spline_basis(x, knots, spline_degree=3):
 
     Notes
     -----
-    The numba version was originally ~70% faster than SciPy's BSpline.design_matrix (tested
-    with python 3.9.7 and scipy 1.8.0.dev0+1981 and python 3.8.6 and scipy 1.8.0rc1), but newer
-    SciPy versions (tested with python 3.12.9 and all major SciPy versions compatible with python
-    3.12) are now ~2x faster than the numba version, so prefer SciPy's implementation.
-
     Most checks on the inputs are skipped since this is an internal function and the
     proper steps are assumed to be done. For more proper error handling in the inputs,
     see :func:`scipy.interpolate.make_lsq_spline`.
 
     """
-    validate_inputs = True
-    if hasattr(BSpline, 'design_matrix'):  # introduced in scipy version 1.8.0
-        if _bspline_has_extrapolate():  # extrapolate keyword added in scipy version 1.10.0
-            # do not want to actually extrapolate, but the bounds check when extrapolate=False,
-            # which is the default, is slow since it uses built-in min and max on x instead
-            # of x.min() and x.max(); as a result, skipping that bounds check and doing it
-            # using x.min() and x.max() below is ~50% faster
-            basis_func = partial(BSpline.design_matrix, extrapolate=True)
-        else:
-            basis_func = BSpline.design_matrix
-            validate_inputs = False
-    elif _HAS_NUMBA:
-        basis_func = _make_design_matrix
+    # TODO drop the extrapolate check once min supported scipy version is 1.12.0 to give
+    # some wiggle room
+    if _bspline_has_extrapolate():  # extrapolate keyword added in scipy version 1.10.0
+        # do not want to actually extrapolate, but the bounds check when extrapolate=False,
+        # which is the default, is slow since it uses built-in min and max on x instead
+        # of x.min() and x.max(); as a result, skipping that bounds check and doing it
+        # using x.min() and x.max() below is ~50% faster
+        basis_func = partial(BSpline.design_matrix, extrapolate=True)
+        validate_inputs = True
     else:
-        basis_func = _slow_design_matrix
+        basis_func = BSpline.design_matrix
+        validate_inputs = False
 
     # validate inputs only if not using scipy's version
     if validate_inputs:

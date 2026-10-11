@@ -9,9 +9,9 @@ Created on November 15, 2025
 """
 
 import numpy as np
-from scipy.sparse import issparse
+from scipy.linalg import cholesky_banded
 
-from ._banded_linalg import _cholesky_inv_diag
+from ._banded_linalg import _cholesky_inv_bands
 from ._banded_utils import _banded_to_sparse, _add_diagonals
 from ._compat import diags, _sparse_col_index
 from .utils import _get_rng
@@ -46,6 +46,78 @@ def _rademacher(shape, rng):
     return _get_rng(rng).choice([-1., 1.], size=shape)
 
 
+def _pad_lhs_rhs(lhs, rhs, lower, pad_rhs=True):
+    """Pads the lhs and rhs of the hat matrix so they have equal bandwidth.
+
+    Only called if using the fast banded inverse of the lhs, in which case the trace of
+    the hat matrix, ``trace(H)`` can be evaluated as ``trace(inv(lhs) @ rhs)``, or
+    equivalently, ``sum(inv(lhs) * rhs)``. The latter expression requires `lhs` and `rhs`
+    have the same bandwidth; if `rhs` has a larger bandwidth, `lhs` needs padding to
+    calculate more bands of its inverse.
+
+    Parameters
+    ----------
+    lhs : numpy.ndarray, shape (P, N)
+        The left hand side of the hat matrix in banded format.
+    rhs : numpy.ndarray, shape (Q, N) or shape (N,)
+        The right hand side of the hat matrix in banded format.
+    lower : bool
+        If `lhs` and `rhs` are currently in lower format.
+    pad_rhs : bool, optional
+        Whether `rhs` requires padding. Default is True. For Whittaker smoothing, if the
+        `rhs` is just the weights, then no padding is required.
+
+    Returns
+    -------
+    lhs_mat : numpy.ndarray, shape (``max(P, Q)``, N)
+        The input `lhs` with applied zero padding if necessary.
+    rhs_mat : numpy.ndarray, shape (``max(P, Q)``, N) or shape (N,)
+        The input `rhs` with applied zero padding if necessary. If `pad_rhs` is False, then the
+        output is just `rhs`.
+
+    Raises
+    ------
+    ValueError
+        Raised if `lhs` and `rhs` do not have the same number of columns.
+
+    Notes
+    -----
+    If `rhs_extra` is None, then `rhs` is just the weights for Whittaker smoothing; for P-splines,
+    `rhs` would be ``B.T @ W @ B``. In either case, `rhs` which would have equal or less bands
+    than `lhs`, which is typically ``rhs + P``. The only methods that currently set `rhs_extra`
+    are iasls and pspline_iasls, in which `rhs_extra` is the first order difference, so in theory
+    this should only ever pad `rhs`.
+
+    `rhs` technically does not need padding if it has less bands than `lhs`, since ``inv(lhs)``
+    could be indexed instead in the ``sum(inv(lhs) * rhs)`` calculation, but padding simplifies
+    things a bit.
+
+    """
+    lhs_mat = np.atleast_2d(lhs)
+    if not lower:
+        lhs_mat = lhs_mat[lhs_mat.shape[0] // 2:]
+
+    if not pad_rhs:
+        return lhs_mat, rhs
+
+    rhs_mat = np.atleast_2d(rhs)
+    if not lower:
+        rhs_mat = rhs_mat[rhs_mat.shape[0] // 2:]
+
+    if lhs_mat.shape[1] != rhs_mat.shape[1]:
+        raise ValueError(f'shape mismatch for lhs {lhs_mat.shape} and rhs {rhs_mat.shape}')
+
+    row_mismatch = lhs_mat.shape[0] - rhs_mat.shape[0]
+    if row_mismatch != 0:
+        padding = np.zeros((abs(row_mismatch), lhs_mat.shape[1]))
+        if row_mismatch > 0:
+            rhs_mat = np.concatenate((rhs_mat, padding))
+        else:
+            lhs_mat = np.concatenate((lhs_mat, padding))
+
+    return lhs_mat, rhs_mat
+
+
 class WhittakerResult:
     """
     Represents the result of Whittaker smoothing.
@@ -77,7 +149,7 @@ class WhittakerResult:
         lhs : numpy.ndarray, optional
             The left hand side of the normal equation. Default is None, which will assume that
             `lhs` is the addition of ``diags(weights)`` and ``pentalized_object.penalty``.
-        rhs_extra : numpy.ndarray or scipy.sparse.sparray or scipy.sparse.spmatrix, optional
+        rhs_extra : numpy.ndarray, optional
             Additional terms besides the weights within the right hand side of the hat matrix.
             Default is None.
 
@@ -110,6 +182,32 @@ class WhittakerResult:
         return self._hat_lhs
 
     @property
+    def _rhs_banded(self):
+        """
+        The right hand side of the hat matrix in banded format.
+
+        Given the linear system ``lhs @ v = rhs @ y``, the hat matrix is given as ``lhs^-1 @ rhs.
+        Lazy implementation so that the calculation is only performed when needed.
+
+        Returns
+        -------
+        rhs : numpy.ndarray
+            The banded array for the right hand side of the hat matrix.
+
+        """
+        if self._rhs_extra is None:
+            rhs = self._weights
+        else:
+            # NOTE: this assumes rhs_extra has same banded format as the penalized system; this
+            # assumption is true for iasls, but may need modified if other methods are added in
+            # the future that also use rhs_extra.
+            rhs = _add_diagonals(
+                self._rhs_extra, self._weights, lower_only=self._penalized_object.lower
+            )
+
+        return rhs
+
+    @property
     def _rhs(self):
         """
         The right hand side of the hat matrix in sparse format.
@@ -124,25 +222,19 @@ class WhittakerResult:
 
         """
         if self._hat_rhs is None:
-            if self._rhs_extra is None:
-                self._hat_rhs = diags(self._weights)
-            else:
-                if not issparse(self._rhs_extra):
-                    self._rhs_extra = _banded_to_sparse(
-                        self._rhs_extra, lower=self._penalized_object.lower
-                    )
-                self._rhs_extra.setdiag(self._rhs_extra.diagonal() + self._weights)
-                self._hat_rhs = self._rhs_extra
+            self._hat_rhs = _banded_to_sparse(
+                self._rhs_banded, lower=self._penalized_object.lower
+            )
         return self._hat_rhs
 
-    def effective_dimension(self, n_samples=0, rng=1234):
+    def edf(self, n_samples=0, rng=1234):
         """
-        Calculates the effective dimension from the trace of the hat matrix.
+        Calculates the effective degrees of freedom for the linear system.
 
-        For typical Whittaker smoothing, the linear equation would be
-        ``(W + P) v = W @ y``. Then the hat matrix would be ``(W + P)^-1 @ W``.
-        The effective dimension for the system can be estimated as the trace
-        of the hat matrix.
+        For typical Whittaker smoothing, the linear equation is ``(W + P) v = W @ y``, where P
+        represents the total penalty. The corresponding hat matrix, H, defined as
+        ``v = H @ y`` is ``(W + P)^-1 @ W``. The effective degrees of freedom
+        for the system is estimated as the trace of the hat matrix.
 
         Parameters
         ----------
@@ -157,7 +249,7 @@ class WhittakerResult:
         Returns
         -------
         trace : float
-            The trace of the hat matrix, denoting the effective dimension for
+            The trace of the hat matrix, denoting the effective degrees of freedom for
             the system.
 
         Raises
@@ -200,28 +292,42 @@ class WhittakerResult:
             use_analytic = False
 
         if use_analytic:
-            # compute each diagonal of the hat matrix separately so that the full
-            # hat matrix does not need to be stored in memory
-            # note to self: sparse factorization is the worst case scenario (non-symmetric lhs and
-            # diff_order != 2), but it is still much faster than individual solves through
-            # solve_banded
-            factorization = self._penalized_object.factorize(self._lhs)
-            trace = 0
-            if self._rhs_extra is None:
-                if len(self._penalized_object.shape) == 1 and self._penalized_object.lower:
-                    trace = (
-                        _cholesky_inv_diag(factorization, lower=True, overwrite_f=True)
-                        @ self._weights
-                    )
-                else:
-                    # note: about an order of magnitude faster to omit the sparse rhs for the simple
-                    # case of lhs @ v = w * y
-                    eye = np.zeros(self._penalized_object.tot_bases)
-                    for i in range(self._penalized_object.tot_bases):
-                        eye[i] = self._weights[i]
-                        trace += self._penalized_object.factorized_solve(factorization, eye)[i]
-                        eye[i] = 0
+            use_fast_inv = (
+                len(self._penalized_object.shape) == 1 and self._penalized_object.symmetric
+            )
+            if use_fast_inv:
+                # use Cholesky factorization even if setup for pentadiagonal
+                # solver since trace calc is significantly faster
+                lhs, rhs = _pad_lhs_rhs(
+                    self._lhs, self._rhs_banded, self._penalized_object.lower,
+                    pad_rhs=self._rhs_extra is not None
+                )
+                factorization = cholesky_banded(lhs, lower=True, check_finite=False)
             else:
+                factorization = self._penalized_object.factorize(self._lhs)
+
+            if use_fast_inv:
+                lhs_inv_bands = _cholesky_inv_bands(factorization, overwrite_f=True)
+                if self._rhs_extra is None:
+                    trace = lhs_inv_bands[0] @ self._weights
+                else:
+                    # trace(A.T @ B) == (A * B).sum(); multiply lower bands by 2 to emulate
+                    # full banded multiplication
+                    # NOTE: if rhs_extra is not guaranteed to be symmetric, will need to account
+                    # for that; good for now since only iasls uses it
+                    row_sums = np.einsum('ij,ij->i', lhs_inv_bands, rhs)  # (A * B).sum(axis=1)
+                    trace = row_sums[0] + 2 * row_sums[1:].sum()
+            elif self._rhs_extra is None:
+                # note: about an order of magnitude faster to omit the sparse rhs for the simple
+                # case of lhs @ v = w * y
+                trace = 0
+                eye = np.zeros(self._penalized_object.tot_bases)
+                for i in range(self._penalized_object.tot_bases):
+                    eye[i] = self._weights[i]
+                    trace += self._penalized_object.factorized_solve(factorization, eye)[i]
+                    eye[i] = 0
+            else:
+                trace = 0
                 rhs = self._rhs.tocsc()
                 for i in range(self._penalized_object.tot_bases):
                     trace += self._penalized_object.factorized_solve(
@@ -286,7 +392,7 @@ class PSplineResult(WhittakerResult):
         weights : numpy.ndarray, shape (N,) optional
             The weights used to solve the system. Default is None, which will set
             all weights to 1.
-        rhs_extra : numpy.ndarray or scipy.sparse.sparray or scipy.sparse.spmatrix, optional
+        rhs_extra : numpy.ndarray, optional
             Additional terms besides ``B.T @ W @ B`` within the right hand side of the hat
             matrix. Default is None.
         penalty : numpy.ndarray, optional
@@ -321,6 +427,31 @@ class PSplineResult(WhittakerResult):
         return self._hat_lhs
 
     @property
+    def _rhs_banded(self):
+        """
+        The right hand side of the hat matrix in banded format.
+
+        Given the linear system ``lhs @ v = rhs @ y``, the hat matrix is given as ``lhs^-1 @ rhs.
+        Lazy implementation so that the calculation is only performed when needed.
+
+        Returns
+        -------
+        rhs : numpy.ndarray
+            The banded array for the right hand side of the hat matrix.
+
+        """
+        if self._rhs_extra is None:
+            rhs = self._btwb
+        else:
+            # NOTE: this assumes rhs_extra has same banded format as the penalized system; this
+            # assumption is true for iasls, but may need modified if other methods are added in
+            # the future that also use rhs_extra.
+            rhs = _add_diagonals(
+                self._btwb, self._rhs_extra, lower_only=self._penalized_object.lower
+            )
+        return rhs
+
+    @property
     def _rhs(self):
         """
         The right hand side of the hat matrix in sparse format.
@@ -335,28 +466,23 @@ class PSplineResult(WhittakerResult):
 
         """
         if self._hat_rhs is None:
-            btwb = _banded_to_sparse(self._btwb, lower=self._penalized_object.lower)
-            if self._rhs_extra is None:
-                self._hat_rhs = btwb
-            else:
-                if not issparse(self._rhs_extra):
-                    self._rhs_extra = _banded_to_sparse(
-                        self._rhs_extra, lower=self._penalized_object.lower
-                    )
-                self._hat_rhs = self._rhs_extra + btwb
+            self._hat_rhs = _banded_to_sparse(
+                self._rhs_banded, lower=self._penalized_object.lower
+            )
         return self._hat_rhs
 
     @property
     def _btwb(self):
         """
-        The matrix multiplication of ``B.T @ W @ B`` in banded format.
+        The matrix multiplication of ``B.T @ W @ B``.
 
         Lazy implementation so that the calculation is only performed when needed.
 
         Returns
         -------
-        numpy.ndarray
-            The array representing the matrix multiplication of ``B.T @ W @ B``.
+        numpy.ndarray or scipy.sparse.csr_matrix or scipy.sparse.csr_array
+            The array representing the matrix multiplication of ``B.T @ W @ B``. Is
+            sparse if the system is 2D, otherwise is in banded format.
 
         """
         if self._btwb_ is None:
@@ -385,16 +511,17 @@ class PSplineResult(WhittakerResult):
         """
         return self._penalized_object.tck
 
-    def effective_dimension(self, n_samples=0, rng=1234):
+    def edf(self, n_samples=0, rng=1234):
         """
-        Calculates the effective dimension from the trace of the hat matrix.
+        Calculates the effective degrees of freedom for the linear system.
 
-        For typical P-spline smoothing, the linear equation would be
-        ``(B.T @ W @ B + lam * P) c = B.T @ W @ y`` and ``v = B @ c``. Then the hat matrix
-        would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)`` or, equivalently
-        ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression is preferred
-        since it reduces the dimensionality. The effective dimension for the system
-        can be estimated as the trace of the hat matrix.
+        For typical P-spline smoothing, the linear equation is
+        ``(B.T @ W @ B + P) c = B.T @ W @ y`` and ``v = B @ c``, where P represents the total
+        penalty. The corresponding hat matrix, H, defined as ``v = H @ y`` is
+        ``B @ (B.T @ W @ B + P)^-1 @ (B.T @ W)``. The effective degrees of freedom is
+        estimated as the trace of the hat matrix, and is equivalent to the trace of the
+        rearrangement ``(B.T @ W @ B + P)^-1 @ (B.T @ W @ B)``. The latter expression is
+        preferred since it reduces the dimensionality of intermediate calculations.
 
         Parameters
         ----------
@@ -409,7 +536,7 @@ class PSplineResult(WhittakerResult):
         Returns
         -------
         trace : float
-            The trace of the hat matrix, denoting the effective dimension for
+            The trace of the hat matrix, denoting the effective degrees of freedom for
             the system.
 
         Raises
@@ -441,16 +568,30 @@ class PSplineResult(WhittakerResult):
             use_analytic = False
             rhs_format = 'csr'
 
-        rhs = self._rhs.asformat(rhs_format)
+        use_fast_inv = len(self._penalized_object.shape) == 1 and self._penalized_object.symmetric
+        if use_analytic and use_fast_inv:
+            lhs, rhs = _pad_lhs_rhs(self._lhs, self._rhs_banded, self._penalized_object.lower)
+        else:
+            lhs = self._lhs
+            rhs = self._rhs.asformat(rhs_format)
         if use_analytic:
-            # compute each diagonal of the hat matrix separately so that the full
-            # hat matrix does not need to be stored in memory
-            trace = 0
-            factorization = self._penalized_object.factorize(self._lhs)
-            for i in range(self._penalized_object.tot_bases):
-                trace += self._penalized_object.factorized_solve(
-                    factorization, _sparse_col_index(rhs, i)
-                )[i]
+            factorization = self._penalized_object.factorize(lhs)
+            if use_fast_inv:
+                lhs_inv_bands = _cholesky_inv_bands(factorization, overwrite_f=True)
+                # trace(A.T @ B) == (A * B).sum(); multiply lower bands by 2 to emulate
+                # full banded multiplication
+                # NOTE: if rhs_extra is not guaranteed to be symmetric, will need to account
+                # for that; good for now since only pspline_iasls uses it
+                row_sums = np.einsum('ij,ij->i', lhs_inv_bands, rhs)  # (A * B).sum(axis=1)
+                trace = row_sums[0] + 2 * row_sums[1:].sum()
+            else:
+                # compute each diagonal of the hat matrix separately so that the full
+                # hat matrix does not need to be stored in memory
+                trace = 0
+                for i in range(self._penalized_object.tot_bases):
+                    trace += self._penalized_object.factorized_solve(
+                        factorization, _sparse_col_index(rhs, i)
+                    )[i]
             # prevent needing to calculate analytical solution again
             self._trace = trace
         else:
@@ -534,6 +675,10 @@ class PSplineResult2D(PSplineResult):
         if self._hat_lhs is None:
             self._hat_lhs = (self._btwb + self._penalized_object.penalty).tocsc()
         return self._hat_lhs
+
+    @property
+    def _rhs_banded(self):
+        raise NotImplementedError('banded rhs not supported for 2D PSpline systems')
 
     @property
     def _rhs(self):
@@ -686,6 +831,10 @@ class WhittakerResult2D(WhittakerResult):
         return self._hat_lhs
 
     @property
+    def _rhs_banded(self):
+        raise NotImplementedError('banded rhs not supported for 2D Whittaker systems')
+
+    @property
     def _rhs(self):
         """
         The right hand side of the hat matrix.
@@ -703,18 +852,21 @@ class WhittakerResult2D(WhittakerResult):
             if self._penalized_object._using_svd:
                 self._hat_rhs = self._btwb
             else:
-                return super()._rhs
+                rhs = diags(self._weights)
+                if self._rhs_extra is not None:
+                    rhs += self._rhs_extra
+                self._hat_rhs = rhs
 
         return self._hat_rhs
 
-    def relative_dof(self):
+    def individual_edf(self):
         """
-        Calculates the relative effective degrees of freedom for each eigenvector.
+        Calculates the individual effective degrees of freedom for each eigenvector.
 
         Returns
         -------
         dof : numpy.ndarray, shape (P, Q)
-            The relative effective degrees of freedom associated with each eigenvector
+            The effective degrees of freedom associated with each eigenvector
             used for the fit. Each individual effective degree of freedom value is between
             0 and 1, with lower values signifying that the eigenvector contributed less
             to the fit.
@@ -731,21 +883,25 @@ class WhittakerResult2D(WhittakerResult):
                 'Cannot calculate degrees of freedom when not using eigendecomposition'
             )
         dof = self._penalized_object.direct_solve(
-            self._lhs, self._btwb, check_finite=False, assume_a='pos'
+            self._lhs, self._btwb, check_finite=False
         )
         return dof.diagonal().reshape(self._penalized_object._num_bases)
 
-    def effective_dimension(self, n_samples=0, rng=1234):
+    def edf(self, n_samples=0, rng=1234):
         """
-        Calculates the effective dimension from the trace of the hat matrix.
+        Calculates the effective degrees of freedom for the linear system.
 
-        For typical Whittaker smoothing, the linear equation would be
-        ``(W + lam * P) v = W @ y``. Then the hat matrix would be ``(W + lam * P)^-1 @ W``.
-        If using SVD, the linear equation is ``(B.T @ W @ B + lam * P) c = B.T @ W @ y``  and
-        ``v = B @ c``. Then the hat matrix would be ``B @ (B.T @ W @ B + lam * P)^-1 @ (B.T @ W)``
-        or, equivalently ``(B.T @ W @ B + lam * P)^-1 @ (B.T @ W @ B)``. The latter expression
-        is preferred since it reduces the dimensionality. The effective dimension for the system
-        can be estimated as the trace of the hat matrix.
+        For typical Whittaker smoothing, the linear equation is ``(W + P) v = W @ y`` where
+        P represents the total penalty.
+        The corresponding hat matrix, H, defined as ``v = H @ y`` is ``(W + P)^-1 @ W``.
+        The effective degrees of freedom for the system is estimated as the trace
+        of the hat matrix.
+
+        If using eigendecomposition, the linear equation is ``(B.T @ W @ B + P2) c = B.T @ W @ y``
+        and ``v = B @ c``, where P2 represents the total reduced rank penalty. Then the hat matrix
+        is ``B @ (B.T @ W @ B + P2)^-1 @ (B.T @ W)``, and its trace is equivalent to the trace
+        of its rearrangement ``(B.T @ W @ B + P2)^-1 @ (B.T @ W @ B)``. The latter expression
+        is preferred since it reduces the dimensionality.
 
         Parameters
         ----------
@@ -770,9 +926,9 @@ class WhittakerResult2D(WhittakerResult):
 
         Notes
         -----
-        If using SVD, the trace will be lower than the actual analytical trace. The relative
-        difference is reduced as the number of eigenvalues selected approaches the data
-        size.
+        If using eigendecomposition, the trace will be lower than the actual analytical trace.
+        The relative difference is reduced as the number of eigenvalues selected approaches
+        the data size.
 
         References
         ----------
@@ -797,7 +953,7 @@ class WhittakerResult2D(WhittakerResult):
             use_analytic = False
 
         if not self._penalized_object._using_svd:
-            trace = super().effective_dimension(n_samples=n_samples, rng=rng)
+            trace = super().edf(n_samples=n_samples, rng=rng)
         else:
             # NOTE the only Whittaker-based algorithms that allow performing SVD for solving
             # all use the simple (W + P) v = w * y formulation, so no need to implement for
@@ -807,14 +963,14 @@ class WhittakerResult2D(WhittakerResult):
                     'rhs_extra is not supported when using eigendecomposition'
                 )
             if use_analytic:
-                trace = self.relative_dof().sum()
+                trace = self.individual_edf().sum()
                 self._trace = trace
             else:
                 rng_samples = _rademacher((self._penalized_object.tot_bases, n_samples), rng)
                 # H @ u == (B.T @ W @ B + P)^-1 @ (B.T @ W @ B) @ u
                 hat_u = self._penalized_object.direct_solve(
                     self._lhs, self._rhs @ rng_samples, overwrite_b=True,
-                    check_finite=False, assume_a='pos'
+                    check_finite=False
                 )
                 # stochastic trace is the average of the trace of u.T @ H @ u;
                 # trace(u.T @ H @ u) == sum(u * (H @ u))

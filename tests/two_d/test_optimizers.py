@@ -232,6 +232,39 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
         """Ensures all available methods work."""
         self.class_func(self.y, method=method)
 
+    @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
+    @pytest.mark.parametrize('ordering', ('original', 'reversed', 'shuffled'))
+    def test_default_weights_ordering(self, method, ordering):
+        """Default weights preserve endpoint constraints under coordinate reordering."""
+        rng = np.random.default_rng(0)
+        row_order = np.arange(len(self.x))
+        col_order = np.arange(len(self.z))
+        if ordering == 'reversed':
+            row_order = row_order[::-1]
+            col_order = col_order[::-1]
+        elif ordering == 'shuffled':
+            row_order = rng.permutation(row_order)
+            col_order = rng.permutation(col_order)
+        index = tuple(np.meshgrid(row_order, col_order, indexing='ij', sparse=True))
+        fitter = self.algorithm_base(self.x[row_order], self.z[col_order])
+        kwargs = {'constrained_fraction': (0.01, 0.02, 0.03, 0.04),
+                  'constrained_weight': (1e2, 1e3, 1e4, 1e5)}
+        expected, expected_params = self.class_func(self.y, method=method, **kwargs)
+        actual, params = fitter.adaptive_minmax(self.y[index], method=method, **kwargs)
+        explicit, explicit_params = fitter.adaptive_minmax(
+            self.y[index], method=method, weights=np.ones_like(self.y), **kwargs
+        )
+
+        assert_allclose(actual, expected[index], rtol=1e-10, atol=1e-12)
+        assert_allclose(actual, explicit, rtol=1e-10, atol=1e-12)
+        for weights, expected_weights, explicit_weights in zip(
+            params['method_params']['weights'],
+            expected_params['method_params']['weights'],
+            explicit_params['method_params']['weights']
+        ):
+            assert_array_equal(weights, expected_weights[index])
+            assert_array_equal(weights, explicit_weights)
+
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):
@@ -505,24 +538,21 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing optimize_pls baseline."""
 
     func_name = "optimize_pls"
-    checked_keys = ('optimal_parameter', 'metric', 'sampled_parameters')
+    checked_keys = ('optimal_parameter', 'metric')
     # will need to change checked_keys if default method is changed
     checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
-    @pytest.mark.parametrize('grid_search', (True, False))
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
-    def test_output(self, opt_method, grid_search):
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV'))
+    def test_output(self, opt_method):
         """Ensures correct output parameters for different optimization methods."""
-        if opt_method in ('GCV', 'BIC'):
-            additional_keys = ['trace', 'wrss']
+        if opt_method in ('GCV',):
+            additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty_rows', 'penalty_columns', 'fidelity']
-        if not grid_search:
-            additional_keys.append('optimize_result')
         super().test_output(
-            additional_keys=additional_keys, opt_method=opt_method, grid_search=grid_search
+            additional_keys=additional_keys, opt_method=opt_method
         )
 
     @pytest.mark.parametrize(
@@ -543,7 +573,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             assert self.y.shape == output[1]['method_params']['alpha'].shape
 
         if opt_method == 'GCV':
-            keys = ('wrss', 'trace')
+            keys = ('wrss', 'edf')
         else:
             keys = ('fidelity', 'penalty_rows', 'penalty_columns')
         for key in keys + ('metric',):
@@ -569,6 +599,11 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, opt_method='aaaaa')
 
+    def test_param_in_kwargs_fails(self):
+        """Ensures `lam` in `method_kwargs` raises."""
+        with pytest.raises(ValueError, match='lam must not be specified'):
+            self.class_func(self.y, method='arpls', method_kwargs={'lam': 1})
+
     def test_eigen_fit(self):
         """Ensures penalties are calculated correctly when solving using eigendecomposition."""
         eigen_fit, eigen_params = self.class_func(
@@ -590,7 +625,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
                 err_msg=f'failed with key={key}'
             )
 
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'U-curve', 'GCV'))
     def test_single_value(self, opt_method):
         """Ensures all optimization methods work if only a single value is fit."""
         min_val = 2.
@@ -598,8 +633,8 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             fit, params = self.class_func(
                 self.y, method='asls', opt_method=opt_method, min_value=min_val, step=0
             )
-        if opt_method in ('GCV', 'BIC'):
-            additional_keys = ['trace', 'wrss']
+        if opt_method in ('GCV',):
+            additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty_rows', 'penalty_columns', 'fidelity']
         for key in ['metric'] + additional_keys:
@@ -615,10 +650,9 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         single_fit, _ = self.algorithm_base().asls(self.y, lam=10.**min_val)
         assert_allclose(fit, single_fit, rtol=1e-10, atol=1e-10)
 
-    @pytest.mark.parametrize('grid_search', (True, False))
     @pytest.mark.parametrize('pspline', (True, False))
     @pytest.mark.parametrize('weight_enum', (0, 1))
-    def test_gcv(self, weight_enum, pspline, grid_search):
+    def test_gcv(self, weight_enum, pspline):
         """
         Compares against the 'WH' R package for ensuring GCV calculation is correct.
 
@@ -666,23 +700,17 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             method = 'asls'
             kwargs['num_eigens'] = None
 
-        if grid_search:
-            # use a small grid so that step can be relatively small; otherwise it's quite slow...
-            min_value = (-0.5, 0.5)
-            max_value = (0.5, 1.5)
-        else:
-            min_value = -1
-            max_value = 2
+        # use a small grid so that step can be relatively small; otherwise it's quite slow...
         fit, params = self.algorithm_base().optimize_pls(
-            y, method=method, opt_method='GCV', min_value=min_value, max_value=max_value,
-            step=0.2, method_kwargs=kwargs, rho=1, grid_search=grid_search
+            y, method=method, opt_method='GCV', min_value=(-0.5, 0.5), max_value=(0.5, 1.5),
+            step=0.2, method_kwargs=kwargs, gcv_scale=1
         )
 
         best_idx = np.unravel_index(np.argmin(params['metric']), params['metric'].shape)
         assert_allclose(params['optimal_parameter'][0], ref_lam[0], rtol=1e-4, atol=0.1)
         assert_allclose(params['optimal_parameter'][1], ref_lam[1], rtol=1e-4, atol=0.8)
         assert_allclose(params['metric'][best_idx], ref_metric, rtol=1e-4, atol=1e-3)
-        assert_allclose(params['trace'][best_idx], ref_edf, rtol=1e-2, atol=1e-1)
+        assert_allclose(params['edf'][best_idx], ref_edf, rtol=1e-2, atol=1e-1)
         assert_allclose(params['wrss'][best_idx], ref_wrss, rtol=5e-3, atol=1e-3)
 
         file_name = 'WH_2d_diff0_lam1' if weight_enum == 0 else 'WH_2d_wt0'
@@ -690,3 +718,42 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             Path(__file__).parent.parent.joinpath(f'data/{file_name}.csv'), delimiter=','
         )
         assert_allclose(fit, expected_output, rtol=5e-3, atol=0.08)
+
+
+@pytest.mark.parametrize('case', (0, 1))
+def test_gaussian_curvature(case):
+    """Tests _gaussian_curvature against shapes with known curvature.
+
+    From [1]_, the Gaussian curvature of a plane is 0 and that of a sphere is ``1 / r**2``.
+
+    References
+    ----------
+    .. [1] Weisstein, Eric W. "Gaussian Curvature." From MathWorld--A Wolfram Resource.
+        https://mathworld.wolfram.com/GaussianCurvature.html
+
+    """
+    theta = np.linspace(0, 2 * np.pi, 40)
+    # avoid the north and south poles since the denominator of the Gaussian curvature calc
+    # is 0 there for a sphere
+    phi = np.linspace(0.1, np.pi - 0.1, 30)
+    row_step = theta[1] - theta[0]
+    col_step = phi[1] - phi[0]
+    THETA, PHI = np.meshgrid(theta, phi, indexing='ij')
+
+    if case == 0:  # plane
+        X = 2 * PHI
+        Y = 5 * THETA
+        Z = 0.5 * PHI + 0.5 * THETA
+        expected_curvature = 0
+    else:  # sphere
+        radius = 2.
+        X = radius * np.sin(PHI) * np.cos(THETA)
+        Y = radius * np.sin(PHI) * np.sin(THETA)
+        Z = radius * np.cos(PHI)
+        expected_curvature = 1 / radius**2
+
+    output = optimizers._gaussian_curvature(X, Y, Z, row_step, col_step)
+
+    assert output.shape == THETA.shape
+    # ignore the edges since the gradients are junk there
+    assert_allclose(output[2:-2, 2:-2], expected_curvature, rtol=1e-13, atol=1e-13)

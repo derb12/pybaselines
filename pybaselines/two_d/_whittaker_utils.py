@@ -15,7 +15,7 @@ from scipy.linalg import (
 from scipy.sparse import issparse, kron
 from scipy.sparse.linalg import factorized, spsolve
 
-from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix
+from .._banded_utils import diff_penalty_diagonals, diff_penalty_matrix, difference_matrix
 from .._compat import identity
 from .._validation import _check_lam, _check_scalar, _check_scalar_variable
 from ..utils import ParameterWarning
@@ -54,6 +54,65 @@ def _face_splitting(basis):
     return output
 
 
+def diff_penalty_matrix_2d(data_size, lam=1., diff_order=2, diff_format='csr', mask=None):
+    """
+    Creates the 2D finite difference penalty matrix.
+
+    Parameters
+    ----------
+    data_size : tuple[int, int]
+        The number of data points for the system along the rows and columns, respectively.
+    lam : float or tuple[float, float], optional
+        The penalty factor applied to the difference matrix for the rows and columns,
+        respectively. If a single value is given, both will use the same value. Larger
+        values produce smoother results. Must be greater than 0. Default is 1.
+    diff_order : int or tuple[int, int], optional
+        The difference order of the penalty for the rows and columns, respectively. If
+        a single value is given, both will use the same value.
+        Default is 2 (second order difference).
+    diff_format : str or None, optional
+        The sparse format to use for the penalty matrix. Default is 'csr'.
+    mask : array-like, shape (M, N), optional
+        A Boolean array, in which all indices that are `True` denote indices that should
+        be ignored. If None (default), denotes all values should be included.
+
+    Returns
+    -------
+    scipy.sparse.spmatrix or scipy.sparse.sparray
+        The penalty matrix. The final shape is
+        (``numpy.prod(data_size)``, ``numpy.prod(data_size)``).
+
+    """
+    diff_order = _check_scalar_variable(
+        diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
+    )
+    rows, cols = data_size
+    lams = _check_lam(lam, two_d=True)
+    if mask is None:
+        penalty_rows = kron(diff_penalty_matrix(rows, diff_order[0]), identity(cols))
+        penalty_cols = kron(identity(rows), diff_penalty_matrix(cols, diff_order[1]))
+    else:
+        fit_mask_r = np.logical_not(mask)
+        fit_mask_c = fit_mask_r.copy()
+        for _ in range(diff_order[0]):
+            fit_mask_r = fit_mask_r[1:, :] & fit_mask_r[:-1, :]
+        for _ in range(diff_order[1]):
+            fit_mask_c = fit_mask_c[:, 1:] & fit_mask_c[:, :-1]
+
+        # TODO might be nice to generalize this part once array-like lam values are allowed,
+        # since it uses the same calc
+        D_rows = kron(
+            difference_matrix(rows, diff_order[0], 'csc', making_penalty=True), identity(cols)
+        )
+        D_cols = kron(
+            identity(rows), difference_matrix(cols, diff_order[1], 'csc', making_penalty=True)
+        )
+        penalty_rows = D_rows.T @ D_rows.multiply(fit_mask_r.ravel()[:, None])
+        penalty_cols = D_cols.T @ D_cols.multiply(fit_mask_c.ravel()[:, None])
+
+    return (lams[0] * penalty_rows + lams[1] * penalty_cols).asformat(diff_format, copy=False)
+
+
 class PenalizedSystem2D:
     """
     An object for setting up and solving penalized least squares linear systems.
@@ -69,6 +128,8 @@ class PenalizedSystem2D:
         and applying padding, but can also be changed by calling
         :meth:`~PenalizedSystem2D.add_penalty`. Reset by calling
         :meth:`~PenalizedSystem2D.reset_diagonals`.
+    symmetric : bool
+        Whether the linear system is symmetric.
 
     Notes
     -----
@@ -84,7 +145,7 @@ class PenalizedSystem2D:
 
     """
 
-    def __init__(self, data_size, lam=1, diff_order=2):
+    def __init__(self, data_size, lam=1, diff_order=2, symmetric=True):
         """
         Initializes the banded system.
 
@@ -100,10 +161,12 @@ class PenalizedSystem2D:
             The difference order of the penalty for the rows and columns, respectively. If
             a single value is given, both will use the same value.
             Default is 2 (second order difference).
+        symmetric : bool, optional
+            Whether the linear system is symmetric. Default is True.
 
         """
         self._num_bases = data_size
-        self.reset_diagonals(lam, diff_order)
+        self.reset_diagonals(lam, diff_order, symmetric)
 
     @property
     def tot_bases(self):
@@ -160,7 +223,7 @@ class PenalizedSystem2D:
         """
         self.main_diagonal = self.penalty.diagonal()
 
-    def reset_diagonals(self, lam=1, diff_order=2):
+    def reset_diagonals(self, lam=1, diff_order=2, symmetric=True):
         """
         Resets the diagonals of the system and all of the attributes.
 
@@ -176,20 +239,19 @@ class PenalizedSystem2D:
             The difference order of the penalty for the rows and columns, respectively. If
             a single value is given, both will use the same value.
             Default is 2 (second order difference).
+        symmetric : bool, optional
+            Whether the linear system is symmetric. Default is True.
 
         """
         self.diff_order = _check_scalar_variable(
             diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
         )
         self.lam = _check_lam(lam, two_d=True)
+        self.symmetric = symmetric
 
-        penalty_rows = diff_penalty_matrix(self._num_bases[0], self.diff_order[0])
-        penalty_columns = diff_penalty_matrix(self._num_bases[1], self.diff_order[1])
-
-        # multiplying lam by the Kronecker product is the same as multiplying just D.T @ D with lam
-        P_rows = kron(self.lam[0] * penalty_rows, identity(self._num_bases[1]))
-        P_columns = kron(identity(self._num_bases[0]), self.lam[1] * penalty_columns)
-        self.penalty = P_rows + P_columns
+        self.penalty = diff_penalty_matrix_2d(
+            self._num_bases, self.lam, self.diff_order, diff_format='csc'
+        )
 
         self._update_bands()
 
@@ -231,8 +293,7 @@ class PenalizedSystem2D:
 
         return self.direct_solve(lhs, rhs)
 
-    def direct_solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False, assume_a='pos',
-                     check_finite=False):
+    def direct_solve(self, lhs, rhs, overwrite_ab=False, overwrite_b=False, check_finite=False):
         """
         Solves the linear system ``lhs @ x = rhs``.
 
@@ -260,6 +321,7 @@ class PenalizedSystem2D:
         if issparse(lhs):
             output = spsolve(lhs, rhs)
         else:
+            assume_a = 'pos' if self.symmetric else 'gen'
             # set lower=True since it's consistently used elsewhere
             output = solve(
                 lhs, rhs, lower=True, assume_a=assume_a, overwrite_a=overwrite_ab,
@@ -289,7 +351,7 @@ class PenalizedSystem2D:
         """Sets the main diagonal of the penalty matrix back to its original value."""
         self.penalty.setdiag(self.main_diagonal)
 
-    def factorize(self, lhs, assume_a='pos', overwrite_ab=False, check_finite=False):
+    def factorize(self, lhs, overwrite_ab=False, check_finite=False):
         """
         Calculates the factorization of ``A`` for the linear equation ``A x = b``.
 
@@ -299,10 +361,6 @@ class PenalizedSystem2D:
             The left-hand side of the equation, in banded format. `lhs` is assumed to be
             some slight modification of `self.penalty` in the same format (reversed, lower,
             number of bands, etc. are all the same).
-        assume_a : str, optional
-            Only used if the system is using eigendecomposition. Default is 'pos', which
-            will use factorize `lhs` using :func:`scipy.linalg.cholesky`. Any other value
-            will use :func:`scipy.linalg.lu_factor`.
         overwrite_ab : bool, optional
             Whether to overwrite `lhs` during factorization. Default is False.
             Written as 'overwrite_ab' rather than 'overwrite_a' for compatible usage
@@ -319,10 +377,7 @@ class PenalizedSystem2D:
         if issparse(lhs):
             factorization = factorized(lhs.tocsc())
         else:
-            # TODO assume_a should probably just be an attribute of the object; for now,
-            # WhittakerSystem2D is always positive definite when using eigendecomposition, so
-            # there's no real reason to support other configurations here
-            if assume_a == 'pos':
+            if self.symmetric:
                 # note: cholesky is a little slower than scipy.linalg.cho_factor since it fills
                 # in zeros, but cho_factor may be deprecated at some future point (see
                 # https://github.com/scipy/scipy/pull/24759), so just use cholesky; still add
@@ -336,8 +391,7 @@ class PenalizedSystem2D:
 
         return factorization
 
-    def factorized_solve(self, factorization, rhs, assume_a='pos', overwrite_b=False,
-                         check_finite=False):
+    def factorized_solve(self, factorization, rhs, overwrite_b=False, check_finite=False):
         """
         Solves ``A x = b`` given the factorization of ``A``.
 
@@ -347,10 +401,6 @@ class PenalizedSystem2D:
             The factorization of ``A``, output by :meth:`~.PenalizedSystem2D.factorize`.
         rhs : array-like, shape (N,) or (N, M)
             The right-hand side of the equation.
-        assume_a : str, optional
-            Only used if the system is using eigendecomposition. Default is 'pos', which
-            will solve using :func:`scipy.linalg.cho_solve`. Any other value
-            will use :func:`scipy.linalg.lu_solve`.
         overwrite_b : bool, optional
             Whether to overwrite `rhs` when using any of the solvers. Default is False.
         check_finite : bool, optional
@@ -365,7 +415,7 @@ class PenalizedSystem2D:
         if callable(factorization):
             output = factorization(rhs)
         else:
-            if assume_a == 'pos':
+            if self.symmetric:
                 output = cho_solve(
                     factorization, rhs, overwrite_b=overwrite_b, check_finite=check_finite
                 )
@@ -405,7 +455,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
     """
 
-    def __init__(self, data_size, lam=1, diff_order=2, num_eigens=None):
+    def __init__(self, data_size, lam=1, diff_order=2, num_eigens=None, symmetric=True):
         """
         Initializes the penalized spline by calculating the basis and penalty.
 
@@ -425,6 +475,8 @@ class WhittakerSystem2D(PenalizedSystem2D):
             The number of eigenvalues for the rows and columns, respectively, to use
             for the eigendecomposition. If None, will solve the linear system using the full
             analytical solution, which is typically much slower.
+        symmetric : bool, optional
+            Whether the linear system is symmetric. Default is True.
 
         Raises
         ------
@@ -447,7 +499,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
                 num_eigens, allow_zero=False, variable_name='eigenvalues', two_d=True, dtype=int
             )
             self._using_svd = True
-        self.reset_diagonals(lam, diff_order)
+        self.reset_diagonals(lam, diff_order, symmetric)
 
     @property
     def shape(self):
@@ -462,7 +514,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
         """
         return self._num_points
 
-    def reset_diagonals(self, lam=1, diff_order=2):
+    def reset_diagonals(self, lam=1, diff_order=2, symmetric=True):
         """
         Resets the diagonals of the system and all of the attributes.
 
@@ -478,16 +530,19 @@ class WhittakerSystem2D(PenalizedSystem2D):
             The difference order of the penalty for the rows and columns, respectively. If
             a single value is given, both will use the same value.
             Default is 2 (second order difference).
+        symmetric : bool, optional
+            Whether the linear system is symmetric. Default is True.
 
         """
         if not self._using_svd:
-            super().reset_diagonals(lam, diff_order)
+            super().reset_diagonals(lam, diff_order, symmetric)
             return
 
         self.diff_order = _check_scalar_variable(
             diff_order, allow_zero=False, variable_name='difference order', two_d=True, dtype=int
         )
         self.lam = _check_lam(lam, two_d=True)
+        self.symmetric = symmetric
 
         values_rows, vectors_rows = self._calc_eigenvalues(
             self._num_points[0], self.diff_order[0], self._num_bases[0]
@@ -710,7 +765,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         return F
 
-    def solve(self, y, weights, penalty=None, rhs_extra=None, assume_a='pos'):
+    def solve(self, y, weights, penalty=None, rhs_extra=None):
         """
         Solves the coefficients for a weighted penalized spline.
 
@@ -732,9 +787,6 @@ class WhittakerSystem2D(PenalizedSystem2D):
         rhs_extra : float or numpy.ndarray, shape (``M * N``,), optional
             If supplied, `rhs_extra` will be added to the right hand side (``B.T @ W @ y``)
             of the equation before solving. Default is None, which adds nothing.
-        assume_a : str, optional
-            The solver to pass to :func:`scipy.linalg.solve`. Default is 'pos' since the methods
-            using eigendecomposition have positive definite left-hand-sides of the equation.
 
         Returns
         -------
@@ -767,6 +819,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
 
         lhs = self._make_btwb(weights)
         np.fill_diagonal(lhs, lhs.diagonal() + penalty)
+        assume_a = 'pos' if self.symmetric else 'gen'
         self.coef = solve(
             lhs, rhs, lower=True, overwrite_a=True, overwrite_b=True, check_finite=False,
             assume_a=assume_a
@@ -800,7 +853,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
             self._basis = np.kron(self.basis_r, self.basis_c)
         return self._basis
 
-    def _calc_dof(self, weights, assume_a='pos'):
+    def _calc_dof(self, weights):
         """
         Calculates the effective degrees of freedom for each eigenvalue.
 
@@ -808,9 +861,6 @@ class WhittakerSystem2D(PenalizedSystem2D):
         ----------
         weights : numpy.ndarray
             The weights array.
-        assume_a : str, optional
-            A string describing the nature of the penalized system. See :func:`scipy.linalg.solve`
-            for valid inputs. Default is 'pos'.
 
         Returns
         -------
@@ -837,8 +887,7 @@ class WhittakerSystem2D(PenalizedSystem2D):
         rhs = lhs.copy()
         np.fill_diagonal(lhs, lhs.diagonal() + self.penalty)
         dof = solve(
-            lhs, rhs, lower=True, overwrite_a=True, overwrite_b=True, check_finite=False,
-            assume_a=assume_a
+            lhs, rhs, lower=True, overwrite_a=True, overwrite_b=True, check_finite=False
         )
 
         return dof.diagonal().reshape(self._num_bases)

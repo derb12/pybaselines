@@ -38,7 +38,7 @@ def test_rademacher(shape, use_generator):
     )
 
 
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
 @pytest.mark.parametrize('allow_penta', (True, False))
 @pytest.mark.parametrize('size', (100, 401))
@@ -73,12 +73,12 @@ def test_whittaker_effective_dimension(diff_order, allow_lower, allow_penta, siz
         reverse_diags=False, allow_penta=allow_penta
     )
     result_obj = results.WhittakerResult(penalized_system, weights=weights)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=1e-7, atol=1e-10)
 
 
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('allow_lower', (True, False))
 @pytest.mark.parametrize('allow_penta', (True, False))
 @pytest.mark.parametrize('size', (100, 401))
@@ -105,11 +105,45 @@ def test_whittaker_effective_dimension_stochastic(diff_order, allow_lower, allow
     # true solution is already verified by other tests, so use that as "known" in
     # this test to only examine the relative difference from using stochastic estimation
     result_obj = results.WhittakerResult(penalized_system, weights=weights)
-    expected_ed = result_obj.effective_dimension(n_samples=0)
+    expected_ed = result_obj.edf(n_samples=0)
 
-    output = result_obj.effective_dimension(n_samples=n_samples)
+    output = result_obj.edf(n_samples=n_samples)
 
     assert_allclose(output, expected_ed, rtol=5e-1, atol=1e-5)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('allow_penta', (True, False))
+@pytest.mark.parametrize('size', (100, 401))
+def test_whittaker_effective_dimension_fast_path(diff_order, allow_penta, size):
+    """
+    Tests the correctness of the fast path for trace calculation of WhittakerResult.
+
+    If rhs_extra is None and the system is symmetric, WhittakerResult calculates ``inv(lhs)``
+    using a faster, specialized routine with the trace being ``inv(lhs) @ weights``.
+
+    """
+    weights = np.random.default_rng(0).normal(0.8, 0.05, size)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    lam = {1: 1e2, 2: 1e5, 3: 1e8}[diff_order]
+    penalized_system = _banded_utils.PenalizedSystem(
+        size, lam=lam, diff_order=diff_order, allow_lower=True,
+        reverse_diags=False, allow_penta=allow_penta
+    )
+    # goes through slower path since rhs_extra is not None
+    expected = results.WhittakerResult(
+        penalized_system, weights=weights, rhs_extra=np.zeros(penalized_system.tot_bases)
+    ).edf(0)
+
+    output = results.WhittakerResult(penalized_system, weights=weights).edf(0)
+    if diff_order > 2:
+        rtol = 1e-10
+    elif penalized_system.using_penta:  # goes through a different solver, so increase rtol
+        rtol = 1e-11
+    else:
+        rtol = 1e-13
+    assert_allclose(output, expected, rtol=rtol, atol=1e-14)
 
 
 @pytest.mark.parametrize('size', (100, 401))
@@ -162,7 +196,7 @@ def test_whittaker_effective_dimension_lam_extremes(size, diff_order, large_lam,
         reverse_diags=False, allow_penta=allow_penta
     )
     result_obj = results.WhittakerResult(penalized_system)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
 
 
@@ -214,7 +248,7 @@ def test_pspline_effective_dimension_lam_extremes(data_fixture, diff_order, spli
         spline_basis, lam=lam, diff_order=diff_order, allow_lower=allow_lower
     )
     result_obj = results.PSplineResult(pspline)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
 
 
@@ -228,7 +262,7 @@ def test_whittaker_effective_dimension_stochastic_invalid_samples(data_fixture, 
     penalized_system = _banded_utils.PenalizedSystem(x.size)
     result_obj = results.WhittakerResult(penalized_system, weights=weights)
     with pytest.raises(TypeError):
-        result_obj.effective_dimension(n_samples=n_samples)
+        result_obj.edf(n_samples=n_samples)
 
 
 def test_whittaker_result_no_weights(data_fixture):
@@ -242,8 +276,8 @@ def test_whittaker_result_no_weights(data_fixture):
 
 
 @pytest.mark.parametrize('num_knots', (20, 51))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3))
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lower_only', (True, False))
 def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, diff_order,
                                      lower_only):
@@ -278,13 +312,13 @@ def test_pspline_effective_dimension(data_fixture, num_knots, spline_degree, dif
         spline_basis, lam=1, diff_order=diff_order, allow_lower=lower_only
     )
     result_obj = results.PSplineResult(pspline, weights)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
     assert_allclose(output, expected_ed, rtol=1e-10, atol=1e-12)
 
 
 @pytest.mark.parametrize('num_knots', (20, 51))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, 3))
-@pytest.mark.parametrize('diff_order', (1, 2))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
 @pytest.mark.parametrize('lower_only', (True, False))
 @pytest.mark.parametrize('n_samples', (100, 201))
 def test_pspline_stochastic_effective_dimension(data_fixture, num_knots, spline_degree, diff_order,
@@ -311,10 +345,42 @@ def test_pspline_stochastic_effective_dimension(data_fixture, num_knots, spline_
     # true solution is already verified by other tests, so use that as "known" in
     # this test to only examine the relative difference from using stochastic estimation
     result_obj = results.PSplineResult(pspline, weights)
-    expected_ed = result_obj.effective_dimension(n_samples=0)
+    expected_ed = result_obj.edf(n_samples=0)
 
-    output = result_obj.effective_dimension(n_samples=n_samples)
+    output = result_obj.edf(n_samples=n_samples)
     assert_allclose(output, expected_ed, rtol=5e-2, atol=1e-5)
+
+
+@pytest.mark.parametrize('num_knots', (20, 51))
+@pytest.mark.parametrize('spline_degree', (1, 2, 3))
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+def test_pspline_effective_dimension_fast_path(data_fixture, num_knots, spline_degree,
+                                               diff_order):
+    """
+    Tests the correctness of the fast path for trace calculation of PSplineResult.
+
+    If rhs_extra is None and the system is symmetric, PSplineResult calculates ``inv(lhs)`` using
+    a faster, specialized routine with the trace being ``(inv(lhs) @ (B.T @ W @ B)).trace()``.
+
+    """
+    x, y = data_fixture
+    x = x.astype(float)
+    weights = np.random.default_rng(0).normal(0.8, 0.05, y.shape)
+    weights = np.clip(weights, 0, 1).astype(float)
+
+    spline_basis = _spline_utils.SplineBasis(
+        x, num_knots=num_knots, spline_degree=spline_degree
+    )
+    pspline = _spline_utils.PSpline(
+        spline_basis, lam=1, diff_order=diff_order, allow_lower=True
+    )
+    # goes through slower path since rhs_extra is not None
+    expected = results.PSplineResult(
+        pspline, weights, rhs_extra=np.zeros(pspline.tot_bases)
+    ).edf(0)
+    output = results.PSplineResult(pspline, weights).edf(0)
+
+    assert_allclose(output, expected, rtol=1e-13, atol=1e-14)
 
 
 @pytest.mark.parametrize('n_samples', (-1, 50.5))
@@ -329,7 +395,7 @@ def test_pspline_stochastic_effective_dimension_invalid_samples(data_fixture, n_
     pspline = _spline_utils.PSpline(spline_basis)
     result_obj = results.PSplineResult(pspline, weights)
     with pytest.raises(TypeError):
-        result_obj.effective_dimension(n_samples=n_samples)
+        result_obj.edf(n_samples=n_samples)
 
 
 def test_pspline_result_no_weights(data_fixture):
@@ -344,7 +410,7 @@ def test_pspline_result_no_weights(data_fixture):
 
 
 @pytest.mark.parametrize('num_knots', (10, (11, 20)))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (1, 2, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
 def test_pspline_two_d_effective_dimension(data_fixture2d, num_knots, spline_degree, diff_order,
@@ -398,13 +464,13 @@ def test_pspline_two_d_effective_dimension(data_fixture2d, num_knots, spline_deg
     pspline = PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
 
     result_obj = results.PSplineResult2D(pspline, weights)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=1e-14, atol=1e-10)
 
 
 @pytest.mark.parametrize('num_knots', (10, (11, 20)))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (1, 2, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
 @pytest.mark.parametrize('lam', (1e-2, (1e1, 1e2)))
 @pytest.mark.parametrize('n_samples', (100, 201))
@@ -429,9 +495,9 @@ def test_pspline_two_d_effective_dimension_stochastic(data_fixture2d, num_knots,
     # true solution is already verified by other tests, so use that as "known" in
     # this test to only examine the relative difference from using stochastic estimation
     result_obj = results.PSplineResult2D(pspline, weights)
-    expected_ed = result_obj.effective_dimension(n_samples=0)
+    expected_ed = result_obj.edf(n_samples=0)
 
-    output = result_obj.effective_dimension(n_samples=n_samples)
+    output = result_obj.edf(n_samples=n_samples)
     assert_allclose(output, expected_ed, rtol=1e-1, atol=1e-5)
 
 
@@ -446,7 +512,7 @@ def test_pspline_two_d_stochastic_effective_dimension_invalid_samples(data_fixtu
     pspline = PSpline2D(spline_basis)
     result_obj = results.PSplineResult2D(pspline, weights)
     with pytest.raises(TypeError):
-        result_obj.effective_dimension(n_samples=n_samples)
+        result_obj.edf(n_samples=n_samples)
 
 
 def test_pspline_result_two_d_weights(data_fixture2d):
@@ -476,7 +542,7 @@ def test_pspline_result_two_d_no_weights(data_fixture2d):
 
 
 @pytest.mark.parametrize('num_knots', (10, (11, 20)))
-@pytest.mark.parametrize('spline_degree', (0, 1, 2, (2, 3)))
+@pytest.mark.parametrize('spline_degree', (1, 2, (2, 3)))
 @pytest.mark.parametrize('diff_order', (1, 2, (2, 3)))
 @pytest.mark.parametrize('large_lam', (True, False))
 def test_pspline_two_d_effective_dimension_lam_extremes(data_fixture2d, diff_order, spline_degree,
@@ -511,7 +577,7 @@ def test_pspline_two_d_effective_dimension_lam_extremes(data_fixture2d, diff_ord
     pspline = PSpline2D(spline_basis, lam=lam, diff_order=diff_order)
     result_obj = results.PSplineResult2D(pspline)
 
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
 
@@ -568,7 +634,7 @@ def test_whittaker_two_d_effective_dimension(shape, diff_order, lam, use_svd):
         shape, lam=lam, diff_order=diff_order, num_eigens=num_eigens
     )
     result_obj = results.WhittakerResult2D(whittaker_system, weights=weights)
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=rtol, atol=atol)
 
@@ -607,9 +673,9 @@ def test_whittaker_two_d_effective_dimension_stochastic(shape, diff_order, lam, 
     # true solution is already verified by other tests, so use that as "known" in
     # this test to only examine the relative difference from using stochastic estimation
     result_obj = results.WhittakerResult2D(whittaker_system, weights=weights)
-    expected_ed = result_obj.effective_dimension(n_samples=0)
+    expected_ed = result_obj.edf(n_samples=0)
 
-    output = result_obj.effective_dimension(n_samples=n_samples)
+    output = result_obj.edf(n_samples=n_samples)
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-4)
 
 
@@ -624,7 +690,7 @@ def test_whittaker_two_d_effective_dimension_stochastic_invalid_samples(small_da
     penalized_system = WhittakerSystem2D(small_data2d.shape, num_eigens=num_eigens)
     result_obj = results.WhittakerResult2D(penalized_system, weights)
     with pytest.raises(TypeError):
-        result_obj.effective_dimension(n_samples=n_samples)
+        result_obj.edf(n_samples=n_samples)
 
 
 @pytest.mark.parametrize('num_eigens', (None, 5))
@@ -696,6 +762,67 @@ def test_whittaker_two_d_effective_dimension_lam_extremes(shape, diff_order, lar
     )
     result_obj = results.WhittakerResult2D(whittaker_system)
 
-    output = result_obj.effective_dimension(n_samples=0)
+    output = result_obj.edf(n_samples=0)
 
     assert_allclose(output, expected_ed, rtol=rtol, atol=1e-11)
+
+
+@pytest.mark.parametrize('diff_order', (1, 2, 3))
+@pytest.mark.parametrize('diff_order_rhs', (None, 1, 2, 3))
+@pytest.mark.parametrize('allow_penta', (True, False))
+def test_pad_lhs_rhs(diff_order, diff_order_rhs, allow_penta):
+    """Ensures pad_lhs_rhs correctly pads and only returns lower bands."""
+    size = 100
+    weights = np.ones(size)
+    penalized_system = _banded_utils.PenalizedSystem(
+        size, lam=1, diff_order=diff_order, allow_lower=True,
+        reverse_diags=False, allow_penta=allow_penta
+    )
+    if diff_order_rhs is None:
+        rhs_extra = None
+    else:
+        rhs_extra = _banded_utils.diff_penalty_diagonals(
+            size, diff_order=diff_order_rhs, lower_only=penalized_system.lower
+        )
+
+    expected_lhs = _banded_utils._add_diagonals(
+        penalized_system.penalty, weights, lower_only=penalized_system.lower
+    )
+    if not penalized_system.lower:
+        expected_lhs = expected_lhs[expected_lhs.shape[0] // 2:]
+    if rhs_extra is None:
+        expected_rhs = weights
+    else:
+        expected_rhs = (
+            rhs_extra if penalized_system.lower else rhs_extra[rhs_extra.shape[0] // 2:]
+        )
+        expected_rhs = _banded_utils._add_diagonals(expected_rhs, weights, lower_only=True)
+        if diff_order > diff_order_rhs:
+            expected_rhs = _banded_utils._pad_diagonals(
+                expected_rhs, diff_order - diff_order_rhs, lower_only=True
+            )
+        elif diff_order_rhs > diff_order:
+            expected_lhs = _banded_utils._pad_diagonals(
+                expected_lhs, diff_order_rhs - diff_order, lower_only=True
+            )
+
+    result = results.WhittakerResult(penalized_system, rhs_extra=rhs_extra)
+    lhs_out, rhs_out = results._pad_lhs_rhs(
+        result._lhs, result._rhs_banded, penalized_system.lower, pad_rhs=rhs_extra is not None
+    )
+
+    if diff_order_rhs is None:
+        assert rhs_out.shape == (size,)
+    else:
+        assert lhs_out.shape == rhs_out.shape
+    assert_allclose(lhs_out, expected_lhs, rtol=1e-16, atol=1e-16)
+    assert_allclose(rhs_out, expected_rhs, rtol=1e-16, atol=1e-16)
+
+
+@pytest.mark.parametrize('rhs_extra', (True, False))
+def test_pad_lhs_rhs_col_mismatch(rhs_extra):
+    """Ensures an exception is raised if lhs and rhs have differing columns."""
+    lhs = np.ones((3, 10))
+    rhs = np.ones((2, 9) if rhs_extra else 9)
+    with pytest.raises(ValueError, match='shape mismatch'):
+        results._pad_lhs_rhs(lhs, rhs, lower=True, pad_rhs=True)

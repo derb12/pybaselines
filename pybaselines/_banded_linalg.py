@@ -1051,55 +1051,33 @@ def penta_factorize_solve(ab_factorization, b, solver=1, overwrite_b=False):
     return result
 
 
-def _lower_to_upper(matrix):
-    """
-    Converts from lower banded format to upper banded format.
-
-    Parameters
-    ----------
-    matrix : numpy.ndarray, shape (M, N)
-        The lower banded array. Is modified internally.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (M, N)
-        The upper banded array.
-
-    """
-    output = matrix[::-1]
-    for i in range(2, matrix.shape[0] + 1):
-        output[-i] = np.roll(output[-i], i - 1)
-
-    return output
-
-
 # adapted from scipy (scipy.interpolate._bsplines._compute_optimal_gcv_parameter
 # inner function compute_b_inv); see license above
 @jit(nopython=True, cache=True)
-def _cho_inv_diag(factorization, d_inv):
+def _cho_inv_bands(factorization, d_inv):
     """
-    Calculates the diagonal of the inverse of a matrix from its Cholesky factorization.
+    Calculates the inner bands of the inverse of a matrix from its Cholesky factorization.
 
-    Calculates the diagonal of ``A^-1`` given the factorization of `A` in
-    ``U.T @ D^-1 @ U`` format.
+    Calculates the inner `M` bands of ``A^-1`` given the factorization of `A` in
+    ``L @ D^-1 @ L.T`` format.
 
     Parameters
     ----------
     factorization : numpy.ndarray, shape (M, N)
-        The unit upper triangular banded factorization of `A`, `U`.
+        The unit lower triangular banded factorization of `A`, `L`.
     d_inv : numpy.ndarray, shape (N,)
         The diagonal portion of the factorization, ``D^-1``.
 
     Returns
     -------
-    numpy.ndarray, shape (N,)
-        The diagonal of the inverse of `A`.
+    numpy.ndarray, shape (M, N)
+        The inner lower `M` bands of the inverse of `A`, stored in lower banded format.
 
     Notes
     -----
-    This only calculates the inner bands of the inverse that are needed for
-    calculating the diagonal, so `partial_inv` does not contain the complete
-    inverse, which is typically fully dense.
+    This only calculates the inner bands of the inverse that match the bandwidth of
+    the input factorization, so `partial_inv` does not contain the complete inverse,
+    which is typically fully dense.
 
     References
     ----------
@@ -1112,51 +1090,45 @@ def _cho_inv_diag(factorization, d_inv):
     partial_inv = np.zeros(shape=(num_rows, num_cols))
     for i in range(num_cols - 1, -1, -1):
         matmul_range = min(num_rows, num_cols - i)  # defined as `l` in the reference
-        for j in range(matmul_range - 1, 0, -1):  # equation 3.4
+        for j in range(matmul_range - 1, 0, -1):
             non_diag_sum = 0.
-            for k in range(1, matmul_range):
-                diag = abs(k - j)
+            for k in range(1, matmul_range):  # equation 3.4
                 non_diag_sum -= (
-                    factorization[-k - 1, i + k] * partial_inv[-diag - 1, i + min(k, j) + diag]
+                    factorization[k, i] * partial_inv[abs(k - j), i + min(k, j)]
                 )
-            partial_inv[-j - 1, i + j] = non_diag_sum
+            partial_inv[j, i] = non_diag_sum
 
         # note that using arrays to represent all rows and cols and doing the dot
         # product is slower than doing a loop, even without numba
         diag_sum = 0.
-        for j in range(1, matmul_range):  # equation 3.5
-            row = -j - 1
-            col = i + j
-            diag_sum -= factorization[row, col] * partial_inv[row, col]
-        partial_inv[-1, i] = d_inv[i] + diag_sum
+        for k in range(1, matmul_range):  # equation 3.5
+            diag_sum -= factorization[k, i] * partial_inv[k, i]
+        partial_inv[0, i] = d_inv[i] + diag_sum
 
-    return partial_inv[-1]  # only the diagonal is of interest
+    return partial_inv
 
 
 # adapted from scipy (scipy.interpolate._bsplines._compute_optimal_gcv_parameter
 # inner function compute_b_inv); see license above
-def _cholesky_inv_diag(factorization, lower=False, overwrite_f=False):
+def _cholesky_inv_bands(factorization, overwrite_f=False):
     """
-    Computes the diagonal of the inverse of a matrix from its banded Cholesky factorization.
+    Computes the inner bands of the inverse of a matrix from its banded Cholesky factorization.
 
-    For the banded matrix `A`, this computes the diagonal of ``A^-1`` given the
-    banded factorization of `A`,
+    For the banded matrix `A`, this computes the inner lower bands of ``A^-1`` given the
+    banded factorization of `A`, with the same number of bands as the factorization.
 
     Parameters
     ----------
     factorization : numpy.ndarray, shape (M, N)
-        The Cholesky factorization of `A`, stored in upper or lower LAPACK banded format,
+        The Cholesky factorization of `A`, stored in lower LAPACK banded format,
         as output by :func:`scipy.linalg.cholesky_banded`.
-    lower : bool, optional
-        If True, denotes the factorization is stored in lower format; False (default)
-        denotes upper format.
     overwrite_f : bool, optional
         Whether to overwrite `factorization`. Default is False.
 
     Returns
     -------
-    numpy.ndarray, shape (N,)
-        The diagonal of the inverse of `A`.
+    numpy.ndarray, shape (M, N)
+        The inner lower `M` bands of the inverse of `A`, stored in lower banded format.
 
     References
     ----------
@@ -1167,15 +1139,12 @@ def _cholesky_inv_diag(factorization, lower=False, overwrite_f=False):
     if not overwrite_f:
         factorization = factorization.copy()
 
-    if lower:
-        factorization = _lower_to_upper(factorization)
-
-    # convert from U1.T @ U1 format output by scipy.linalg.cholesky_banded to
-    # U.T @ D^-1 @ U format required for Hutchinson's method; all of the divisions
+    # convert from L1 @ L1.T format output by scipy.linalg.cholesky_banded to
+    # L @ D^-1 @ L.T format required for Hutchinson's method; all of the divisions
     # are safe since they're guaranteed to be non-zero during factorization
-    for i in range(2, factorization.shape[0] + 1):
-        factorization[-i, i - 1:] /= factorization[-1, :-i + 1]
-    d_inv = 1. / (factorization[-1])**2
-    factorization[-1] = 1.
+    for i in range(1, factorization.shape[0]):
+        factorization[i, :-i] /= factorization[0, :-i]
+    d_inv = 1. / (factorization[0])**2
+    factorization[0] = 1.
 
-    return _cho_inv_diag(factorization, d_inv)
+    return _cho_inv_bands(factorization, d_inv)

@@ -69,11 +69,12 @@ import warnings
 
 import numpy as np
 from scipy.interpolate import interp1d
-from scipy.linalg import get_blas_funcs, solve_banded, solveh_banded
+from scipy.linalg import cholesky_banded, cho_solve_banded, solve_banded
 from scipy.ndimage import uniform_filter1d
 from scipy.sparse.linalg import splu, spsolve
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
+from ._banded_utils import _banded_dot_vector, _banded_to_sparse
 from ._compat import _HAS_NUMBA, dia_object, jit
 from ._validation import _check_array, _check_lam, _check_scalar
 from .utils import _MIN_FLOAT, relative_difference
@@ -369,17 +370,10 @@ class _Misc(_Algorithm):
             smooth_half_window = 0
 
         lam_0, lam_1, lam_2 = _process_lams(y, alpha, lam_0, lam_1, lam_2)
-        if _HAS_NUMBA:
-            baseline, params = _banded_beads(
-                y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
-                max_iter, tol, eps_0, eps_1, smooth_half_window
-            )
-        else:
-            baseline, params = _sparse_beads(
-                y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
-                max_iter, tol, eps_0, eps_1, smooth_half_window
-            )
-
+        baseline, params = _beads(
+            y, freq_cutoff, lam_0, lam_1, lam_2, asymmetry, filter_type, use_v2_loss,
+            max_iter, tol, eps_0, eps_1, smooth_half_window, self.banded_solver < 4
+        )
         if fit_parabola:
             baseline = baseline + parabola
 
@@ -426,57 +420,6 @@ def interp_pts(x_data, baseline_points=(), interp_method='linear', data=None):
     values of 0.
 
     """
-
-
-def _banded_dot_vector(ab, x, ab_lu, a_full_shape):
-    """
-    Computes the dot product of the matrix `a` in banded format (`ab`) with the vector `x`.
-
-    Parameters
-    ----------
-    ab : array-like, shape (`n_lower` + `n_upper` + 1, N)
-        The banded matrix.
-    x : array-like, shape (N,)
-        The vector.
-    ab_lu : Container[int, int]
-        The number of lower (`n_lower`) and upper (`n_upper`) diagonals in `ab`.
-    a_full_shape : Container[int, int]
-        The number of rows and columns in the full `a` matrix.
-
-    Returns
-    -------
-    output : numpy.ndarray, shape (N,)
-        The dot product of `ab` and `x`.
-
-    Notes
-    -----
-    BLAS's symmetric version, 'sbmv', shows no significant speed increase, so just
-    uses the general 'gbmv' function to simplify the function.
-
-    The function is faster if the input `ab` matrix is Fortran-ordered (has the
-    F_CONTIGUOUS numpy flag), since the underlying 'gbmv' BLAS function is
-    implemented in Fortran.
-
-    """
-    matrix = np.asarray(ab)
-    vector = np.asarray(x)
-
-    gbmv = get_blas_funcs(['gbmv'], (matrix, vector))[0]
-    # gbmv computes y = alpha * a * x + beta * y where a is the banded matrix
-    # (in compressed form), x is the input vector, y is the output vector, and alpha
-    # and beta are scalar multipliers
-    output = gbmv(
-        m=a_full_shape[0],  # number of rows of `a` matrix in full form
-        n=a_full_shape[1],  # number of columns of `a` matrix in full form
-        kl=ab_lu[0],  # sub-diagonals
-        ku=ab_lu[1],  # super-diagonals
-        alpha=1.0,  # alpha, required
-        a=matrix,  # `a` matrix in compressed form
-        x=vector,  # `x` vector
-        # trans=False,  # transpose a, optional; may allow later
-    )
-
-    return output
 
 
 # adapted from bandmat (bandmat/tensor.pyx/dot_mm_plus_equals and dot_mm); see license above
@@ -556,7 +499,7 @@ def _numba_banded_dot_banded(a, b, c, a_lower, a_upper, b_lower, b_upper, c_uppe
 
 
 # adapted from bandmat (bandmat/tensor.pyx/dot_mm_plus_equals and dot_mm); see license above
-def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_output=False):
+def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape):
     """
     Calculates the matrix multiplication, ``C = A @ B``, with `a` and `b` in banded forms.
 
@@ -579,10 +522,6 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
     b_full_shape : Container[int, int]
         A container of integers designating the number of rows and columns in the full
         matrix representation of `b`.
-    symmetric_output : bool, optional
-        Whether the output matrix is known to be symmetric. If True, will only calculate
-        the matrix multiplication for the upper bands, and the lower bands will be filled
-        in using the upper bands. Default is False.
 
     Returns
     -------
@@ -620,24 +559,13 @@ def _banded_dot_banded(a, b, a_lu, b_lu, a_full_shape, b_full_shape, symmetric_o
     b_lower, b_upper = b_lu
     c_upper = min(a_upper + b_upper, b_full_shape[1] - 1)
     c_lower = min(a_lower + b_lower, a_full_shape[0] - 1)
-    if symmetric_output:
-        lower_bound = 0  # only fills upper bands
-    else:
-        lower_bound = a_lower + b_lower
+    lower_bound = a_lower + b_lower
     # create output matrix outside of this function since numba's implementation
     # of np.zeros is much slower than numpy's (https://github.com/numba/numba/issues/7259)
     output = np.zeros((c_lower + c_upper + 1, diag_length))
     _numba_banded_dot_banded(
         a, b, output, a_lower, a_upper, b_lower, b_upper, c_upper, diag_length, lower_bound
     )
-
-    if symmetric_output:
-        for row in range(1, a_lower + b_lower + 1):
-            offset = a_lower + b_lower + 1 - row
-            # TODO should not use negative indices since empty 0 rows can sometimes
-            # be added; instead, work down from main diagonal; or should at least use
-            # the output's number of lower diagonals rather than a_l + b_l
-            output[-row, :-offset] = output[row - 1, offset:]
 
     return output
 
@@ -717,7 +645,8 @@ def _parabola(data, parabola_len=3):
 
 
 # adapted from MATLAB beads version; see license above
-def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=False):
+def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, banded=True,
+                      banded_factorization=True):
     """
     Creates the banded matrices A and B such that ``B @ (A^-1)`` is a high pass filter.
 
@@ -731,18 +660,27 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     filter_type : int, optional
         An integer describing the high pass filter type. The order of the high pass
         filter is ``2 * filter_type``. Default is 1 (second order filter).
-    full_matrix : bool, optional
-        If True, will return the full sparse diagonal matrices of A and B. If False
-        (default), will return the banded matrix versions of A and B.
+    banded : bool, optional
+        If True (default), the returned `BTB` object representing the ``B.T @ B`` calculation
+        is a banded array; otherwise, is a sparse matrix.
+    banded_factorization : bool, optional
+        If True (default), the factorization of matrix `A` is done using the Cholesky factorization
+        of the lower bands of `A`. If False, the factorization is done using the sparse matrix.
 
     Returns
     -------
-    A : scipy.sparse.csr_matrix or scipy.sparse.csr_array or numpy.ndarray
-        The banded matrix A. If ``full_matrix`` is True, the output is a sparse
-        matrix or array; otherwise, it is an array of the bands themselves.
-    B : scipy.sparse.csr_matrix or scipy.sparse.csr_array or numpy.ndarray
-        The banded matrix B. If ``full_matrix`` is True, the output is a sparse
-        matrix or array; otherwise, it is an array of the bands themselves.
+    a_diags : numpy.ndarray, shape (``2 * filter_type + 1``, data_size)
+        The matrix `A` in banded format.
+    A_sparse : scipy.sparse.csr_matrix or scipy.sparse.csr_array, shape (data_size, data_size)
+        The matrix `A` in sparse format.
+    A_factorization : callable or numpy.ndarray, shape (``filter_type + 1``, data_size)
+        The factorization of `A`, which can be used with :func:`_factorized_solve` to compute
+        ``inv(A) @ y``. Its type depends on `banded_factorization`.
+    b_diags : numpy.ndarray, shape (``2 * filter_type + 1``, data_size)
+        The matrix `B` in banded format.
+    BTB : scipy.sparse.csr_matrix or scipy.sparse.csr_array or numpy.ndarray
+        The object representing the calculation of ``B.T @ B``. Is a banded array
+        if `banded` is True, otherwise a sparse object.
 
     Raises
     ------
@@ -771,27 +709,66 @@ def _high_pass_filter(data_size, freq_cutoff=0.005, filter_type=1, full_matrix=F
     a = abs(b)
 
     cos_freq = np.cos(2 * np.pi * freq_cutoff)
-    t = ((1 - cos_freq) / max(1 + cos_freq, _MIN_FLOAT))**filter_type
+    t = ((1 - cos_freq) / max(1 + cos_freq, np.finfo(float).eps))**filter_type
 
+    # a_diags and b_diags are F contiguous, which provides much better performance
+    # when doing banded matrix-vector multiplication
     a_diags = np.repeat((b + a * t).reshape(1, -1), data_size, axis=0).T
     b_diags = np.repeat(b.reshape(1, -1), data_size, axis=0).T
-    if full_matrix:
-        offsets = np.arange(-filter_type, filter_type + 1)
-        A = dia_object((a_diags, offsets), shape=(data_size, data_size)).tocsr()
-        B = dia_object((b_diags, offsets), shape=(data_size, data_size)).tocsr()
-    else:
-        # add zeros on edges to create the actual banded structure;
-        # creates same structure as diags(a[b]_diags, offsets).todia().data[::-1]
-        for i in range(filter_type):
-            offset = filter_type - i
-            a_diags[i][:offset] = 0
-            a_diags[-i - 1][-offset:] = 0
-            b_diags[i][:offset] = 0
-            b_diags[-i - 1][-offset:] = 0
-        A = a_diags
-        B = b_diags
+    # add zeros on edges to create the actual banded structure;
+    # creates same structure as diags(a[b]_diags, offsets).todia().data[::-1]
+    for i in range(filter_type):
+        offset = filter_type - i
+        a_diags[i][:offset] = 0
+        a_diags[-i - 1][-offset:] = 0
+        b_diags[i][:offset] = 0
+        b_diags[-i - 1][-offset:] = 0
 
-    return A, B
+    # only need sparse B if doing the sparse B.T @ B; always needs sparse A (technically
+    # don't need sparse A if going through pure banded route, but it adds unnecessary
+    # complexity)
+    A_sparse = _banded_to_sparse(a_diags, lower=False, sparse_format='csr')
+    if banded:
+        BTB = _banded_dot_banded(
+            b_diags, b_diags, a_lu=(filter_type, filter_type), b_lu=(filter_type, filter_type),
+            a_full_shape=(data_size, data_size), b_full_shape=(data_size, data_size)
+        )
+    else:
+        B_sparse = _banded_to_sparse(b_diags, lower=False, sparse_format='csr')
+        BTB = B_sparse @ B_sparse
+
+    if banded_factorization:
+        A_factorization = cholesky_banded(a_diags[filter_type:], lower=True, check_finite=False)
+    else:
+        # A is symmetric positive definite, so can just use identity permutation
+        A_factorization = splu(A_sparse.tocsc(), permc_spec='NATURAL').solve
+
+    return a_diags, A_sparse, A_factorization, b_diags, BTB
+
+
+def _factorized_solve(factorization, y):
+    """
+    Computes ``inv(A) @ y`` given the factorization of A.
+
+    Parameters
+    ----------
+    factorization : callable or numpy.ndarray, shape (``filter_type + 1``, data_size)
+        The factorization of `A`, as output by :func:`_high_pass_filter`.
+    y : numpy.ndarray, shape (data_size,)
+        The array to use with the factorization of `A`.
+
+    Returns
+    -------
+    result : numpy.ndarray, shape (data_size,)
+        The calculation of ``inv(A) @ y``.
+
+    """
+    if callable(factorization):
+        result = factorization(y)
+    else:
+        result = cho_solve_banded((factorization, True), y, check_finite=False)
+
+    return result
 
 
 # adapted from MATLAB beads version; see license above
@@ -966,169 +943,6 @@ def _abs_diff(x, smooth_half_window=0):
     return d1_x, d2_x
 
 
-# adapted from MATLAB beads version; see license above
-def _sparse_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
-                  filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
-                  eps_1=1e-6, smooth_half_window=0):
-    r"""
-    The beads algorithm using full, sparse matrices.
-
-    Parameters
-    ----------
-    y : numpy.ndarray, shape (N,)
-        The y-values of the measured data, with N data points.
-    freq_cutoff : float, optional
-        The cutoff frequency of the high pass filter, normalized such that
-        0 < `freq_cutoff` < 0.5. Default is 0.005.
-    lam_0 : float, optional
-        The regularization parameter for the signal values. Default is 1.0. Higher
-        values give a higher penalty.
-    lam_1 : float, optional
-        The regularization parameter for the first derivative of the signal. Default
-        is 1.0. Higher values give a higher penalty.
-    lam_2 : float, optional
-        The regularization parameter for the second derivative of the signal. Default
-        is 1.0. Higher values give a higher penalty.
-    asymmetry : float, optional
-        The asymmetrical parameter that determines the weighting of negative values
-        compared to positive values in the cost function. Default is 6.0, which gives
-        negative values six times more impact on the cost function that positive values.
-        Set to 1 for a symmetric cost function, or a value less than 1 to weigh positive
-        values more.
-    filter_type : int, optional
-        An integer describing the high pass filter type. The order of the high pass
-        filter is ``2 * filter_type``. Default is 1 (second order filter).
-    use_v2_loss : bool, optional
-        If True (default), approximates the absolute loss using logarithms. If False,
-        uses the square root of the squared values.
-    max_iter : int, optional
-        The maximum number of iterations. Default is 50.
-    tol : float, optional
-        The exit criteria. Default is 1e-2.
-    eps_0 : float, optional
-        The cutoff threshold between absolute loss and quadratic loss. Values in the signal
-        with absolute value less than `eps_0` will have quadratic loss. Default is 1e-6.
-    eps_1 : float, optional
-        A small, positive value used to prevent issues when the first or second order
-        derivatives are close to zero. Default is 1e-6.
-    smooth_half_window : int, optional
-        The half-window to use for smoothing the derivatives of the data with a moving
-        average. Default is 0, which provides no smoothing.
-
-    Returns
-    -------
-    baseline : numpy.ndarray, shape (N,)
-        The calculated baseline.
-    dict
-        A dictionary with the following items:
-
-        * 'signal': numpy.ndarray, shape (N,)
-            The pure signal portion of the input `data` without noise or the baseline.
-        * 'tol_history': numpy.ndarray
-            An array containing the calculated tolerance values for
-            each iteration. The length of the array is the number of iterations
-            completed. If the last value in the array is greater than the input
-            `tol` value, then the function did not converge.
-        * 'fidelity': float
-            The fidelity term of the final fit, given as :math:`0.5 * ||H(y - s)||_2^2`.
-        * 'penalty' : tuple[float, float, float]
-            The penalty terms of the final fit before multiplication with the `lam_d`
-            terms. These correspond to :math:`\sum\limits_{i}^{N} \theta(s_i)`,
-            :math:`\sum\limits_{i}^{N - 1} \phi(\Delta^1 s_i)`, and
-            :math:`\sum\limits_{i}^{N - 2} \phi(\Delta^2 s_i)`, respectively.
-        * 'success' : bool
-            True if the method converged successfully, otherwise False.
-
-    Notes
-    -----
-    `A` and `B` matrices are symmetric, so their transposes are never used.
-
-    References
-    ----------
-    Ning, X., et al. Chromatogram baseline estimation and denoising using sparsity
-    (BEADS). Chemometrics and Intelligent Laboratory Systems, 2014, 139, 156-167.
-
-    https://www.mathworks.com/matlabcentral/fileexchange/49974-beads-baseline-estimation-
-    and-denoising-with-sparsity.
-
-    """
-    num_y = y.shape[0]
-    d1_diags = np.zeros((5, num_y))
-    d2_diags = np.zeros((5, num_y))
-    offsets = np.arange(2, -3, -1)
-    A, B = _high_pass_filter(num_y, freq_cutoff, filter_type, True)
-    # factorize A since A is unchanged in the function and its factorization
-    # is used repeatedly; much faster than calling spsolve each time
-    A_factor = splu(A.tocsc(), permc_spec='NATURAL')
-    BTB = B @ B
-
-    x = y
-    d1_x, d2_x = _abs_diff(x, smooth_half_window)
-    # line 2 of Table 3 in beads paper
-    d = BTB.dot(A_factor.solve(y)) - A.dot(np.full(num_y, lam_0 * (1 - asymmetry) / 2))
-    gamma = np.empty(num_y)
-    gamma_factor = lam_0 * (1 + asymmetry) / 2  # 2 * lam_0 * (1 + asymmetry) / 4
-    cost_old = 0
-    abs_x = np.abs(x)
-    big_x = abs_x > eps_0
-    tol_history = np.empty(max_iter + 1)
-    success = False
-    for i in range(max_iter + 1):
-        # calculate line 6 of Table 3 in beads paper using banded matrices rather
-        # than sparse matrices since it is much faster; Gamma + D.T @ Lambda @ D
-
-        # row 1 and 3 instead of 0 and 2 to account for zeros on top and bottom
-        d1_diags[1][1:] = d1_diags[3][:-1] = -_beads_weighting(d1_x, use_v2_loss, eps_1)
-        d1_diags[2] = -(d1_diags[1] + d1_diags[3])
-
-        d2_diags[0][2:] = d2_diags[-1][:-2] = _beads_weighting(d2_x, use_v2_loss, eps_1)
-        d2_diags[1] = 2 * (d2_diags[0] - np.roll(d2_diags[0], -1, 0)) - 4 * d2_diags[0]
-        d2_diags[-2][:-1] = d2_diags[1][1:]
-        d2_diags[2] = -(d2_diags[0] + d2_diags[1] + d2_diags[-1] + d2_diags[-2])
-
-        d_diags = lam_1 * d1_diags + lam_2 * d2_diags
-        gamma[~big_x] = gamma_factor / eps_0
-        gamma[big_x] = gamma_factor / abs_x[big_x]
-        d_diags[2] += gamma
-
-        # TODO check that 'NATURAL' is the appropriate permutation scheme for this
-        x = A.dot(
-            spsolve(
-                BTB + A.dot(dia_object((d_diags, offsets), shape=(num_y, num_y)).tocsr()).dot(A),
-                d, 'NATURAL'
-            )
-        )
-
-        h = B.dot(A_factor.solve(y - x))
-        d1_x, d2_x = _abs_diff(x, smooth_half_window)
-        abs_x, big_x, theta = _beads_theta(x, asymmetry, eps_0)
-        fidelity = 0.5 * (h @ h)
-        d1_loss = _beads_loss(d1_x, use_v2_loss, eps_1).sum()
-        d2_loss = _beads_loss(d2_x, use_v2_loss, eps_1).sum()
-        cost = (
-            fidelity
-            + lam_0 * theta
-            + lam_1 * d1_loss
-            + lam_2 * d2_loss
-        )
-        cost_difference = relative_difference(cost_old, cost)
-        tol_history[i] = cost_difference
-        if cost_difference < tol:
-            success = True
-            break
-        cost_old = cost
-
-    diff = y - x
-    baseline = diff - B.dot(A_factor.solve(diff))
-
-    params = {
-        'signal': x, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
-        'penalty': (theta, d1_loss, d2_loss), 'success': success
-    }
-
-    return baseline, params
-
-
 def _process_lams(y, alpha, lam_0, lam_1, lam_2):
     """
     Allows computing lam values based on the L1 norm of the 0th, 1st, and 2nd derivatives.
@@ -1192,11 +1006,11 @@ def _process_lams(y, alpha, lam_0, lam_1, lam_2):
 
 
 # adapted from MATLAB beads version; see license above
-def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
-                  filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
-                  eps_1=1e-6, smooth_half_window=0):
+def _beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmetry=6,
+           filter_type=1, use_v2_loss=True, max_iter=50, tol=1e-2, eps_0=1e-6,
+           eps_1=1e-6, smooth_half_window=0, banded_factorization=True):
     r"""
-    The beads algorithm using banded matrices rather than full, sparse matrices.
+    Baseline estimation and denoising with sparsity (BEADS).
 
     Parameters
     ----------
@@ -1239,6 +1053,10 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     smooth_half_window : int, optional
         The half-window to use for smoothing the derivatives of the data with a moving
         average. Default is 0, which provides no smoothing.
+    banded_factorization : bool, optional
+        Whether the factorization for calculating ``inv(A) @ y`` should use banded factorization
+        (default) or sparse factorization. Gives little time difference, but included to follow
+        user input for how banded systems are solved elsewhere.
 
     Returns
     -------
@@ -1266,13 +1084,9 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
 
     Notes
     -----
-    This function is ~75% faster than _sparse_beads (independent of data size) if Numba is
+    This function is ~75% faster (independent of data size) if Numba is
     installed due to the faster banded solvers. If Numba is not installed, the calculation
-    of the dot product of banded matrices makes this calculation significantly slower than
-    the sparse implementation.
-
-    It is no faster to pre-compute the Cholesky factorization of A_lower and use
-    that with scipy.linalg.cho_solve_banded compared to using A_lower in solveh_banded.
+    of the dot product of banded matrices is significantly slower than using sparse solving.
 
     `A` and `B` matrices are symmetric, so their transposes are never used.
 
@@ -1288,34 +1102,33 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
     num_y = y.shape[0]
     d1_diags = np.zeros((5, num_y))
     d2_diags = np.zeros((5, num_y))
-    A, B = _high_pass_filter(num_y, freq_cutoff, filter_type, False)
+    use_banded = _HAS_NUMBA
+    offsets = np.arange(2, -3, -1)
+    # variable names throughout mirror Table 3 in BEADS paper, except signal is used instead of 'x'
+    A_banded, A_sparse, A_factorization, B_banded, BTB = _high_pass_filter(
+        num_y, freq_cutoff, filter_type, use_banded, banded_factorization
+    )
     # the number of lower and upper diagonals for both A and B
     ab_lu = (filter_type, filter_type)
     # the shape of A and B, and D.T @ D matrices in their full forms rather than banded forms
     full_shape = (num_y, num_y)
-    A_lower = A[filter_type:]
-    BTB = _banded_dot_banded(B, B, ab_lu, ab_lu, full_shape, full_shape, True)
-    # number of lower and upper diagonals of A.T @ (D.T @ D) @ A
+    # number of lower and upper diagonals of A.T @ (D.T @ Lambda @ D) @ A
     num_diags = (2 * filter_type + 2, 2 * filter_type + 2)
+    if use_banded:
+        d = _banded_dot_vector(BTB, _factorized_solve(A_factorization, y), lower=False)
+    else:
+        d = BTB @ _factorized_solve(A_factorization, y)
+    d -= lam_0 * (A_sparse @ np.full(num_y, 0.5 * (1 - asymmetry)))
 
-    # line 2 of Table 3 in beads paper
-    d = (
-        _banded_dot_vector(
-            np.asfortranarray(BTB),
-            solveh_banded(A_lower, y, check_finite=False, lower=True),
-            (2 * filter_type, 2 * filter_type), full_shape
-        )
-        - _banded_dot_vector(
-            A, np.full(num_y, lam_0 * (1 - asymmetry) / 2), ab_lu, full_shape
-        )
-    )
     gamma = np.empty(num_y)
-    gamma_factor = lam_0 * (1 + asymmetry) / 2  # 2 * lam_0 * (1 + asymmetry) / 4
-    x = y
-    d1_x, d2_x = _abs_diff(x, smooth_half_window)
-    cost_old = 0
-    abs_x = np.abs(x)
-    big_x = abs_x > eps_0
+    gamma_factor = lam_0 * 0.5 * (1 + asymmetry)  # 2 * lam_0 * (1 + asymmetry) / 4
+    signal = y
+    abs_x, big_x, theta = _beads_theta(signal, asymmetry, eps_0)
+    d1_signal, d2_signal = _abs_diff(signal, smooth_half_window)
+    d1_loss = _beads_loss(d1_signal, use_v2_loss, eps_1).sum()
+    d2_loss = _beads_loss(d2_signal, use_v2_loss, eps_1).sum()
+    # fidelity term is 0 since noise is zeros due to signal == y
+    cost_old = lam_0 * theta + lam_1 * d1_loss + lam_2 * d2_loss
     tol_history = np.empty(max_iter + 1)
     success = False
     for i in range(max_iter + 1):
@@ -1323,44 +1136,49 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
         # than sparse matrices since it is much faster; Gamma + D.T @ Lambda @ D
 
         # row 1 and 3 instead of 0 and 2 to account for zeros on top and bottom
-        d1_diags[1][1:] = d1_diags[3][:-1] = -_beads_weighting(d1_x, use_v2_loss, eps_1)
+        d1_diags[1][1:] = d1_diags[3][:-1] = -_beads_weighting(d1_signal, use_v2_loss, eps_1)
         d1_diags[2] = -(d1_diags[1] + d1_diags[3])
 
-        d2_diags[0][2:] = d2_diags[-1][:-2] = _beads_weighting(d2_x, use_v2_loss, eps_1)
+        d2_diags[0][2:] = d2_diags[-1][:-2] = _beads_weighting(d2_signal, use_v2_loss, eps_1)
         d2_diags[1] = 2 * (d2_diags[0] - np.roll(d2_diags[0], -1, 0)) - 4 * d2_diags[0]
         d2_diags[-2][:-1] = d2_diags[1][1:]
         d2_diags[2] = -(d2_diags[0] + d2_diags[1] + d2_diags[-1] + d2_diags[-2])
 
-        d_diags = lam_1 * d1_diags + lam_2 * d2_diags
+        d1_diags *= lam_1
+        d2_diags *= lam_2
+        d_diags = d1_diags + d2_diags
 
         gamma[~big_x] = gamma_factor / eps_0
         gamma[big_x] = gamma_factor / abs_x[big_x]
         d_diags[2] += gamma
 
-        temp = _banded_dot_banded(
-            _banded_dot_banded(A, d_diags, ab_lu, (2, 2), full_shape, full_shape),
-            A, (filter_type + 2, filter_type + 2), ab_lu, full_shape, full_shape, True
-        )
-        temp[2:-2] += BTB
+        if use_banded:
+            Q = _banded_dot_banded(
+                _banded_dot_banded(A_banded, d_diags, ab_lu, (2, 2), full_shape, full_shape),
+                A_banded, (filter_type + 2, filter_type + 2), ab_lu, full_shape, full_shape
+            )
+            Q[2:-2] += BTB
+            # cannot use solveh_banded since Q is not guaranteed to be positive-definite
+            Q_d = solve_banded(num_diags, Q, d, overwrite_ab=True, check_finite=False)
+        else:
+            # converting from sparse to banded and solving with solve_banded is just as
+            # slow as directly using spsolve
+            Q = A_sparse @ dia_object((d_diags, offsets), shape=(num_y, num_y)) @ A_sparse
+            Q += BTB
+            # TODO check that 'NATURAL' is the appropriate permutation scheme for this
+            Q_d = spsolve(Q, d, 'NATURAL')
 
-        # cannot use solveh_banded since temp is not guaranteed to be positive-definite
-        # and diagonally-dominant
-        x = _banded_dot_vector(
-            A,
-            solve_banded(num_diags, temp, d, overwrite_ab=True, check_finite=False),
-            ab_lu, full_shape
+        signal = A_sparse @ Q_d  # pure signal
+        residual = y - signal  # contains baseline + noise
+        noise = _banded_dot_vector(
+            B_banded, _factorized_solve(A_factorization, residual), lower=False
         )
 
-        abs_x, big_x, theta = _beads_theta(x, asymmetry, eps_0)
-        d1_x, d2_x = _abs_diff(x, smooth_half_window)
-        h = _banded_dot_vector(
-            B,
-            solveh_banded(A_lower, y - x, check_finite=False, overwrite_b=True, lower=True),
-            ab_lu, full_shape
-        )
-        fidelity = 0.5 * (h @ h)
-        d1_loss = _beads_loss(d1_x, use_v2_loss, eps_1).sum()
-        d2_loss = _beads_loss(d2_x, use_v2_loss, eps_1).sum()
+        abs_x, big_x, theta = _beads_theta(signal, asymmetry, eps_0)
+        d1_signal, d2_signal = _abs_diff(signal, smooth_half_window)
+        fidelity = 0.5 * (noise @ noise)
+        d1_loss = _beads_loss(d1_signal, use_v2_loss, eps_1).sum()
+        d2_loss = _beads_loss(d2_signal, use_v2_loss, eps_1).sum()
         cost = (
             fidelity
             + lam_0 * theta
@@ -1374,18 +1192,9 @@ def _banded_beads(y, freq_cutoff=0.005, lam_0=1.0, lam_1=1.0, lam_2=1.0, asymmet
             break
         cost_old = cost
 
-    diff = y - x
-    baseline = (
-        diff
-        - _banded_dot_vector(
-            B,
-            solveh_banded(A_lower, diff, check_finite=False, overwrite_ab=True, lower=True),
-            ab_lu, full_shape
-        )
-    )
-
+    baseline = residual - noise
     params = {
-        'signal': x, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
+        'signal': signal, 'tol_history': tol_history[:i + 1], 'fidelity': fidelity,
         'penalty': (theta, d1_loss, d2_loss), 'success': success
     }
 

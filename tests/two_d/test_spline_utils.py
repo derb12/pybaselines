@@ -523,7 +523,7 @@ def test_jops_comparison(condition_enum):
     )
     assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
 
-    edf = PSplineResult2D(system, weights=weights).effective_dimension(n_samples=0)
+    edf = PSplineResult2D(system, weights=weights).edf(n_samples=0)
     assert_allclose(edf, edfs[condition_enum], rtol=1e-13, atol=1e-13)
 
 
@@ -562,5 +562,5 @@ def test_jops_weighted_comparison():
     )
     assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
 
-    edf = PSplineResult2D(system, weights=weights).effective_dimension(n_samples=0)
+    edf = PSplineResult2D(system, weights=weights).edf(n_samples=0)
     assert_allclose(edf, 42.799308094594, rtol=1e-13, atol=1e-13)

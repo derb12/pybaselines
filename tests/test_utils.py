@@ -1051,49 +1051,6 @@ def test_get_rng():
     )
 
 
-def test_masked_matvec_identity():
-    """Simple check for _masked_matvec.
-
-    Since `A` is a diagonal matrix, the same indices in mask should be zero
-    in the masked ``A @ v``.
-
-    """
-    size = 10
-    matrix = identity(size)
-    vector = np.ones(size)
-    mask = np.zeros(size, dtype=float)
-    idx = 5
-    mask[idx] = True
-
-    expected_output = np.where(mask, 0., 1.)
-    output = utils._masked_matvec(matrix, vector, mask)
-
-    assert_allclose(output, expected_output, rtol=1e-16, atol=1e-16)
-
-
-@pytest.mark.parametrize('diff_order', (1, 2))
-def test_masked_matvec(diff_order):
-    """Ensures nan propagation for masked_matvec.
-
-    `np.diff` properly propagates nan, so can compared against ``A @ v``
-    where `A` is the finite difference matrix.
-
-    """
-    size = 101
-    matrix = _banded_utils.difference_matrix(size, diff_order=diff_order)
-    rng = np.random.default_rng(0)
-    vector = rng.normal(5, 0.5, size)
-    mask = rng.choice([True, False], size, p=(0.3, 0.7))
-    nan_vector = np.where(mask, np.nan, vector)
-
-    expected_output = np.diff(nan_vector, diff_order)
-    expected_output[np.isnan(expected_output)] = 0
-
-    output = utils._masked_matvec(matrix, vector, mask)
-
-    assert_allclose(output, expected_output, rtol=1e-15, atol=1e-15)
-
-
 @pytest.mark.parametrize('one_d', (True, False))
 def test_masked_convolve(one_d):
     """Compares _masked_convolve against Astropy's implementation.

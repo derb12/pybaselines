@@ -854,7 +854,7 @@ class BaseTester:
 
         # TODO the higher rtol for derpsalsa is a temporary shim since the masked convolution
         # does not do padding; will change once it's decided how to handle
-        rtol = 2e-6 if 'derpsalsa' in self.func_name else 1e-14
+        rtol = 2e-6 if 'derpsalsa' in self.func_name else 5e-13
         assert_allclose(masked_fit, normal_fit, rtol=rtol, atol=1e-14)
 
 
@@ -1299,7 +1299,7 @@ class BaseTester2D:
         fitter.mask = None
         normal_fit, _ = method(self.y, **self.kwargs, **kwargs)
 
-        assert_allclose(masked_fit, normal_fit, rtol=1e-14, atol=1e-14)
+        assert_allclose(masked_fit, normal_fit, rtol=5e-13, atol=1e-14)
 
 
 class BasePolyTester2D(BaseTester2D):

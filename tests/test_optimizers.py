@@ -199,16 +199,10 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing optimize_extended_range baseline."""
 
     func_name = "optimize_extended_range"
-    checked_keys = ('optimal_parameter', 'min_rmse', 'rmse', 'sampled_parameters')
+    checked_keys = ('optimal_parameter', 'min_rmse', 'rmse')
     # will need to change checked_keys if default method is changed
     checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     required_kwargs = {'pad_kwargs': {'extrapolate_window': 100}}
-
-    @pytest.mark.parametrize('grid_search', (True, False))
-    def test_output(self, grid_search):
-        """Ensures correct output parameters for different optimization methods."""
-        additional_keys = [] if grid_search else ['optimize_result']
-        super().test_output(additional_keys=additional_keys, grid_search=grid_search)
 
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('side', ('left', 'right', 'both'))
@@ -248,6 +242,30 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         for key, value in params['method_params'].items():
             if isinstance(value, np.ndarray) and key != 'tol_history':
                 assert self.y.shape == value.shape
+
+    @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
+    @pytest.mark.parametrize('side', ('left', 'right', 'both'))
+    def test_polynomial_rmse_scaling(self, method, side):
+        """
+        Polynomial errors scale with the signal without integer truncation.
+
+        `optimize_extended_range` previously based the RMSE dtype on the tested
+        variable's dtype (e.g. int for polynomials) rather than always using
+        floats; see PR#97 for further context.
+
+        """
+        kwargs = {'method': method, 'side': side, 'min_value': 1, 'max_value': 5}
+        scale = 1e-5
+        expected, expected_params = self.class_func(self.y, **kwargs)
+        actual, params = self.class_func(scale * self.y, **kwargs)
+
+        assert_allclose(actual, scale * expected, rtol=1e-8, atol=1e-12)
+        assert params['optimal_parameter'] == expected_params['optimal_parameter']
+        assert params['rmse'].dtype == float
+        assert expected_params['rmse'].dtype == float
+        assert np.all(params['rmse'] > 0)
+        assert_allclose(params['rmse'], scale * expected_params['rmse'], rtol=1e-8)
+        assert_allclose(params['min_rmse'], scale * expected_params['min_rmse'], rtol=1e-8)
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
@@ -397,6 +415,10 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         # both methods should have the same number of tested values
         assert len(params_3['rmse']) == len(expected_tested_values)
 
+    @ensure_deprecation(1, 5)  # reenable this test in v1.5 when the default behavior changes
+    @pytest.mark.xfail(
+        run=False, reason="won't come into effect until later, don't feel like deleting it..."
+    )
     @pytest.mark.parametrize('method', ('asls', 'modpoly'))
     def test_default_step(self, method):
         """Ensures default step is determined by the type of baseline method."""
@@ -411,13 +433,7 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
         )
         assert len(params['rmse']) == len(expected_tested_values)
 
-    def test_poly_non_grid_search_fails(self):
-        """Ensures raised exception if using a polynomial method with `grid_search=False."""
-        with pytest.raises(ValueError, match='must use grid_search=True'):
-            self.class_func(self.y, method='modpoly', grid_search=False)
-
-    @pytest.mark.parametrize('grid_search', (True, False))
-    def test_correctness(self, grid_search):
+    def test_correctness(self):
         """Compares the calculated optimal value to its literature example.
 
         Data is based on Figure 3 of Zhang, et al., and the lam vs RMSE plot should
@@ -446,15 +462,14 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
 
         fit, params = self.algorithm_base().optimize_extended_range(
             y, method='aspls', side='right', min_value=3, max_value=12.2, step=0.3,
-            width_scale=0.2, grid_search=grid_search, pad_kwargs={'extrapolate_window': 50},
+            width_scale=0.2, pad_kwargs={'extrapolate_window': 50},
         )
         assert isinstance(params['optimal_parameter'], float)
 
         # with step used in paper, best value is 9.6; for a much smaller step size, the actual
         # minimum is ~9.7-9.75
         assert_allclose(
-            np.log10(params['optimal_parameter']), 9.6 if grid_search else 9.7, rtol=1e-15,
-            atol=1e-16 if grid_search else 0.1
+            np.log10(params['optimal_parameter']), 9.7, rtol=1e-15, atol=0.1
         )
         # paper had min at ~0.002; difference could be due to noise differences etc, so just
         # using this to detect changes internally
@@ -474,12 +489,12 @@ def test_param_grid():
     assert output.dtype == int
 
     output2 = optimizers._param_grid(min_value, max_value, step, polynomial_fit=False)
-    assert_allclose(output2, expected_values, rtol=1e-15, atol=1e-15)
+    assert_allclose(output2, 10.**expected_values, rtol=1e-15, atol=1e-15)
     assert output2.dtype == float
 
     # also ensure floats are properly handled
     step = 0.5
-    expected_values = np.array([1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5])
+    expected_values = 10.**np.array([1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5])
     output3 = optimizers._param_grid(min_value, max_value, step, polynomial_fit=False)
     assert_allclose(output3, expected_values, rtol=1e-15, atol=1e-15)
     assert output3.dtype == float
@@ -491,7 +506,7 @@ def test_param_grid_no_step(polynomial_fit):
     min_value = 2
     expected_value = np.array([min_value])
     if not polynomial_fit:
-        expected_value = expected_value
+        expected_value = 10.**expected_value
 
     # case 1: step == 0
     with pytest.warns(utils.ParameterWarning):
@@ -635,6 +650,36 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
     def test_methods(self, method):
         """Ensures all available methods work."""
         self.class_func(self.y, method=method)
+
+    @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
+    @pytest.mark.parametrize('ordering', ('original', 'reversed', 'shuffled'))
+    def test_default_weights_ordering(self, method, ordering):
+        """Default weights preserve endpoint constraints under coordinate reordering."""
+        rng = np.random.default_rng(0)
+        row_order = np.arange(len(self.x))
+        if ordering == 'reversed':
+            row_order = row_order[::-1]
+        elif ordering == 'shuffled':
+            row_order = rng.permutation(row_order)
+        index = row_order
+        fitter = self.algorithm_base(self.x[row_order])
+        kwargs = {'constrained_fraction': (0.01, 0.02),
+                  'constrained_weight': (1e4, 1e5)}
+        expected, expected_params = self.class_func(self.y, method=method, **kwargs)
+        actual, params = fitter.adaptive_minmax(self.y[index], method=method, **kwargs)
+        explicit, explicit_params = fitter.adaptive_minmax(
+            self.y[index], method=method, weights=np.ones_like(self.y), **kwargs
+        )
+
+        assert_allclose(actual, expected[index], rtol=1e-10, atol=1e-12)
+        assert_allclose(actual, explicit, rtol=1e-10, atol=1e-12)
+        for weights, expected_weights, explicit_weights in zip(
+            params['method_params']['weights'],
+            expected_params['method_params']['weights'],
+            explicit_params['method_params']['weights']
+        ):
+            assert_array_equal(weights, expected_weights[index])
+            assert_array_equal(weights, explicit_weights)
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
@@ -815,24 +860,21 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
     """Class for testing optimize_pls baseline."""
 
     func_name = "optimize_pls"
-    checked_keys = ('optimal_parameter', 'metric', 'sampled_parameters')
+    checked_keys = ('optimal_parameter', 'metric')
     # will need to change checked_keys if default method is changed
     checked_method_keys = ('weights', 'tol_history', 'result', 'success')
     # by default only run a few optimization steps
     required_kwargs = {'min_value': 2, 'max_value': 3}
 
-    @pytest.mark.parametrize('grid_search', (True, False))
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV', 'BIC'))
-    def test_output(self, opt_method, grid_search):
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-curve', 'GCV'))
+    def test_output(self, opt_method):
         """Ensures correct output parameters for different optimization methods."""
-        if opt_method in ('GCV', 'BIC'):
-            additional_keys = ['trace', 'wrss']
+        if opt_method in ('GCV',):
+            additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty', 'fidelity']
-        if not grid_search:
-            additional_keys.append('optimize_result')
         super().test_output(
-            additional_keys=additional_keys, opt_method=opt_method, grid_search=grid_search
+            additional_keys=additional_keys, opt_method=opt_method
         )
 
     @pytest.mark.parametrize(
@@ -853,10 +895,10 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         elif 'alpha' in output[1]['method_params']:
             assert self.y.shape == output[1]['method_params']['alpha'].shape
 
-    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-Curve', 'GCV', 'BIC'))
+    @pytest.mark.parametrize('opt_method', ('V-curve', 'L-curve', 'U-Curve', 'GCV'))
     def test_beads(self, opt_method):
         """Ensures beads is also supported for L-curve based optimization methods."""
-        if opt_method in ('GCV', 'BIC'):
+        if opt_method in ('GCV',):
             with pytest.raises(
                 NotImplementedError, match='optimize_pls does not support the beads method'
             ):
@@ -881,7 +923,15 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, opt_method='aaaaa')
 
-    @pytest.mark.parametrize('opt_method', ('V-Curve', 'L-Curve', 'U-Curve', 'GCV', 'BIC'))
+    def test_param_in_kwargs_fails(self):
+        """Ensures `lam` or `alpha` in `method_kwargs` raises."""
+        with pytest.raises(ValueError, match='lam must not be specified'):
+            self.class_func(self.y, method='arpls', method_kwargs={'lam': 1})
+
+        with pytest.raises(ValueError, match='alpha must not be specified'):
+            self.class_func(self.y, method='beads', method_kwargs={'alpha': 1})
+
+    @pytest.mark.parametrize('opt_method', ('V-Curve', 'L-Curve', 'U-Curve', 'GCV'))
     def test_single_value(self, opt_method):
         """Ensures all optimization methods work if only a single value is fit."""
         min_val = 2.
@@ -889,8 +939,8 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
             fit, params = self.class_func(
                 self.y, method='asls', opt_method=opt_method, min_value=min_val, step=0
             )
-        if opt_method in ('GCV', 'BIC'):
-            additional_keys = ['trace', 'wrss']
+        if opt_method in ('GCV',):
+            additional_keys = ['edf', 'wrss']
         else:
             additional_keys = ['penalty', 'fidelity']
         for key in ['metric'] + additional_keys:
@@ -961,7 +1011,7 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         # points. So just use as an internal integration test
         assert_allclose(
             params['metric'][np.argmin(params['metric'])],
-            -12.39785958567786 if opt_method == 'L-Curve' else 0.03876124279642051,
+            -12.397859585677859 if opt_method == 'L-Curve' else 0.09334637400749589,
             rtol=1e-10, atol=1e-10
         )
 
@@ -1020,10 +1070,9 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         assert params['metric'].min() >= 0
         assert params['metric'].max() <= 1
 
-    @pytest.mark.parametrize('grid_search', (True, False))
     @pytest.mark.parametrize('pspline', (True, False))
     @pytest.mark.parametrize('weight_enum', (0, 1, 2))
-    def test_gcv(self, weight_enum, pspline, grid_search):
+    def test_gcv(self, weight_enum, pspline):
         """
         Compares against the 'WH' R package for ensuring GCV calculation is correct.
 
@@ -1112,13 +1161,13 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
 
         fit, params = self.algorithm_base().optimize_pls(
             y, method=method, opt_method='GCV', min_value=-2, max_value=1, step=0.01,
-            method_kwargs=kwargs, rho=1, grid_search=grid_search
+            method_kwargs=kwargs, gcv_scale=1
         )
 
         best_idx = params['metric'].argmin()
         assert_allclose(params['optimal_parameter'], ref_lam, rtol=1e-4, atol=0.005)
         assert_allclose(params['metric'][best_idx], ref_metric, rtol=1e-4, atol=1e-3)
-        assert_allclose(params['trace'][best_idx], ref_edf, rtol=1e-2, atol=1e-1)
+        assert_allclose(params['edf'][best_idx], ref_edf, rtol=1e-2, atol=1e-1)
         assert_allclose(params['wrss'][best_idx], ref_wrss, rtol=1e-2, atol=1e-3)
 
         if weight_enum == 0:
@@ -1128,4 +1177,4 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         expected_output = np.loadtxt(
             Path(__file__).parent.joinpath(f'data/{file_name}.csv'), delimiter=','
         )
-        assert_allclose(fit, expected_output, rtol=5e-3 if grid_search else 7e-3, atol=1e-6)
+        assert_allclose(fit, expected_output, rtol=7e-3, atol=1e-6)

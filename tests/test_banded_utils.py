@@ -13,6 +13,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 from scipy.linalg import cholesky_banded
+from scipy.sparse import issparse
 from scipy.sparse.linalg import spsolve
 
 from pybaselines import _banded_utils, _spline_utils, results
@@ -119,7 +120,7 @@ def test_diff_penalty_matrix(data_size, diff_order):
 
     output = _banded_utils.diff_penalty_matrix(data_size, diff_order)
 
-    assert_allclose(expected_matrix.toarray(), output.toarray(), rtol=1e-12, atol=1e-12)
+    assert_allclose(expected_matrix.toarray(), output.toarray(), rtol=1e-16, atol=1e-16)
 
 
 @pytest.mark.parametrize('data_size', (3, 6))
@@ -132,12 +133,56 @@ def test_diff_penalty_matrix_too_few_data(data_size, diff_order):
     if data_size <= diff_order:
         with pytest.raises(ValueError):
             _banded_utils.diff_penalty_matrix(data_size, diff_order)
-        # the actual matrix should be just zeros
-        actual_result = np.zeros((data_size, data_size))
-        assert_allclose(actual_result, expected_matrix.toarray(), rtol=1e-12, atol=1e-12)
     else:
         output = _banded_utils.diff_penalty_matrix(data_size, diff_order)
-        assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-12, atol=1e-12)
+        assert_allclose(output.toarray(), expected_matrix.toarray(), rtol=1e-16, atol=1e-16)
+
+
+@pytest.mark.parametrize('data_size', (10, 51))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+def test_diff_penalty_matrix_mask(data_size, diff_order):
+    """Ensures mask is correctly propagated for diff_penalty_matrix."""
+    rng = np.random.default_rng(1234)
+    y = rng.normal(0., 0.5, data_size)
+    mask = rng.choice([True, False], data_size, p=[0.3, 0.7])
+
+    # any point in the masked regions should propagate nan and be removed
+    diff_y = np.diff(np.where(mask, np.nan, y), diff_order)
+    nan_mask = np.isnan(diff_y)
+    diff_y[nan_mask] = 0
+
+    diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
+    expected_matvec = diff_matrix.T @ diff_y
+    expected_mat = diff_matrix.T @ diags(~nan_mask) @ diff_matrix
+
+    output = _banded_utils.diff_penalty_matrix(data_size, diff_order, mask=mask)
+    matvec = output @ y
+
+    assert issparse(output)
+    assert_allclose(output.toarray(), expected_mat.toarray(), rtol=0, atol=1e-16)
+    assert_allclose(matvec, expected_matvec, rtol=5e-14, atol=1e-16)
+
+
+@pytest.mark.parametrize('data_size', (10, 51))
+@pytest.mark.parametrize('diff_order', (1, 2, 3, 4))
+def test_diff_penalty_matrix_mask_fit_all(data_size, diff_order):
+    """Ensures a mask that fits all points should exactly reproduce D.T @ D."""
+    rng = np.random.default_rng(1234)
+    y = rng.normal(0., 0.5, data_size)
+    mask = np.zeros_like(y, dtype=bool)
+
+    diff_matrix = _banded_utils.difference_matrix(data_size, diff_order)
+    expected_mat = diff_matrix.T @ diff_matrix
+    expected_matvec = expected_mat @ y
+
+    output = _banded_utils.diff_penalty_matrix(data_size, diff_order, mask=mask)
+    matvec = output @ y
+
+    assert issparse(output)
+    assert_allclose(output.toarray(), expected_mat.toarray(), rtol=0, atol=1e-16)
+    # NOTE no clue why the two matvecs have such a large rtol difference when the two
+    # matrices are the exact same...
+    assert_allclose(matvec, expected_matvec, rtol=5e-14, atol=1e-16)
 
 
 def test_shift_rows_2_diags():
@@ -432,7 +477,8 @@ def test_difference_matrix_order_neg():
         _banded_utils.difference_matrix(10, diff_order=-2)
 
 
-def test_difference_matrix_order_over():
+@pytest.mark.parametrize('making_penalty', (True, False))
+def test_difference_matrix_order_over(making_penalty):
     """
     Tests the (n + 1)th order differential matrix against the actual representation.
 
@@ -441,10 +487,14 @@ def test_difference_matrix_order_over():
     following a similar logic as np.diff.
 
     """
-    diff_matrix = _banded_utils.difference_matrix(10, 11).toarray()
-    actual_matrix = np.empty(shape=(0, 10))
+    if making_penalty:
+        with pytest.raises(ValueError, match='data size must be greater'):
+            _banded_utils.difference_matrix(10, 11, making_penalty=making_penalty)
+    else:
+        diff_matrix = _banded_utils.difference_matrix(10, 11, making_penalty=making_penalty)
+        actual_matrix = np.empty(shape=(0, 10))
 
-    assert_array_equal(diff_matrix, actual_matrix)
+        assert_array_equal(diff_matrix.toarray(), actual_matrix)
 
 
 def test_difference_matrix_size_neg():
@@ -465,11 +515,14 @@ def test_difference_matrix_formats(form):
 
 
 def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
-                           allow_lower, reverse_diags, padding, using_penta, data_size):
+                           allow_lower, reverse_diags, padding, using_penta, data_size,
+                           symmetric=None):
     """Tests a PenalizedSystem object with the expected values."""
     expected_padded_penalty = lam * _banded_utils._pad_diagonals(
         expected_penalty, padding, lower_only=allow_lower
     )
+    if symmetric is None:
+        symmetric = allow_lower
 
     assert penalized_system._num_bases == data_size
     assert penalized_system.shape == (data_size,)
@@ -480,6 +533,7 @@ def check_penalized_system(penalized_system, expected_penalty, lam, diff_order,
     assert penalized_system.diff_order == diff_order
     assert penalized_system.num_bands == diff_order + max(0, padding)
     assert penalized_system.using_penta == using_penta
+    assert penalized_system.symmetric == symmetric
     assert_allclose(
         penalized_system.main_diagonal,
         penalized_system.penalty[penalized_system.main_diagonal_index], rtol=1e-12, atol=1e-12
@@ -620,7 +674,8 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
             )
         check_penalized_system(
             penalized_system, expected_penalty, lam, diff_order, actual_lower,
-            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size
+            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size,
+            symmetric=allow_lower
         )
         # also check that the reset_diagonal method performs similarly
         with mock.patch.object(_banded_utils, '_HAS_NUMBA', True):
@@ -630,7 +685,8 @@ def test_penalized_system_setup_pentadiagonal(diff_order, allow_lower, reverse_d
             )
         check_penalized_system(
             initial_system, expected_penalty, lam, diff_order, actual_lower,
-            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size
+            reverse_diags, padding, using_penta=diff_order == 2, data_size=data_size,
+            symmetric=allow_lower
         )
 
     # mock not having numba to check that the solver is not used even if the input
@@ -1099,7 +1155,7 @@ def test_WH_comparison(condition_enum, allow_lower, allow_penta):
     )
     assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
 
-    edf = results.WhittakerResult(system, weights=weights).effective_dimension(n_samples=0)
+    edf = results.WhittakerResult(system, weights=weights).edf(n_samples=0)
     assert_allclose(edf, edfs[condition_enum], rtol=1e-13, atol=1e-13)
 
 
@@ -1136,7 +1192,7 @@ def test_WH_weighted_comparison(weight_enum, allow_lower, allow_penta):
     )
 
     assert_allclose(fit, expected_output, rtol=1e-13, atol=1e-13)
-    edf = results.WhittakerResult(system, weights=weights).effective_dimension(n_samples=0)
+    edf = results.WhittakerResult(system, weights=weights).edf(n_samples=0)
     assert_allclose(
         edf, 25.886100950162117 if weight_enum == 0 else 30.31931076759921,
         rtol=1e-13, atol=1e-13

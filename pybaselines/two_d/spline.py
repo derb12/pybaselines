@@ -13,9 +13,9 @@ from .. import _weighting
 from .._nd.pls import _PLSNDMixin
 from .._validation import _check_spline_degree
 from ..results import PSplineResult2D
-from ..utils import _masked_matvec, relative_difference
+from ..utils import relative_difference
 from ._algorithm_setup import _Algorithm2D
-from ._whittaker_utils import PenalizedSystem2D
+from ._whittaker_utils import diff_penalty_matrix_2d
 
 
 class _Spline(_Algorithm2D, _PLSNDMixin):
@@ -369,13 +369,11 @@ class _Spline(_Algorithm2D, _PLSNDMixin):
         )
 
         # B.T @ P_1 @ B and B.T @ P_1 @ y
-        penalized_system_1 = PenalizedSystem2D(self._shape, lam_1, diff_order=1)
-        d1_penalty = pspline.basis.basis.T @ penalized_system_1.penalty
-        if self.mask is None:
-            partial_rhs = d1_penalty @ y.ravel()
-        else:
-            partial_rhs = _masked_matvec(d1_penalty, y.ravel(), self.mask.ravel())
-
+        d1_penalty = (
+            pspline.basis.basis.T
+            @ diff_penalty_matrix_2d(self._shape, lam_1, diff_order=1, mask=self.mask)
+        )
+        partial_rhs = d1_penalty @ y.ravel()
         d1_penalty = d1_penalty @ pspline.basis.basis
         pspline.add_penalty(d1_penalty)
 
