@@ -613,6 +613,10 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         """
         Optimizes the regularization parameter for penalized least squares methods.
 
+        Uses various optimization metrics to select the optimal `lam` value
+        for all Whittaker-smoothing or penalized spline methods (or `alpha` for `beads)
+        in pybaselines.
+
         Parameters
         ----------
         data : array-like, shape (N,)
@@ -621,40 +625,41 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             A string indicating the Whittaker-smoothing or penalized spline method (or `beads`)
             to use for fitting the baseline. Default is 'arpls'.
         opt_method : {'V-Curve', 'L-Curve', 'U-Curve', 'GCV'}, optional
-            The optimization method used to optimize `lam`. Supported values, and their
-            associated references, are:
+            The optimization method used to optimize the regularization parameter. Supported
+            values, and their associated references, are:
 
-            * 'V-Curve' [1]_
-            * 'L-Curve' [1]_, [2]_, [3]_
-            * 'U-Curve' [4]_, [5]_
-            * 'GCV' [6]_, [7]_
+            * 'V-Curve' [1]_, [2]_
+            * 'L-Curve' [1]_, [3]_, [4]_
+            * 'U-Curve' [5]_, [6]_
+            * 'GCV' [7]_, [8]_
 
             Details on each optimization method are in the Notes section below.
         min_value : float, optional
-            The minimum value for the `lam` value to use with the indicated method. Should
-            be the exponent to raise to the power of 10 (eg. a `min_value` value of 2
-            designates a `lam` value of 10**2). Default is 4.
+            The minimum value for the regularization parameter to use with the indicated
+            method. Should be the exponent to raise to the power of 10 (eg. a `min_value`
+            of 2 designates a value of 10**2). Default is 4.
         max_value : float, optional
-            The maximum value for the `lam` value to use with the indicated method. Should
-            be the exponent to raise to the power of 10 (eg. a `max_value` value of 3
-            designates a `lam` value of 10**3). Default is 7.
+            The maximum value for the regularization parameter to use with the indicated
+            method. Should be the exponent to raise to the power of 10 (eg. a `max_value`
+            of 3 designates a value of 10**3). Default is 7.
         step : float, optional
             The step size for iterating the parameter value from `min_value` to `max_value`.
-            Should be the exponent to raise to the power of 10 (eg. a `step` value of 1
-            designates a `lam` value of 10**1). Default is 0.5.
+            Should be the exponent to raise to the power of 10 (eg. a `step` of 1
+            designates a value of 10**1). Default is 0.5.
         method_kwargs : dict, optional
             A dictionary of keyword arguments to pass to the selected `method` function.
             Default is None, which will use an empty dictionary.
         euclidean : bool, optional
             Only used if `opt_method` is 'U-curve'. If False (default), the optimization metric
-            is the minimum of the sum of the normalized fidelity and penalty values [1]_, which is
-            equivalent to the minimum graph distance from the origin. If True, the metric is the
-            Euclidean distance from the origin, similar to [3]_ and [5]_.
+            is the minimum of the sum of the normalized fidelity and penalty values [5]_, which is
+            equivalent to the minimum city block (Manhattan) distance [9]_ from the origin of a
+            normalized L-Curve [10]_. If True, the metric is the Euclidean distance from the
+            origin of the normalized L-Curve, similar to [4]_ and [6]_.
         gcv_scale : float, optional
             Only used if `opt_method` is 'GCV'. The multiplier on the effective degrees of freedom
             (edf) for the modified generalized cross validation (mGCV) criteria. A value of
             1 (default) defines normal GCV, while higher values of `gcv_scale` stabilize the
-            scores to make a single, global minimum value more likely. For smoothing, [8]_
+            scores to make a single, global minimum value more likely. For smoothing, [11]_
             suggests using a value of 1.3 if ``len(data)`` is less than 100, otherwise 2; for
             baseline correction, larger values up to 5 or 10 empirically provide suitable results.
         n_samples : int, optional
@@ -672,20 +677,20 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
             A dictionary with the following items:
 
             * 'optimal_parameter': float
-                The `lam` value that minimized the computed metric.
+                The regularization parameter value that minimized the computed metric.
             * 'metric': numpy.ndarray, shape (P,)
-                The computed metric for each `lam` value tested.
+                The computed metric for each regularization value tested.
             * 'method_params': dict
                 A dictionary containing the output parameters for the optimal fit.
                 Items will depend on the selected `method`.
             * 'fidelity': numpy.ndarray, shape (P,)
-                Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
-                non-normalized fidelity term for each `lam` value tested. For
+                Only returned if `opt_method` is 'V-Curve', 'L-Curve', or 'U-Curve'. The computed
+                non-normalized fidelity term for each regularization value tested. For
                 most algorithms within pybaselines, this is equivalent to the weighted residual
                 sum of squares (eg. ``sum(weights * (data - baseline)**2)``)
             * 'penalty': numpy.ndarray, shape (P,)
-                Only returned if `opt_method` is 'V-curve', 'L-curve', or 'U-curve'. The computed
-                non-normalized penalty values for each `lam` value tested.
+                Only returned if `opt_method` is 'V-Curve', 'L-Curve', or 'U-Curve'. The computed
+                non-normalized penalty values for each regularization value tested.
             * 'wrss': numpy.ndarray, shape (P,)
                 Only returned if `opt_method` is 'GCV'. The weighted residual sum of
                 squares (eg. ``sum(weights * (data - baseline)**2)``) for each `lam` value tested.
@@ -696,7 +701,9 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         Raises
         ------
         ValueError
-            Raised if `opt_method` is 'GCV' and the input `gcv_scale` is less than 1.
+            Raised if `opt_method` is 'GCV' and the input `gcv_scale` is less than 1, if
+            the keyword for the regularization parameter being varied is included in
+            `method_kwargs`, or if the specified `opt_method` is not one of the supported methods.
         NotImplementedError
             Raised if `method` is 'beads' and `opt_method` is 'GCV'.
 
@@ -706,10 +713,45 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
 
         Notes
         -----
-        `opt_method` 'U-Curve' requires that the sum of the normalized penalty and fidelity values
-        is roughly 'U' shaped (see Figure 5 in [4]_), which depends on appropriate selection of
-        `min_value` and `max_value` such that penalty continually decreases and fidelity
-        continually increases as `lam` increases.
+        `opt_method` values of 'V-Curve', 'L-Curve', and 'U-Curve' are all related to L-Curve
+        optimization [10]_, which constructs a plot of fidelity versus the penalty at each value
+        tested and selects the corner of the L-Curve as the optimal point. Note that, due to the
+        iterative reweighting used in baseline correction, most
+        methods do not result in an actual L-Curve. 'L-Curve' is the traditional method, which
+        selects the point corresponding to the maximum curvature of the L-Curve, although the
+        returned 'metric' parameter values represent the negative curvature so that all methods
+        minimize their metric; further, this method defines the L-Curve directly using the
+        fidelity and penalty terms following [1]_, rather than their square roots as often
+        done [3]_, which simply omits a factor of 2 from the calculated curvature.
+
+        `opt_method` 'V-Curve' minimizes the spacing between points on the L-Curve, which was
+        found to typically correspond to the corner of the L-Curve [1]_. As noted above, most
+        baseline correction methods do not actually create a ideal L-Curve, so 'V-Curve' is
+        typically the most well-performing optimization method because it is an indirect measure
+        of the stability of the reweighted solution. The exception to this is `method='beads'`,
+        which often performs better with `opt_method='L-Curve'` since the V-Curve metric will
+        sometimes select the point on the L-Curve with minimum curvature rather than maximum
+        curvature.
+
+        `opt_method` 'U-Curve' minimizes the sum of the normalized penalty and fidelity values
+        (not to be confused with other uses of "U-Curve" in literature which minimize the sum
+        of the reciprocal penalty and fidelity values), which can be seen as minimizing the
+        distance from the origin on the normalized L-Curve. It is most sensitive to the selected
+        `min_value` and `max_value` since it requires that the sum of the normalized penalty and
+        fidelity values is roughly "U" shaped (see Figure 5 in [5]_), such that penalty
+        continually decreases and fidelity continually increases as the regularization parameter
+        increases (i.e. the L-Curve only contains the "L" portion). While not
+        implemented, the points on the L-Curve could be pruned following the methods of [3]_ or
+        [4]_ so that only the "L" portion of the L-Curve is used for better performance, although,
+        as noted above, often the selected `method` will not produce an actual "L".
+
+        'opt_method' 'GCV' minimizes the generalized cross validation score as suggested by [7]_.
+        It should be noted that the method implemented here should be considered "GCV-like" since
+        the effective degrees of freedom (edf) used in the GCV score is only the linear portion
+        calculated from the trace of the hat matrix [11]_ used for the final baseline calculation;
+        since most baseline correction methods uses iterative reweighting such that the weighting
+        depends on the regularization parameter, there is a (typically minor) non-linear
+        contribution of the edf that is not accounted for.
 
         For `opt_method` 'V-curve', 'L-curve', or 'U-curve', the multipliers on `lam` used in
         methods `drpls` or `aspls`, ``(1 - eta * weights)`` and ``alpha``, respectively, are
@@ -724,7 +766,8 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         baseline correction, due to the reliance of calculated weights on the input `lam`.
         Scalar minimization using :func:`scipy.optimize.minimize_scalar` was found to
         perform okay in most cases, but it would also not allow some methods like 'U-Curve'
-        which requires calculating with all `lam` values before computing the objective.
+        which requires calculating with all regularization parameter values before computing
+        the objective.
 
         The range of values to test is generated using
         ``values = numpy.arange(min_value, max_value, step)``, so `max_value` is likely not
@@ -734,30 +777,37 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         ----------
         .. [1] Frasso, G., et al. L- and V-curves for optimal smoothing. Statistical Modelling,
             2015, 15(1), 91-111.
-        .. [2] Hansen, P.C., et al. An adaptive pruning algorithm for the discrete L-curve
+        .. [2] Bosten, E., et al. Automated tuning of denoising algorithms for noise removal in
+            chromatograms. Journal of Chromatography A, 2023, 1709, 464360.
+        .. [3] Hansen, P.C., et al. An adaptive pruning algorithm for the discrete L-curve
             criterion. Journal of Computational and Applied Mathematics, 2007, 198, 483-492.
-        .. [3] Belge, M., et al. Efficient determination of multiple regularization parameters in
+        .. [4] Belge, M., et al. Efficient determination of multiple regularization parameters in
             a generalized L-curve framework. Inverse Problems, 2002, 18, 1161-1183.
-        .. [4] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
+        .. [5] Park, A., et al. Automatic Selection of Optimal Parameter for Baseline Correction
             using Asymmetrically Reweighted Penalized Least Squares. Journal of the Institute of
             Electronics and Information Engineers, 2016, 53(3), 124-131.
-        .. [5] Andriyana, Y., et al. P-splines quantile regression estimation in varying
+        .. [6] Andriyana, Y., et al. P-splines quantile regression estimation in varying
             coefficient models. TEST, 2014, 23(1), 153-194.
-        .. [6] Wei, J., et al. Two-stage iteratively reweighted smoothing splines for baseline
+        .. [7] Wei, J., et al. Two-stage iteratively reweighted smoothing splines for baseline
             correction. Chemometrics and Intelligent Laboratory Systems, 2022, 227, 104606.
-        .. [7] Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
-        .. [8] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
+        .. [8] Eilers, P. A Perfect Smoother. Analytical Chemistry, 2003, 75(14), 3631-3636.
+        .. [9] https://en.wikipedia.org/wiki/Taxicab_geometry.
+        .. [10] https://en.wikipedia.org/wiki/L-curve.
+        .. [11] Lukas, M., et al. Practical use of robust GCV and modified GCV for spline
             smoothing. Computational Statistics, 2016, 31, 269-289.
+        .. [12] https://en.wikipedia.org/wiki/Projection_matrix.
 
         """
         y, optimizer_obj, method_kws = self._setup_optimizer(
             data, method, method_param={'beads': 'alpha', None: 'lam'},
             method_kwargs=method_kwargs, copy_kwargs=False
         )
-        if 'lam' in method_kws:
+        if optimizer_obj.method_param in method_kws:
             # TODO maybe just warn and pop out instead? Would need to copy input kwargs in that
             # case so that the original input is not modified
-            raise ValueError('lam must not be specified within method_kwargs')
+            raise ValueError(
+                f'{optimizer_obj.method_param} must not be specified within method_kwargs'
+            )
 
         lam_range = _param_grid(min_value, max_value, step, polynomial_fit=False)
         selected_method = opt_method.lower().replace('-', '_').replace('_', '')

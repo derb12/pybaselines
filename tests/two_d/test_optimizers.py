@@ -566,6 +566,11 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, opt_method='aaaaa')
 
+    def test_param_in_kwargs_fails(self):
+        """Ensures `lam` in `method_kwargs` raises."""
+        with pytest.raises(ValueError, match='lam must not be specified'):
+            self.class_func(self.y, method='arpls', method_kwargs={'lam': 1})
+
     def test_eigen_fit(self):
         """Ensures penalties are calculated correctly when solving using eigendecomposition."""
         eigen_fit, eigen_params = self.class_func(

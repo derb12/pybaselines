@@ -869,6 +869,14 @@ class TestOptimizePLS(OptimizersTester, OptimizerInputWeightsMixin):
         with pytest.raises(ValueError):
             self.class_func(self.y, opt_method='aaaaa')
 
+    def test_param_in_kwargs_fails(self):
+        """Ensures `lam` or `alpha` in `method_kwargs` raises."""
+        with pytest.raises(ValueError, match='lam must not be specified'):
+            self.class_func(self.y, method='arpls', method_kwargs={'lam': 1})
+
+        with pytest.raises(ValueError, match='alpha must not be specified'):
+            self.class_func(self.y, method='beads', method_kwargs={'alpha': 1})
+
     @pytest.mark.parametrize('opt_method', ('V-Curve', 'L-Curve', 'U-Curve', 'GCV'))
     def test_single_value(self, opt_method):
         """Ensures all optimization methods work if only a single value is fit."""
