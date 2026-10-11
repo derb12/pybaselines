@@ -46,6 +46,7 @@ from math import ceil
 import warnings
 
 import numpy as np
+from scipy.integrate import trapezoid
 from scipy.ndimage import (
     binary_dilation, binary_erosion, binary_opening, grey_dilation, grey_erosion, uniform_filter1d
 )
@@ -54,7 +55,7 @@ from scipy.signal import convolve
 from scipy.spatial import ConvexHull
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import jit, trapezoid
+from ._compat import jit
 from ._validation import _check_scalar, _check_scalar_variable
 from ._weighting import _safe_std_mean
 from .results import WhittakerResult
