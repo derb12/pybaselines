@@ -10,7 +10,7 @@ from functools import lru_cache, wraps
 
 import numpy as np
 import scipy
-from scipy import integrate, sparse
+from scipy import sparse
 
 
 try:
@@ -39,17 +39,6 @@ except ImportError:
             return func(*args, **kwargs)
 
         return wrapper
-
-
-# scipy.integrate.trapezoid was introduced in v1.6.0, while
-# scipy.integrate.trapz will be deprecated in v1.14.0.
-# Use scipy instead of numpy since numpy.trapz will be deprecated
-# in v2.0.0 -> the deprecation was stopped (delayed?), but rely
-# on scipy since there is no potential deprecation there
-if hasattr(integrate, 'trapezoid'):
-    trapezoid = integrate.trapezoid
-else:
-    trapezoid = integrate.trapz
 
 
 @lru_cache(maxsize=None)

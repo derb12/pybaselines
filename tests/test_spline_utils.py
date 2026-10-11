@@ -20,20 +20,6 @@ from pybaselines import _banded_utils, _spline_utils
 from pybaselines._compat import diags, _HAS_NUMBA
 
 
-def _naive_basis_matrix(x, knots, spline_degree):
-    """Simple function for creating the basis matrix for a spline."""
-    num_bases = len(knots) - spline_degree - 1
-    basis = np.empty((num_bases, len(x)))
-    coeffs = np.zeros(num_bases)
-    # evaluate each single basis
-    for i in range(num_bases):
-        coeffs[i] = 1  # evaluate the i-th basis
-        basis[i] = BSpline(knots, coeffs, spline_degree)(x)
-        coeffs[i] = 0  # reset back to zero
-
-    return basis.T
-
-
 def test_find_interval():
     """Ensures the correct knot interval is identified when starting from left or right."""
     spline_degree = 3
@@ -101,40 +87,18 @@ def test_spline_knots(data_fixture, num_knots, spline_degree, penalized):
 
 @pytest.mark.parametrize('num_knots', (2, 20, 201))
 @pytest.mark.parametrize('spline_degree', (0, 1, 2, 3, 4, 5))
-@pytest.mark.parametrize('source', ('simple', 'numba', 'scipy'))
-def test_spline_basis(data_fixture, num_knots, spline_degree, source):
+def test_spline_basis(data_fixture, num_knots, spline_degree):
     """Tests the accuracy of the spline basis matrix."""
-    if source == 'scipy' and not hasattr(BSpline, 'design_matrix'):
-        # BSpline.design_matrix not available until scipy 1.8.0
-        pytest.skip(
-            "BSpline.design_matrix is not available in the tested scipy version (must be >= 1.8.0)"
-        )
-
     x, y = data_fixture
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
 
-    if source == 'scipy':
-        basis_func = BSpline.design_matrix
-    elif source == 'numba':
-        basis_func = _spline_utils._make_design_matrix
-    elif source == 'simple':
-        basis_func = _spline_utils._slow_design_matrix
-
-    basis = basis_func(x, knots, spline_degree)
-    expected_basis = _naive_basis_matrix(x, knots, spline_degree)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
+    expected_basis = BSpline.design_matrix(x, knots, spline_degree)
 
     assert basis.shape == (len(x), len(knots) - spline_degree - 1)
 
     assert issparse(basis)
-    assert_allclose(basis.toarray(), expected_basis, 1e-14, 1e-14)
-    # also test the main interface for the spline basis; only test for one
-    # source to avoid unnecessary repetition
-    if source == 'simple':
-        basis_2 = _spline_utils._spline_basis(x, knots, spline_degree)
-        assert issparse(basis_2)
-
-        assert_allclose(basis.toarray(), expected_basis, 1e-14, 1e-14)
-        assert_allclose(basis.toarray(), basis_2.toarray(), 1e-14, 1e-14)
+    assert_allclose(basis.toarray(), expected_basis.toarray(), 1e-14, 1e-14)
 
 
 def test_spline_basis_x_bounds():
@@ -207,7 +171,7 @@ def test_numba_basis_len(data_fixture, num_knots, spline_degree):
     """
     x, y = data_fixture
     knots = _spline_utils._spline_knots(x, num_knots, spline_degree, True)
-    basis = _spline_utils._make_design_matrix(x, knots, spline_degree)
+    basis = _spline_utils._spline_basis(x, knots, spline_degree)
 
     assert len(basis.tocsr().data) == len(x) * (spline_degree + 1)
 

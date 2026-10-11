@@ -12,7 +12,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 import scipy
-from scipy import integrate, sparse
+from scipy import sparse
 
 from pybaselines import _compat
 
@@ -136,25 +136,6 @@ def test_jit_signature():
     output = _add4(input_1, input_2)
 
     assert_array_equal(expected, output)
-
-
-def test_trapezoid():
-    """
-    Ensures the trapezoid integration function within scipy is correctly used.
-
-    Rather than checking equality with the expected function, just check that
-    it works correctly.
-    """
-    data = [1., 2., 3.]
-    output = _compat.trapezoid(data)
-    assert_allclose(output, 4.0, rtol=0, atol=1e-14)
-
-    if hasattr(integrate, 'trapezoid'):
-        comparison_func = integrate.trapezoid
-    else:
-        comparison_func = integrate.trapz
-
-    assert_allclose(output, comparison_func(data), rtol=0, atol=1e-14)
 
 
 def _scipy_below_1_12():

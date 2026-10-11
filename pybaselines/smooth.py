@@ -9,11 +9,12 @@ Created on March 7, 2021
 import warnings
 
 import numpy as np
+from scipy.integrate import trapezoid
 from scipy.ndimage import median_filter, uniform_filter1d
 from scipy.signal import savgol_coeffs
 
 from ._algorithm_setup import _Algorithm, _class_wrapper
-from ._compat import jit, trapezoid
+from ._compat import jit
 from ._validation import _check_half_window, _check_scalar
 from .utils import (
     ParameterWarning, _get_edges, gaussian, gaussian_kernel, estimate_window,
