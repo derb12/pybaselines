@@ -34,7 +34,8 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         Fits polynomials of different orders and uses the maximum values as the baseline.
 
         Each polynomial order fit is done both unconstrained and constrained at the
-        endpoints.
+        endpoints. Endpoint constraints follow the sorted coordinates, regardless of
+        the input ordering.
 
         Parameters
         ----------
@@ -138,7 +139,7 @@ class _Optimizers(_Algorithm2D, _OptimizersNDMixin):
         # and now change back to original ordering
         if sort_weights:
             weight_array = _sort_array2d(weight_array, self._inverted_order)
-            constrained_weights = _sort_array2d(constrained_weights, self._inverted_order)
+        constrained_weights = _sort_array2d(constrained_weights, self._inverted_order)
 
         params = {
             'poly_order': poly_orders, 'method_params': defaultdict(list)

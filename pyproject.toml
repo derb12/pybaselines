@@ -46,11 +46,11 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Free Threading :: 3 - Stable",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Chemistry",
@@ -68,10 +68,10 @@ keywords = [
     "spectroscopy",
     "raman",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-    "numpy>=1.22",  # lowest version supported for python 3.10
-    "scipy>=1.8",  # lowest version supported for python 3.10
+    "numpy>=1.24",  # lowest version supported for python 3.11
+    "scipy>=1.10",  # lowest version supported for python 3.11
 ]
 
 [project.urls]
@@ -80,7 +80,7 @@ Documentation = "https://pybaselines.readthedocs.io"
 
 [project.optional-dependencies]
 full = [
-    "numba>=0.55",  # first to allow usage with python 3.10
+    "numba>=0.57",  # first to allow usage with python 3.11
 ]
 
 [dependency-groups]

@@ -303,7 +303,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         baseline_func = getattr(new_fitter, optimizer_obj.method)
         min_sum_squares = np.inf
         best_idx = 0
-        sum_squares_tot = np.zeros_like(variables)
+        sum_squares_tot = np.zeros_like(variables, dtype=float)
         for i, var in enumerate(variables):
             fit_baseline, fit_params = baseline_func(
                 fit_data, **{optimizer_obj.method_param: var}, **method_kws
@@ -340,7 +340,8 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         Fits polynomials of different orders and uses the maximum values as the baseline.
 
         Each polynomial order fit is done both unconstrained and constrained at the
-        endpoints.
+        endpoints. Endpoint constraints follow the sorted coordinates, regardless of
+        the input ordering.
 
         Parameters
         ----------
@@ -439,7 +440,7 @@ class _Optimizers(_Algorithm, _OptimizersNDMixin):
         # and now change back to original ordering
         if sort_weights:
             weight_array = _sort_array(weight_array, self._inverted_order)
-            constrained_weights = _sort_array(constrained_weights, self._inverted_order)
+        constrained_weights = _sort_array(constrained_weights, self._inverted_order)
 
         params = {
             'poly_order': poly_orders, 'method_params': defaultdict(list)

@@ -232,6 +232,39 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
         """Ensures all available methods work."""
         self.class_func(self.y, method=method)
 
+    @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
+    @pytest.mark.parametrize('ordering', ('original', 'reversed', 'shuffled'))
+    def test_default_weights_ordering(self, method, ordering):
+        """Default weights preserve endpoint constraints under coordinate reordering."""
+        rng = np.random.default_rng(0)
+        row_order = np.arange(len(self.x))
+        col_order = np.arange(len(self.z))
+        if ordering == 'reversed':
+            row_order = row_order[::-1]
+            col_order = col_order[::-1]
+        elif ordering == 'shuffled':
+            row_order = rng.permutation(row_order)
+            col_order = rng.permutation(col_order)
+        index = tuple(np.meshgrid(row_order, col_order, indexing='ij', sparse=True))
+        fitter = self.algorithm_base(self.x[row_order], self.z[col_order])
+        kwargs = {'constrained_fraction': (0.01, 0.02, 0.03, 0.04),
+                  'constrained_weight': (1e2, 1e3, 1e4, 1e5)}
+        expected, expected_params = self.class_func(self.y, method=method, **kwargs)
+        actual, params = fitter.adaptive_minmax(self.y[index], method=method, **kwargs)
+        explicit, explicit_params = fitter.adaptive_minmax(
+            self.y[index], method=method, weights=np.ones_like(self.y), **kwargs
+        )
+
+        assert_allclose(actual, expected[index], rtol=1e-10, atol=1e-12)
+        assert_allclose(actual, explicit, rtol=1e-10, atol=1e-12)
+        for weights, expected_weights, explicit_weights in zip(
+            params['method_params']['weights'],
+            expected_params['method_params']['weights'],
+            explicit_params['method_params']['weights']
+        ):
+            assert_array_equal(weights, expected_weights[index])
+            assert_array_equal(weights, explicit_weights)
+
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):

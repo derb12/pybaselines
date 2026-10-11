@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         # Choose the latest stable python version
-        python-version: ['3.14']
+        python-version: ['3.15']
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,6 +55,6 @@ jobs:
         python -m pip install . --group test
 
     - name: Test with required dependencies
-      # use -Werror so that any warnings will show up as errors -> want to be as stringent
+      # use -W error so that any warnings will show up as errors -> want to be as stringent
       # as possible
-      run: python -Werror -m pytest -n=4
+      run: pytest -W error -n 4

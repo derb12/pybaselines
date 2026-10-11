@@ -243,6 +243,30 @@ class TestOptimizeExtendedRange(OptimizersTester, OptimizerInputWeightsMixin):
             if isinstance(value, np.ndarray) and key != 'tol_history':
                 assert self.y.shape == value.shape
 
+    @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
+    @pytest.mark.parametrize('side', ('left', 'right', 'both'))
+    def test_polynomial_rmse_scaling(self, method, side):
+        """
+        Polynomial errors scale with the signal without integer truncation.
+
+        `optimize_extended_range` previously based the RMSE dtype on the tested
+        variable's dtype (e.g. int for polynomials) rather than always using
+        floats; see PR#97 for further context.
+
+        """
+        kwargs = {'method': method, 'side': side, 'min_value': 1, 'max_value': 5}
+        scale = 1e-5
+        expected, expected_params = self.class_func(self.y, **kwargs)
+        actual, params = self.class_func(scale * self.y, **kwargs)
+
+        assert_allclose(actual, scale * expected, rtol=1e-8, atol=1e-12)
+        assert params['optimal_parameter'] == expected_params['optimal_parameter']
+        assert params['rmse'].dtype == float
+        assert expected_params['rmse'].dtype == float
+        assert np.all(params['rmse'] > 0)
+        assert_allclose(params['rmse'], scale * expected_params['rmse'], rtol=1e-8)
+        assert_allclose(params['min_rmse'], scale * expected_params['min_rmse'], rtol=1e-8)
+
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
         with pytest.raises(AttributeError):
@@ -626,6 +650,36 @@ class TestAdaptiveMinMax(OptimizersTester, InputWeightsMixin):
     def test_methods(self, method):
         """Ensures all available methods work."""
         self.class_func(self.y, method=method)
+
+    @pytest.mark.parametrize('method', ('modpoly', 'imodpoly'))
+    @pytest.mark.parametrize('ordering', ('original', 'reversed', 'shuffled'))
+    def test_default_weights_ordering(self, method, ordering):
+        """Default weights preserve endpoint constraints under coordinate reordering."""
+        rng = np.random.default_rng(0)
+        row_order = np.arange(len(self.x))
+        if ordering == 'reversed':
+            row_order = row_order[::-1]
+        elif ordering == 'shuffled':
+            row_order = rng.permutation(row_order)
+        index = row_order
+        fitter = self.algorithm_base(self.x[row_order])
+        kwargs = {'constrained_fraction': (0.01, 0.02),
+                  'constrained_weight': (1e4, 1e5)}
+        expected, expected_params = self.class_func(self.y, method=method, **kwargs)
+        actual, params = fitter.adaptive_minmax(self.y[index], method=method, **kwargs)
+        explicit, explicit_params = fitter.adaptive_minmax(
+            self.y[index], method=method, weights=np.ones_like(self.y), **kwargs
+        )
+
+        assert_allclose(actual, expected[index], rtol=1e-10, atol=1e-12)
+        assert_allclose(actual, explicit, rtol=1e-10, atol=1e-12)
+        for weights, expected_weights, explicit_weights in zip(
+            params['method_params']['weights'],
+            expected_params['method_params']['weights'],
+            explicit_params['method_params']['weights']
+        ):
+            assert_array_equal(weights, expected_weights[index])
+            assert_array_equal(weights, explicit_weights)
 
     def test_unknown_method_fails(self):
         """Ensures function fails when an unknown function is given."""
