@@ -342,8 +342,17 @@ class _Optimizers(_Algorithm2D):
         baseline = np.zeros(self._shape)
         params = {}
         for i, axis in enumerate(axes):
+            axis_data = (self.x, self.z)[axis]
+            if self._sort_order is not None:
+                if isinstance(self._sort_order, tuple):
+                    inverted_order = self._inverted_order[axis]
+                    if inverted_order is not Ellipsis:
+                        axis_data = axis_data[inverted_order.ravel()]
+                elif axis == 0:
+                    axis_data = axis_data[self._inverted_order]
             fitter = Baseline(
-                (self.x, self.z)[axis], check_finite=self._check_finite, assume_sorted=True,
+                axis_data, check_finite=self._check_finite,
+                assume_sorted=self._sort_order is None,
                 output_dtype=self._dtype
             )
             fitter.banded_solver = self.banded_solver

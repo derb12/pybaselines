@@ -268,6 +268,30 @@ class TestIndividualAxes(OptimizersTester, OptimizerInputWeightsMixin):
     func_name = 'individual_axes'
     checked_keys = ()
 
+    @pytest.mark.parametrize('axes', (0, 1, (0, 1), (1, 0)))
+    @pytest.mark.parametrize('permute', ('rows', 'columns', 'both'))
+    def test_permuted_polynomial_coordinates(self, axes, permute):
+        """Each axis must pair the original data with its original coordinates."""
+        rng = np.random.default_rng(17)
+        x = np.linspace(0, 3, 11)
+        z = np.linspace(0, 2, 9)
+        data = x[:, None] ** 2 + z[None, :] ** 2 + x[:, None] * z[None, :]
+        if permute in ('rows', 'both'):
+            order = rng.permutation(x.size)
+            x, data = x[order], data[order]
+        if permute in ('columns', 'both'):
+            order = rng.permutation(z.size)
+            z, data = z[order], data[:, order]
+        original = data.copy()
+        baseline, params = self.algorithm_base(x, z).individual_axes(
+            data, axes=axes, method='poly', method_kwargs={'poly_order': 2}
+        )
+        assert_allclose(baseline, data, rtol=1e-12, atol=1e-12)
+        assert_array_equal(data, original)
+        first_axis = axes if isinstance(axes, int) else axes[0]
+        first_key = 'baseline_rows' if first_axis == 0 else 'baseline_columns'
+        assert_allclose(params[first_key], data, rtol=1e-12, atol=1e-12)
+
     @pytest.mark.parametrize('axes', (0, 1, [0], [1], (0, 1), [1, 0]))
     def test_output(self, axes):
         """
