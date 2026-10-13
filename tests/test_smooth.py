@@ -211,6 +211,35 @@ class TestIpsa(SmoothTester, ConvergenceMixin):
     func_name = 'ipsa'
     checked_keys = ('tol_history', 'success')
 
+    @pytest.mark.parametrize('ordering', ('reversed', 'shuffled'))
+    @pytest.mark.parametrize('roi_type', ('mask', 'indices', 'slice'))
+    @pytest.mark.parametrize('tol', (None, 0.02))
+    def test_roi_ordering(self, ordering, roi_type, tol):
+        """The original stopping criterion uses the ROI in input coordinates."""
+        x = np.linspace(1, 100, 100)
+        y = 0.004 * x**2 + 3 * np.exp(-((x - 18) / 3)**2)
+        y += 10 * np.exp(-((x - 80) / 3)**2)
+        if ordering == 'reversed':
+            permutation = np.arange(len(x))[::-1]
+        else:
+            permutation = np.random.default_rng(10).permutation(len(x))
+        mask = ((x > 10) & (x < 25))[permutation]
+        if roi_type == 'mask':
+            roi = mask
+        elif roi_type == 'indices':
+            roi = np.flatnonzero(mask)
+        else:
+            roi = slice(10, 25)
+        selected = permutation[np.arange(len(x))[roi]]
+        options = {'half_window': 5, 'original_criteria': True, 'tol': tol, 'max_iter': 30}
+        expected, expected_params = self.algorithm_base(x).ipsa(y, roi=selected, **options)
+        actual, params = self.algorithm_base(x[permutation]).ipsa(
+            y[permutation], roi=roi, **options
+        )
+        assert_allclose(actual[np.argsort(permutation)], expected)
+        assert_allclose(params['tol_history'], expected_params['tol_history'])
+        assert params['success'] == expected_params['success']
+
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('original_criteria', (True, False))
     def test_unchanged_data(self, use_class, original_criteria):
