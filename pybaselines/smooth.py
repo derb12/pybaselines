@@ -508,8 +508,11 @@ class _Smooth(_Algorithm):
         if original_criteria:
             if roi is None:
                 roi = slice(None)
-            elif not isinstance(roi, slice):
-                roi = np.asarray(roi)
+            else:
+                if not isinstance(roi, slice):
+                    roi = np.asarray(roi)
+                if self._sort_order is not None:
+                    roi = self._inverted_order[np.arange(self._size)[roi]]
 
         if tol is None:
             if original_criteria:
