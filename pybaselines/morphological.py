@@ -6,6 +6,7 @@ Created on March 5, 2021
 
 """
 
+import operator
 import warnings
 
 import numpy as np
@@ -496,7 +497,8 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         smooth_half_window : int, optional
             The half-window to use for smoothing the data after performing the
             morphological operation. Default is None, which will use the same
-            value as used for the morphological operation.
+            value as used for the morphological operation. Set to 0 to return
+            the unsmoothed opening, as in :meth:`.Baseline.tophat`.
         pad_kwargs : dict, optional
             A dictionary of keyword arguments to pass to :func:`.pad_edges` for
             padding the edges of the data to prevent edge effects from the moving average.
@@ -532,13 +534,16 @@ class _Morphological(_Algorithm, _MorphologicalNDMixin):
         y, half_wind = self._setup_morphology(data, half_window, window_kwargs, **kwargs)
         if smooth_half_window is None:
             smooth_half_window = half_wind
+        else:
+            smooth_half_window = operator.index(smooth_half_window)
 
-        rough_baseline = grey_opening(y, 2 * half_wind + 1)
-        pad_kws = pad_kwargs if pad_kwargs is not None else {}
-        baseline = uniform_filter1d(
-            pad_edges(rough_baseline, smooth_half_window, **pad_kws),
-            2 * smooth_half_window + 1
-        )[smooth_half_window:self._size + smooth_half_window]
+        baseline = grey_opening(y, 2 * half_wind + 1)
+        if smooth_half_window != 0:
+            pad_kws = pad_kwargs if pad_kwargs is not None else {}
+            baseline = uniform_filter1d(
+                pad_edges(baseline, smooth_half_window, **pad_kws),
+                2 * smooth_half_window + 1
+            )[smooth_half_window:self._size + smooth_half_window]
 
         return baseline, {'half_window': half_wind}
 
@@ -1225,7 +1230,8 @@ def rolling_ball(data, half_window=None, smooth_half_window=None, pad_kwargs=Non
     smooth_half_window : int, optional
         The half-window to use for smoothing the data after performing the
         morphological operation. Default is None, which will use the same
-        value as used for the morphological operation.
+        value as used for the morphological operation. Set to 0 to return
+        the unsmoothed opening, as in :func:`.tophat`.
     pad_kwargs : dict, optional
         A dictionary of keyword arguments to pass to :func:`.pad_edges` for
         padding the edges of the data to prevent edge effects from the moving average.

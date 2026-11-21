@@ -161,6 +161,14 @@ class TestRollingBall(MorphologicalTester):
 
     func_name = 'rolling_ball'
 
+    def test_zero_smoothing_preserves_opening(self):
+        """A one-point smoothing window must preserve even small values after a large step."""
+        data = np.repeat([1e16, 1.0, 2.0], 8)
+        opening, _ = morphological.tophat(data, half_window=3)
+        baseline, _ = morphological.rolling_ball(data, half_window=3, smooth_half_window=0)
+
+        np.testing.assert_array_equal(baseline, opening)
+
     @pytest.mark.parametrize('use_class', (True, False))
     @pytest.mark.parametrize('half_window', (None, 10))
     @pytest.mark.parametrize('smooth_half_window', (None, 0, 1))

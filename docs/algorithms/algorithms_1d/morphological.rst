@@ -299,9 +299,12 @@ and opening of either the data (first iteration) or previous iteration's baselin
 rolling_ball (Rolling Ball)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~.Baseline.rolling_ball` performs a morphological opening on the data and
-then smooths the result with a moving average, giving a baseline that
-resembles rolling a ball across the data.
+:meth:`~.Baseline.rolling_ball` estimates a spectral baseline using a flat
+morphological opening followed by a moving average. Setting
+``smooth_half_window=0`` returns the same baseline as :meth:`~.Baseline.tophat`
+for the same ``half_window``. The image background estimator
+`skimage.restoration.rolling_ball <https://scikit-image.org/docs/stable/api/skimage.restoration.html#skimage.restoration.rolling_ball>`_
+uses a ball-shaped kernel.
 
 .. plot::
    :align: center
